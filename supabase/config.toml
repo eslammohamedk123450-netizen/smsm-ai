@@ -1,0 +1,42 @@
+[project]
+id = "your-project-ref"
+name = "multi-llm-ai-agent"
+
+[database]
+port = 54322
+
+[api]
+port = 54321
+
+[studio]
+port = 54323
+
+[inbucket]
+port = 54324
+
+[edge_runtime]
+port = 54328
+deno_version = "1.42.0"
+
+[auth]
+site_url = "http://localhost:54321"
+jwt_secret = "super-secret-jwt-token-with-at-least-32-characters-long"
+enable_anonymous_sign_in = false
+
+[storage]
+port = 54325
+
+[realtime]
+port = 54329
+
+[postgres]
+port = 54326
+
+[meta]
+port = 54330
+
+[pooler]
+port = 54327
+
+[analytics]
+enabled = false
