@@ -15,7 +15,8 @@ import { TogetherAdapter } from './providers/together_adapter.ts';
 import { PerplexityAdapter } from './providers/perplexity_adapter.ts';
 import { XAIAdapter } from './providers/xai_adapter.ts';
 import { CustomAdapter } from './providers/custom_adapter.ts';
-import { AiModel } from './types.ts';
+import { agentLoop } from "./agent/loop.ts";
+import { tools as agentTools } from "./agent/tools.ts";
 
 const PROVIDER_CONSTRUCTORS: Record<string, new (config: any) => any> = {
   openai: OpenAIAdapter,
@@ -31,6 +32,30 @@ const PROVIDER_CONSTRUCTORS: Record<string, new (config: any) => any> = {
   xai: XAIAdapter,
   custom: CustomAdapter,
 };
+
+async function collectFromStream(provider: any, msgs: any[], useTools: boolean) {
+  const r = await provider.chatStream(msgs, { tools: useTools ? agentTools : undefined });
+  let content = "";
+  const toolCalls: any[] = [];
+  const reader = r.stream.getReader();
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const text = new TextDecoder().decode(value);
+    for (const line of text.split("\n")) {
+      if (!line.startsWith("data:")) continue;
+      const payload = line.slice(5).trim();
+      if (!payload || payload === "[DONE]") continue;
+      try {
+        const j = JSON.parse(payload);
+        content += j.delta?.content ?? j.content ?? "";
+        if (j.delta?.tool_calls) toolCalls.push(...j.delta.tool_calls);
+        if (j.tool_calls) toolCalls.push(...j.tool_calls);
+      } catch { /* ignore non-json */ }
+    }
+  }
+  return { role: "assistant", content, tool_calls: toolCalls.length ? toolCalls : undefined };
+}
 
 serve(async (req: Request) => {
   const corsResponse = handleCorsRequest(req);
@@ -57,7 +82,7 @@ serve(async (req: Request) => {
     const { userId } = user;
     const supabase = getSupabaseAdmin();
     const body = await req.json();
-    const { message, model_id, conversation_id, stream = true, temperature = 0.7, max_tokens } = body;
+    const { message, model_id, conversation_id, stream = true, temperature = 0.7, max_tokens, agentic = false } = body;
 
     if (!message || typeof message !== 'string') {
       return new Response(JSON.stringify({ error: 'Message is required' }), {
@@ -238,6 +263,33 @@ serve(async (req: Request) => {
       max_tokens: max_tokens ?? aiModel.max_tokens,
       timeoutMs: 30000,
     });
+
+    if (agentic) {
+      const finalMsg = await agentLoop(messages, (m, useTools) => collectFromStream(provider, m, useTools ?? true));
+      const reachedMax = !!finalMsg?.tool_calls && finalMsg.tool_calls.length > 0;
+      if (reachedMax) {
+        return new Response(JSON.stringify({ error: "وصلت لأقصى عدد محاولات" }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const completionTokens = Math.ceil((finalMsg?.content?.length ?? 0) / 4);
+      const totalTokens = promptTokens + completionTokens;
+      const cost = Math.ceil((totalTokens / 1000) * aiModel.cost_per_1k_tokens * aiModel.credit_multiplier);
+      if (cost > 0 && aiModel.category === "premium") {
+        await supabase.rpc("deduct_user_credits", {
+          p_user_id: userId,
+          p_total_tokens: totalTokens,
+          p_cost: cost,
+          p_source: "chat",
+          p_reference_id: null,
+        }).catch((err) => console.error("Credit deduction failed:", err));
+      }
+      return new Response(JSON.stringify({ message: finalMsg }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     try {
       const streamResult = await provider.chatStream(messages);
