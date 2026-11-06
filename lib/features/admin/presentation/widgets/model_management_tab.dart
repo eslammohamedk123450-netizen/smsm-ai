@@ -12,6 +12,7 @@ class ModelManagementTab extends StatefulWidget {
 
 class _ModelManagementTabState extends State<ModelManagementTab> {
   final _client = Supabase.instance.client;
+  final _searchController = TextEditingController();
   final _freeTimeoutController = TextEditingController(text: '5000');
   final _fallbackTimeoutController = TextEditingController(text: '30000');
   final _maxParallelController = TextEditingController(text: '10');
@@ -25,6 +26,17 @@ class _ModelManagementTabState extends State<ModelManagementTab> {
 
   static const _tiers = ['free', 'lite', 'pro', 'max'];
 
+  List<Map<String, dynamic>> get _filteredModels {
+    final query = _searchController.text.trim().toLowerCase();
+    if (query.isEmpty) return _models;
+
+    return _models.where((model) {
+      final name = '${model['name'] ?? ''}'.toLowerCase();
+      final identifier = '${model['model_identifier'] ?? ''}'.toLowerCase();
+      return name.contains(query) || identifier.contains(query);
+    }).toList();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -33,6 +45,7 @@ class _ModelManagementTabState extends State<ModelManagementTab> {
 
   @override
   void dispose() {
+    _searchController.dispose();
     _freeTimeoutController.dispose();
     _fallbackTimeoutController.dispose();
     _maxParallelController.dispose();
@@ -442,10 +455,20 @@ class _ModelManagementTabState extends State<ModelManagementTab> {
                   ],
                 ),
                 const SizedBox(height: 8),
+                TextField(
+                  controller: _searchController,
+                  onChanged: (_) => setState(() {}),
+                  decoration: const InputDecoration(
+                    labelText: 'Search models',
+                    hintText: 'Search by name or model identifier',
+                    prefixIcon: Icon(Icons.search),
+                  ),
+                ),
+                const SizedBox(height: 8),
                 Expanded(
-                  child: _models.isEmpty
+                  child: _filteredModels.isEmpty
                       ? const Center(child: Text('No models discovered yet. Add a provider first.', style: TextStyle(color: AppColors.textSecondary)))
-                      : ListView.builder(itemCount: _models.length, itemBuilder: (context, index) => _modelCard(_models[index])),
+                      : ListView.builder(itemCount: _filteredModels.length, itemBuilder: (context, index) => _modelCard(_filteredModels[index])),
                 ),
               ],
             ),

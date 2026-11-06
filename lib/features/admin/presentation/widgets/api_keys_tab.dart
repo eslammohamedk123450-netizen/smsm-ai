@@ -16,20 +16,21 @@ class _ApiKeysTabState extends State<ApiKeysTab> {
   final _descriptionController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   final _client = Supabase.instance.client;
-  String _providerType = 'groq';
+  String _providerType = 'openai';
   bool _loading = true;
   bool _saving = false;
   String? _error;
   List<Map<String, dynamic>> _providers = [];
 
   static const Map<String, String> _defaultUrls = {
-    'groq': 'https://api.groq.com/openai/v1',
     'openai': 'https://api.openai.com/v1',
+    'deepseek': 'https://api.deepseek.com',
     'openrouter': 'https://openrouter.ai/api/v1',
-    'deepseek': 'https://api.deepseek.com/v1',
+    'groq': 'https://api.groq.com/openai/v1',
+    'google_ai': 'https://generativelanguage.googleapis.com/v1beta',
+    'anthropic': 'https://api.anthropic.com/v1',
     'together': 'https://api.together.xyz/v1',
     'mistral': 'https://api.mistral.ai/v1',
-    'perplexity': 'https://api.perplexity.ai',
     'xai': 'https://api.x.ai/v1',
     'custom': '',
   };
