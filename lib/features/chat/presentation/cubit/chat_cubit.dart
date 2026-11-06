@@ -25,11 +25,12 @@ class ChatCubit extends Cubit<ChatState> {
       final service = _creditService;
       if (service != null) _creditBalance = await service.getCurrentUserCredits();
     } catch (_) {
-      // A balance refresh failure must not interrupt message delivery.
+      // Credit display is deferred for the closed text beta.
     }
   }
 
   Future<void> initialize() async {
+    if (isClosed) return;
     final currentModel = state.currentModel;
     emit(ChatLoading(
       messages: state.messages,
@@ -41,6 +42,7 @@ class ChatCubit extends Cubit<ChatState> {
     try {
       _models = await _chatRepository.getAvailableModels();
       await _refreshCreditBalance();
+      if (isClosed) return;
       emit(ChatLoaded(
         messages: const [],
         models: _models,
@@ -49,8 +51,9 @@ class ChatCubit extends Cubit<ChatState> {
         creditBalance: _creditBalance,
       ));
     } catch (error) {
+      if (isClosed) return;
       emit(ChatError(
-        message: error.toString(),
+        message: 'تعذر تحميل نماذج الدردشة. حاول مرة أخرى.',
         messages: const [],
         models: _models,
         conversationId: _currentConversationId,
@@ -69,12 +72,14 @@ class ChatCubit extends Cubit<ChatState> {
   }
 
   Future<void> startNewConversation([String? modelId]) async {
+    if (isClosed) return;
     _currentAssistantContent = '';
     _currentMessageId = null;
     try {
       await _refreshCreditBalance();
       final conversationId = await _chatRepository.createConversation('New Conversation', modelId);
       _currentConversationId = conversationId;
+      if (isClosed) return;
       emit(ChatLoaded(
         messages: const [],
         conversationId: conversationId,
@@ -82,9 +87,10 @@ class ChatCubit extends Cubit<ChatState> {
         models: _models,
         creditBalance: _creditBalance,
       ));
-    } catch (error) {
+    } catch (_) {
+      if (isClosed) return;
       emit(ChatError(
-        message: error.toString(),
+        message: 'تعذر إنشاء المحادثة. حاول مرة أخرى.',
         messages: const [],
         models: _models,
         conversationId: _currentConversationId,
@@ -95,6 +101,7 @@ class ChatCubit extends Cubit<ChatState> {
   }
 
   Future<void> loadConversation(String conversationId) async {
+    if (isClosed) return;
     final currentModel = state.currentModel;
     emit(ChatLoading(
       models: _models,
@@ -106,6 +113,7 @@ class ChatCubit extends Cubit<ChatState> {
       final messages = await _chatRepository.getMessages(conversationId);
       await _refreshCreditBalance();
       _currentConversationId = conversationId;
+      if (isClosed) return;
       emit(ChatLoaded(
         messages: messages,
         conversationId: conversationId,
@@ -113,9 +121,10 @@ class ChatCubit extends Cubit<ChatState> {
         models: _models,
         creditBalance: _creditBalance,
       ));
-    } catch (error) {
+    } catch (_) {
+      if (isClosed) return;
       emit(ChatError(
-        message: error.toString(),
+        message: 'تعذر تحميل المحادثة. حاول مرة أخرى.',
         messages: const [],
         models: _models,
         conversationId: _currentConversationId,
@@ -126,6 +135,8 @@ class ChatCubit extends Cubit<ChatState> {
   }
 
   Future<void> sendMessage(String message, [String? modelId]) async {
+    final text = message.trim();
+    if (isClosed || state.isStreaming || text.isEmpty) return;
     final currentModel = modelId ?? state.currentModel;
     if (_currentConversationId == null) await startNewConversation(currentModel);
     final conversationId = _currentConversationId;
@@ -133,22 +144,23 @@ class ChatCubit extends Cubit<ChatState> {
 
     await _refreshCreditBalance();
     final existingMessages = state.messages;
+    final now = DateTime.now();
     final userMessage = MessageEntity(
-      id: 'local_user_${DateTime.now().microsecondsSinceEpoch}',
+      id: 'local_user_${now.microsecondsSinceEpoch}',
       conversationId: conversationId,
       role: 'user',
-      content: message,
+      content: text,
       status: 'sent',
-      createdAt: DateTime.now(),
+      createdAt: now,
     );
     final assistantMessage = MessageEntity(
-      id: 'local_assistant_${DateTime.now().microsecondsSinceEpoch}',
+      id: 'local_assistant_${now.microsecondsSinceEpoch}',
       conversationId: conversationId,
       role: 'assistant',
       content: '',
       status: 'streaming',
       isStreaming: true,
-      createdAt: DateTime.now(),
+      createdAt: now,
     );
     _currentMessageId = assistantMessage.id;
     _currentAssistantContent = '';
@@ -162,19 +174,17 @@ class ChatCubit extends Cubit<ChatState> {
     ));
 
     try {
-      await _chatRepository.sendMessage(
-        conversationId,
-        message,
-        onChunk: onStreamChunk,
-      );
-      await onStreamComplete();
-    } catch (error) {
+      await _chatRepository.sendMessage(conversationId, text, onChunk: onStreamChunk);
+      if (!isClosed) await onStreamComplete();
+    } catch (_) {
+      if (isClosed) return;
       await _refreshCreditBalance();
-      onStreamError('Failed to connect: ${error.toString()}');
+      onStreamError('تعذر الاتصال بخدمة الدردشة. حاول مرة أخرى.');
     }
   }
 
   void onStreamChunk(String chunk) {
+    if (isClosed || _currentMessageId == null) return;
     _currentAssistantContent += chunk;
     final updatedMessages = state.messages.map((message) {
       if (message.id != _currentMessageId) return message;
@@ -196,7 +206,9 @@ class ChatCubit extends Cubit<ChatState> {
   }
 
   Future<void> onStreamComplete() async {
+    if (isClosed) return;
     await _refreshCreditBalance();
+    if (isClosed) return;
     final updatedMessages = state.messages.map((message) {
       if (message.id != _currentMessageId) return message;
       return message.copyWith(
@@ -218,6 +230,7 @@ class ChatCubit extends Cubit<ChatState> {
   }
 
   void onStreamError(String error) {
+    if (isClosed) return;
     final messageId = _currentMessageId;
     final updatedMessages = state.messages.map((message) {
       if (message.id != messageId) return message;
@@ -236,6 +249,7 @@ class ChatCubit extends Cubit<ChatState> {
   }
 
   void selectModel(String modelId) {
+    if (isClosed) return;
     final currentState = state;
     if (currentState is ChatLoaded) {
       emit(currentState.copyWith(currentModel: modelId));

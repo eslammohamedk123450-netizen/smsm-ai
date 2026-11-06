@@ -1,82 +1,137 @@
-# Backend Beta Readiness Report
+# SMSM AI Closed Beta Release Report
 
-## A. Migrations التي تم تنفيذها
+## 1. نطاق النسخة
 
-| Migration | السبب | النطاق | قابلة للتراجع؟ | دون حذف بيانات؟ | الحالة |
-|---|---|---|---|---|---|
-| `closed_text_beta_hardening` | منع كشف بيانات مزودي الخدمة وإضافة حارس استخدام ذري لكل مستخدم | `ai_providers_catalog`, `suly_ai_rate_limits`, `suly_check_ai_rate_limit(uuid)` | نعم عمليًا عبر Migration عكسية؛ لا يُنفذ rollback تلقائيًا | نعم | APPLIED |
-| `restrict_provider_catalog_privileges` | تصحيح صلاحيات View لتكون القراءة فقط للمستخدم المصادق | `ai_providers_catalog` grants | نعم | نعم | APPLIED |
+`CLOSED TEXT-CHAT BETA`
 
-تم حفظ النسختين في `supabase/migrations/011_closed_text_beta_hardening.sql` و`supabase/migrations/012_restrict_provider_catalog_privileges.sql`، وتم تطبيقهما على مشروع Supabase `SULY AI AGNIT` (`razvryvazmqvvqkzetuo`). لم تُحذف جداول أو أعمدة أو بيانات.
+المعلن فقط: التسجيل/الدخول، تسجيل الخروج، الدردشة النصية، اختيار نموذج متاح، استقبال رد نصي، أخطاء الاتصال، حدود الاستخدام، وعزل بيانات المستخدمين.
 
-## B. تغييرات RLS
+تم إخفاء Agent وVision من شاشة الدردشة. PDF/Word وWeb Search وGitHub/Gmail وLong-term Memory وBilling/Credits والإعلانات والأدوات الوهمية ليست ميزات معلنة في هذه النسخة.
 
-| الجدول | العملية | السياسة/التحكم | من يستطيع الوصول | نتيجة الاختبار |
+## 2. الملفات البرمجية المعدلة
+
+| المسار | المشكلة | الإصلاح | نتيجة التحقق |
+|---|---|---|---|
+| `lib/main.dart` | عدم وجود `BlocProvider` لـ `AuthCubit` و`ChatCubit`، وحماية `/chat` غير مكتملة | إضافة `MultiBlocProvider`، اشتراك auth state، حماية `/chat` و`/admin`، وفحص صلاحية admin | STATIC_CHECK_PASS؛ Flutter runtime NOT_TESTED |
+| `lib/app_config.dart` | قيمة `your-anon-key-here` الافتراضية وقبول إعدادات تجريبية | القراءة من `SUPABASE_URL` و`SUPABASE_ANON_KEY` أو `SUPABASE_PUBLISHABLE_KEY` ورفض القيم المفقودة/التجريبية | STATIC_CHECK_PASS؛ Flutter build NOT_TESTED |
+| `lib/features/chat/presentation/pages/chat_page.dart` | استدعاء `AgentCubit` غير المسجل، وعرض Vision والرصيد | إزالة Agent/Vision والرصيد من مسار البيتا، والتحقق من `mounted` بعد الإرسال | STATIC_CHECK_PASS؛ Flutter runtime NOT_TESTED |
+| `lib/features/admin/presentation/pages/admin_dashboard_page.dart` | عرض Credits غير المختبرة | إزالة تبويب Credits من لوحة البيتا | STATIC_CHECK_PASS |
+| `lib/features/chat/presentation/cubit/chat_cubit.dart` | احتمال تكرار الإرسال و`emit` بعد الإغلاق ورسائل خطأ تكشف تفاصيل داخلية | منع الإرسال أثناء streaming، حواجز `isClosed`، ورسائل خطأ آمنة | STATIC_CHECK_PASS؛ Flutter tests NOT_TESTED |
+| `lib/features/chat/data/datasources/chat_remote_datasource.dart` | قراءة جدول مزودي الخدمة مباشرة | استخدام `ai_providers_catalog` الآمن | STATIC_CHECK_PASS |
+| `lib/features/admin/presentation/widgets/api_keys_tab.dart` | قراءة جدول مزودي الخدمة مباشرة | استخدام `ai_providers_catalog` الآمن | STATIC_CHECK_PASS |
+| `supabase/functions/ai-router/index.ts` | حدود قديمة وCORS wildcard في مصدر المستودع | إضافة حدود الرسائل والسياق والإخراج وRate Limit وCORS صريح عبر `WEB_CORS_ORIGIN` | SOURCE_CHECK_PASS؛ LIVE_DEPLOY_NOT_DONE |
+
+## 3. Migrations المنفذة
+
+| الاسم | السبب | الجداول المتأثرة | البيانات محفوظة؟ | قابلة للمراجعة؟ |
 |---|---|---|---|---|
-| `ai_providers` | SELECT/INSERT/UPDATE/DELETE | تم سحب صلاحيات `public`, `anon`, `authenticated`؛ الوصول الخادمي محفوظ لـ `service_role` | Edge Functions الخادمية فقط | PASS عبر فحص الصلاحيات؛ اختبار مستخدمين فعليين NOT_TESTED |
-| `ai_providers_catalog` | SELECT | View آمن يعرض بيانات الكتالوج غير السرية فقط | `authenticated` قراءة فقط | PASS عبر فحص grants؛ لا يعرض `api_key`, `encrypted_api_key`, أو Vault IDs |
-| `suly_ai_rate_limits` | ALL | RLS مفعّل وسياسة رفض للعميل | `service_role` فقط | PASS عبر فحص RLS/grants |
-| `suly_profiles`, `suly_conversations`, `suly_messages`, `agent_memories` | القراءة/الكتابة | السياسات الحالية المعتمدة على `auth.uid()` بقيت ولم تُحذف | مالك السجل، مع قيود الإدارة الحالية | NOT_TESTED بحسابين حقيقيين |
+| `closed_text_beta_hardening` | عزل `ai_providers` وإضافة Rate Limit ذري | `ai_providers`, `ai_providers_catalog`, `suly_ai_rate_limits` | نعم، لم يحدث حذف | نعم، محفوظة في GitHub ومطبقة في Supabase |
+| `restrict_provider_catalog_privileges` | جعل View القراءة فقط للمستخدم المصادق | `ai_providers_catalog` | نعم | نعم، محفوظة في GitHub ومطبقة في Supabase |
 
-## C. تغييرات Auth وFunctions وCORS
+تم التحقق من تسجيل الـMigrations في Supabase. لا توجد `DROP TABLE` أو `DROP COLUMN` أو `TRUNCATE`.
 
-- `ai-router` المنشور كان مضبوطًا على `verify_jwt=true`، واختبار طلب POST بلا JWT أعاد `401 UNAUTHORIZED_NO_AUTH_HEADER`.
-- أضيف في نسخة المستودع من `ai-router` تحقق ذري من `suly_check_ai_rate_limit`، وحدود: 20 رسالة، 16,000 حرف لكل رسالة، 50,000 حرف للسياق، و4,096 حدًا أقصى لرموز الإخراج.
-- أزيل fallback الخاص بـ `Access-Control-Allow-Origin: *` من نسخة المستودع؛ Web يحتاج ضبط `WEB_CORS_ORIGIN` صراحة. تطبيق Android/iOS لا يعتمد على CORS.
-- لم أغيّر إعداد Auth الخاص بحماية كلمات المرور المسربة لأن أداة Supabase المتاحة في هذه الجلسة لا تعرض تعديل إعداد Auth. حالة Supabase الحالية: `auth_leaked_password_protection` = BLOCKER/NOT_FIXED.
-- كود `ai-router` المعدل محفوظ في GitHub، لكن نشر نسخة Edge Function المعدلة يحتاج خطوة نشر منفصلة؛ النسخة الحية التي اختبرتها ما زالت تعرض CORS wildcard. لذلك لا أدّعي أن تغييرات CORS وRate Limit في Edge Function أصبحت حية بعد.
+## 4. Edge Functions المنشورة
 
-## D. حالة Secrets
+| الاسم | رقم/معرف النشر | وقت النشر | اختبار endpoint الحي |
+|---|---|---|---|
+| `ai-router` | النسخة الحية السابقة: v11 | موجودة قبل هذه الجولة | PASS للطلب بلا JWT: HTTP 401 |
+| `ai-router` المعدلة | NOT_PUBLISHED | NOT_APPLICABLE | NOT_TESTED؛ مصدرها محفوظ في GitHub لكن لم يتم نشره |
 
-| Secret/المكوّن | الحالة | الملاحظة |
-|---|---|---|
-| Provider API key في أعمدة `ai_providers` | MISSING | فحص الوجود فقط؛ لا توجد قيمة مطبوعة |
-| Provider Vault credential | MISSING | `api_key_vault_id` غير موجود للمزود الحالي |
-| `SUPABASE_SERVICE_ROLE_KEY` في Edge runtime | NOT_CHECKED | لم تُطبع أي قيمة |
-| `WEB_CORS_ORIGIN` | MISSING | مطلوب فقط عند تفعيل Web؛ Android/iOS لا يحتاجه |
-| Embeddings provider credential | REQUIRED_FOR_DEFERRED_FEATURE | الذاكرة طويلة المدى ليست جاهزة |
-| Tavily/Web Search | REQUIRED_FOR_DEFERRED_FEATURE | لم تُختبر الميزة |
-| GitHub/Gmail tokens | REQUIRED_FOR_DEFERRED_FEATURE | لم تُفعّل أدواتها في البيتا |
+لا أعتبر تغييرات Rate Limit/CORS/limits منشورة في Edge Function الحية لمجرد وجودها في GitHub. النسخة الحية التي اختُبرت سابقًا ما زالت تعرض CORS wildcard.
 
-## E. حدود الاستخدام
+## 5. Secrets
 
-- الحد اليومي: 60 طلبًا لكل مستخدم.
-- الحد الزمني: طلب واحد كل 3 ثوانٍ لكل مستخدم.
-- الحد الأقصى لعدد الرسائل في الطلب: 20.
-- الحد الأقصى للرسالة الواحدة: 16,000 حرف.
-- الحد الأقصى للسياق: 50,000 حرف.
-- الحد الأقصى للإخراج: 4,096 token.
-- timeout وإعادة المحاولة والـ provider health كانت موجودة في التصميم الحالي؛ لم يتم تغييرها تدميريًا.
+| Secret/اعتماد | الحالة |
+|---|---|
+| Provider API/Vault credential للنموذج | MISSING |
+| `SUPABASE_URL` لتشغيل Flutter | REQUIRED_FOR_ENVIRONMENT |
+| `SUPABASE_ANON_KEY` أو `SUPABASE_PUBLISHABLE_KEY` لتشغيل Flutter | REQUIRED_FOR_ENVIRONMENT |
+| `SUPABASE_SERVICE_ROLE_KEY` داخل Flutter/GitHub | NOT_USED |
+| `WEB_CORS_ORIGIN` | MISSING؛ مطلوب فقط عند تفعيل Web |
+| Embeddings provider | REQUIRED_FOR_DEFERRED_FEATURE |
+| Tavily/Web Search | REQUIRED_FOR_DEFERRED_FEATURE |
+| GitHub/Gmail credentials | REQUIRED_FOR_DEFERRED_FEATURE |
 
-ملاحظة مهمة: حارس قاعدة البيانات مطبق، لكن استدعاءه من نسخة `ai-router` الحية ينتظر نشر نسخة الكود المعدلة.
+لم تُطبع أي قيمة Secret أو Token أو Password في التقرير أو Git diff.
 
-## F. الميزات المؤجلة
+## 6. اختبارات Flutter والبناء
 
-- Vision: DEFERRED / NOT_TESTED.
-- PDF/Word: DEFERRED / NOT_TESTED.
-- Web Search: DEFERRED / NOT_TESTED.
-- GitHub/Gmail: DEFERRED / NOT_TESTED.
-- Long-term Memory: DEFERRED؛ لا يوجد Embeddings provider صالح مؤكد، ولا تُعرض كميزة جاهزة.
-- Billing/Credits: DEFERRED؛ التسعير والخصم غير مفعّلين بالكامل، ولا تُعرض العملات كنظام جاهز.
+| الاختبار | PASS | FAIL | NOT_TESTED | التفاصيل |
+|---|---:|---:|---:|---|
+| وجود Flutter SDK |  |  | نعم | الأمر `flutter` غير موجود |
+| `dart format` |  |  | نعم | Dart SDK غير موجود |
+| `flutter pub get` |  |  | نعم | Flutter SDK غير موجود |
+| `flutter analyze` |  |  | نعم | Flutter SDK غير موجود |
+| `flutter test` |  |  | نعم | Flutter SDK غير موجود |
+| Android/iOS/Web platform files |  |  | نعم | المجلدات الثلاثة غير موجودة |
+| Debug APK/Web build |  |  | نعم | لا توجد أداة أو منصة للبناء |
+| تشغيل LoginPage والتسجيل |  |  | نعم | لا يوجد runtime |
+| تشغيل `/chat` |  |  | نعم | لا يوجد runtime |
+| تشغيل الناتج النهائي |  |  | نعم | لا يوجد artifact |
+| فحص static للتغييرات | نعم |  |  | `git diff --check` وعمليات البحث الأمنية المحلية نجحت |
 
-## G. الاختبارات
+الحكم الخاص بالبيئة: `FLUTTER_BUILD_NOT_VERIFIED`.
+
+## 7. اختبارات Auth وRLS
 
 | الاختبار | النتيجة | التفاصيل |
 |---|---|---|
-| ai-router بلا JWT | PASS | HTTP 401 من endpoint الحي |
-| JWT صحيح | NOT_TESTED | لا يوجد حساب اختبار/توكن يُستخدم بأمان في الجلسة |
-| User A لا يرى User B | NOT_TESTED | يحتاج حسابي اختبار منفصلين |
-| User عادي لا يستدعي admin functions | NOT_TESTED | لم تُستخدم حسابات اختبار فعلية |
-| مفاتيح المزود لا تظهر | PASS جزئي | جدول `ai_providers` سُحبت صلاحيات العميل منه، وView الكتالوج لا يحتوي حقول المفاتيح؛ اختبار REST بحساب عميل NOT_TESTED |
-| رسالة فارغة ترفض | PASS في مصدر المستودع / NOT_TESTED حيًا بعد التعديل | المصدر يرفضها؛ Edge live يحتاج نشر النسخة المعدلة |
-| رسالة أكبر من الحد ترفض | PASS في مصدر المستودع / NOT_TESTED حيًا بعد التعديل | 16,000 حرف لكل رسالة و50,000 للسياق |
-| تجاوز الحد يرفض | PASS في Migration / NOT_TESTED حيًا بعد التعديل | RPC ذري مطبق؛ استدعاء Edge live ينتظر النشر |
-| Provider failure يعطي خطأ مفهومًا | NOT_TESTED | لا يوجد Provider credential صالح للاختبار |
-| Memory failure لا يكسر الدردشة | NOT_TESTED | الميزة مؤجلة ولا يوجد Embedding credential مؤكد |
-| Secrets مطبوعة في التقرير أو GitHub | PASS | لم تتم طباعة أو إضافة أي قيمة سرية |
+| `ai-router` بلا JWT | PASS | endpoint الحي أعاد HTTP 401 `UNAUTHORIZED_NO_AUTH_HEADER` |
+| JWT صحيح ينجح | NOT_TESTED | لا يوجد Provider credential أو حساب اختبار آمن |
+| فتح `/chat` دون تسجيل | STATIC_CHECK_PASS / RUNTIME_NOT_TESTED | redirect موجود في `main.dart` |
+| الخروج يعيد المستخدم | STATIC_CHECK_PASS / RUNTIME_NOT_TESTED | auth stream وredirect موجودان |
+| User A يرى بياناته فقط | NOT_TESTED | يتطلب حسابي اختبار فعليين |
+| User A لا يقرأ User B | NOT_TESTED | يتطلب حسابي اختبار فعليين |
+| User A لا يعدل User B | NOT_TESTED | يتطلب حسابي اختبار فعليين |
+| المستخدم العادي لا يستدعي admin | NOT_TESTED | يتطلب حساب اختبار فعلي |
+| `api_key` لا يظهر للعميل | PASS جزئي | صلاحيات `ai_providers` مسحوبة، والـView لا يحتوي أعمدة الأسرار؛ اختبار REST بحساب Flutter NOT_TESTED |
+| RLS للجداول الخاصة | PASS جزئي | تمت مراجعة السياسات الموجودة، اختبار User A/B NOT_TESTED |
+| Security advisors | BLOCKER_OPEN | leaked password protection معطلة، وتحذيرات SECURITY DEFINER قائمة |
 
-## H. الحكم النهائي
+## 8. حدود الاستخدام والتكلفة
 
-# BACKEND_READY_WITH_BLOCKERS
+- حد يومي: 60 طلبًا لكل مستخدم.
+- حد زمني: 3 ثوانٍ بين الطلبات.
+- حد الرسائل: 20 رسالة.
+- حد الرسالة: 16,000 حرف.
+- حد السياق: 50,000 حرف.
+- حد الإخراج: 4,096 token.
+- Retry في SSE محدود إلى 3 محاولات.
+- Billing/Credits: مؤجلة/غير مفعلة؛ إعداد `suly_credit_pricing.enabled` الحالي `false`، وتم إخفاء Credits من واجهة البيتا.
+- Rate Limit في قاعدة البيانات مطبق، لكن استدعاءه من نسخة `ai-router` الحية ينتظر نشر الكود المعدل.
 
-السبب: عزل بيانات مزودي الخدمة وMigration حدود الاستخدام مطبقان دون حذف بيانات، و`ai-router` الحي يرفض الطلبات بلا JWT. لكن النسخة المعدلة من Edge Function لم تُنشر بعد، وحماية كلمات المرور المسربة ما زالت معطلة، واختبارات العزل بحسابين واختبار Provider حقيقي لم تُنفذ، ولا يوجد Provider/Vault credential صالح مؤكد. لذلك لا يصح إعلان `BACKEND_READY_FOR_CLOSED_TEXT_BETA` قبل نشر Edge Function المعدلة وإتمام اختبارات الحسابين وإعداد Auth/Secrets اللازمة.
+## 9. الميزات المؤجلة
+
+- Vision: مؤجلة ومخفية.
+- PDF/Word: مؤجلة وغير معلنة.
+- Web Search: مؤجلة وغير معلنة؛ الأدوات الحالية تتضمن Mock logic.
+- GitHub/Gmail: مؤجلة وغير معلنة.
+- Long-term Memory: مؤجلة لعدم وجود Embeddings provider صالح ومختبر.
+- Billing/Credits: مؤجلة وغير معلنة.
+
+## 10. المشاكل المتبقية
+
+| الخطورة | تمنع البيتا؟ | المطلوب | المسؤول |
+|---|---|---|---|
+| CRITICAL | نعم | توفير Flutter SDK والمنصات، تشغيل analyze/test وبناء وتشغيل artifact فعلي | Environment |
+| CRITICAL | نعم | ربط Provider credential صالح في Vault واختبار رد حقيقي | Backend/Environment |
+| HIGH | نعم | نشر نسخة `ai-router` المعدلة ثم اختبار endpoint الحي والlimits | Backend |
+| HIGH | نعم إذا فُتح التسجيل العام | تفعيل leaked password protection في Supabase Auth أو إبقاء التسجيل مغلقًا | Backend |
+| HIGH | نعم لاختبار العزل | إنشاء User A وUser B وتشغيل اختبارات القراءة والتعديل فعليًا | Backend/Environment |
+| MEDIUM | نعم لنسخة Web | تحديد `CORS_DOMAIN_REQUIRED` وضبط `WEB_CORS_ORIGIN` دون تخمين دومين | Environment |
+| MEDIUM | لا لمسار النص بعد الإخفاء | إزالة/تعطيل Mock Agent tools من أي مسار إنتاجي مستقبلي | Code |
+
+## 11. الحكم النهائي
+
+# NOT_READY_FOR_BETA
+
+الموانع بالترتيب:
+
+1. `FLUTTER_BUILD_NOT_VERIFIED`: لا يوجد Flutter SDK أو Android/iOS/Web platform files أو artifact.
+2. `PROVIDER_CREDENTIAL_REQUIRED`: لا يوجد اعتماد Provider صالح ومختبر، لذلك لا يمكن إثبات رد نصي حقيقي.
+3. نسخة `ai-router` المعدلة غير منشورة؛ الموجود في GitHub ليس دليل نشر حي.
+4. اختبارات JWT الصحيح، User A/User B، isStreaming runtime، وإغلاق الموارد لم تُشغّل فعليًا.
+5. leaked password protection وتحذيرات SECURITY DEFINER ما زالت مفتوحة.
+6. `CORS_DOMAIN_REQUIRED` عند تجهيز Web.
+
+لا يتم استخدام عبارة `BETA_READY` حتى تُغلق هذه الموانع وتُرفق نتيجة البناء والتشغيل الفعلية.

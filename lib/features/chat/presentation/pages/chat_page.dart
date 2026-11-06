@@ -3,14 +3,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../cubit/chat_cubit.dart';
 import '../widgets/message_bubble.dart';
-import '../../agent/presentation/widgets/agent_status_card.dart';
-import '../../agent/presentation/widgets/step_timeline.dart';
-import '../../agent/presentation/widgets/thinking_process_widget.dart';
-import '../../agent/agent_cubit.dart';
-import '../../agent/agent_state.dart';
-import '../../agent/agent_task.dart';
-
-import 'package:image_picker/image_picker.dart';
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
@@ -50,10 +42,10 @@ class _ChatPageState extends State<ChatPage> {
 
   Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty || context.read<ChatCubit>().state.isStreaming) return;
     _messageController.clear();
-    context.read<AgentCubit>().runTask(AgentTask(id: 'task_${DateTime.now().millisecondsSinceEpoch}', goal: text));
     await context.read<ChatCubit>().sendMessage(text);
+    if (!mounted) return;
     _scrollToBottom();
   }
 
@@ -82,22 +74,6 @@ class _ChatPageState extends State<ChatPage> {
           appBar: AppBar(
             title: const Text('AI Chat'),
             actions: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Center(
-                  child: Tooltip(
-                    message: 'رصيد العملات',
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.account_balance_wallet_outlined, size: 18),
-                        const SizedBox(width: 5),
-                        Text('${state.creditBalance}'),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
               Container(
                 margin: const EdgeInsets.symmetric(vertical: 12),
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -119,20 +95,6 @@ class _ChatPageState extends State<ChatPage> {
           ),
           body: Column(
             children: [
-              BlocBuilder<AgentCubit, AgentState>(
-                builder: (context, agentState) {
-                  if (agentState is AgentPlanning) return const AgentStatusCard(status: 'Planning...');
-                  if (agentState is AgentReflecting) return const ThinkingProcessWidget(thought: 'Reflecting on results and correcting path...');
-                  if (agentState is AgentExecuting) return const AgentStatusCard(status: 'Executing...');
-                  return const SizedBox.shrink();
-                },
-              ),
-              BlocBuilder<AgentCubit, AgentState>(
-                builder: (context, agentState) {
-                  if (agentState is AgentExecuting) return const StepTimeline(steps: ['Processing task', 'Executing tools']);
-                  return const SizedBox.shrink();
-                },
-              ),
               if (isStreaming) const LinearProgressIndicator(),
               Expanded(
                 child: state is ChatLoading
@@ -145,7 +107,7 @@ class _ChatPageState extends State<ChatPage> {
                         : messages.isEmpty
                             ? const Center(
                                 child: Text(
-                                  'Your message will race enabled free models. If none responds before the admin-set deadline, the router can use a paid fallback model.',
+                                  'Send a text message to use one of the enabled beta models. A configured fallback may be used if the first model is unavailable.',
                                   textAlign: TextAlign.center,
                                   style: TextStyle(color: AppColors.textSecondary),
                                 ),
@@ -205,16 +167,6 @@ class _ChatPageState extends State<ChatPage> {
                         suffixIcon: IconButton(
                           icon: const Icon(Icons.send, color: AppColors.primary),
                           onPressed: isStreaming ? null : _sendMessage,
-                        ),
-                        prefixIcon: IconButton(
-                          icon: const Icon(Icons.image, color: AppColors.textSecondary),
-                          onPressed: () async {
-                            final ImagePicker picker = ImagePicker();
-                            final XFile? image = await picker.pickImage(source: ImageSource.gallery);
-                            if (image != null) {
-                              context.read<AgentCubit>().runTask(AgentTask(id: 'task_img', goal: 'Analyze image: ${image.path}'));
-                            }
-                          },
                         ),
                       ),
                       onSubmitted: isStreaming ? null : (_) => _sendMessage(),

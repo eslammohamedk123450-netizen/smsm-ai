@@ -5,7 +5,6 @@ import '../widgets/api_keys_tab.dart';
 import '../widgets/model_management_tab.dart';
 import '../widgets/circuit_breaker_tab.dart';
 import '../widgets/user_management_tab.dart';
-import '../widgets/credit_management_tab.dart';
 import '../../../../core/theme/app_colors.dart';
 
 class AdminDashboardPage extends StatefulWidget {
@@ -22,7 +21,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
   }
 
   @override
@@ -50,7 +49,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
             Tab(text: 'Models', icon: Icon(Icons.model_training)),
             Tab(text: 'Circuit Breaker', icon: Icon(Icons.breaker)),
             Tab(text: 'Users', icon: Icon(Icons.people)),
-            Tab(text: 'Credits', icon: Icon(Icons.account_balance_wallet)),
           ],
         ),
         actions: [
@@ -79,7 +77,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
           ModelManagementTab(),
           CircuitBreakerTab(),
           UserManagementTab(),
-          CreditManagementTab(),
         ],
       ),
     );
