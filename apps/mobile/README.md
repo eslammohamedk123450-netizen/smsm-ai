@@ -1,104 +1,89 @@
-# SMSM AI - Expo Universal Client
+# SMSM AI — Expo Universal Client
 
-This is a Expo (React Native + TypeScript + Expo Router) conversion of the SMSM AI application, originally built with Flutter/Dart.
+Expo Router (React Native + TypeScript) client for the existing SMSM AI Supabase backend. The Flutter app under `lib/` remains the behavioral reference and is not modified by this package.
 
-## Project Structure
+## Structure
 
 ```
 apps/mobile/
-  app/                  # Expo Router screens
-  src/                  # Source code
-    config/             # Environment configuration
-    theme/              # Colors and theming
-    lib/                # Core libraries
-      supabase/         # Supabase client and auth storage
-      network/          # SSE client (native & web)
-    features/           # Feature modules
-      auth/             # Authentication
-      chat/             # Chat functionality
-      admin/            # Admin panel
-      settings/         # Settings
-  .env.example          # Environment variables example
-  package.json          # Dependencies
-  tsconfig.json         # TypeScript config
-  app.config.ts         # Expo configuration
-  README.md             # This file
+  app/
+    (auth)/login.tsx            # Email/password login and registration
+    (protected)/_layout.tsx     # Session guard for every private route
+    (protected)/chat.tsx        # Streaming text chat
+    (protected)/settings.tsx    # Account + sign out
+    (protected)/admin/          # Admin dashboard and five sub-screens
+  src/
+    config/env.ts               # Public configuration validation
+    lib/supabase/               # Supabase client + cross-platform auth storage
+    lib/network/                # Platform SSE clients, transport, parser, UTF-8 decoder
+    features/auth/              # Auth service, provider, types
+    features/chat/              # Chat service, composer, bubbles, submission guard
+    features/admin/             # Admin service, screens, confirmation helper
+    theme/                      # Palette and tokens mirrored from Flutter
+  scripts/preview-server.py     # SPA-fallback server for checking an exported build
 ```
 
-## Getting Started
+## Setup
 
-### Prerequisites
-
-- Node.js (v18 or higher)
-- npm or bun
-- Expo CLI
-
-### Installation
+Requires Node.js 20 or newer and npm.
 
 ```bash
 cd apps/mobile
-npm install
-npx expo install
-```
-
-### Environment Variables
-
-Copy `.env.example` to `.env` and fill in the required values:
-
-```bash
+npm ci
 cp .env.example .env
+npx expo install --check   # confirms SDK-matched versions
+npx expo-doctor            # 20 checks
+npm run typecheck
+npm test -- --runInBand
 ```
 
-Edit `.env` with your Supabase project settings:
+`.env` holds only public values:
 
 ```
-EXPO_PUBLIC_SUPABASE_URL=your-project-url
-EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=your-public-anon-or-publishable-key
 EXPO_PUBLIC_EDGE_FUNCTION_BASE_URL=https://your-project.supabase.co/functions/v1
 ```
 
-### Running the App
+The Edge Function base URL defaults to `${EXPO_PUBLIC_SUPABASE_URL}/functions/v1`. Never place a service-role key in any `EXPO_PUBLIC_*` variable; those values are embedded in the client bundle.
 
-**Web (recommended for initial development):**
+## Running
 
-```bash
-npx expo start --web
-```
+- Web: `npx expo start --web`
+- Device preview: `npx expo start` (the QR code only proves Metro is reachable)
+- Native builds require Android SDK/JDK or macOS with Xcode, or Expo cloud builds.
 
-This will start the Expo development server and open your app in a web browser at `http://localhost:19006`.
+Native streaming uses `expo/fetch` so `response.body.getReader()` is available; the web client uses the browser streaming API. Both feed the same transport, parser, and UTF-8 decoder.
 
-**Expo Go (for device preview):**
+## Verified in this change
 
-```bash
-npx expo start
-```
+These checks were executed in the development environment:
 
-Scan the QR code with the Expo Go app on your iOS or Android device.
+| Check | Result |
+| --- | --- |
+| `npx expo-doctor` | 20/20 checks passed |
+| `npx tsc --noEmit` | no errors |
+| `npx jest` | 10 tests passed (SSE frames, UTF-8 splits, single-submission guard) |
+| `npx expo export --platform web` | bundles successfully |
+| `npx expo export --platform android` | Hermes bundle builds successfully |
+| Browser check of exported web build | login screen renders; `/chat` and `/admin` both redirect to `/login` when signed out |
 
-### Development Workflow
+Not verified: live Supabase authentication, message writes, credit settlement, Edge Function calls, a physical Android/iOS device, and any production deployment. Those require project credentials and a device or development build.
 
-1. Run `npx expo start` to start the development server
-2. Press `w` to open web view, or scan the QR code with Expo Go
-3. The app will automatically reload when you save changes
-4. Use `npx expo-doctor` to check for any environment issues
+## Security model
 
-### Build & Deployment
+- Only the public anon/publishable key is used; the client never reads stored provider API keys. `sync-models` receives a new provider key typed by an admin and stores it server-side.
+- Admin access is gated by `suly_is_admin()` in `app/(protected)/admin/_layout.tsx`, and every admin service call re-checks it. RLS policies, `suly_admin_*` RPCs, and Edge Functions remain the real authorization boundary.
+- Credit changes go through `suly_admin_adjust_credits` and `suly_admin_update_credit_pricing` with mandatory reasons and idempotency IDs — never by writing to `suly_credit_accounts` directly.
+- Assistant replies and credit settlement are produced only by `ai-router`; the client inserts one user message and never fabricates assistant rows.
+- Detailed server errors are replaced by short user-facing messages so headers, keys, and SQL details are not surfaced.
 
-- **Android:** Requires Android SDK and Java Development Kit. Use `npx expo start --android` or build via Expo cloud.
-- **iOS:** Requires macOS with Xcode installed. Use `npx expo start --ios` or build via Expo cloud.
-- **Web:** Use `npx expo start --web` for development, and Expo cloud for production builds.
+## Parity notes
 
-## Conversion Notes
+- Login and registration send `full_name` in user metadata, matching Flutter; when email confirmation is enabled the app explains that a session is not yet available.
+- Chat reads prior history before inserting the new user message, sends at most 20 messages, and uses one `request_id` UUID per send for router idempotency.
+- Flutter's `CircuitBreakerTab` renders three fixed sample alerts with buttons that do nothing. The Expo screen states this plainly instead of reproducing mock data or unsupported actions; real model health and the supported reset RPC live under "Models & routing".
 
-- **Backend:** Supabase backend (auth, database, edge functions) is unchanged. This Expo app connects to the same Supabase project.
-- **Flutter:** The original Flutter code in `lib/` is preserved for reference and comparison. This Expo app is the new recommended client.
-- **SSE Chat:** The streaming text implementation uses SSE (Server-Sent Events) with native and web client implementations.
-- **Authentication:** Uses Supabase Auth with email/password. Session is stored in localStorage and persists across app restarts.
-- **Admin Features:** Admin panel requires `role: "admin"` in user profiles. Access control is enforced on the client side and via Supabase RLS policies.
+## Not implemented
 
-## Known Limitations
-
-- Agent features, vision, and image analysis are marked as deferred (not implemented in this beta conversion)
-- Some admin tab features may be partially implemented - verify functionality
-- Real-time subscription fallback for messages uses polling when WebSocket not available
-- Platform-specific UI adjustments may be needed for optimal experience on all devices
+Agent tools, image/vision input, web search, rewarded ads, client-side credit grants, and manual per-message model selection are absent from both the router contract used here and this UI. They are not presented as working features.

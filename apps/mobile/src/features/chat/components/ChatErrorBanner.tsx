@@ -1,44 +1,24 @@
-import { View, Text, StyleSheet } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { colors } from "../../../theme/colors";
 
 export interface ChatErrorBannerProps {
-  isError: boolean;
-  error?: string;
-  onRetry?: () => void;
+  error: string | null;
+  onDismiss(): void;
 }
 
-export const ChatErrorBanner = ({ isError, error, onRetry }: ChatErrorBannerProps) => {
-  if (!isError) return null;
-
+export function ChatErrorBanner({ error, onDismiss }: ChatErrorBannerProps) {
+  if (!error) return null;
   return (
-    <View style={styles.banner}>
-      <Text style={styles.message}>{error || "An error occurred"}</Text>
-      {onRetry && (
-        <Pressable style={styles.retryButton} onPress={onRetry}>
-          <Text style={styles.retryText}>Retry</Text>
-        </Pressable>
-      )}
+    <View style={styles.banner} accessibilityRole="alert">
+      <Text style={styles.message}>{error}</Text>
+      <Pressable style={styles.dismiss} onPress={onDismiss} accessibilityRole="button"><Text style={styles.dismissText}>إغلاق</Text></Pressable>
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  banner: {
-    backgroundColor: "#CF1A2A",
-    padding: 12,
-    marginBottom: 12,
-    borderRadius: 8,
-  },
-  message: {
-    color: "#FFFFFF",
-    fontSize: 14,
-  },
-  retryButton: {
-    marginTop: 4,
-    alignSelf: "flex-end",
-  },
-  retryText: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    textDecorationLine: "underline",
-  },
+  banner: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, padding: 12, marginTop: 8, borderRadius: 10, backgroundColor: "#451A25", borderWidth: 1, borderColor: colors.error },
+  message: { flex: 1, color: colors.textPrimary, fontSize: 13, textAlign: "right" },
+  dismiss: { padding: 4 },
+  dismissText: { color: colors.accent },
 });

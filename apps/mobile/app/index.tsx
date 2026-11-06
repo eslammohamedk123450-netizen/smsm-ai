@@ -1,57 +1,21 @@
-import { View, Text, StyleSheet } from "react-native";
-import { useAuth } from "../../src/features/auth/auth-provider";
-import { useNavigation } from "@expo/router";
+import { Redirect } from "expo-router";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { useAuth } from "../src/features/auth/auth-provider";
+import { colors } from "../src/theme/colors";
 
-export default function HomeScreen() {
-  const { user } = useAuth();
-  const navigation = useNavigation();
-
-  if (!user) {
-    navigation.replace("(auth)/login");
-    return null;
+export default function HomeRoute() {
+  const { user, status, configurationError } = useAuth();
+  if (status === "loading") {
+    return <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>;
   }
-
-  return (
-    <View style={styles.container}>
-      <Text style={styles.welcome}>Welcome to SMSM AI</Text>
-      <Text style={styles.subtitle}>You are logged in as {user.email}</Text>
-      
-      <Pressable style={styles.button} onPress={() => navigation.push("(protected)/chat">
-        <Text style={styles.buttonText}>Go to Chat</Text>
-      </Pressable>
-      
-      <Pressable style={styles.button} onPress={() => navigation.push("(protected)/settings">
-        <Text style={styles.buttonText}>Settings</Text>
-      </Pressable>
-    </View>
-  );
+  if (status === "misconfigured") {
+    return <View style={styles.center}><Text style={styles.errorTitle}>إعداد التطبيق غير مكتمل</Text><Text style={styles.text}>{configurationError}</Text></View>;
+  }
+  return <Redirect href={user ? "/chat" : "/login"} />;
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 24,
-    backgroundColor: "#F5F8FF",
-  },
-  welcome: {
-    fontSize: 24,
-    fontWeight: 600,
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#666",
-  },
-  button: {
-    marginTop: 16,
-    padding: 12,
-    backgroundColor: "#1A73E8",
-    borderRadius: 8,
-  },
-  buttonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-  },
+  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: colors.background },
+  errorTitle: { color: colors.error, fontSize: 20, fontWeight: "700", marginBottom: 12, textAlign: "center" },
+  text: { color: colors.textSecondary, textAlign: "center", maxWidth: 500 },
 });

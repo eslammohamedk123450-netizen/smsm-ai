@@ -1,83 +1,37 @@
-import { View, Text, TextInput, Pressable, StyleSheet, SafeAreaView } from "react-native";
-import { useAuth } from "../../src/features/auth/auth-provider";
-import { useNavigation } from "@expo/router";
+import { useState } from "react";
+import { useRouter } from "expo-router";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { useAuth } from "../auth/auth-provider";
+import { colors } from "../../theme/colors";
 
 export default function SettingsScreen() {
-  const { logout } = useAuth();
-  const navigation = useNavigation();
-  const [email, setEmail] = useState("");
-
-  return (
-    <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>Settings</Text>
-      
-      <Text style={styles.section}>Account</Text>
-      
-      <View style={styles.formGroup}>
-        <Text style={styles.label}>Email</Text>
-        <TextInput
-          style={styles.input}
-          value={email}
-          onChangeText={setEmail}
-          placeholder="your.email@example.com"
-          editable={false}
-        />
-      </View>
-      
-      <Pressable style={styles.logoutButton} onPress={() => {
-        logout().then(() => navigation.replace("(auth)/login"));
-      }}>
-        <Text style={styles.logoutText}>Log Out</Text>
-      </Pressable>
-    </SafeAreaView>
-  );
+  const { user, logout } = useAuth();
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const handleLogout = async () => {
+    if (busy) return;
+    setBusy(true); setError(null);
+    try { await logout(); router.replace("/login"); }
+    catch { setError("تعذر تسجيل الخروج. حاول مرة أخرى."); }
+    finally { setBusy(false); }
+  };
+  return <View style={styles.container}>
+    <Text style={styles.title}>الإعدادات</Text>
+    <Text style={styles.label}>الحساب</Text>
+    <Text selectable style={styles.value}>{user?.email ?? ""}</Text>
+    {typeof user?.user_metadata?.full_name === "string" && <Text style={styles.value}>{user.user_metadata.full_name}</Text>}
+    {error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
+    <Pressable style={styles.button} onPress={() => void handleLogout()} disabled={busy}>{busy ? <ActivityIndicator color={colors.textPrimary} /> : <Text style={styles.buttonText}>تسجيل الخروج</Text>}</Pressable>
+  </View>;
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 24,
-    backgroundColor: "#F5F8FF",
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 600,
-    marginBottom: 24,
-  },
-  section: {
-    fontSize: 16,
-    color: "#666",
-    marginBottom: 12,
-  },
-  formGroup: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 14,
-    color: "#555",
-    marginBottom: 4,
-  },
-  input: {
-    width: "100%",
-    height: 48,
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    fontSize: 16,
-  },
-  logoutButton: {
-    width: "100%",
-    height: 48,
-    borderRadius: 8,
-    backgroundColor: "#EF4444",
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 16,
-  },
-  logoutText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: 500,
-  },
+  container: { flex: 1, padding: 24, backgroundColor: colors.background },
+  title: { fontSize: 24, fontWeight: "700", marginBottom: 24, color: colors.textPrimary, textAlign: "right" },
+  label: { fontSize: 14, color: colors.textSecondary, marginBottom: 6, textAlign: "right" },
+  value: { fontSize: 16, color: colors.textPrimary, marginBottom: 16, textAlign: "right" },
+  error: { color: colors.error, marginBottom: 12, textAlign: "right" },
+  button: { minHeight: 48, borderRadius: 10, backgroundColor: colors.error, justifyContent: "center", alignItems: "center", marginTop: 16 },
+  buttonText: { color: colors.textPrimary, fontSize: 16, fontWeight: "600" },
 });

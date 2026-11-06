@@ -1,18 +1,13 @@
-export type UserRole = "user" | "admin";
+import type { Session, User } from "@supabase/supabase-js";
 
-export interface UserEntity {
-  id: string;
-  email: string;
-  fullName?: string;
-  avatarUrl?: string;
-  role: UserRole;
-  creditBalance: number;
-  subscriptionTier: "free" | "premium" | "pro";
-}
+export type AuthStatus = "loading" | "authenticated" | "unauthenticated" | "misconfigured";
 
-export type AuthState = "unauthenticated" | "authenticated" | "loading";
-
-export interface AuthStateChangeEvent {
-  event: "SIGNED_IN" | "SIGNED_UP" | "SIGNED_OUT" | "TOKEN_REFRESHED" | "USER_UPDATED";
-  session: any;
+export interface AuthContextValue {
+  user: User | null;
+  session: Session | null;
+  status: AuthStatus;
+  configurationError: string | null;
+  login(email: string, password: string): Promise<void>;
+  register(email: string, password: string, fullName: string): Promise<boolean>;
+  logout(): Promise<void>;
 }

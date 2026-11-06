@@ -1,58 +1,157 @@
-import { supabase } from "../lib/supabase/client";
-import { env } from "../../config/env";
+import { randomUUID } from "expo-crypto";
+import { supabase } from "../../lib/supabase/client";
+import { streamChatPlatform } from "../../lib/network/sse-client";
+import type { ChatRequestBody } from "../../lib/network/sse-transport";
 
-export interface Message {
+export type MessageRole = "user" | "assistant" | "system";
+export interface ChatMessage {
   id: string;
-  role: "user" | "assistant" | "system";
+  conversationId: string;
+  role: MessageRole;
   content: string;
   createdAt: string;
-  modelId?: string;
+  modelId: string | null;
+  status: "sent" | "streaming" | "error";
 }
-
+export interface ChatModel {
+  id: string;
+  name: string;
+  providerId: number;
+  provider: string;
+  modelIdentifier: string;
+  enabled: boolean;
+  priority: number;
+  contextWindow: number | null;
+  routingGroup: string;
+}
 export interface Conversation {
   id: string;
   title: string;
-  modelId?: string;
+  modelId: string | null;
   createdAt: string;
   updatedAt: string;
 }
-
-export interface ChatService {
-  // Authentication
-  getCurrentUser: () => Promise<any>;
-  signIn: (email: string, password: string) => Promise<any>;
-  signUp: (email: string, password: string) => Promise<any>;
-  signOut: () => Promise<any>;
-
-  // Conversations
-  createConversation: (title?: string, modelId?: string) => Promise<Conversation | null>;
-  getConversations: () => Promise<Conversation[]>;
-  getConversation: (conversationId: string) => Promise<Conversation | null>;
-  updateConversation: (conversationId: string, updates: Partial<Conversation>) => Promise<void>;
-  deleteConversation: (conversationId: string) => Promise<void>;
-
-  // Messages
-  sendMessage: (content: string, conversationId: string, modelId?: string) => Promise<Message | null>;
-  getMessages: (conversationId: string) => Promise<Message[]>;
-  subscribeToMessages: (
-    conversationId: string,
-    onMessage: (message: Message) => void,
-    onError: (error: Error) => void
-  ) => () => void;
-  sendSseMessage: (
-    content: string,
-    conversationId: string,
-    modelId?: string,
-    onChunk: (chunk: string) => void,
-    onDone: () => void,
-    onError: (error: Error) => void
-  ) => AbortController;
-}
-
-export interface Conversation {
+interface MessageRow {
   id: string;
-  title: string;
-  modelId?: string;
-  createdAt: string;
-  updatedAt: string;
+  conversation_id: string;
+  role: MessageRole;
+  content: string;
+  created_at: string;
+  model_id: number | null;
 }
+
+function mapMessage(row: MessageRow): ChatMessage {
+  return {
+    id: row.id,
+    conversationId: row.conversation_id,
+    role: row.role,
+    content: row.content,
+    createdAt: row.created_at,
+    modelId: row.model_id === null ? null : String(row.model_id),
+    status: "sent",
+  };
+}
+
+export const chatService = {
+  async getAvailableModels(): Promise<ChatModel[]> {
+    const [modelResult, providerResult] = await Promise.all([
+      supabase.from("ai_models")
+        .select("id,name,provider_id,model_identifier,enabled,priority,context_window,routing_group,allowed_tiers")
+        .eq("enabled", true)
+        .order("priority", { ascending: false })
+        .limit(200),
+      supabase.from("ai_providers_catalog")
+        .select("id,name,provider_type")
+        .limit(100),
+    ]);
+    if (modelResult.error) throw new Error("تعذر تحميل النماذج المتاحة.");
+    if (providerResult.error) throw new Error("تعذر تحميل قائمة مزودي النماذج.");
+    const providerById = new Map<number, string>();
+    for (const item of providerResult.data ?? []) {
+      providerById.set(Number(item.id), String(item.provider_type || item.name || "provider"));
+    }
+    return (modelResult.data ?? []).map((item) => ({
+      id: String(item.id),
+      name: String(item.name ?? item.model_identifier ?? "Model"),
+      providerId: Number(item.provider_id),
+      provider: providerById.get(Number(item.provider_id)) ?? "provider",
+      modelIdentifier: String(item.model_identifier ?? item.name ?? ""),
+      enabled: item.enabled === true,
+      priority: Number(item.priority ?? 0),
+      contextWindow: typeof item.context_window === "number" ? item.context_window : null,
+      routingGroup: String(item.routing_group ?? "free_race"),
+    }));
+  },
+
+  async createConversation(title = "New Conversation"): Promise<Conversation> {
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) throw new Error("سجّل الدخول لبدء محادثة.");
+    const { data, error } = await supabase.from("suly_conversations")
+      .insert({ user_id: user.id, title })
+      .select("id,title,model_id,created_at,updated_at")
+      .single();
+    if (error || !data) throw new Error("تعذر إنشاء محادثة جديدة.");
+    return {
+      id: String(data.id),
+      title: String(data.title),
+      modelId: data.model_id == null ? null : String(data.model_id),
+      createdAt: String(data.created_at),
+      updatedAt: String(data.updated_at),
+    };
+  },
+
+  async getMessages(conversationId: string): Promise<ChatMessage[]> {
+    const { data, error } = await supabase.from("suly_messages")
+      .select("id,conversation_id,role,content,model_id,created_at")
+      .eq("conversation_id", conversationId)
+      .order("created_at", { ascending: true })
+      .limit(500);
+    if (error) throw new Error("تعذر تحميل رسائل المحادثة.");
+    return (data ?? []).map((row) => mapMessage(row as MessageRow));
+  },
+
+  async sendMessage(options: {
+    conversationId: string;
+    content: string;
+    signal: AbortSignal;
+    onUserSaved(message: ChatMessage): void;
+    onChunk(text: string): void;
+  }): Promise<void> {
+    const content = options.content.trim();
+    if (!content) return;
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) throw new Error("انتهت الجلسة. سجّل الدخول مجددًا.");
+
+    // Read prior history before inserting the new user row, matching Flutter.
+    const priorMessages = await this.getMessages(options.conversationId);
+    const { data: inserted, error: insertError } = await supabase.from("suly_messages").insert({
+      conversation_id: options.conversationId,
+      user_id: user.id,
+      role: "user",
+      content,
+      tokens_used: Math.ceil(content.length / 4),
+    }).select("id,conversation_id,role,content,model_id,created_at").single();
+    if (insertError || !inserted) throw new Error("تعذر حفظ رسالتك. لم يُرسل الطلب إلى نموذج الذكاء الاصطناعي.");
+
+    options.onUserSaved(mapMessage(inserted as MessageRow));
+    const { error: updateError } = await supabase.from("suly_conversations")
+      .update({ updated_at: new Date().toISOString() })
+      .eq("id", options.conversationId)
+      .eq("user_id", user.id);
+    if (updateError) throw new Error("حُفظت رسالتك، لكن تعذر تحديث ترتيب المحادثة.");
+
+    const history: ChatRequestBody["messages"] = priorMessages
+      .filter((entry): entry is ChatMessage & { role: "user" | "assistant" } => entry.role === "user" || entry.role === "assistant")
+      .slice(-19)
+      .map(({ role, content: text }) => ({ role, content: text }));
+    history.push({ role: "user", content });
+    const requestBody: ChatRequestBody = {
+      conversation_id: options.conversationId,
+      request_id: randomUUID(),
+      messages: history,
+      routing_mode: "auto",
+      stream: true,
+    };
+    await streamChatPlatform(requestBody, options.signal, { onChunk: options.onChunk, onDone() {} });
+  },
+};

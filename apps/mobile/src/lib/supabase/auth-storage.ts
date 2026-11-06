@@ -1,48 +1,25 @@
-import { supabase } from "../supabase/client";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Platform } from "react-native";
 
-export const getSession = async (): Promise<any> => {
-  const { data, error } = await supabase.auth.getSession();
-  if (error) {
-    console.error("Error getting session:", error);
-    return null;
-  }
-  return data.session;
-};
-
-export const getUser = async (): Promise<any> => {
-  const { data, error } = await supabase.auth.getUser();
-  if (error) {
-    console.error("Error getting user:", error);
-    return null;
-  }
-  return data.user;
-};
-
-export const signIn = async (email: string, password: string) => {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
-  if (error) {
-    throw new Error(error.message || "Sign in failed");
-  }
-  return data;
-};
-
-export const signUp = async (email: string, password: string) => {
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-  });
-  if (error) {
-    throw new Error(error.message || "Sign up failed");
-  }
-  return data;
-};
-
-export const signOut = async () => {
-  const { error } = await supabase.auth.signOut();
-  if (error) {
-    throw new Error(error.message || "Sign out failed");
-  }
+export const authStorage = {
+  async getItem(key: string): Promise<string | null> {
+    if (Platform.OS === "web") {
+      return typeof window === "undefined" ? null : window.localStorage.getItem(key);
+    }
+    return AsyncStorage.getItem(key);
+  },
+  async setItem(key: string, value: string): Promise<void> {
+    if (Platform.OS === "web") {
+      if (typeof window !== "undefined") window.localStorage.setItem(key, value);
+      return;
+    }
+    await AsyncStorage.setItem(key, value);
+  },
+  async removeItem(key: string): Promise<void> {
+    if (Platform.OS === "web") {
+      if (typeof window !== "undefined") window.localStorage.removeItem(key);
+      return;
+    }
+    await AsyncStorage.removeItem(key);
+  },
 };

@@ -1,21 +1,20 @@
-import { View, StyleSheet } from "react-native";
-import { useRouter } from "@expo/router";
-import { useAuth } from "../../src/features/auth/auth-provider";
+import { Stack } from "expo-router";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { AuthProvider } from "../src/features/auth/auth-provider";
 
-export default function AppLayout() {
-  const router = useRouter();
-  const { user, loading } = useAuth();
-
-  if (loading) {
-    return null; // Parent will show loading screen
-  }
-
-  if (!user) {
-    router.replace("(auth)/login");
-    return null;
-  }
-
-  return null;
+export default function RootLayout() {
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <AuthProvider>
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#0F172A" } }}>
+            <Stack.Screen name="index" />
+            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="(protected)" />
+          </Stack>
+        </AuthProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
+  );
 }
-
-const styles = StyleSheet.create({});

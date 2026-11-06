@@ -1,51 +1,24 @@
-import { View, ActivityIndicator, Text, StyleSheet } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { colors } from "../../../theme/colors";
 
 export interface StreamingStatusProps {
   isStreaming: boolean;
-  error?: string;
+  onCancel?(): void;
 }
 
-export const StreamingStatus = ({ isStreaming, error }: StreamingStatusProps) => {
-  if (error) {
-    return (
-      <View style={styles.error}>
-        <Text style={styles.errorText}>Error: {error}</Text>
-      </View>
-    );
-  }
-
-  if (isStreaming) {
-    return (
-      <View style={styles.container}>
-        <ActivityIndicator size "small" color="#1A73E8" />
-        <Text style={styles.text}>Generating response...</Text>
-      </View>
-    );
-  }
-
-  return null;
-};
+export function StreamingStatus({ isStreaming, onCancel }: StreamingStatusProps) {
+  if (!isStreaming) return null;
+  return (
+    <View style={styles.container}>
+      <ActivityIndicator size="small" color={colors.accent} />
+      <Text style={styles.text}>جارٍ توليد الرد…</Text>
+      <Pressable onPress={onCancel} accessibilityRole="button"><Text style={styles.cancel}>إلغاء</Text></Pressable>
+    </View>
+  );
+}
 
 const styles = StyleSheet.create({
-  container: {
-    padding: 8,
-    marginTop: 4,
-    backgroundColor: "#F1F3F4",
-    borderRadius: 8,
-  },
-  error: {
-    padding: 8,
-    backgroundColor: "#CF1A2A",
-    borderRadius: 8,
-    marginTop: 4,
-  },
-  errorText: {
-    color: "#FFFFFF",
-    fontSize: 12,
-  },
-  text: {
-    color: "#1A1A1A",
-    fontSize: 14,
-    marginLeft: 4,
-  },
+  container: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9, paddingVertical: 7 },
+  text: { color: colors.textSecondary, fontSize: 12 },
+  cancel: { color: colors.error, fontSize: 12, fontWeight: "700" },
 });

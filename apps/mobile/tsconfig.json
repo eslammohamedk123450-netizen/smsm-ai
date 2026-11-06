@@ -1,19 +1,13 @@
 {
+  "extends": "expo/tsconfig.base",
   "compilerOptions": {
-    "target": "ESNext",
-    "module": "Node16",
-    "moduleResolution": "bundler",
     "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "jsx": "react-native",
-    "sourceMap": true,
-    "declaration": true,
-    "outDir": "./dist",
-    "baseUrl": ".",
+    "noEmit": true,
     "paths": {
-      "*": ["src/*"]
-    }
+      "@/*": ["./src/*"]
+    },
+    "types": ["jest"]
   },
-  "include": ["**/*"]
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
+  "exclude": ["node_modules", "dist"]
 }

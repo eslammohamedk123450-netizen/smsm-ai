@@ -1,21 +1,16 @@
-import { View, StyleSheet } from "react-native";
-import { useNavigation } from "@expo/router";
+import { Redirect, Stack } from "expo-router";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { useAuth } from "../../src/features/auth/auth-provider";
+import { colors } from "../../src/theme/colors";
 
 export default function ProtectedLayout() {
-  const { user, loading } = useAuth();
-  const navigation = useNavigation();
-
-  if (loading) {
-    return null; // Let the parent handle loading
+  const { user, status } = useAuth();
+  if (status === "loading") {
+    return <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>;
   }
-
-  if (!user) {
-    navigation.replace("(auth)/login");
-    return null;
-  }
-
-  return null;
+  if (status === "misconfigured") return <Redirect href="/" />;
+  if (!user) return <Redirect href="/login" />;
+  return <Stack screenOptions={{ headerShown: false }} />;
 }
 
-const styles = StyleSheet.create({});
+const styles = StyleSheet.create({ center: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background } });

@@ -1,99 +1,86 @@
-import { createContext, useContext, useEffect, useState, ReactNode, Dispatch, SetStateAction } from "react";
-import { supabase } from "../lib/supabase/client";
-import { getSession, getUser, signIn, signOut } from "../lib/supabase/auth-storage";
-import { env } from "../config/env";
+import { AppState, Platform } from "react-native";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import type { Session, User } from "@supabase/supabase-js";
+import { env } from "../../config/env";
+import { supabase } from "../../lib/supabase/client";
+import { authService } from "./auth-service";
+import type { AuthContextValue } from "./auth-types";
 
-type AuthContextType = {
-  user: any;
-  session: any;
-  loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
-  refreshSession: () => Promise<void>;
-};
+const AuthContext = createContext<AuthContextValue | null>(null);
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<any>(null);
-  const [session, setSession] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [status, setStatus] = useState<AuthContextValue["status"]>("loading");
+  const configurationError = env.isConfigured
+    ? null
+    : "أضف EXPO_PUBLIC_SUPABASE_URL وEXPO_PUBLIC_SUPABASE_ANON_KEY إلى ملف .env باستخدام القيم العامة للمشروع.";
 
   useEffect(() => {
-    // Get initial session
-    getSession().then((session) => {
-      setSession(session);
-      if (session?.user) {
-        setUser(session.user);
-      }
-      setLoading(false);
+    if (!env.isConfigured) {
+      setStatus("misconfigured");
+      return;
+    }
+
+    let active = true;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (!active) return;
+      setSession(nextSession);
+      setUser(nextSession?.user ?? null);
+      setStatus(nextSession?.user ? "authenticated" : "unauthenticated");
     });
 
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
+    void authService.getSession().then((initialSession) => {
+      if (!active) return;
+      setSession(initialSession);
+      setUser(initialSession?.user ?? null);
+      setStatus(initialSession?.user ? "authenticated" : "unauthenticated");
+    }).catch(() => {
+      if (!active) return;
+      setSession(null);
+      setUser(null);
+      setStatus("unauthenticated");
+    });
 
-        if (event === "SIGNED_IN" || event === "SIGNED_UP") {
-          // User signed in - check if email is confirmed
-          const { data: userData } = await supabase
-            .from("profiles")
-            .select("email_confirmed")
-            .eq("id", session.user.id)
-            .single();
-
-          if (!userData?.email_confirmed) {
-            // Email not confirmed - sign out
-            await supabase.auth.signOut();
-          }
-        }
-      }
-    );
+    const appStateSubscription = Platform.OS === "web"
+      ? null
+      : AppState.addEventListener("change", (nextState) => {
+          if (nextState === "active") void supabase.auth.startAutoRefresh();
+          else void supabase.auth.stopAutoRefresh();
+        });
+    if (Platform.OS !== "web" && AppState.currentState === "active") {
+      void supabase.auth.startAutoRefresh();
+    }
 
     return () => {
+      active = false;
       subscription.unsubscribe();
+      appStateSubscription?.remove();
     };
   }, []);
 
-  const login = async (email: string, password: string) => {
-    const data = await signIn(email, password);
-    setUser(data.user);
-    setSession(data.session);
-  };
+  const value = useMemo<AuthContextValue>(() => ({
+    user,
+    session,
+    status,
+    configurationError,
+    async login(email, password) {
+      await authService.signIn(email.trim(), password);
+    },
+    async register(email, password, fullName) {
+      const result = await authService.signUp(email.trim(), password, fullName.trim());
+      return result.session !== null;
+    },
+    async logout() {
+      await authService.signOut();
+    },
+  }), [user, session, status, configurationError]);
 
-  const register = async (email: string, password: string) => {
-    const data = await signUp(email, password);
-    setUser(data.user);
-    setSession(data.session);
-  };
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
 
-  const logout = async () => {
-    await signOut();
-    setUser(null);
-    setSession(null);
-  };
-
-  const refreshSession = async () => {
-    const data = await getSession();
-    setSession(data);
-    if (data?.user) {
-      setUser(data.user);
-    }
-  };
-
-  return (
-    <AuthContext.Provider value={{ user, session, loading, login, register, logout, refreshSession }}>
-      {children}
-    </AuthContext.Provider>
-  );
-};
-
-export const useAuth = (): AuthContextType => {
+export function useAuth(): AuthContextValue {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within AuthProvider");
-  }
+  if (!context) throw new Error("useAuth must be used within AuthProvider");
   return context;
-};
+}

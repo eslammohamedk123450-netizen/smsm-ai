@@ -1,67 +1,52 @@
-import { View, TextInput, Pressable, StyleSheet, TextInputResizeMode } from "react-native";
+import { useState } from "react";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { colors } from "../../../theme/colors";
 
 export interface ChatComposerProps {
-  onSend: (content: string) => void;
+  onSend(content: string): void;
   disabled?: boolean;
+  isStreaming?: boolean;
+  onCancel?(): void;
 }
 
-export const ChatComposer = ({ onSend, disabled = false }: ChatComposerProps) => {
+export function ChatComposer({ onSend, disabled = false, isStreaming = false, onCancel }: ChatComposerProps) {
   const [text, setText] = useState("");
-
-  const handleSend = () => {
-    if (text.trim()) {
-      onSend(text);
-      setText("");
-    }
+  const submit = () => {
+    const content = text.trim();
+    if (!content || disabled) return;
+    onSend(content);
+    setText("");
   };
-
   return (
     <View style={styles.container}>
       <TextInput
-        placeholder="Type a message..."
         value={text}
         onChangeText={setText}
+        editable={!disabled}
+        placeholder="اكتب رسالتك…"
+        placeholderTextColor={colors.textMuted}
         style={styles.input}
-        disabled={disabled}
+        multiline
+        maxLength={16000}
         returnKeyType="send"
-        onSubmitEditing={handleSend}
-        resizeMode="constant"
+        blurOnSubmit={false}
+        onSubmitEditing={submit}
+        accessibilityLabel="رسالة الدردشة"
       />
-      <Pressable style={styles.button} onPress={handleSend} disabled={disabled}>
-        <Text style={styles.buttonText}>Send</Text>
-      </Pressable>
+      {isStreaming ? (
+        <Pressable style={[styles.button, styles.cancel]} onPress={onCancel} accessibilityRole="button"><Text style={styles.buttonText}>إلغاء</Text></Pressable>
+      ) : (
+        <Pressable style={[styles.button, disabled && styles.disabled]} onPress={submit} disabled={disabled || !text.trim()} accessibilityRole="button"><Text style={styles.buttonText}>إرسال</Text></Pressable>
+      )}
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  container: {
-    flexDirection: "row",
-    padding: 8,
-    backgroundColor: "#F1F3F4",
-    borderTopWidth: 1,
-    borderTopColor: "#D1D5DB",
-  },
-  input: {
-    flex: 1,
-    height: 40,
-    borderWidth: 1,
-    borderColor: "#9CA3AF",
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    fontSize: 16,
-    marginRight: 8,
-  },
-  button: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#1A73E8",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  buttonText: {
-    color: "#FFFFFF",
-    fontWeight: "bold",
-  },
+  container: { flexDirection: "row", alignItems: "flex-end", gap: 8, paddingVertical: 10, paddingBottom: 8, borderTopWidth: 1, borderTopColor: colors.divider },
+  input: { flex: 1, minHeight: 48, maxHeight: 140, borderRadius: 15, borderWidth: 1, borderColor: colors.inputBorder, backgroundColor: colors.inputBackground, color: colors.textPrimary, paddingHorizontal: 14, paddingVertical: 12, textAlignVertical: "center", textAlign: "auto" },
+  button: { minHeight: 46, minWidth: 64, paddingHorizontal: 13, borderRadius: 12, justifyContent: "center", alignItems: "center", backgroundColor: colors.primary },
+  cancel: { backgroundColor: colors.error },
+  disabled: { opacity: 0.5 },
+  buttonText: { color: colors.textPrimary, fontWeight: "700" },
 });

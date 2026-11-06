@@ -1,59 +1,36 @@
-import { supabase } from "../lib/supabase/client";
-import { getSession, getUser, signIn, signOut, signUp } from "../lib/supabase/auth-storage";
+import type { Session, User } from "@supabase/supabase-js";
+import { supabase } from "../../lib/supabase/client";
 
-export interface UserEntity {
-  id: string;
-  email: string;
-  fullName?: string;
-  avatarUrl?: string;
-  role?: "user" | "admin";
-  creditBalance?: number;
-  subscriptionTier?: "free" | "premium" | "pro";
+export interface AuthResult {
+  user: User | null;
+  session: Session | null;
 }
 
 export const authService = {
-  async getCurrentUser(): Promise<UserEntity | null> {
-    const { data, error } = await supabase.auth.getUser();
-    if (error || !data.user) return null;
-
-    return {
-      id: data.user.id,
-      email: data.user.email ?? "",
-      fullName: user?.full_name,
-      avatarUrl: user?.avatar_url,
-      role: user?.role,
-      creditBalance: user?.credit_balance,
-      subscriptionTier: user?.subscription_tier,
-    };
+  async getSession(): Promise<Session | null> {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    return data.session;
   },
 
-  async signIn(email: string, password: string) {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) throw new Error(error.message);
-    return data;
+  async signIn(email: string, password: string): Promise<AuthResult> {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    return { user: data.user, session: data.session };
   },
 
-  async signUp(email: string, password: string) {
+  async signUp(email: string, password: string, fullName: string): Promise<AuthResult> {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
+      options: { data: { full_name: fullName } },
     });
-    if (error) throw new Error(error.message);
-    return data;
+    if (error) throw error;
+    return { user: data.user, session: data.session };
   },
 
-  async signOut() {
+  async signOut(): Promise<void> {
     const { error } = await supabase.auth.signOut();
-    if (error) throw new Error(error.message);
-  },
-
-  async resetPassword(email: string) {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${env.edgeFunctionBaseUrl}/recovery`,
-    });
-    if (error) throw new Error(error.message);
+    if (error) throw error;
   },
 };

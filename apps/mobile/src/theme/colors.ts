@@ -1,27 +1,22 @@
 export const colors = {
-  primary: "#1A73E8",
-  primaryDark: "#1557B0",
-  primaryLight: "#E8F0FE",
-  background: "#F5F8FF",
-  surface: "#FFFFFF",
-  onPrimary: "#FFFFFF",
-  onBackground: "#1A1A1A",
-  onSurface: "#1A1A1A",
-  error: "#CF1A2A",
-  warning: "#F57F17",
-  success: "#107C10",
-  
-  // Chat specific
-  chatBubbleUser: "#1A73E8",
-  chatBubbleAssistant: "#E5E5E5",
-  chatBubbleUserText: "#FFFFFF",
-  chatBubbleAssistantText: "#000000",
-  
-  // Input
-  inputBackground: "#F1F3F4",
-  inputText: "#1A1A1A",
-  
-  // Admin
-  adminTabActive: "#1A73E8",
-  adminTabInactive: "#8A8A8A",
-};
+  primary: "#6366F1",
+  primaryDark: "#4F46E5",
+  secondary: "#EC4899",
+  background: "#0F172A",
+  surface: "#1E293B",
+  surfaceElevated: "#334155",
+  textPrimary: "#F8FAFC",
+  textSecondary: "#94A3B8",
+  textMuted: "#64748B",
+  accent: "#22D3EE",
+  success: "#10B981",
+  warning: "#F59E0B",
+  error: "#EF4444",
+  freeBadge: "#10B981",
+  premiumBadge: "#8B5CF6",
+  racingBadge: "#22D3EE",
+  divider: "#334155",
+  cardBackground: "#1E293B",
+  inputBackground: "#0F172A",
+  inputBorder: "#334155",
+} as const;

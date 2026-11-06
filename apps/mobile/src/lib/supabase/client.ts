@@ -1,29 +1,21 @@
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import { env } from "../config/env";
+import "react-native-url-polyfill/auto";
+import { createClient } from "@supabase/supabase-js";
+import { Platform } from "react-native";
+import { env } from "../../config/env";
+import { authStorage } from "./auth-storage";
 
-export const supabase: SupabaseClient = createClient(
-  env.supabaseUrl,
-  env.supabaseAnonKey,
+// The placeholder permits a readable configuration error instead of an import-time crash.
+// Auth calls are skipped unless env.isConfigured is true.
+export const supabase = createClient(
+  env.supabaseUrl || "https://invalid.supabase.local",
+  env.supabaseAnonKey || "missing-public-key",
   {
     auth: {
+      storage: authStorage,
       autoRefreshToken: true,
       persistSession: true,
-      storage: {
-        getItem: (key: string) => {
-          const value = typeof window !== "undefined" ? localStorage.getItem(key) : null;
-          return value ? JSON.parse(value) : null;
-        },
-        setItem: (key: string, value: any) => {
-          if (typeof window !== "undefined") {
-            localStorage.setItem(key, JSON.stringify(value));
-          }
-        },
-        removeItem: (key: string) => {
-          if (typeof window !== "undefined") {
-            localStorage.removeItem(key);
-          }
-        },
-      } as any,
+      detectSessionInUrl: Platform.OS === "web",
+      flowType: "pkce",
     },
-  }
+  },
 );
