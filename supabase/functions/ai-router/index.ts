@@ -1,8 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { prepareAgentMemory, saveAgentMemory } from "./agent/memory.ts";
 
+// Native Android/iOS clients do not require CORS. Web access must set WEB_CORS_ORIGIN
+// explicitly; never fall back to a wildcard in a deployed environment.
+const configuredCorsOrigin = Deno.env.get("WEB_CORS_ORIGIN")?.trim();
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  ...(configuredCorsOrigin ? { "Access-Control-Allow-Origin": configuredCorsOrigin } : {}),
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
@@ -317,6 +320,20 @@ async function handleRequest(req: Request): Promise<Response> {
   if (profile.is_banned) return jsonResponse({ error: "This account is suspended." }, 403);
   const userTier = ["free", "lite", "pro", "max"].includes(profile.subscription_tier) ? profile.subscription_tier : "free";
 
+  const { data: rateLimit, error: rateLimitError } = await supabase.rpc("suly_check_ai_rate_limit", { p_user_id: user.id });
+  if (rateLimitError) {
+    console.error("AI rate limit check failed:", rateLimitError.message);
+    return jsonResponse({ error: "Usage protection is temporarily unavailable." }, 503);
+  }
+  const rateLimitResult = asRecord(rateLimit);
+  if (rateLimitResult.allowed !== true) {
+    const retryAfter = Math.max(1, Number(rateLimitResult.retry_after_seconds) || 1);
+    return new Response(JSON.stringify({ error: "Too many requests. Please try again later.", retry_after_seconds: retryAfter }), {
+      status: 429,
+      headers: { ...corsHeaders, "Content-Type": "application/json; charset=utf-8", "Retry-After": String(retryAfter) },
+    });
+  }
+
   let body: Record<string, unknown>;
   try { body = asRecord(await req.json()); }
   catch { return jsonResponse({ error: "Request body must be valid JSON." }, 400); }
@@ -336,12 +353,12 @@ async function handleRequest(req: Request): Promise<Response> {
   const messages: ChatMessage[] = [];
   const requestedMessages = Array.isArray(body.messages) ? body.messages : null;
   if (requestedMessages?.length) {
-    if (requestedMessages.length > 40) return jsonResponse({ error: "At most 40 recent messages can be sent." }, 413);
+    if (requestedMessages.length > 20) return jsonResponse({ error: "At most 20 recent messages can be sent." }, 413);
     for (const entry of requestedMessages) {
       const item = asRecord(entry);
       const content = typeof item.content === "string" ? item.content.trim() : "";
       if (item.role !== "system" && item.role !== "user" && item.role !== "assistant") return jsonResponse({ error: "messages contains an unsupported role." }, 400);
-      if (!content || content.length > 100000) return jsonResponse({ error: "Each message must contain between 1 and 100000 characters." }, 413);
+      if (!content || content.length > 16000) return jsonResponse({ error: "Each message must contain between 1 and 16000 characters." }, 413);
       messages.push({ role: item.role as ChatRole, content });
     }
   }
@@ -349,7 +366,7 @@ async function handleRequest(req: Request): Promise<Response> {
   if (messages.length === 0 && messageText) messages.push({ role: "user", content: messageText });
   if (messages.length === 0 || !messages.some((m) => m.role === "user")) return jsonResponse({ error: "message or messages with a user message is required." }, 400);
   if (messages[messages.length - 1].role !== "user") return jsonResponse({ error: "The final message must be from the user." }, 400);
-  if (messages.reduce((sum, item) => sum + item.content.length, 0) > 200000) return jsonResponse({ error: "Conversation context is too long." }, 413);
+  if (messages.reduce((sum, item) => sum + item.content.length, 0) > 50000) return jsonResponse({ error: "Conversation context is too long." }, 413);
   const systemPrompt = typeof body.system === "string" ? body.system.trim() : "";
   if (systemPrompt) {
     if (systemPrompt.length > 12000) return jsonResponse({ error: "system prompt is too long." }, 413);
@@ -365,7 +382,7 @@ async function handleRequest(req: Request): Promise<Response> {
   const temperatureInput = typeof body.temperature === "number" ? body.temperature : 0.7;
   const temperature = Math.min(2, Math.max(0, temperatureInput));
   const maxTokensInput = typeof body.max_tokens === "number" ? body.max_tokens : 1024;
-  const maxTokens = Math.min(32768, Math.max(1, Math.floor(maxTokensInput)));
+  const maxTokens = Math.min(4096, Math.max(1, Math.floor(maxTokensInput)));
   const { data: pricingRow, error: pricingError } = await supabase
     .from("suly_credit_pricing")
     .select("enabled,minimum_request_credits,input_credits_per_1k_tokens,output_credits_per_1k_tokens")

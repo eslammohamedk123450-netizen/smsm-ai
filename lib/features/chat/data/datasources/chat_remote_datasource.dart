@@ -47,7 +47,7 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
             .select('id,name,provider_id,model_identifier,enabled,priority,context_window,routing_group,allowed_tiers,input_price')
             .eq('enabled', true)
             .order('priority', ascending: false),
-        supabase.from('ai_providers').select('id,name,provider_type'),
+        supabase.from('ai_providers_catalog').select('id,name,provider_type'),
       ]);
       final providerById = <int, Map<String, dynamic>>{};
       for (final provider in results[1] as List) {

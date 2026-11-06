@@ -58,7 +58,7 @@ class _ApiKeysTabState extends State<ApiKeysTab> {
     });
     try {
       final response = await _client
-          .from('ai_providers')
+          .from('ai_providers_catalog')
           .select('id,name,provider_type,base_url,enabled,last_test_status')
           .order('priority');
       if (!mounted) return;
