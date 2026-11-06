@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:get_it/get_it.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_config.dart';
 import 'app_dependencies.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/pages/login_page.dart';
+import 'features/auth/presentation/cubit/auth_cubit.dart';
 import 'features/chat/presentation/pages/chat_page.dart';
 import 'features/admin/presentation/pages/admin_dashboard_page.dart';
 
@@ -42,6 +44,18 @@ class MultiLLMAgentApp extends StatelessWidget {
 
 final GoRouter _router = GoRouter(
   initialLocation: '/',
+  redirect: (context, state) async {
+    if (state.matchedLocation != '/admin') return null;
+    final client = Supabase.instance.client;
+    if (client.auth.currentUser == null) return '/';
+    try {
+      final isAdmin = await client.rpc('suly_is_admin');
+      return isAdmin == true ? null : '/chat';
+    } catch (_) {
+      // Fail closed if the administrator role cannot be verified.
+      return '/chat';
+    }
+  },
   routes: [
     GoRoute(
       path: '/',

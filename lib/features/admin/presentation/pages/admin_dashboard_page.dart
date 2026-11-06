@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../widgets/api_keys_tab.dart';
 import '../widgets/model_management_tab.dart';
 import '../widgets/circuit_breaker_tab.dart';
 import '../widgets/user_management_tab.dart';
-import '../../../../core/theme/app_theme.dart';
+import '../widgets/credit_management_tab.dart';
+import '../../../../core/theme/app_colors.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -20,7 +22,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
   }
 
   @override
@@ -42,17 +44,31 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
           indicatorColor: AppColors.primary,
           labelColor: AppColors.primary,
           unselectedLabelColor: AppColors.textMuted,
+          isScrollable: true,
           tabs: const [
             Tab(text: 'API Keys', icon: Icon(Icons.key)),
             Tab(text: 'Models', icon: Icon(Icons.model_training)),
             Tab(text: 'Circuit Breaker', icon: Icon(Icons.breaker)),
             Tab(text: 'Users', icon: Icon(Icons.people)),
+            Tab(text: 'Credits', icon: Icon(Icons.account_balance_wallet)),
           ],
         ),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () => Navigator.pop(context),
+            tooltip: 'Sign out',
+            onPressed: () async {
+              try {
+                await Supabase.instance.client.auth.signOut();
+                if (context.mounted) context.go('/');
+              } catch (error) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Sign out failed: $error')),
+                  );
+                }
+              }
+            },
           ),
         ],
       ),
@@ -63,6 +79,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage>
           ModelManagementTab(),
           CircuitBreakerTab(),
           UserManagementTab(),
+          CreditManagementTab(),
         ],
       ),
     );
