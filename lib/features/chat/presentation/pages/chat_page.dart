@@ -45,6 +45,7 @@ class _ChatPageState extends State<ChatPage> {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
     _messageController.clear();
+    context.read<AgentCubit>().runTask(AgentTask(id: 'task_${DateTime.now().millisecondsSinceEpoch}', goal: text));
     await context.read<ChatCubit>().sendMessage(text);
     _scrollToBottom();
   }
@@ -95,6 +96,19 @@ class _ChatPageState extends State<ChatPage> {
           ),
           body: Column(
             children: [
+              BlocBuilder<AgentCubit, AgentState>(
+                builder: (context, agentState) {
+                  if (agentState is AgentPlanning) return const AgentStatusCard(status: 'Planning...');
+                  if (agentState is AgentExecuting) return const AgentStatusCard(status: 'Executing...');
+                  return const SizedBox.shrink();
+                },
+              ),
+              BlocBuilder<AgentCubit, AgentState>(
+                builder: (context, agentState) {
+                  if (agentState is AgentExecuting) return const StepTimeline(steps: ['Processing task', 'Executing tools']);
+                  return const SizedBox.shrink();
+                },
+              ),
               if (isStreaming) const LinearProgressIndicator(),
               Expanded(
                 child: state is ChatLoading
