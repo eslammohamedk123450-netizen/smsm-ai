@@ -15,14 +15,17 @@ class ChatCubit extends Cubit<ChatState> {
   int _creditBalance = 0;
   List<ModelEntity> _models = const [];
 
-  Future<void> initialize() async {
-    emit(const ChatLoading());
+  Future<void> createNewConversation() async {
+    _currentAssistantContent = '';
+    _currentMessageId = null;
+    _currentConversationId = null;
     try {
-      _models = await _chatRepository.getAvailableModels();
+      final conversationId = await _chatRepository.createConversation('New Conversation', null);
+      _currentConversationId = conversationId;
       emit(ChatLoaded(
         messages: const [],
         models: _models,
-        conversationId: null,
+        conversationId: conversationId,
         currentModel: null,
         creditBalance: _creditBalance,
       ));
@@ -31,7 +34,7 @@ class ChatCubit extends Cubit<ChatState> {
         message: e.toString(),
         messages: const [],
         models: _models,
-        conversationId: null,
+        conversationId: _currentConversationId,
         currentModel: null,
       ));
     }

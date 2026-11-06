@@ -147,7 +147,7 @@ class SseClient {
       }
 
       if (attempt < _maxAttempts) {
-        await Future.delayed(Duration(milliseconds: 500 * attempt));
+        await Future.delayed(const Duration(seconds: 2));
       }
     }
   }
