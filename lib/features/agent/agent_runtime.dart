@@ -33,9 +33,23 @@ class AgentRuntime {
 
       if (plan != null && task.currentStepIndex < plan.steps.length) {
         final step = plan.steps[task.currentStepIndex];
-        // Using a mock tool execution as an example
-        await _toolExecutor.executeTool('web_search', {'query': step.description});
-        step.isCompleted = true;
+        
+        bool stepSuccess = false;
+        int attempts = 0;
+        while (!stepSuccess && attempts < 2) {
+          try {
+            await _toolExecutor.executeTool('web_search', {'query': step.description});
+            step.isCompleted = true;
+            stepSuccess = true;
+          } catch (e) {
+            attempts++;
+            // Log failure and prepare context for fallback/next attempt
+            if (attempts >= 2) {
+               // Fallback: mark task as partially failed or switch logic
+               break;
+            }
+          }
+        }
         task.currentStepIndex++;
       } else {
         isCompleted = true;

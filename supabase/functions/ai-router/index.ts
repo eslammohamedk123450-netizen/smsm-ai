@@ -358,6 +358,10 @@ async function handleRequest(req: Request): Promise<Response> {
   const healthByModel = new Map<number, { auto_restricted: boolean; restriction_reason: string | null }>(
     (healthRows ?? []).map((row: { model_id: number; auto_restricted: boolean; restriction_reason: string | null }) => [row.model_id, row]),
   );
+  
+  // Define categories based on model capabilities and tier requirements
+  const isComplexTask = messages.length > 5 || messages.some(m => m.content.length > 500);
+  
   const settings = {
     freeRaceTimeoutMs: Math.max(1000, Math.min(30000, Number(settingsRow?.free_race_timeout_ms) || 5000)),
     paidFallbackEnabled: settingsRow?.paid_fallback_enabled !== false,
@@ -371,9 +375,19 @@ async function handleRequest(req: Request): Promise<Response> {
   if (manualHealth?.auto_restricted) {
     return jsonResponse({ error: "This model is temporarily restricted pending administrator review.", restriction_reason: manualHealth.restriction_reason }, 423);
   }
-  const candidatesFrom = routingMode === "manual"
-    ? healthyModels.filter((m: ModelRow) => m.id === modelId && m.routing_group !== "disabled")
-    : healthyModels.filter((m: ModelRow) => m.routing_group === "free_race" && (m.allowed_tiers ?? []).includes(userTier) && modelSupportsChat(m)).slice(0, settings.maxParallelFreeModels);
+  let candidatesFrom: ModelRow[] = [];
+  if (routingMode === "manual") {
+    candidatesFrom = healthyModels.filter((m: ModelRow) => m.id === modelId && m.routing_group !== "disabled");
+  } else {
+    // Intelligent selection: prioritize complex models if the task is complex
+    const tierFiltered = healthyModels.filter((m: ModelRow) => (m.allowed_tiers ?? []).includes(userTier) && modelSupportsChat(m));
+    if (isComplexTask) {
+      candidatesFrom = tierFiltered.filter(m => m.routing_group === "paid_fallback").sort((a,b) => b.priority - a.priority);
+    } else {
+      candidatesFrom = tierFiltered.filter(m => m.routing_group === "free_race").sort((a,b) => b.priority - a.priority);
+    }
+  }
+
   if (routingMode === "manual" && candidatesFrom.length === 0) return jsonResponse({ error: "Model not found or disabled." }, 404);
   if (routingMode === "manual" && !(candidatesFrom[0].allowed_tiers ?? []).includes(userTier)) return jsonResponse({ error: "This model is not available on your current plan." }, 403);
 
