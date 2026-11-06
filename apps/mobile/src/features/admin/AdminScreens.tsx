@@ -29,6 +29,7 @@ export function ProvidersAdminScreen() {
   const [description, setDescription] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [busyId, setBusyId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -41,6 +42,19 @@ export function ProvidersAdminScreen() {
     finally { setLoading(false); }
   };
   useEffect(() => { void load(); }, []);
+
+  const syncProvider = async (provider: ProviderRow) => {
+    setBusyId(provider.id); setError(null); setNotice(null);
+    try {
+      const result = await adminService.syncProviderModels(provider.id);
+      setNotice(`مزامنة ${provider.name}: نماذج مكتشفة ${result.discovered}، مضافة ${result.created}.${result.warning ? ` تنبيه: ${result.warning}` : ""}`);
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذرت مزامنة النماذج.");
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   const selectPreset = (preset: ProviderPreset) => {
     setSelectedType(preset.type);
@@ -70,7 +84,7 @@ export function ProvidersAdminScreen() {
         api_key: key.trim(),
       });
       setKey("");
-      setNotice(`تم حفظ ${name.trim() || preset.name}. نماذج مكتشفة: ${result.discovered}، مضافة: ${result.created}.`);
+      setNotice(`تم حفظ ${name.trim() || preset.name}. نماذج مكتشفة: ${result.discovered}، مضافة: ${result.created}.${result.warning ? ` تنبيه: ${result.warning}` : ""}`);
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "فشل حفظ المزود.");
@@ -134,7 +148,7 @@ export function ProvidersAdminScreen() {
       </> : null}
     </Card>
     <View style={styles.sectionRow}><Text style={styles.sectionTitle}>المزودون المسجلون</Text><Pressable onPress={() => void load()}><Text style={styles.link}>تحديث</Text></Pressable></View>
-    {loading ? <ActivityIndicator color={colors.primary} /> : providers.length === 0 ? <Text style={styles.detail}>لا يوجد مزود مسجل بعد. اختر مزودًا وأضف مفتاحه ليظهر هنا.</Text> : providers.map((provider) => <Card key={provider.id}><Text style={styles.cardTitle}>{provider.name}</Text><Text style={styles.detail}>{provider.provider_type} · {provider.enabled ? "مفعّل" : "معطّل"} · اختبار: {provider.last_test_status ?? "غير مختبر"}</Text><Text numberOfLines={1} style={styles.detail}>{provider.base_url ?? ""}</Text></Card>)}
+    {loading ? <ActivityIndicator color={colors.primary} /> : providers.length === 0 ? <Text style={styles.detail}>لا يوجد مزود مسجل بعد. اختر مزودًا وأضف مفتاحه ليظهر هنا.</Text> : providers.map((provider) => <Card key={provider.id}><Text style={styles.cardTitle}>{provider.name}</Text><Text style={styles.detail}>{provider.provider_type} · {provider.enabled ? "مفعّل" : "معطّل"} · اختبار: {provider.last_test_status ?? "غير مختبر"}</Text><Text numberOfLines={1} style={styles.detail}>{provider.base_url ?? ""}</Text><PrimaryButton label={busyId === provider.id ? "جارٍ المزامنة…" : "مزامنة النماذج"} onPress={() => void syncProvider(provider)} disabled={busyId !== null} /></Card>)}
   </ScrollView>;
 }
 

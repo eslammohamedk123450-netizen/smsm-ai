@@ -43,7 +43,26 @@ export const adminService = {
     if (!data || typeof data !== "object" || data.success !== true) {
       throw new Error("لم تقبل وظيفة المزامنة المزوّد. تحقق من البيانات ثم أعد المحاولة.");
     }
-    return { discovered: Number(data.discovered ?? 0), created: Number(data.created ?? 0) };
+    return {
+      discovered: Number(data.discovered ?? 0),
+      created: Number(data.created ?? 0),
+      warning: typeof data.warning === "string" && data.warning.length > 0 ? data.warning : null,
+    };
+  },
+
+  async syncProviderModels(providerId: number) {
+    await requireAdmin();
+    const { data, error } = await supabase.functions.invoke("sync-models", {
+      body: { action: "sync_models", provider_id: providerId },
+    });
+    if (error) throw new Error(describeFunctionFailure(error, "sync-models"));
+    if (!data || typeof data !== "object") throw new Error("لم تُرجع وظيفة المزامنة نتيجة.");
+    if (data.success !== true) throw new Error(typeof data.warning === "string" && data.warning ? data.warning : "تعذرت مزامنة نماذج هذا المزوّد.");
+    return {
+      discovered: Number(data.discovered ?? 0),
+      created: Number(data.created ?? 0),
+      warning: typeof data.warning === "string" && data.warning.length > 0 ? data.warning : null,
+    };
   },
 
   async getModelsOverview() {
