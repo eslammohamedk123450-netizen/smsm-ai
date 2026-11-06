@@ -5,6 +5,7 @@ import { Link } from "expo-router";
 import { useAuth } from "../../src/features/auth/auth-provider";
 import { chatService, type ChatMessage, type ChatModel } from "../../src/features/chat/chat-service";
 import { runOnce } from "../../src/features/chat/submission-guard";
+import { useIsAdmin } from "../../src/features/admin/use-is-admin";
 import { ChatComposer } from "../../src/features/chat/components/ChatComposer";
 import { ChatErrorBanner } from "../../src/features/chat/components/ChatErrorBanner";
 import { MessageBubble } from "../../src/features/chat/components/MessageBubble";
@@ -15,6 +16,7 @@ const STREAMING_ID = "local-streaming-assistant";
 
 export default function ChatPage() {
   const { user } = useAuth();
+  const isAdmin = useIsAdmin();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [models, setModels] = useState<ChatModel[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -114,6 +116,13 @@ export default function ChatPage() {
               <Text style={styles.title}>SMSM AI</Text>
               <Text style={styles.subtitle}>دردشة نصية · توجيه تلقائي</Text>
             </View>
+            {isAdmin ? (
+              <Link href="/admin" asChild>
+                <Pressable style={[styles.headerButton, styles.headerButtonPrimary]} accessibilityRole="button">
+                  <Text style={styles.headerButtonPrimaryText}>لوحة التحكم</Text>
+                </Pressable>
+              </Link>
+            ) : null}
             <Link href="/settings" asChild><Pressable style={styles.headerButton}><Text style={styles.headerButtonText}>الإعدادات</Text></Pressable></Link>
           </View>
           <View style={styles.modelStatus}>
@@ -147,6 +156,8 @@ const styles = StyleSheet.create({
   subtitle: { color: colors.textSecondary, fontSize: 12, marginTop: 3, textAlign: "left" },
   headerButton: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 10, backgroundColor: colors.surfaceElevated },
   headerButtonText: { color: colors.textPrimary, fontSize: 13 },
+  headerButtonPrimary: { backgroundColor: colors.primary, marginRight: 8 },
+  headerButtonPrimaryText: { color: colors.textPrimary, fontSize: 13, fontWeight: "700" },
   modelStatus: { minHeight: 38, flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "flex-end", paddingHorizontal: 4 },
   modelStatusText: { color: colors.textMuted, fontSize: 11, textAlign: "right", flexShrink: 1 },
   messages: { flex: 1 },

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "expo-router";
 import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { adminService } from "./admin-service";
+import { providerPresets, findPreset, type ProviderPreset } from "./provider-presets";
 import { confirmAdminAction } from "./admin-confirm";
 import { colors } from "../../theme/colors";
 
@@ -36,15 +37,17 @@ function Card({ children }: { children: React.ReactNode }) { return <View style=
 
 export function ProvidersAdminScreen() {
   const [providers, setProviders] = useState<ProviderRow[]>([]);
+  const [selectedType, setSelectedType] = useState("");
   const [name, setName] = useState("");
-  const [type, setType] = useState("openai");
   const [baseUrl, setBaseUrl] = useState("");
   const [key, setKey] = useState("");
   const [description, setDescription] = useState("");
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const selectedPreset = findPreset(selectedType);
 
   const load = async () => {
     setLoading(true); setError(null);
@@ -54,36 +57,99 @@ export function ProvidersAdminScreen() {
   };
   useEffect(() => { void load(); }, []);
 
+  const selectPreset = (preset: ProviderPreset) => {
+    setSelectedType(preset.type);
+    setName(preset.name);
+    setBaseUrl(preset.baseUrl);
+    setKey("");
+    setError(null);
+    setNotice(null);
+    setShowAdvanced(Boolean(preset.requiresBaseUrl));
+  };
+
   const save = async () => {
-    if (!name.trim() || !key || !baseUrl.trim()) { setError("أدخل الاسم ورابط HTTPS ومفتاح المزود."); return; }
-    try { if (new URL(baseUrl.trim()).protocol !== "https:") throw new Error(); }
+    const preset = selectedPreset;
+    if (!preset) { setError("اختر المزود من القائمة أولًا."); return; }
+    if (!key.trim()) { setError(`الصق مفتاح ${preset.name}. ${preset.keyHint}.`); return; }
+    const url = baseUrl.trim();
+    if (!url) { setError("هذا المزود يحتاج رابط HTTPS. اكتبه في الخيارات المتقدمة."); return; }
+    try { if (new URL(url).protocol !== "https:") throw new Error(); }
     catch { setError("رابط المزود يجب أن يكون HTTPS صحيحًا."); return; }
     setBusy(true); setError(null); setNotice(null);
     try {
-      const result = await adminService.createProvider({ name: name.trim(), provider_type: type, base_url: baseUrl.trim(), description: description.trim(), api_key: key });
-      setKey(""); setName(""); setDescription("");
-      setNotice(`حُفظ المزود عبر الوظيفة المحمية. نماذج مكتشفة: ${result.discovered}، مضافة: ${result.created}.`);
+      const result = await adminService.createProvider({
+        name: (name.trim() || preset.name),
+        provider_type: preset.type,
+        base_url: url,
+        description: description.trim(),
+        api_key: key.trim(),
+      });
+      setKey("");
+      setNotice(`تم حفظ ${name.trim() || preset.name}. نماذج مكتشفة: ${result.discovered}، مضافة: ${result.created}.`);
       await load();
-    } catch { setError("فشل حفظ المزود. لم يُعرض المفتاح في الواجهة؛ تحقق من إعداد وظيفة sync-models."); }
-    finally { setBusy(false); }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "فشل حفظ المزود.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <PageHeader title="مزودو الخدمة" />
-    <Text style={styles.explainer}>يُرسل مفتاح المزود فقط إلى Edge Function المحمية sync-models؛ لا يقرأ التطبيق مفاتيح مخزنة ولا يحتفظ بها في الواجهة بعد النجاح.</Text>
+    <Text style={styles.explainer}>اختر المزود ثم الصق مفتاحه فقط. الرابط يُملأ تلقائيًا من قائمة المزودين المدعومة، ولا يُرسل المفتاح إلا إلى وظيفة السيرفر المحمية.</Text>
     <Card>
-      <Text style={styles.sectionTitle}>إضافة مزود</Text>
-      <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="اسم المزود" placeholderTextColor={colors.textMuted} />
-      <Text style={styles.label}>نوع المزود (قيمة من قائمة backend)</Text>
-      <View style={styles.rowWrap}>{["openai", "deepseek", "openrouter", "groq", "google_ai", "anthropic", "together", "mistral", "xai", "custom"].map((item) => <Pressable key={item} onPress={() => setType(item)} style={[styles.pill, type === item && styles.pillSelected]}><Text style={styles.pillText}>{item}</Text></Pressable>)}</View>
-      <TextInput style={styles.input} value={baseUrl} onChangeText={setBaseUrl} placeholder="https://api.example.com/v1" placeholderTextColor={colors.textMuted} autoCapitalize="none" keyboardType="url" />
-      <TextInput style={styles.input} value={key} onChangeText={setKey} placeholder="مفتاح API (لا يُعرض)" placeholderTextColor={colors.textMuted} secureTextEntry autoCapitalize="none" autoCorrect={false} />
-      <TextInput style={styles.input} value={description} onChangeText={setDescription} placeholder="وصف اختياري" placeholderTextColor={colors.textMuted} />
-      <ErrorText>{error}</ErrorText>{notice && <Text style={styles.success}>{notice}</Text>}
-      <PrimaryButton label={busy ? "جارٍ الحفظ والمزامنة…" : "حفظ آمن ومزامنة النماذج"} onPress={() => void save()} disabled={busy} />
+      <Text style={styles.sectionTitle}>١. اختر المزود</Text>
+      <View style={styles.rowWrap}>
+        {providerPresets.map((preset) => (
+          <Pressable
+            key={preset.type}
+            onPress={() => selectPreset(preset)}
+            accessibilityRole="button"
+            accessibilityState={{ selected: selectedType === preset.type }}
+            style={[styles.preset, selectedType === preset.type && styles.presetSelected]}
+          >
+            <Text style={[styles.presetText, selectedType === preset.type && styles.presetTextSelected]}>{preset.name}</Text>
+          </Pressable>
+        ))}
+      </View>
+      {selectedPreset ? (
+        <Text style={styles.hint}>
+          {selectedPreset.requiresBaseUrl
+            ? "أدخل رابط البوابة المتوافقة مع OpenAI في الخيارات المتقدمة."
+            : `الرابط المستخدم: ${selectedPreset.baseUrl}`}
+        </Text>
+      ) : null}
+
+      <Text style={styles.sectionTitle}>٢. الصق مفتاح API</Text>
+      <TextInput
+        style={styles.input}
+        value={key}
+        onChangeText={setKey}
+        placeholder={selectedPreset ? selectedPreset.keyHint : "اختر المزود أولًا"}
+        placeholderTextColor={colors.textMuted}
+        secureTextEntry
+        autoCapitalize="none"
+        autoCorrect={false}
+        editable={Boolean(selectedPreset)}
+      />
+      <ErrorText>{error}</ErrorText>
+      {notice && <Text style={styles.success}>{notice}</Text>}
+      <PrimaryButton label={busy ? "جارٍ الحفظ ومزامنة النماذج…" : "حفظ ومزامنة النماذج"} onPress={() => void save()} disabled={busy || !selectedPreset || !key.trim()} />
+
+      <Pressable onPress={() => setShowAdvanced((value) => !value)} accessibilityRole="button">
+        <Text style={styles.link}>{showAdvanced ? "إخفاء الخيارات المتقدمة" : "خيارات متقدمة (الاسم، الرابط، الوصف)"}</Text>
+      </Pressable>
+      {showAdvanced ? <>
+        <Text style={styles.label}>اسم يظهر في القائمة</Text>
+        <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="اسم المزود" placeholderTextColor={colors.textMuted} />
+        <Text style={styles.label}>رابط الخدمة (HTTPS)</Text>
+        <TextInput style={styles.input} value={baseUrl} onChangeText={setBaseUrl} placeholder="https://api.example.com/v1" placeholderTextColor={colors.textMuted} autoCapitalize="none" keyboardType="url" />
+        <Text style={styles.label}>وصف اختياري</Text>
+        <TextInput style={styles.input} value={description} onChangeText={setDescription} placeholder="ملاحظة داخلية" placeholderTextColor={colors.textMuted} />
+      </> : null}
     </Card>
     <View style={styles.sectionRow}><Text style={styles.sectionTitle}>المزودون المسجلون</Text><Pressable onPress={() => void load()}><Text style={styles.link}>تحديث</Text></Pressable></View>
-    {loading ? <ActivityIndicator color={colors.primary} /> : providers.map((provider) => <Card key={provider.id}><Text style={styles.cardTitle}>{provider.name}</Text><Text style={styles.detail}>{provider.provider_type} · {provider.enabled ? "مفعّل" : "معطّل"} · اختبار: {provider.last_test_status ?? "غير مختبر"}</Text><Text numberOfLines={1} style={styles.detail}>{provider.base_url ?? ""}</Text></Card>)}
+    {loading ? <ActivityIndicator color={colors.primary} /> : providers.length === 0 ? <Text style={styles.detail}>لا يوجد مزود مسجل بعد. اختر مزودًا وأضف مفتاحه ليظهر هنا.</Text> : providers.map((provider) => <Card key={provider.id}><Text style={styles.cardTitle}>{provider.name}</Text><Text style={styles.detail}>{provider.provider_type} · {provider.enabled ? "مفعّل" : "معطّل"} · اختبار: {provider.last_test_status ?? "غير مختبر"}</Text><Text numberOfLines={1} style={styles.detail}>{provider.base_url ?? ""}</Text></Card>)}
   </ScrollView>;
 }
 
@@ -352,6 +418,11 @@ const styles = StyleSheet.create({
   field: { marginTop: 5 },
   toggle: { minHeight: 46, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   rowWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, alignItems: "center" },
+  preset: { borderRadius: 12, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.inputBackground, paddingVertical: 10, paddingHorizontal: 14, marginRight: 8, marginBottom: 8 },
+  presetSelected: { borderColor: colors.primary, backgroundColor: colors.primary },
+  presetText: { color: colors.textPrimary, fontSize: 13, fontWeight: "600" },
+  presetTextSelected: { color: "#FFFFFF" },
+  hint: { color: colors.textMuted, fontSize: 12, textAlign: "right", marginVertical: 6 },
   pill: { borderRadius: 20, borderWidth: 1, borderColor: colors.divider, paddingVertical: 7, paddingHorizontal: 10 },
   pillSelected: { borderColor: colors.primary, backgroundColor: "#312E8166" },
   pillText: { color: colors.textPrimary, fontSize: 12 },

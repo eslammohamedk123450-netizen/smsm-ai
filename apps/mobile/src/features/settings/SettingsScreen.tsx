@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { useRouter } from "expo-router";
+import { Link, useRouter } from "expo-router";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "../auth/auth-provider";
+import { useIsAdmin } from "../admin/use-is-admin";
 import { colors } from "../../theme/colors";
 
 export default function SettingsScreen() {
   const { user, logout } = useAuth();
+  const isAdmin = useIsAdmin();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -21,6 +23,7 @@ export default function SettingsScreen() {
     <Text style={styles.label}>الحساب</Text>
     <Text selectable style={styles.value}>{user?.email ?? ""}</Text>
     {typeof user?.user_metadata?.full_name === "string" && <Text style={styles.value}>{user.user_metadata.full_name}</Text>}
+    {isAdmin ? <Link href="/admin" asChild><Pressable style={styles.adminButton} accessibilityRole="button"><Text style={styles.adminButtonText}>لوحة التحكم</Text></Pressable></Link> : null}
     {error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
     <Pressable style={styles.button} onPress={() => void handleLogout()} disabled={busy}>{busy ? <ActivityIndicator color={colors.textPrimary} /> : <Text style={styles.buttonText}>تسجيل الخروج</Text>}</Pressable>
   </View>;
@@ -32,6 +35,8 @@ const styles = StyleSheet.create({
   label: { fontSize: 14, color: colors.textSecondary, marginBottom: 6, textAlign: "right" },
   value: { fontSize: 16, color: colors.textPrimary, marginBottom: 16, textAlign: "right" },
   error: { color: colors.error, marginBottom: 12, textAlign: "right" },
+  adminButton: { minHeight: 48, borderRadius: 10, backgroundColor: colors.surfaceElevated, justifyContent: "center", alignItems: "center", marginBottom: 12 },
+  adminButtonText: { color: colors.textPrimary, fontSize: 16, fontWeight: "600" },
   button: { minHeight: 48, borderRadius: 10, backgroundColor: colors.error, justifyContent: "center", alignItems: "center", marginTop: 16 },
   buttonText: { color: colors.textPrimary, fontSize: 16, fontWeight: "600" },
 });
