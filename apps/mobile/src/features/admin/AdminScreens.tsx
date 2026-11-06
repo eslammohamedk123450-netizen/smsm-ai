@@ -6,7 +6,22 @@ import { confirmAdminAction } from "./admin-confirm";
 import { colors } from "../../theme/colors";
 
 type ProviderRow = { id: number; name: string; provider_type: string; base_url: string | null; enabled: boolean; last_test_status: string | null };
-type ModelRow = { id: number; name: string; provider_name: string; model_identifier: string; enabled: boolean; priority: number; context_window: number | null; routing_group: string; allowed_tiers: string[] | null; response_timeout_ms: number; restriction_failure_threshold: number; restriction_window_minutes: number; health: { auto_restricted?: boolean; consecutive_failures?: number; restriction_reason?: string | null; last_status?: string | null } | null };
+type ModelRow = {
+  id: number;
+  name: string;
+  provider_name: string;
+  model_identifier: string;
+  enabled: boolean;
+  priority: number;
+  context_window: number | null;
+  routing_group: string;
+  allowed_tiers: string[] | null;
+  response_timeout_ms: number;
+  restriction_failure_threshold: number;
+  restriction_window_minutes: number;
+  health: { auto_restricted?: boolean; consecutive_failures?: number; restriction_reason?: string | null; last_status?: string | null } | null;
+};
+type AttemptRow = { attempt_status: string; duration_ms: number | null; error_code: string | null; error_reason: string | null; created_at: string };
 type UserRow = { id: string; email: string; full_name: string | null; subscription_tier: string | null; is_banned: boolean; balance: number; reserved_balance: number };
 type TransactionRow = { id?: string; user_id?: string; event_type: string; amount: number; balance_delta?: number; balance_after: number; actual_cost?: number | null; input_tokens?: number; output_tokens?: number; model_id?: number | null; source?: string; reason?: string | null; created_at: string };
 
@@ -30,6 +45,7 @@ export function ProvidersAdminScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
   const load = async () => {
     setLoading(true); setError(null);
     try { setProviders((await adminService.getProviders()) as ProviderRow[]); }
@@ -37,6 +53,7 @@ export function ProvidersAdminScreen() {
     finally { setLoading(false); }
   };
   useEffect(() => { void load(); }, []);
+
   const save = async () => {
     if (!name.trim() || !key || !baseUrl.trim()) { setError("أدخل الاسم ورابط HTTPS ومفتاح المزود."); return; }
     try { if (new URL(baseUrl.trim()).protocol !== "https:") throw new Error(); }
@@ -50,6 +67,7 @@ export function ProvidersAdminScreen() {
     } catch { setError("فشل حفظ المزود. لم يُعرض المفتاح في الواجهة؛ تحقق من إعداد وظيفة sync-models."); }
     finally { setBusy(false); }
   };
+
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <PageHeader title="مزودو الخدمة" />
     <Text style={styles.explainer}>يُرسل مفتاح المزود فقط إلى Edge Function المحمية sync-models؛ لا يقرأ التطبيق مفاتيح مخزنة ولا يحتفظ بها في الواجهة بعد النجاح.</Text>
@@ -75,11 +93,21 @@ export function ModelsAdminScreen() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
   const [freeTimeout, setFreeTimeout] = useState("5000");
   const [fallbackTimeout, setFallbackTimeout] = useState("30000");
   const [parallel, setParallel] = useState("10");
   const [paidFallback, setPaidFallback] = useState(true);
   const [autoRestrict, setAutoRestrict] = useState(true);
+
+  // حالة تعديل النموذج المختار ومراجعة سجل محاولاته
+  const [selectedModel, setSelectedModel] = useState<ModelRow | null>(null);
+  const [attempts, setAttempts] = useState<AttemptRow[]>([]);
+  const [editTiers, setEditTiers] = useState<string[]>([]);
+  const [editTimeout, setEditTimeout] = useState("30000");
+  const [editThreshold, setEditThreshold] = useState("3");
+  const [editWindow, setEditWindow] = useState("15");
+
   const load = async () => {
     setLoading(true); setError(null);
     try {
@@ -87,11 +115,61 @@ export function ModelsAdminScreen() {
       setModels(result.models as ModelRow[]);
       const config = result.settings as Record<string, unknown> | null;
       setSettings(config);
-      if (config) { setFreeTimeout(String(config.free_race_timeout_ms ?? 5000)); setFallbackTimeout(String(config.paid_fallback_timeout_ms ?? 30000)); setParallel(String(config.max_parallel_free_models ?? 10)); setPaidFallback(config.paid_fallback_enabled === true); setAutoRestrict(config.health_auto_restrict_enabled !== false); }
+      if (config) {
+        setFreeTimeout(String(config.free_race_timeout_ms ?? 5000));
+        setFallbackTimeout(String(config.paid_fallback_timeout_ms ?? 30000));
+        setParallel(String(config.max_parallel_free_models ?? 10));
+        setPaidFallback(config.paid_fallback_enabled === true);
+        setAutoRestrict(config.health_auto_restrict_enabled !== false);
+      }
     } catch { setError("تعذر تحميل النماذج أو إعدادات التوجيه."); }
     finally { setLoading(false); }
   };
+
   useEffect(() => { void load(); }, []);
+
+  const openModelDetails = async (model: ModelRow) => {
+    setSelectedModel(model);
+    setEditTiers(model.allowed_tiers ?? ["free", "lite", "pro", "max"]);
+    setEditTimeout(String(model.response_timeout_ms ?? 30000));
+    setEditThreshold(String(model.restriction_failure_threshold ?? 3));
+    setEditWindow(String(model.restriction_window_minutes ?? 15));
+    try {
+      const logs = await adminService.getModelAttempts(model.id);
+      setAttempts(logs as AttemptRow[]);
+    } catch {
+      setAttempts([]);
+    }
+  };
+
+  const saveModelDetail = async () => {
+    if (!selectedModel) return;
+    const timeout = Number(editTimeout), threshold = Number(editThreshold), window = Number(editWindow);
+    if (!Number.isInteger(timeout) || timeout < 1000 || timeout > 120000 || !Number.isInteger(threshold) || threshold < 1 || !Number.isInteger(window) || window < 1) {
+      setError("المهلة 1000-120000، العتبة والنطاق أعداد صحيحة موجبة.");
+      return;
+    }
+    setBusy(true); setError(null);
+    try {
+      await adminService.updateModel(selectedModel.id, {
+        allowed_tiers: editTiers,
+        response_timeout_ms: timeout,
+        restriction_failure_threshold: threshold,
+        restriction_window_minutes: window,
+      });
+      setSelectedModel(null);
+      await load();
+    } catch {
+      setError("تعذر تحديث إعدادات النموذج الفردية.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleTier = (tier: string) => {
+    setEditTiers((prev) => prev.includes(tier) ? prev.filter((t) => t !== tier) : [...prev, tier]);
+  };
+
   const saveSettings = async () => {
     const free = Number(freeTimeout), fallback = Number(fallbackTimeout), count = Number(parallel);
     if (!Number.isInteger(free) || free < 1000 || free > 30000 || !Number.isInteger(fallback) || fallback < 1000 || fallback > 120000 || !Number.isInteger(count) || count < 1 || count > 50) { setError("المهلة المجانية 1000–30000، مهلة البديل 1000–120000، والتوازي 1–50."); return; }
@@ -100,6 +178,7 @@ export function ModelsAdminScreen() {
     catch { setError("تعذر حفظ إعدادات التوجيه عبر قاعدة البيانات."); }
     finally { setBusy(false); }
   };
+
   const disable = async (model: ModelRow) => {
     if (!await confirmAdminAction("تعطيل النموذج؟", `سيُزال ${model.name} من التوجيه.`, "تعطيل النموذج")) return;
     setBusy(true);
@@ -107,6 +186,7 @@ export function ModelsAdminScreen() {
     catch { setError("تعذر تعطيل النموذج."); }
     finally { setBusy(false); }
   };
+
   const assignRoute = async (model: ModelRow, route: "free_race" | "paid_fallback") => {
     if (!await confirmAdminAction("تفعيل النموذج؟", `سيُفعّل ${model.name} ضمن مسار ${route}.`, "تفعيل")) return;
     setBusy(true);
@@ -114,6 +194,7 @@ export function ModelsAdminScreen() {
     catch { setError("تعذر تحديث مسار النموذج."); }
     finally { setBusy(false); }
   };
+
   const resetHealth = async (model: ModelRow) => {
     if (!await confirmAdminAction("إعادة ضبط صحة النموذج؟", `سيُصفّر هذا الإجراء عداد الإخفاق ويعيد تفعيل ${model.name} في قاعدة البيانات.`, "إعادة الضبط")) return;
     setBusy(true);
@@ -121,6 +202,7 @@ export function ModelsAdminScreen() {
     catch { setError("تعذر إعادة ضبط سجل صحة النموذج."); }
     finally { setBusy(false); }
   };
+
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     <PageHeader title="النماذج والتوجيه" />
     <ErrorText>{error}</ErrorText>
@@ -130,13 +212,46 @@ export function ModelsAdminScreen() {
       {models.map((model) => <Card key={model.id}>
         <Text style={styles.cardTitle}>{model.name} · {model.provider_name}</Text>
         <Text style={styles.detail}>{model.model_identifier} · {model.enabled ? `مفعّل (${model.routing_group})` : "معطّل"} · أولوية {model.priority}</Text>
+        <Text style={styles.detail}>الشرائح المسموحة: {(model.allowed_tiers ?? ["free", "lite", "pro", "max"]).join(", ")} · المهلة: {model.response_timeout_ms ?? 30000}ms</Text>
         <Text style={styles.detail}>الحالة: {model.health?.last_status ?? "غير مسجلة"} · إخفاقات متتالية: {model.health?.consecutive_failures ?? 0} · تقييد تلقائي: {model.health?.auto_restricted ? "نعم" : "لا"}</Text>
         {model.health?.restriction_reason ? <Text style={styles.warning}>{model.health.restriction_reason}</Text> : null}
         <View style={styles.rowWrap}>
+          <Pressable onPress={() => void openModelDetails(model)}><Text style={styles.link}>تعديل الشرائح وسجل المحاولات</Text></Pressable>
           {model.health?.auto_restricted ? <PrimaryButton label="مراجعة وإعادة تفعيل" onPress={() => void resetHealth(model)} disabled={busy} /> : model.enabled ? <PrimaryButton label="تعطيل" onPress={() => void disable(model)} disabled={busy} /> : <><PrimaryButton label="تفعيل ضمن سباق مجاني" onPress={() => void assignRoute(model, "free_race")} disabled={busy} /><PrimaryButton label="تفعيل كبديل مدفوع" onPress={() => void assignRoute(model, "paid_fallback")} disabled={busy} /></>}
         </View>
       </Card>)}
     </>}
+
+    {/* Modal لتعديل النموذج الفردي واستعراض سجل محاولاته */}
+    <Modal visible={!!selectedModel} transparent animationType="fade" onRequestClose={() => setSelectedModel(null)}>
+      <View style={styles.modalBackdrop}>
+        <ScrollView style={styles.modalScrollContent} contentContainerStyle={styles.modalCard}>
+          <Text style={styles.sectionTitle}>إعدادات {selectedModel?.name}</Text>
+          <Text style={styles.detail}>الشرائح المسموحة allowed_tiers:</Text>
+          <View style={styles.rowWrap}>
+            {["free", "lite", "pro", "max"].map((tier) => (
+              <Pressable key={tier} onPress={() => toggleTier(tier)} style={[styles.pill, editTiers.includes(tier) && styles.pillSelected]}>
+                <Text style={styles.pillText}>{tier}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <NumberField label="مهلة الاستجابة response_timeout_ms" value={editTimeout} onChange={setEditTimeout} />
+          <NumberField label="عتبة الإخفاق للتقييد failure_threshold" value={editThreshold} onChange={setEditThreshold} />
+          <NumberField label="نافذة الحظر بالدقائق window_minutes" value={editWindow} onChange={setEditWindow} />
+          <PrimaryButton label="حفظ إعدادات النموذج" onPress={() => void saveModelDetail()} disabled={busy} />
+
+          <Text style={[styles.sectionTitle, { marginTop: 16 }]}>سجل المحاولات الحديثة (ai_model_attempt_logs)</Text>
+          {attempts.length === 0 ? <Text style={styles.detail}>لا توجد محاولات حديثة مسجلة لهذا النموذج.</Text> : attempts.map((log, index) => (
+            <View key={index} style={styles.attemptRow}>
+              <Text style={styles.detail}>{log.created_at} · {log.attempt_status} ({log.duration_ms ?? "—"}ms)</Text>
+              {log.error_reason && <Text style={styles.warning}>{log.error_code ?? "خطأ"}: {log.error_reason}</Text>}
+            </View>
+          ))}
+
+          <Pressable onPress={() => setSelectedModel(null)} style={styles.modalClose}><Text style={styles.link}>إغلاق</Text></Pressable>
+        </ScrollView>
+      </View>
+    </Modal>
   </ScrollView>;
 }
 
@@ -218,7 +333,7 @@ function NumberField({ label, value, onChange }: { label: string; value: string;
   return <View style={styles.field}><Text style={styles.label}>{label}</Text><TextInput style={styles.input} value={value} onChangeText={onChange} keyboardType="numeric" /></View>;
 }
 function Toggle({ label, value, onChange }: { label: string; value: boolean; onChange(value: boolean): void }) {
-  return <View style={styles.toggle}><Text style={styles.label}>{label}</Text><Switch value={value} onValueChange={onChange} trackColor={{ true: colors.primary }} /> </View>;
+  return <View style={styles.toggle}><Text style={styles.label}>{label}</Text><Switch value={value} onValueChange={onChange} trackColor={{ true: colors.primary }} /></View>;
 }
 
 const styles = StyleSheet.create({
@@ -251,6 +366,8 @@ const styles = StyleSheet.create({
   searchWrap: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16 },
   idText: { color: colors.textMuted, fontSize: 11, textAlign: "right" },
   modalBackdrop: { flex: 1, backgroundColor: "#00000099", justifyContent: "center", alignItems: "center", padding: 20 },
-  modalCard: { width: "100%", maxWidth: 500, backgroundColor: colors.surface, borderRadius: 16, padding: 18, gap: 10 },
-  modalClose: { alignItems: "center", padding: 8 },
+  modalCard: { width: "100%", maxWidth: 600, backgroundColor: colors.surface, borderRadius: 16, padding: 18, gap: 10 },
+  modalScrollContent: { maxHeight: "90%", width: "100%" },
+  modalClose: { alignItems: "center", padding: 8, marginTop: 12 },
+  attemptRow: { paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.divider },
 });
