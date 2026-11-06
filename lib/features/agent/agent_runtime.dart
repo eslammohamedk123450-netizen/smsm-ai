@@ -1,7 +1,12 @@
 import 'agent_task.dart';
 import 'agent_plan.dart';
+import 'tool_executor.dart';
 
 class AgentRuntime {
+  final ToolExecutor _toolExecutor;
+
+  AgentRuntime(this._toolExecutor);
+
   Future<void> executeTask(AgentTask task) async {
     bool isCompleted = false;
     bool needsPlanning = true;
@@ -28,6 +33,8 @@ class AgentRuntime {
 
       if (plan != null && task.currentStepIndex < plan.steps.length) {
         final step = plan.steps[task.currentStepIndex];
+        // Using a mock tool execution as an example
+        await _toolExecutor.executeTool('web_search', {'query': step.description});
         step.isCompleted = true;
         task.currentStepIndex++;
       } else {
