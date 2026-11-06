@@ -3,7 +3,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../cubit/chat_cubit.dart';
 import '../cubit/chat_state.dart';
 import '../widgets/message_bubble.dart';
-import '../widgets/streaming_text_widget.dart';
 import '../../../../core/theme/app_theme.dart';
 
 class ChatPage extends StatefulWidget {
@@ -54,8 +53,8 @@ class _ChatPageState extends State<ChatPage> {
   Widget build(BuildContext context) {
     return BlocBuilder<ChatCubit, ChatState>(
       builder: (context, state) {
-        final messages = state is ChatLoaded ? state.messages : <dynamic>[];
-        final isStreaming = state is ChatLoaded && state.isStreaming;
+        final messages = state.messages;
+        final isStreaming = state is ChatStreaming;
         return Scaffold(
           backgroundColor: AppColors.background,
           appBar: AppBar(
@@ -114,8 +113,18 @@ class _ChatPageState extends State<ChatPage> {
                                 },
                               ),
               ),
-              if (isStreaming) const StreamingTextWidget(),
               const SizedBox(height: 8),
+               if (isStreaming) const Padding(
+                 padding: EdgeInsets.only(bottom: 8),
+                 child: Row(
+                   mainAxisAlignment: MainAxisAlignment.center,
+                   children: [
+                     CircularProgressIndicator(strokeWidth: 2),
+                     SizedBox(width: 8),
+                     Text('جاري التوليد', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                   ],
+                 ),
+               ),
             ],
           ),
           bottomNavigationBar: SafeArea(

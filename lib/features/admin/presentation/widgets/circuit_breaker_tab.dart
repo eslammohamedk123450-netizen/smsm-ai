@@ -40,13 +40,13 @@ class _CircuitBreakerTabState extends State<CircuitBreakerTab> {
                   color: AppColors.cardBackground,
                   margin: const EdgeInsets.only(bottom: 12),
                   child: ListTile(
-                    title: Text(a['model] as String, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+                    title: Text(a['model'] as String, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('${a['provider']} • ${a['failures']} failures', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                         const SizedBox(height: 4),
-                        Text(a['reason] as String, style: const TextStyle(color: AppColors.warning, fontSize: 11, fontWeight: FontWeight.w500)),
+                        Text(a['reason'] as String, style: const TextStyle(color: AppColors.warning, fontSize: 11, fontWeight: FontWeight.w500)),
                       ],
                     ),
                     trailing: Column(

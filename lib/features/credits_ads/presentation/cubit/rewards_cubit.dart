@@ -88,5 +88,3 @@ class RewardsCubit extends Cubit<RewardsState> {
     }
   }
 }
-
-import 'package:equatable/equatable.dart';

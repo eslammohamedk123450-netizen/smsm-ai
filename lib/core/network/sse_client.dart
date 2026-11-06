@@ -30,12 +30,19 @@ class SseError extends SseEvent {
 
 /// Client for the Supabase AI router SSE endpoint.
 class SseClient {
-  SseClient({http.Client? httpClient, Duration connectionTimeout = const Duration(seconds: 30)})
-      : _httpClient = httpClient ?? http.Client(),
-        _connectionTimeout = connectionTimeout;
+  /// [maxAttempts] retry attempts when the stream connection breaks.
+  /// [connectionTimeout] applied to every attempt.
+  SseClient({
+    http.Client? httpClient,
+    Duration connectionTimeout = const Duration(seconds: 15),
+    int maxAttempts = 3,
+  })  : _httpClient = httpClient ?? http.Client(),
+        _connectionTimeout = connectionTimeout,
+        _maxAttempts = maxAttempts;
 
   final http.Client _httpClient;
   final Duration _connectionTimeout;
+  final int _maxAttempts;
 
   /// Opens a POST stream and yields parsed [SseEvent]s handling
   /// `{chunk}`, `{tool_event}`, and `{done: true}` payloads.
@@ -44,88 +51,104 @@ class SseClient {
     required Map<String, dynamic> body,
     Map<String, String> headers = const {},
   }) async* {
-    final request = http.Request('POST', Uri.parse(url))
-      ..headers.addAll({
-        'Content-Type': 'application/json',
-        'Accept': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-        ...headers,
-      })
-      ..body = jsonEncode(body);
+    int attempt = 0;
 
-    late http.StreamedResponse response;
-    try {
-      response = await _httpClient.send(request).timeout(_connectionTimeout);
-    } on TimeoutException {
-      yield SseError('SSE connection timed out');
-      return;
-    }
+    while (attempt < _maxAttempts) {
+      attempt++;
+      final request = http.Request('POST', Uri.parse(url))
+        ..headers.addAll({
+          'Content-Type': 'application/json',
+          'Accept': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          ...headers,
+        })
+        ..body = jsonEncode(body);
 
-      if (response.statusCode != 200) {
-        String body = '';
+      try {
+        final http.StreamedResponse response = await _httpClient
+            .send(request)
+            .timeout(_connectionTimeout);
+
+        if (response.statusCode != 200) {
+          if (attempt >= _maxAttempts) {
+            String body = '';
+            try {
+              body = await response.stream.bytesToString();
+            } catch (_) {}
+            yield SseError('HTTP ${response.statusCode}: $body');
+          }
+          continue;
+        }
+
+        final buffer = StringBuffer();
         try {
-          body = await response.stream.bytesToString();
-        } catch (_) {}
-        yield SseError('HTTP ${response.statusCode}: $body');
-        return;
-      }
-
-    final buffer = StringBuffer();
-    try {
-      await for (final chunk in response.stream.transform(utf8.decoder)) {
-        buffer.write(chunk);
-        String data = buffer.toString();
-        int idx;
-        while ((idx = data.indexOf('\n')) != -1) {
-          final line = data.substring(0, idx).trim();
-          data = data.substring(idx + 1);
-          if (line.isEmpty) continue;
-          String payload = line;
-          if (payload.startsWith('data:')) {
-            payload = payload.substring(5).trim();
-          }
-          if (payload == '[DONE]') {
-            yield SseDone();
-            continue;
-          }
-          try {
-            final json = jsonDecode(payload) as Map<String, dynamic>;
-            if (json.containsKey('chunk')) {
-              yield SseChunk(json['chunk']?.toString() ?? '');
-            } else if (json.containsKey('tool_event')) {
-              final rawTe = json['tool_event'];
-              final te = rawTe is Map<String, dynamic>
-                  ? rawTe
-                  : <String, dynamic>{'message': rawTe?.toString(), 'status': 'running'};
-              yield SseToolEvent(
-                tool: te['tool']?.toString() ?? '',
-                status: te['status']?.toString() ?? 'running',
-                message: te['message']?.toString(),
-              );
-            } else if (json['done'] == true) {
-              yield SseDone(usage: json['usage'] as Map<String, dynamic>?);
-            } else if (json.containsKey('error')) {
-              yield SseError(json['error'].toString());
+          await for (final chunk in response.stream.transform(utf8.decoder)) {
+            buffer.write(chunk);
+            String data = buffer.toString();
+            int idx;
+            while ((idx = data.indexOf('\n')) != -1) {
+              final line = data.substring(0, idx).trim();
+              data = data.substring(idx + 1);
+              if (line.isEmpty) continue;
+              String payload = line;
+              if (payload.startsWith('data:')) {
+                payload = payload.substring(5).trim();
+              }
+              if (payload == '[DONE]') {
+                yield SseDone();
+                continue;
+              }
+              try {
+                final json = jsonDecode(payload) as Map<String, dynamic>;
+                if (json.containsKey('chunk')) {
+                  yield SseChunk(json['chunk']?.toString() ?? '');
+                } else if (json.containsKey('tool_event')) {
+                  final rawTe = json['tool_event'];
+                  final te = rawTe is Map<String, dynamic>
+                      ? rawTe
+                      : <String, dynamic>{'message': rawTe?.toString(), 'status': 'running'};
+                  yield SseToolEvent(
+                    tool: te['tool']?.toString() ?? '',
+                    status: te['status']?.toString() ?? 'running',
+                    message: te['message']?.toString(),
+                  );
+                } else if (json['done'] == true) {
+                  yield SseDone(usage: json['usage'] as Map<String, dynamic>?);
+                } else if (json.containsKey('error')) {
+                  yield SseError(json['error'].toString());
+                }
+              } catch (_) {
+                // Ignore malformed lines.
+              }
             }
-          } catch (_) {
-            // Ignore malformed lines.
+            buffer
+              ..clear()
+              ..write(data);
+          }
+          final rest = buffer.toString().trim();
+          if (rest.isNotEmpty) {
+            try {
+              final json = jsonDecode(rest) as Map<String, dynamic>;
+              if (json.containsKey('chunk')) yield SseChunk(json['chunk']?.toString() ?? '');
+              if (json['done'] == true) yield SseDone(usage: json['usage'] as Map<String, dynamic>?);
+            } catch (_) {}
+          }
+          break;
+        } catch (e) {
+          if (attempt >= _maxAttempts) {
+            yield SseError(e.toString());
           }
         }
-        buffer
-          ..clear()
-          ..write(data);
+      } on TimeoutException {
+        if (attempt >= _maxAttempts) {
+          yield SseError('SSE connection timed out (attempt $attempt of $_maxAttempts)');
+        }
       }
-      final rest = buffer.toString().trim();
-      if (rest.isNotEmpty) {
-        try {
-          final json = jsonDecode(rest) as Map<String, dynamic>;
-          if (json.containsKey('chunk')) yield SseChunk(json['chunk']?.toString() ?? '');
-          if (json['done'] == true) yield SseDone(usage: json['usage'] as Map<String, dynamic>?);
-        } catch (_) {}
+
+      if (attempt < _maxAttempts) {
+        await Future.delayed(Duration(milliseconds: 500 * attempt));
       }
-    } catch (e) {
-      yield SseError(e.toString());
     }
   }
 

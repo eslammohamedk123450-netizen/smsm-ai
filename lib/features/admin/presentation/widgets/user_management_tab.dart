@@ -56,19 +56,19 @@ class _UserManagementTabState extends State<UserManagementTab> {
                   color: AppColors.cardBackground,
                   margin: const EdgeInsets.only(bottom: 12),
                   child: ListTile(
-                    title: Text(u['name] as String, style: const TextStyle(color: AppColors.textPrimary)),
+                    title: Text(u['name'] as String, style: const TextStyle(color: AppColors.textPrimary)),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(u['email] as String, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-                        Text('Tier: ${u['tier]} • Credits: ${u['credits]}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                        Text(u['email'] as String, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                        Text('Tier: ${u['tier']} • Credits: ${u['credits']}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                       ],
                     ),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Switch(
-                          value: u['banned] as bool,
+                          value: u['banned'] as bool,
                           onChanged: (val) {},
                           activeColor: AppColors.error,
                         ),

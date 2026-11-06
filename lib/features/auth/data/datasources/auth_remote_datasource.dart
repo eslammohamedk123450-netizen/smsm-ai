@@ -1,4 +1,4 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide AuthException;
 import '../../../core/errors/exceptions.dart';
 import '../../domain/entities/user_entity.dart';
 

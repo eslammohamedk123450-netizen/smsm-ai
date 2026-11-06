@@ -1,6 +1,6 @@
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:flutter/foundation.dart';
-import '../config/app_config.dart';
+import '../../app_config.dart';
 
 class AdMobService {
   static final AdMobService _instance = AdMobService._internal();
