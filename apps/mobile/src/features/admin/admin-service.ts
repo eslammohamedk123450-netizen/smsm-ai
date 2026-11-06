@@ -16,6 +16,14 @@ async function requireAdmin(): Promise<void> {
   if (error || data !== true) throw new Error("يتطلب هذا الإجراء صلاحية مشرف موثقة.");
 }
 
+function describeFunctionFailure(error: unknown, functionName: string): string {
+  const status = (error as { context?: { status?: number } } | null)?.context?.status;
+  if (status === 404) return `وظيفة ${functionName} غير منشورة على مشروع Supabase بعد، لذلك لم يُحفظ المزود.`;
+  if (status === 401 || status === 403) return `رفضت وظيفة ${functionName} الطلب. تحقق من صلاحية المشرف على السيرفر.`;
+  if (status === 400 || status === 422) return `رفضت وظيفة ${functionName} البيانات. تحقق من صحة المفتاح والرابط.`;
+  return `تعذر الوصول إلى وظيفة ${functionName}. لم يُحفظ المزود ولم يُخزَّن المفتاح.`;
+}
+
 export const adminService = {
   async getProviders() {
     await requireAdmin();
@@ -31,7 +39,7 @@ export const adminService = {
     const { data, error } = await supabase.functions.invoke("sync-models", {
       body: { action: "create_provider", provider: input },
     });
-    if (error) throw new Error("تعذر إرسال بيانات المزوّد إلى الوظيفة المحمية.");
+    if (error) throw new Error(describeFunctionFailure(error, "sync-models"));
     if (!data || typeof data !== "object" || data.success !== true) {
       throw new Error("لم تقبل وظيفة المزامنة المزوّد. تحقق من البيانات ثم أعد المحاولة.");
     }
