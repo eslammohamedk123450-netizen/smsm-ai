@@ -10,8 +10,9 @@ class AgentRuntime {
   Future<void> executeTask(AgentTask task) async {
     bool isCompleted = false;
     bool needsPlanning = true;
-    bool requiresApproval = false;
     AgentPlan? plan;
+    int reflectionCount = 0;
+    const int maxReflections = 3;
 
     while (!isCompleted) {
       if (task.currentStepIndex >= task.steps.length && !needsPlanning) {
@@ -33,24 +34,27 @@ class AgentRuntime {
 
       if (plan != null && task.currentStepIndex < plan.steps.length) {
         final step = plan.steps[task.currentStepIndex];
-        
-        bool stepSuccess = false;
-        int attempts = 0;
-        while (!stepSuccess && attempts < 2) {
-          try {
-            await _toolExecutor.executeTool('web_search', {'query': step.description});
-            step.isCompleted = true;
-            stepSuccess = true;
-          } catch (e) {
-            attempts++;
-            // Log failure and prepare context for fallback/next attempt
-            if (attempts >= 2) {
-               // Fallback: mark task as partially failed or switch logic
-               break;
-            }
+
+        // Execute with reflection
+        try {
+          final toolName = step.description.toLowerCase().contains('image') ? 'vision_analyze' : 'web_search';
+          final args = step.description.toLowerCase().contains('image')
+              ? {'image_path': 'screenshot.png'}
+              : {'query': step.description};
+
+          await _toolExecutor.executeTool(toolName, args);
+
+          step.isCompleted = true;
+          task.currentStepIndex++;
+        } catch (e) {
+          // Attempt automatic fix if reflection is still allowed
+          if (reflectionCount < maxReflections) {
+            reflectionCount++;
+            await _toolExecutor.executeTool('error_fix', {'path': 'main.dart', 'error_log': e.toString()});
+          } else {
+            break;
           }
         }
-        task.currentStepIndex++;
       } else {
         isCompleted = true;
       }

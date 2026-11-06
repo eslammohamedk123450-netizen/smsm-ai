@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../../core/theme/app_colors.dart';
 import '../cubit/chat_cubit.dart';
-import '../cubit/chat_state.dart';
 import '../widgets/message_bubble.dart';
-import '../../../../core/theme/app_theme.dart';
+import '../../agent/presentation/widgets/agent_status_card.dart';
+import '../../agent/presentation/widgets/step_timeline.dart';
+import '../../agent/presentation/widgets/thinking_process_widget.dart';
+import '../../agent/agent_cubit.dart';
+import '../../agent/agent_state.dart';
+import '../../agent/agent_task.dart';
+
+import 'package:image_picker/image_picker.dart';
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
@@ -69,12 +76,28 @@ class _ChatPageState extends State<ChatPage> {
       child: BlocBuilder<ChatCubit, ChatState>(
         builder: (context, state) {
           final messages = state.messages;
-        final isStreaming = state is ChatStreaming;
+        final isStreaming = state.isStreaming;
         return Scaffold(
           backgroundColor: AppColors.background,
           appBar: AppBar(
             title: const Text('AI Chat'),
             actions: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Center(
+                  child: Tooltip(
+                    message: 'رصيد العملات',
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.account_balance_wallet_outlined, size: 18),
+                        const SizedBox(width: 5),
+                        Text('${state.creditBalance}'),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
               Container(
                 margin: const EdgeInsets.symmetric(vertical: 12),
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -99,6 +122,7 @@ class _ChatPageState extends State<ChatPage> {
               BlocBuilder<AgentCubit, AgentState>(
                 builder: (context, agentState) {
                   if (agentState is AgentPlanning) return const AgentStatusCard(status: 'Planning...');
+                  if (agentState is AgentReflecting) return const ThinkingProcessWidget(thought: 'Reflecting on results and correcting path...');
                   if (agentState is AgentExecuting) return const AgentStatusCard(status: 'Executing...');
                   return const SizedBox.shrink();
                 },
@@ -181,6 +205,16 @@ class _ChatPageState extends State<ChatPage> {
                         suffixIcon: IconButton(
                           icon: const Icon(Icons.send, color: AppColors.primary),
                           onPressed: isStreaming ? null : _sendMessage,
+                        ),
+                        prefixIcon: IconButton(
+                          icon: const Icon(Icons.image, color: AppColors.textSecondary),
+                          onPressed: () async {
+                            final ImagePicker picker = ImagePicker();
+                            final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+                            if (image != null) {
+                              context.read<AgentCubit>().runTask(AgentTask(id: 'task_img', goal: 'Analyze image: ${image.path}'));
+                            }
+                          },
                         ),
                       ),
                       onSubmitted: isStreaming ? null : (_) => _sendMessage(),

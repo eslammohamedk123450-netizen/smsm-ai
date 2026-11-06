@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthException;
 import '../../../../app_config.dart';
 import '../../../../core/errors/exceptions.dart';
@@ -26,6 +28,15 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
   final SseClient sseClient;
 
   ChatRemoteDataSourceImpl(this.supabase, this.sseClient);
+
+  String _newRequestId() {
+    final bytes = List<int>.generate(16, (_) => Random.secure().nextInt(256));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    final hex = bytes.map((value) => value.toRadixString(16).padLeft(2, '0')).join();
+    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
+        '${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
+  }
 
   @override
   Future<List<ModelEntity>> getAvailableModels() async {
@@ -147,6 +158,7 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
             }),
         {'role': 'user', 'content': message},
       ];
+      final requestId = _newRequestId();
       var receivedText = false;
       await for (final event in sseClient.stream(
         url: '${AppConfig.edgeFunctionBaseUrl}/ai-router',
@@ -156,6 +168,7 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
         },
         body: {
           'conversation_id': conversationId,
+          'request_id': requestId,
           'messages': messages,
           'routing_mode': 'auto',
           'stream': true,

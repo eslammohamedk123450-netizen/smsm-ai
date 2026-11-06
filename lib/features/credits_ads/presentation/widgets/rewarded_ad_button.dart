@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../cubit/rewards_cubit.dart';
-import '../../../../core/theme/app_theme.dart';
 
 class RewardedAdButton extends StatelessWidget {
   final int bonusAmount;
@@ -36,14 +35,10 @@ class RewardedAdButton extends StatelessWidget {
   }
 
   Future<void> _watchAd(BuildContext context) async {
-    final cubit = context.read<RewardsCubit>();
-    try {
-      cubit.addCreditsFromAd(bonusAmount);
-      onRewardEarned?.call();
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Ad failed: $e'), backgroundColor: AppColors.error),
-      );
-    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('إعلانات المكافآت غير مفعّلة بعد؛ لن يتم إضافة رصيد الآن.'),
+      ),
+    );
   }
 }

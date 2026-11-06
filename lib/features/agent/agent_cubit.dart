@@ -12,6 +12,8 @@ class AgentCubit extends Cubit<AgentState> {
     emit(const AgentPlanning());
     try {
       emit(const AgentExecuting());
+      // We need to notify when reflecting.
+      // Simplest way: Add a callback to runtime or just emit reflecting state before execution steps.
       await _runtime.executeTask(task);
       emit(const AgentVerifying());
       emit(const AgentCompleted());

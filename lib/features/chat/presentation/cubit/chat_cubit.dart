@@ -1,4 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+
+import '../../../../core/services/credit_service.dart';
 import '../../domain/entities/message_entity.dart';
 import '../../domain/entities/model_entity.dart';
 import '../../domain/repositories/chat_repository.dart';
@@ -6,8 +8,11 @@ import 'chat_state.dart';
 
 class ChatCubit extends Cubit<ChatState> {
   final ChatRepository _chatRepository;
+  final CreditService? _creditService;
 
-  ChatCubit(this._chatRepository) : super(const ChatInitial());
+  ChatCubit(this._chatRepository, {CreditService? creditService})
+      : _creditService = creditService,
+        super(const ChatInitial());
 
   String _currentAssistantContent = '';
   String? _currentMessageId;
@@ -15,17 +20,59 @@ class ChatCubit extends Cubit<ChatState> {
   int _creditBalance = 0;
   List<ModelEntity> _models = const [];
 
+  Future<void> _refreshCreditBalance() async {
+    try {
+      final service = _creditService;
+      if (service != null) _creditBalance = await service.getCurrentUserCredits();
+    } catch (_) {
+      // A balance refresh failure must not interrupt message delivery.
+    }
+  }
+
+  Future<void> initialize() async {
+    final currentModel = state.currentModel;
+    emit(ChatLoading(
+      messages: state.messages,
+      models: _models,
+      conversationId: _currentConversationId,
+      currentModel: currentModel,
+      creditBalance: _creditBalance,
+    ));
+    try {
+      _models = await _chatRepository.getAvailableModels();
+      await _refreshCreditBalance();
+      emit(ChatLoaded(
+        messages: const [],
+        models: _models,
+        conversationId: _currentConversationId,
+        currentModel: currentModel,
+        creditBalance: _creditBalance,
+      ));
+    } catch (error) {
+      emit(ChatError(
+        message: error.toString(),
+        messages: const [],
+        models: _models,
+        conversationId: _currentConversationId,
+        currentModel: currentModel,
+        creditBalance: _creditBalance,
+      ));
+    }
+  }
+
   Future<void> createNewConversation() async {
+    final selectedModel = state.currentModel;
     _currentAssistantContent = '';
     _currentMessageId = null;
     _currentConversationId = null;
-    emit(const ChatLoaded(messages: [], models: [], conversationId: null, currentModel: null));
+    await startNewConversation(selectedModel);
   }
 
   Future<void> startNewConversation([String? modelId]) async {
     _currentAssistantContent = '';
     _currentMessageId = null;
     try {
+      await _refreshCreditBalance();
       final conversationId = await _chatRepository.createConversation('New Conversation', modelId);
       _currentConversationId = conversationId;
       emit(ChatLoaded(
@@ -35,22 +82,29 @@ class ChatCubit extends Cubit<ChatState> {
         models: _models,
         creditBalance: _creditBalance,
       ));
-    } catch (e) {
+    } catch (error) {
       emit(ChatError(
-        message: e.toString(),
+        message: error.toString(),
         messages: const [],
         models: _models,
         conversationId: _currentConversationId,
         currentModel: state.currentModel,
+        creditBalance: _creditBalance,
       ));
     }
   }
 
   Future<void> loadConversation(String conversationId) async {
     final currentModel = state.currentModel;
-    emit(const ChatLoading());
+    emit(ChatLoading(
+      models: _models,
+      conversationId: _currentConversationId,
+      currentModel: currentModel,
+      creditBalance: _creditBalance,
+    ));
     try {
       final messages = await _chatRepository.getMessages(conversationId);
+      await _refreshCreditBalance();
       _currentConversationId = conversationId;
       emit(ChatLoaded(
         messages: messages,
@@ -59,13 +113,14 @@ class ChatCubit extends Cubit<ChatState> {
         models: _models,
         creditBalance: _creditBalance,
       ));
-    } catch (e) {
+    } catch (error) {
       emit(ChatError(
-        message: e.toString(),
+        message: error.toString(),
         messages: const [],
         models: _models,
         conversationId: _currentConversationId,
-        currentModel: state.currentModel,
+        currentModel: currentModel,
+        creditBalance: _creditBalance,
       ));
     }
   }
@@ -74,15 +129,10 @@ class ChatCubit extends Cubit<ChatState> {
     final currentModel = modelId ?? state.currentModel;
     if (_currentConversationId == null) await startNewConversation(currentModel);
     final conversationId = _currentConversationId;
-    if (conversationId == null) return;
+    if (conversationId == null || isClosed) return;
 
-    final currentState = state;
-    final existingMessages = (currentState is ChatLoaded ||
-            currentState is ChatError ||
-            currentState is ChatStreaming)
-        ? currentState.messages
-        : <MessageEntity>[];
-    final creditBalance = currentState is ChatLoaded ? currentState.creditBalance : _creditBalance;
+    await _refreshCreditBalance();
+    final existingMessages = state.messages;
     final userMessage = MessageEntity(
       id: 'local_user_${DateTime.now().microsecondsSinceEpoch}',
       conversationId: conversationId,
@@ -104,9 +154,11 @@ class ChatCubit extends Cubit<ChatState> {
     _currentAssistantContent = '';
     emit(ChatLoaded(
       messages: [...existingMessages, userMessage, assistantMessage],
+      models: _models,
       conversationId: conversationId,
       currentModel: currentModel,
-      creditBalance: creditBalance,
+      creditBalance: _creditBalance,
+      isStreaming: true,
     ));
 
     try {
@@ -115,28 +167,16 @@ class ChatCubit extends Cubit<ChatState> {
         message,
         onChunk: onStreamChunk,
       );
-      onStreamComplete();
-    } catch (e) {
-      emit(ChatLoaded(
-        messages: state.messages,
-        conversationId: conversationId,
-        currentModel: currentModel,
-        isStreaming: false,
-      ));
-      onStreamError('Failed to connect: ${e.toString()}');
+      await onStreamComplete();
+    } catch (error) {
+      await _refreshCreditBalance();
+      onStreamError('Failed to connect: ${error.toString()}');
     }
   }
 
   void onStreamChunk(String chunk) {
     _currentAssistantContent += chunk;
-    final currentState = state;
-    final existingMessages = (currentState is ChatLoaded ||
-            currentState is ChatError ||
-            currentState is ChatStreaming)
-        ? currentState.messages
-        : <MessageEntity>[];
-    final currentModels = currentState is ChatLoaded ? currentState.models : _models;
-    final updatedMessages = existingMessages.map((message) {
+    final updatedMessages = state.messages.map((message) {
       if (message.id != _currentMessageId) return message;
       return message.copyWith(
         content: _currentAssistantContent,
@@ -148,21 +188,16 @@ class ChatCubit extends Cubit<ChatState> {
     emit(ChatStreaming(
       partialContent: _currentAssistantContent,
       messages: updatedMessages,
-      models: currentModels,
+      models: state.models.isEmpty ? _models : state.models,
       conversationId: _currentConversationId,
       currentModel: state.currentModel,
+      creditBalance: _creditBalance,
     ));
   }
 
-  void onStreamComplete() {
-    final currentState = state;
-    final existingMessages = (currentState is ChatLoaded ||
-            currentState is ChatError ||
-            currentState is ChatStreaming)
-        ? currentState.messages
-        : <MessageEntity>[];
-    final currentModels = currentState is ChatLoaded ? currentState.models : _models;
-    final updatedMessages = existingMessages.map((message) {
+  Future<void> onStreamComplete() async {
+    await _refreshCreditBalance();
+    final updatedMessages = state.messages.map((message) {
       if (message.id != _currentMessageId) return message;
       return message.copyWith(
         content: _currentAssistantContent,
@@ -173,7 +208,7 @@ class ChatCubit extends Cubit<ChatState> {
     }).toList();
     emit(ChatLoaded(
       messages: updatedMessages,
-      models: currentModels,
+      models: state.models.isEmpty ? _models : state.models,
       conversationId: _currentConversationId,
       currentModel: state.currentModel,
       creditBalance: _creditBalance,
@@ -183,27 +218,21 @@ class ChatCubit extends Cubit<ChatState> {
   }
 
   void onStreamError(String error) {
-    final currentState = state;
-    final existingMessages = (currentState is ChatLoaded ||
-            currentState is ChatError ||
-            currentState is ChatStreaming)
-        ? currentState.messages
-        : <MessageEntity>[];
-    final currentModels = currentState is ChatLoaded ? currentState.models : _models;
     final messageId = _currentMessageId;
-    _currentAssistantContent = '';
-    _currentMessageId = null;
-    final updatedMessages = existingMessages.map((message) {
+    final updatedMessages = state.messages.map((message) {
       if (message.id != messageId) return message;
       return message.copyWith(status: 'error', isStreaming: false);
     }).toList();
     emit(ChatError(
       message: error,
       messages: updatedMessages,
-      models: currentModels,
+      models: state.models.isEmpty ? _models : state.models,
       conversationId: _currentConversationId,
       currentModel: state.currentModel,
+      creditBalance: _creditBalance,
     ));
+    _currentAssistantContent = '';
+    _currentMessageId = null;
   }
 
   void selectModel(String modelId) {

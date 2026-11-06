@@ -18,6 +18,10 @@ class AgentExecuting extends AgentState {
   const AgentExecuting();
 }
 
+class AgentReflecting extends AgentState {
+  const AgentReflecting();
+}
+
 class AgentVerifying extends AgentState {
   const AgentVerifying();
 }

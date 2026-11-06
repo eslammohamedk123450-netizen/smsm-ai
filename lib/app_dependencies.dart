@@ -41,7 +41,10 @@ Future<void> configureDependencies() async {
     () => ChatRepositoryImpl(getIt<ChatRemoteDataSource>()),
   );
   getIt.registerLazySingleton<ChatCubit>(
-    () => ChatCubit(getIt<ChatRepository>()),
+    () => ChatCubit(
+      getIt<ChatRepository>(),
+      creditService: getIt<CreditService>(),
+    ),
   );
 
   getIt.registerLazySingleton<RewardsCubit>(
