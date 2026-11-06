@@ -1,7 +1,9 @@
 import '../base_tool.dart';
+import '../workspace_manager.dart';
 
 class FileReadTool extends BaseTool {
-  FileReadTool() : super(
+  final WorkspaceManager workspace;
+  FileReadTool(this.workspace) : super(
     name: 'file_read',
     description: 'Reads the content of a local file.',
     inputSchema: {'path': 'string'},
@@ -9,6 +11,10 @@ class FileReadTool extends BaseTool {
 
   @override
   Future<String> execute(Map<String, dynamic> args) async {
-    return 'Mock Result: File content for "${args['path']}" is "This is dummy file content".';
+    try {
+      return await workspace.readFile(args['path']);
+    } catch (e) {
+      return 'Error: Could not read file ${args['path']}: $e';
+    }
   }
 }
