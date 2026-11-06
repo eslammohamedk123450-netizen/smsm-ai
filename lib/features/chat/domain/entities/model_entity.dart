@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 class ModelEntity {
   final String id;
   final String provider;
@@ -10,6 +12,8 @@ class ModelEntity {
   final int maxTokens;
   final bool supportsStreaming;
   final bool isRacingEnabled;
+  final String routingGroup;
+  final List<String> allowedTiers;
 
   const ModelEntity({
     required this.id,
@@ -23,23 +27,25 @@ class ModelEntity {
     required this.maxTokens,
     required this.supportsStreaming,
     required this.isRacingEnabled,
+    this.routingGroup = 'free_race',
+    this.allowedTiers = const ['free', 'lite', 'pro', 'max'],
   });
 
-  bool get isFree => category == 'free';
-  bool get isPremium => category == 'premium';
+  bool get isFree => routingGroup == 'free_race' || category == 'free';
+  bool get isPremium => routingGroup == 'paid_fallback' || category == 'premium';
   bool get isActive => status == 'active';
   bool get isRacing => isRacingEnabled && isFree;
 
   String get badgeLabel {
-    if (isRacing) return 'FREE - FAST RACING';
-    if (isFree) return 'FREE';
-    return 'PREMIUM - $costPer1kTokens CREDITS/1K';
+    if (routingGroup == 'free_race') return 'FREE RACE';
+    if (routingGroup == 'paid_fallback') return 'PAID FALLBACK';
+    return 'DISABLED';
   }
 
   Color get badgeColor {
-    if (isRacing) return const Color(0xFF22D3EE);
-    if (isFree) return const Color(0xFF10B981);
-    return const Color(0xFF8B5CF6);
+    if (routingGroup == 'free_race') return const Color(0xFF10B981);
+    if (routingGroup == 'paid_fallback') return const Color(0xFF8B5CF6);
+    return const Color(0xFF6B7280);
   }
 
   ModelEntity copyWith({
@@ -54,6 +60,8 @@ class ModelEntity {
     int? maxTokens,
     bool? supportsStreaming,
     bool? isRacingEnabled,
+    String? routingGroup,
+    List<String>? allowedTiers,
   }) {
     return ModelEntity(
       id: id ?? this.id,
@@ -67,8 +75,8 @@ class ModelEntity {
       maxTokens: maxTokens ?? this.maxTokens,
       supportsStreaming: supportsStreaming ?? this.supportsStreaming,
       isRacingEnabled: isRacingEnabled ?? this.isRacingEnabled,
+      routingGroup: routingGroup ?? this.routingGroup,
+      allowedTiers: allowedTiers ?? this.allowedTiers,
     );
   }
 }
-
-import 'package:flutter/material.dart';

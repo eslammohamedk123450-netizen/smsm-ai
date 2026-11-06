@@ -6,7 +6,7 @@ class AppConfig {
 
   static const String supabaseUrl = String.fromEnvironment(
     'SUPABASE_URL',
-    defaultValue: 'https://your-project-ref.supabase.co',
+    defaultValue: 'https://razvryvazmqvvqkzetuo.supabase.co',
   );
 
   static const String supabaseAnonKey = String.fromEnvironment(
@@ -16,7 +16,7 @@ class AppConfig {
 
   static const String edgeFunctionBaseUrl = String.fromEnvironment(
     'EDGE_FUNCTION_BASE_URL',
-    defaultValue: 'https://your-project-ref.supabase.co/functions/v1',
+    defaultValue: 'https://razvryvazmqvvqkzetuo.supabase.co/functions/v1',
   );
 
   static const String admobAppId = String.fromEnvironment(
@@ -35,17 +35,11 @@ class AppConfig {
 
   static bool get isProfileMode => kProfileMode;
 
-  static const Duration streamingTimeout = Duration(seconds: 30);
+  static const Duration streamingTimeout = Duration(seconds: 180);
 
-  static const Duration connectionTimeout = Duration(seconds: 15);
+  static const Duration connectionTimeout = Duration(seconds: 180);
 
   static const int maxPromptTokens = 32000;
-
-  static const int racingFirstTokenTimeoutMs = 8000;
-
-  static const int circuitBreakerFailureThreshold = 3;
-
-  static const Duration circuitBreakerSuspensionDuration = Duration(minutes: 15);
 
   static SupabaseClient get supabaseClient => Supabase.instance.client;
 

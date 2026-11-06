@@ -1,7 +1,8 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../../core/network/sse_client.dart';
-import '../../../core/errors/exceptions.dart';
-import '../../../core/utils/token_counter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide AuthException;
+import '../../../../app_config.dart';
+import '../../../../core/errors/exceptions.dart';
+import '../../../../core/network/sse_client.dart';
+import '../../../../core/utils/token_counter.dart';
 import '../../domain/entities/message_entity.dart';
 import '../../domain/entities/model_entity.dart';
 
@@ -10,7 +11,11 @@ abstract class ChatRemoteDataSource {
   Future<ModelEntity?> getModelById(String modelId);
   Future<List<MessageEntity>> getMessages(String conversationId);
   Future<String> createConversation(String title, String? modelId);
-  Future<void> sendMessage(String conversationId, String message, String modelId);
+  Future<void> sendMessage(
+    String conversationId,
+    String message, {
+    required void Function(String chunk) onChunk,
+  });
   Stream<List<MessageEntity>> messageStream(String conversationId);
   Future<void> updateMessage(String messageId, String content, bool done);
   Future<void> deleteConversation(String conversationId);
@@ -25,26 +30,38 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
   @override
   Future<List<ModelEntity>> getAvailableModels() async {
     try {
-      final response = await supabase
-          .from('ai_models')
-          .select('*')
-          .eq('status', 'active')
-          .order('category')
-          .order('display_name');
-
-      return (response as List).map((json) => ModelEntity(
-        id: json['id'],
-        provider: json['provider'],
-        modelName: json['model_name'],
-        displayName: json['display_name'],
-        category: json['category'],
-        status: json['status'],
-        costPer1kTokens: json['cost_per_1k_tokens'] as int? ?? 0,
-        creditMultiplier: (json['credit_multiplier'] as num?)?.toDouble() ?? 1.0,
-        maxTokens: json['max_tokens'] as int? ?? 4096,
-        supportsStreaming: json['supports_streaming'] as bool? ?? true,
-        isRacingEnabled: json['is_racing_enabled'] as bool? ?? false,
-      )).toList();
+      final results = await Future.wait<dynamic>([
+        supabase
+            .from('ai_models')
+            .select('id,name,provider_id,model_identifier,enabled,priority,context_window,routing_group,allowed_tiers,input_price')
+            .eq('enabled', true)
+            .order('priority', ascending: false),
+        supabase.from('ai_providers').select('id,name,provider_type'),
+      ]);
+      final providerById = <int, Map<String, dynamic>>{};
+      for (final provider in results[1] as List) {
+        providerById[provider['id'] as int] = provider as Map<String, dynamic>;
+      }
+      return (results[0] as List).map((raw) {
+        final json = raw as Map<String, dynamic>;
+        final provider = providerById[json['provider_id'] as int];
+        final route = json['routing_group'] as String? ?? 'free_race';
+        return ModelEntity(
+          id: '${json['id']}',
+          provider: (provider?['provider_type'] ?? provider?['name'] ?? 'provider').toString(),
+          modelName: (json['model_identifier'] ?? json['name']).toString(),
+          displayName: (json['name'] ?? json['model_identifier']).toString(),
+          category: route == 'free_race' ? 'free' : 'premium',
+          status: json['enabled'] == true ? 'active' : 'disabled',
+          costPer1kTokens: ((json['input_price'] as num?) ?? 0).round(),
+          creditMultiplier: 1.0,
+          maxTokens: (json['context_window'] as int?) ?? 32768,
+          supportsStreaming: true,
+          isRacingEnabled: route == 'free_race',
+          routingGroup: route,
+          allowedTiers: List<String>.from((json['allowed_tiers'] as List?)?.whereType<String>() ?? const []),
+        );
+      }).toList();
     } catch (e) {
       throw ServerException(message: e.toString());
     }
@@ -52,49 +69,32 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
 
   @override
   Future<ModelEntity?> getModelById(String modelId) async {
-    try {
-      final response = await supabase
-          .from('ai_models')
-          .select('*')
-          .eq('id', modelId)
-          .single();
-
-      return ModelEntity(
-        id: response['id'],
-        provider: response['provider'],
-        modelName: response['model_name'],
-        displayName: response['display_name'],
-        category: response['category'],
-        status: response['status'],
-        costPer1kTokens: response['cost_per_1k_tokens'] as int? ?? 0,
-        creditMultiplier: (response['credit_multiplier'] as num?)?.toDouble() ?? 1.0,
-        maxTokens: response['max_tokens'] as int? ?? 4096,
-        supportsStreaming: response['supports_streaming'] as bool? ?? true,
-        isRacingEnabled: response['is_racing_enabled'] as bool? ?? false,
-      );
-    } catch (e) {
-      return null;
+    final models = await getAvailableModels();
+    for (final model in models) {
+      if (model.id == modelId) return model;
     }
+    return null;
   }
+
+  MessageEntity _mapMessage(Map<String, dynamic> json) => MessageEntity(
+        id: json['id'].toString(),
+        conversationId: json['conversation_id'].toString(),
+        role: json['role'].toString(),
+        content: json['content']?.toString() ?? '',
+        tokenCount: (json['tokens_used'] as int?) ?? 0,
+        modelId: json['model_id']?.toString(),
+        createdAt: DateTime.parse(json['created_at'].toString()),
+      );
 
   @override
   Future<List<MessageEntity>> getMessages(String conversationId) async {
     try {
       final response = await supabase
-          .from('messages')
-          .select('*')
+          .from('suly_messages')
+          .select('id,conversation_id,user_id,model_id,role,content,tokens_used,created_at')
           .eq('conversation_id', conversationId)
           .order('created_at', ascending: true);
-
-      return (response as List).map((json) => MessageEntity(
-        id: json['id'],
-        conversationId: json['conversation_id'],
-        role: json['role'],
-        content: json['content'],
-        tokenCount: json['token_count'] as int? ?? 0,
-        modelId: json['model_id'],
-        createdAt: DateTime.parse(json['created_at']),
-      )).toList();
+      return (response as List).map((row) => _mapMessage(row as Map<String, dynamic>)).toList();
     } catch (e) {
       throw ServerException(message: e.toString());
     }
@@ -105,13 +105,11 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
     try {
       final userId = supabase.auth.currentUser?.id;
       if (userId == null) throw AuthException(message: 'Not authenticated');
-
-      final response = await supabase
-          .from('conversations')
-          .insert({'user_id': userId, 'title': title, 'model_id': modelId})
-          .select('id')
-          .single();
-
+      final response = await supabase.from('suly_conversations').insert({
+        'user_id': userId,
+        'title': title,
+        'model_id': modelId == null ? null : int.tryParse(modelId),
+      }).select('id').single();
       return response['id'] as String;
     } catch (e) {
       throw ServerException(message: e.toString());
@@ -119,23 +117,60 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
   }
 
   @override
-  Future<void> sendMessage(String conversationId, String message, String modelId) async {
+  Future<void> sendMessage(
+    String conversationId,
+    String message, {
+    required void Function(String chunk) onChunk,
+  }) async {
     try {
-      final userId = supabase.auth.currentUser?.id;
-      if (userId == null) throw AuthException(message: 'Not authenticated');
+      final user = supabase.auth.currentUser;
+      final accessToken = supabase.auth.currentSession?.accessToken;
+      if (user == null || accessToken == null) throw AuthException(message: 'Not authenticated');
 
-      await supabase.from('messages').insert({
+      final history = await getMessages(conversationId);
+      await supabase.from('suly_messages').insert({
         'conversation_id': conversationId,
+        'user_id': user.id,
         'role': 'user',
         'content': message,
-        'user_id': userId,
+        'tokens_used': TokenCounter.count(message),
       });
-
       await supabase
-          .from('conversations')
-          .update({'updated_at': DateTime.now().toIso8601String()})
+          .from('suly_conversations')
+          .update({'updated_at': DateTime.now().toUtc().toIso8601String()})
           .eq('id', conversationId);
+
+      final messages = [
+        ...history.where((item) => item.role == 'user' || item.role == 'assistant').map((item) => {
+              'role': item.role,
+              'content': item.content,
+            }),
+        {'role': 'user', 'content': message},
+      ];
+      var receivedText = false;
+      await for (final event in sseClient.stream(
+        url: '${AppConfig.edgeFunctionBaseUrl}/ai-router',
+        headers: {
+          'Authorization': 'Bearer $accessToken',
+          'apikey': AppConfig.supabaseAnonKey,
+        },
+        body: {
+          'conversation_id': conversationId,
+          'messages': messages,
+          'routing_mode': 'auto',
+          'stream': true,
+        },
+      )) {
+        if (event is SseChunk && event.text.isNotEmpty) {
+          receivedText = true;
+          onChunk(event.text);
+        } else if (event is SseError) {
+          throw ServerException(message: event.message);
+        }
+      }
+      if (!receivedText) throw ServerException(message: 'The router returned no model response.');
     } catch (e) {
+      if (e is AppException) rethrow;
       throw ServerException(message: e.toString());
     }
   }
@@ -143,30 +178,20 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
   @override
   Stream<List<MessageEntity>> messageStream(String conversationId) {
     return supabase
-        .from('messages')
+        .from('suly_messages')
         .stream(primaryKey: ['id'])
         .eq('conversation_id', conversationId)
         .order('created_at', ascending: true)
-        .map((data) {
-          return (data as List).map((json) => MessageEntity(
-            id: json['id'],
-            conversationId: json['conversation_id'],
-            role: json['role'],
-            content: json['content'],
-            tokenCount: json['token_count'] as int? ?? 0,
-            modelId: json['model_id'],
-            createdAt: DateTime.parse(json['created_at']),
-          )).toList();
-        });
+        .map((rows) => rows.map((row) => _mapMessage(row)).toList());
   }
 
   @override
   Future<void> updateMessage(String messageId, String content, bool done) async {
     try {
-      await supabase
-          .from('messages')
-          .update({'content': content, 'token_count': TokenCounter.count(content)})
-          .eq('id', messageId);
+      await supabase.from('suly_messages').update({
+        'content': content,
+        'tokens_used': TokenCounter.count(content),
+      }).eq('id', messageId);
     } catch (e) {
       throw ServerException(message: e.toString());
     }
@@ -175,8 +200,9 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
   @override
   Future<void> deleteConversation(String conversationId) async {
     try {
-      await supabase.from('conversations').delete().eq('id', conversationId);
+      await supabase.from('suly_conversations').delete().eq('id', conversationId);
     } catch (e) {
       throw ServerException(message: e.toString());
     }
   }
+}

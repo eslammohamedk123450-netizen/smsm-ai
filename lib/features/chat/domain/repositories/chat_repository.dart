@@ -6,7 +6,11 @@ abstract class ChatRepository {
   Future<ModelEntity?> getModelById(String modelId);
   Future<List<MessageEntity>> getMessages(String conversationId);
   Future<String> createConversation(String title, String? modelId);
-  Future<void> sendMessage(String conversationId, String message, String modelId);
+  Future<void> sendMessage(
+    String conversationId,
+    String message, {
+    required void Function(String chunk) onChunk,
+  });
   Stream<List<MessageEntity>> messageStream(String conversationId);
   Future<void> updateMessage(String messageId, String content, bool done);
   Future<void> deleteConversation(String conversationId);

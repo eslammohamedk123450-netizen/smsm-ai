@@ -9,42 +9,30 @@ class ChatRepositoryImpl implements ChatRepository {
   ChatRepositoryImpl(this.remoteDataSource);
 
   @override
-  Future<List<ModelEntity>> getAvailableModels() async {
-    return await remoteDataSource.getAvailableModels();
-  }
+  Future<List<ModelEntity>> getAvailableModels() => remoteDataSource.getAvailableModels();
 
   @override
-  Future<ModelEntity?> getModelById(String modelId) async {
-    return await remoteDataSource.getModelById(modelId);
-  }
+  Future<ModelEntity?> getModelById(String modelId) => remoteDataSource.getModelById(modelId);
 
   @override
-  Future<List<MessageEntity>> getMessages(String conversationId) async {
-    return await remoteDataSource.getMessages(conversationId);
-  }
+  Future<List<MessageEntity>> getMessages(String conversationId) => remoteDataSource.getMessages(conversationId);
 
   @override
-  Future<String> createConversation(String title, String? modelId) async {
-    return await remoteDataSource.createConversation(title, modelId);
-  }
+  Future<String> createConversation(String title, String? modelId) => remoteDataSource.createConversation(title, modelId);
 
   @override
-  Future<void> sendMessage(String conversationId, String message, String modelId) async {
-    return await remoteDataSource.sendMessage(conversationId, message, modelId);
-  }
+  Future<void> sendMessage(
+    String conversationId,
+    String message, {
+    required void Function(String chunk) onChunk,
+  }) => remoteDataSource.sendMessage(conversationId, message, onChunk: onChunk);
 
   @override
-  Stream<List<MessageEntity>> messageStream(String conversationId) {
-    return remoteDataSource.messageStream(conversationId);
-  }
+  Stream<List<MessageEntity>> messageStream(String conversationId) => remoteDataSource.messageStream(conversationId);
 
   @override
-  Future<void> updateMessage(String messageId, String content, bool done) async {
-    return await remoteDataSource.updateMessage(messageId, content, done);
-  }
+  Future<void> updateMessage(String messageId, String content, bool done) => remoteDataSource.updateMessage(messageId, content, done);
 
   @override
-  Future<void> deleteConversation(String conversationId) async {
-    return await remoteDataSource.deleteConversation(conversationId);
-  }
+  Future<void> deleteConversation(String conversationId) => remoteDataSource.deleteConversation(conversationId);
 }

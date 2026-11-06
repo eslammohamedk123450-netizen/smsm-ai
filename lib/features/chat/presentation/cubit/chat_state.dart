@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
-import '../../../features/chat/domain/entities/message_entity.dart';
-import '../../../features/chat/domain/entities/model_entity.dart';
+import '../../domain/entities/message_entity.dart';
+import '../../domain/entities/model_entity.dart';
 
 abstract class ChatState extends Equatable {
   const ChatState();
@@ -33,6 +33,24 @@ class ChatLoaded extends ChatState {
     this.isStreaming = false,
     this.creditBalance = 0,
   });
+
+  ChatLoaded copyWith({
+    List<MessageEntity>? messages,
+    List<ModelEntity>? models,
+    String? selectedModelId,
+    String? conversationId,
+    bool? isStreaming,
+    int? creditBalance,
+  }) {
+    return ChatLoaded(
+      messages: messages ?? this.messages,
+      models: models ?? this.models,
+      selectedModelId: selectedModelId ?? this.selectedModelId,
+      conversationId: conversationId ?? this.conversationId,
+      isStreaming: isStreaming ?? this.isStreaming,
+      creditBalance: creditBalance ?? this.creditBalance,
+    );
+  }
 
   @override
   List<Object?> get props => [messages, models, selectedModelId, conversationId, isStreaming, creditBalance];

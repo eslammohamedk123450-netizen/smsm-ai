@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../features/chat/domain/entities/model_entity.dart';
+import '../../domain/entities/model_entity.dart';
 import '../../../../core/theme/app_theme.dart';
 
 class ModelSelectorSheet extends StatelessWidget {

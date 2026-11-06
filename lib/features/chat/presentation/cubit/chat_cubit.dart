@@ -12,32 +12,25 @@ class ChatCubit extends Cubit<ChatState> {
   String _currentAssistantContent = '';
   String? _currentMessageId;
   String? _currentConversationId;
+  List<ModelEntity> _models = const [];
 
   Future<void> initialize() async {
     emit(const ChatLoading());
     try {
-      final models = await _chatRepository.getAvailableModels();
-      emit(ChatLoaded(models: models, creditBalance: 0));
+      _models = await _chatRepository.getAvailableModels();
+      emit(ChatLoaded(models: _models, creditBalance: 0));
     } catch (e) {
       emit(ChatError(e.toString()));
     }
   }
 
-  Future<void> startNewConversation(String? modelId) async {
+  Future<void> startNewConversation([String? ignoredModelId]) async {
     _currentAssistantContent = '';
     _currentMessageId = null;
-
     try {
-      final conversationId = await _chatRepository.createConversation(
-        'New Conversation',
-        modelId,
-      );
+      final conversationId = await _chatRepository.createConversation('New Conversation', null);
       _currentConversationId = conversationId;
-      emit(ChatLoaded(
-        messages: [],
-        selectedModelId: modelId,
-        conversationId: conversationId,
-      ));
+      emit(ChatLoaded(models: _models, messages: const [], conversationId: conversationId));
     } catch (e) {
       emit(ChatError(e.toString()));
     }
@@ -48,114 +41,97 @@ class ChatCubit extends Cubit<ChatState> {
     try {
       final messages = await _chatRepository.getMessages(conversationId);
       _currentConversationId = conversationId;
-      emit(ChatLoaded(messages: messages, conversationId: conversationId));
+      emit(ChatLoaded(models: _models, messages: messages, conversationId: conversationId));
     } catch (e) {
       emit(ChatError(e.toString()));
     }
   }
 
-  Future<void> sendMessage(String message, String modelId) async {
-    if (_currentConversationId == null) {
-      await startNewConversation(modelId);
-    }
+  Future<void> sendMessage(String message, [String? ignoredModelId]) async {
+    if (_currentConversationId == null) await startNewConversation();
+    final conversationId = _currentConversationId;
+    if (conversationId == null) return;
 
+    final currentState = state;
+    final existingMessages = currentState is ChatLoaded ? currentState.messages : <MessageEntity>[];
     final userMessage = MessageEntity(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      conversationId: _currentConversationId!,
+      id: 'local_user_${DateTime.now().microsecondsSinceEpoch}',
+      conversationId: conversationId,
       role: 'user',
       content: message,
       createdAt: DateTime.now(),
     );
-
-    final currentState = state;
-    if (currentState is ChatLoaded) {
-      emit(currentState.copyWith(messages: [...currentState.messages, userMessage]));
-    }
-
+    final assistantMessage = MessageEntity(
+      id: 'local_assistant_${DateTime.now().microsecondsSinceEpoch}',
+      conversationId: conversationId,
+      role: 'assistant',
+      content: '',
+      createdAt: DateTime.now(),
+      isStreaming: true,
+      streamedContent: '',
+    );
+    _currentMessageId = assistantMessage.id;
     _currentAssistantContent = '';
-    _currentMessageId = null;
-
-    if (currentState is ChatLoaded) {
-      emit(currentState.copyWith(isStreaming: true));
-    }
+    emit(ChatLoaded(
+      models: _models,
+      messages: [...existingMessages, userMessage, assistantMessage],
+      conversationId: conversationId,
+      isStreaming: true,
+    ));
 
     try {
-      await _chatRepository.sendMessage(_currentConversationId!, message, modelId);
-
-      final aiMessage = MessageEntity(
-        id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
-        conversationId: _currentConversationId!,
-        role: 'assistant',
-        content: '',
-        createdAt: DateTime.now(),
-        isStreaming: true,
-        streamedContent: '',
+      await _chatRepository.sendMessage(
+        conversationId,
+        message,
+        onChunk: onStreamChunk,
       );
-
-      if (currentState is ChatLoaded) {
-        emit(currentState.copyWith(
-          messages: [...currentState.messages, aiMessage],
-          isStreaming: true,
-        ));
-      }
-
-      _currentMessageId = aiMessage.id;
+      onStreamComplete();
     } catch (e) {
-      if (currentState is ChatLoaded) {
-        emit(currentState.copyWith(isStreaming: false));
-      }
-      emit(ChatError(e.toString()));
+      onStreamError(e.toString());
     }
   }
 
   void onStreamChunk(String chunk) {
     _currentAssistantContent += chunk;
-
     final currentState = state;
     if (currentState is ChatLoaded) {
-      final updatedMessages = currentState.messages.map((msg) {
-        if (msg.id == _currentMessageId) {
-          return msg.copyWith(
-            content: _currentAssistantContent,
-            streamedContent: _currentAssistantContent,
-            isStreaming: true,
-          );
-        }
-        return msg;
+      final updatedMessages = currentState.messages.map((message) {
+        if (message.id != _currentMessageId) return message;
+        return message.copyWith(
+          content: _currentAssistantContent,
+          streamedContent: _currentAssistantContent,
+          isStreaming: true,
+        );
       }).toList();
-
-      emit(currentState.copyWith(
-        messages: updatedMessages,
-        isStreaming: true,
-      ));
+      emit(currentState.copyWith(messages: updatedMessages, isStreaming: true));
     }
   }
 
   void onStreamComplete() {
-    _currentAssistantContent = '';
-    _currentMessageId = null;
-
     final currentState = state;
     if (currentState is ChatLoaded) {
-      emit(currentState.copyWith(isStreaming: false));
+      final updatedMessages = currentState.messages.map((message) {
+        if (message.id != _currentMessageId) return message;
+        return message.copyWith(content: _currentAssistantContent, streamedContent: _currentAssistantContent, isStreaming: false);
+      }).toList();
+      emit(currentState.copyWith(messages: updatedMessages, isStreaming: false));
     }
+    _currentAssistantContent = '';
+    _currentMessageId = null;
   }
 
   void onStreamError(String error) {
-    _currentAssistantContent = '';
-    _currentMessageId = null;
-
     final currentState = state;
     if (currentState is ChatLoaded) {
       emit(currentState.copyWith(isStreaming: false));
     }
+    _currentAssistantContent = '';
+    _currentMessageId = null;
     emit(ChatError(error));
   }
 
   void selectModel(String modelId) {
     final currentState = state;
-    if (currentState is ChatLoaded) {
-      emit(currentState.copyWith(selectedModelId: modelId));
-    }
+    if (currentState is ChatLoaded) emit(currentState.copyWith(selectedModelId: modelId));
   }
 }
