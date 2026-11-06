@@ -1,6 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
-import '../../../core/services/credit_service.dart';
+import '../../../../core/services/credit_service.dart';
 
 abstract class RewardsState extends Equatable {
   const RewardsState();
@@ -42,7 +42,7 @@ class RewardsCubit extends Cubit<RewardsState> {
   final CreditService _creditService;
   String _userId = '';
 
-  RewardsCubit(this._creditService);
+  RewardsCubit(this._creditService) : super(const RewardsInitial());
 
   void setUserId(String userId) => _userId = userId;
 

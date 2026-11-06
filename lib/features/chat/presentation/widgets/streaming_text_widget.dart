@@ -24,8 +24,25 @@ class _StreamingTextWidgetState extends State<StreamingTextWidget> {
   @override
   void initState() {
     super.initState();
+    _listenToStream();
+  }
+
+  @override
+  void didUpdateWidget(covariant StreamingTextWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.stream != widget.stream) {
+      _sub?.cancel();
+      _buffer.clear();
+      _toolPills.clear();
+      _done = false;
+      _listenToStream();
+    }
+  }
+
+  void _listenToStream() {
     _sub = widget.stream.listen(
       (event) {
+        if (!mounted) return;
         if (event is SseChunk) {
           _buffer.write(event.text);
           setState(() {});
@@ -46,7 +63,9 @@ class _StreamingTextWidgetState extends State<StreamingTextWidget> {
           setState(() {});
         }
       },
-      onDone: () => setState(() => _done = true),
+      onDone: () {
+        if (mounted) setState(() => _done = true);
+      },
     );
   }
 

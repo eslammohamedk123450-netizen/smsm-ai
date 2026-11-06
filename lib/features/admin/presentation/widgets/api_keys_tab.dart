@@ -52,6 +52,7 @@ class _ApiKeysTabState extends State<ApiKeysTab> {
   }
 
   Future<void> _loadProviders() async {
+    if (!mounted) return;
     setState(() {
       _loading = true;
       _error = null;
@@ -109,7 +110,7 @@ class _ApiKeysTabState extends State<ApiKeysTab> {
           SnackBar(content: Text('Provider saved securely. $created new models added ($discovered discovered).')),
         );
       }
-      await _loadProviders();
+      if (mounted) await _loadProviders();
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
     } finally {

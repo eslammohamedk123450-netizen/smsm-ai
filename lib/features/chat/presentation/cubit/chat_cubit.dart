@@ -7,18 +7,18 @@ import '../../domain/repositories/chat_repository.dart';
 import 'chat_state.dart';
 
 class ChatCubit extends Cubit<ChatState> {
-  final ChatRepository _chatRepository;
-  final CreditService? _creditService;
-
   ChatCubit(this._chatRepository, {CreditService? creditService})
       : _creditService = creditService,
         super(const ChatInitial());
 
+  final ChatRepository _chatRepository;
+  final CreditService? _creditService;
   String _currentAssistantContent = '';
   String? _currentMessageId;
   String? _currentConversationId;
   int _creditBalance = 0;
   List<ModelEntity> _models = const [];
+  bool _isSending = false;
 
   Future<void> _refreshCreditBalance() async {
     try {
@@ -50,7 +50,7 @@ class ChatCubit extends Cubit<ChatState> {
         currentModel: currentModel,
         creditBalance: _creditBalance,
       ));
-    } catch (error) {
+    } catch (_) {
       if (isClosed) return;
       emit(ChatError(
         message: 'تعذر تحميل نماذج الدردشة. حاول مرة أخرى.',
@@ -78,8 +78,8 @@ class ChatCubit extends Cubit<ChatState> {
     try {
       await _refreshCreditBalance();
       final conversationId = await _chatRepository.createConversation('New Conversation', modelId);
-      _currentConversationId = conversationId;
       if (isClosed) return;
+      _currentConversationId = conversationId;
       emit(ChatLoaded(
         messages: const [],
         conversationId: conversationId,
@@ -112,8 +112,8 @@ class ChatCubit extends Cubit<ChatState> {
     try {
       final messages = await _chatRepository.getMessages(conversationId);
       await _refreshCreditBalance();
-      _currentConversationId = conversationId;
       if (isClosed) return;
+      _currentConversationId = conversationId;
       emit(ChatLoaded(
         messages: messages,
         conversationId: conversationId,
@@ -136,55 +136,60 @@ class ChatCubit extends Cubit<ChatState> {
 
   Future<void> sendMessage(String message, [String? modelId]) async {
     final text = message.trim();
-    if (isClosed || state.isStreaming || text.isEmpty) return;
-    final currentModel = modelId ?? state.currentModel;
-    if (_currentConversationId == null) await startNewConversation(currentModel);
-    final conversationId = _currentConversationId;
-    if (conversationId == null || isClosed) return;
-
-    await _refreshCreditBalance();
-    final existingMessages = state.messages;
-    final now = DateTime.now();
-    final userMessage = MessageEntity(
-      id: 'local_user_${now.microsecondsSinceEpoch}',
-      conversationId: conversationId,
-      role: 'user',
-      content: text,
-      status: 'sent',
-      createdAt: now,
-    );
-    final assistantMessage = MessageEntity(
-      id: 'local_assistant_${now.microsecondsSinceEpoch}',
-      conversationId: conversationId,
-      role: 'assistant',
-      content: '',
-      status: 'streaming',
-      isStreaming: true,
-      createdAt: now,
-    );
-    _currentMessageId = assistantMessage.id;
-    _currentAssistantContent = '';
-    emit(ChatLoaded(
-      messages: [...existingMessages, userMessage, assistantMessage],
-      models: _models,
-      conversationId: conversationId,
-      currentModel: currentModel,
-      creditBalance: _creditBalance,
-      isStreaming: true,
-    ));
-
+    if (isClosed || text.isEmpty || _isSending || state.isStreaming) return;
+    _isSending = true;
     try {
-      await _chatRepository.sendMessage(conversationId, text, onChunk: onStreamChunk);
-      if (!isClosed) await onStreamComplete();
-    } catch (_) {
-      if (isClosed) return;
+      final currentModel = modelId ?? state.currentModel;
+      if (_currentConversationId == null) await startNewConversation(currentModel);
+      final conversationId = _currentConversationId;
+      if (conversationId == null || isClosed) return;
+
       await _refreshCreditBalance();
-      onStreamError('تعذر الاتصال بخدمة الدردشة. حاول مرة أخرى.');
+      if (isClosed) return;
+      final existingMessages = state.messages;
+      final now = DateTime.now();
+      final userMessage = MessageEntity(
+        id: 'local_user_${now.microsecondsSinceEpoch}',
+        conversationId: conversationId,
+        role: 'user',
+        content: text,
+        status: 'sent',
+        createdAt: now,
+      );
+      final assistantMessage = MessageEntity(
+        id: 'local_assistant_${now.microsecondsSinceEpoch}',
+        conversationId: conversationId,
+        role: 'assistant',
+        content: '',
+        status: 'streaming',
+        isStreaming: true,
+        createdAt: now,
+      );
+      _currentMessageId = assistantMessage.id;
+      _currentAssistantContent = '';
+      emit(ChatLoaded(
+        messages: [...existingMessages, userMessage, assistantMessage],
+        models: _models,
+        conversationId: conversationId,
+        currentModel: currentModel,
+        creditBalance: _creditBalance,
+        isStreaming: true,
+      ));
+
+      await _chatRepository.sendMessage(conversationId, text, onChunk: onStreamChunk);
+      await onStreamComplete();
+    } catch (_) {
+      if (!isClosed) {
+        await _refreshCreditBalance();
+        onStreamError('تعذر الاتصال بخدمة الدردشة. حاول مرة أخرى.');
+      }
+    } finally {
+      _isSending = false;
     }
   }
 
   void onStreamChunk(String chunk) {
-    if (isClosed || _currentMessageId == null) return;
+    if (isClosed || _currentMessageId == null || chunk.isEmpty) return;
     _currentAssistantContent += chunk;
     final updatedMessages = state.messages.map((message) {
       if (message.id != _currentMessageId) return message;
@@ -206,7 +211,7 @@ class ChatCubit extends Cubit<ChatState> {
   }
 
   Future<void> onStreamComplete() async {
-    if (isClosed) return;
+    if (isClosed || _currentMessageId == null) return;
     await _refreshCreditBalance();
     if (isClosed) return;
     final updatedMessages = state.messages.map((message) {
@@ -230,7 +235,7 @@ class ChatCubit extends Cubit<ChatState> {
   }
 
   void onStreamError(String error) {
-    if (isClosed) return;
+    if (isClosed || _currentMessageId == null) return;
     final messageId = _currentMessageId;
     final updatedMessages = state.messages.map((message) {
       if (message.id != messageId) return message;

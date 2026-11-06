@@ -160,6 +160,7 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
       ];
       final requestId = _newRequestId();
       var receivedText = false;
+      var receivedDone = false;
       await for (final event in sseClient.stream(
         url: '${AppConfig.edgeFunctionBaseUrl}/ai-router',
         headers: {
@@ -177,11 +178,14 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
         if (event is SseChunk && event.text.isNotEmpty) {
           receivedText = true;
           onChunk(event.text);
+        } else if (event is SseDone) {
+          receivedDone = true;
         } else if (event is SseError) {
           throw ServerException(message: event.message);
         }
       }
       if (!receivedText) throw ServerException(message: 'The router returned no model response.');
+      if (!receivedDone) throw ServerException(message: 'The response stream ended unexpectedly. Please try again.');
     } catch (e) {
       if (e is AppException) rethrow;
       throw ServerException(message: e.toString());

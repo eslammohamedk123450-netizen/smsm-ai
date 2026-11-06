@@ -53,6 +53,7 @@ class _ModelManagementTabState extends State<ModelManagementTab> {
   }
 
   Future<void> _load() async {
+    if (!mounted) return;
     setState(() {
       _loading = true;
       _error = null;
@@ -99,7 +100,7 @@ class _ModelManagementTabState extends State<ModelManagementTab> {
   Future<void> _updateModel(int id, Map<String, dynamic> changes) async {
     try {
       await _client.from('ai_models').update(changes).eq('id', id);
-      await _load();
+      if (mounted) await _load();
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not update model: $e')));
     }

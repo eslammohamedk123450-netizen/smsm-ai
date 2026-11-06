@@ -42,6 +42,7 @@ class _UserManagementTabState extends State<UserManagementTab> {
   }
 
   Future<void> _loadUsers() async {
+    if (!mounted) return;
     setState(() {
       _loading = true;
       _error = null;
@@ -111,6 +112,11 @@ class _UserManagementTabState extends State<UserManagementTab> {
         ],
       ),
     );
+    if (!mounted) {
+      amountController.dispose();
+      reasonController.dispose();
+      return;
+    }
     if (confirmed != true) {
       amountController.dispose();
       reasonController.dispose();
@@ -137,7 +143,7 @@ class _UserManagementTabState extends State<UserManagementTab> {
         return;
       }
       _showMessage('تم تسجيل التعديل في سجل التدقيق. الرصيد الجديد: ${result['balance']}');
-      await _loadUsers();
+      if (mounted) await _loadUsers();
     } catch (error) {
       _showMessage('فشل تعديل الرصيد: $error');
     }
@@ -155,14 +161,14 @@ class _UserManagementTabState extends State<UserManagementTab> {
         ],
       ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true || !mounted) return;
     try {
       await _client.rpc('suly_admin_set_user_banned', params: {
         'p_user_id': user['id'],
         'p_banned': banned,
       });
       _showMessage(banned ? 'تم حظر المستخدم.' : 'تم إلغاء الحظر.');
-      await _loadUsers();
+      if (mounted) await _loadUsers();
     } catch (error) {
       _showMessage('فشل تحديث حالة المستخدم: $error');
     }

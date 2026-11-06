@@ -1,5 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthException;
-import '../../../core/errors/exceptions.dart';
+import '../../../../core/errors/exceptions.dart';
 import '../../domain/entities/user_entity.dart';
 
 abstract class AuthRemoteDataSource {
@@ -41,6 +41,9 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         password: password,
         data: {'full_name': fullName},
       );
+      if (response.session == null) {
+        throw AuthException(message: 'Account created. Verify your email before signing in.');
+      }
       if (response.user == null) {
         throw AuthException(message: 'Registration failed');
       }

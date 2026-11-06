@@ -20,7 +20,7 @@ final GetIt getIt = GetIt.instance;
 Future<void> configureDependencies() async {
   getIt.registerSingleton<SupabaseClient>(Supabase.instance.client);
   getIt.registerSingleton<SupabaseNetworkClient>(SupabaseNetworkClient());
-  getIt.registerSingleton<SseClient>(SseClient());
+  getIt.registerSingleton<SseClient>(SseClient(), dispose: (client) => client.dispose());
   getIt.registerSingleton<AdMobService>(AdMobService());
   getIt.registerSingleton<CreditService>(CreditService());
 
@@ -30,7 +30,7 @@ Future<void> configureDependencies() async {
   getIt.registerLazySingleton<AuthRepository>(
     () => AuthRepositoryImpl(getIt<AuthRemoteDataSource>()),
   );
-  getIt.registerLazySingleton<AuthCubit>(
+  getIt.registerFactory<AuthCubit>(
     () => AuthCubit(getIt<AuthRepository>()),
   );
 
@@ -40,7 +40,7 @@ Future<void> configureDependencies() async {
   getIt.registerLazySingleton<ChatRepository>(
     () => ChatRepositoryImpl(getIt<ChatRemoteDataSource>()),
   );
-  getIt.registerLazySingleton<ChatCubit>(
+  getIt.registerFactory<ChatCubit>(
     () => ChatCubit(
       getIt<ChatRepository>(),
       creditService: getIt<CreditService>(),
