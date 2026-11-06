@@ -22,12 +22,23 @@ export async function agentLoop(
     for (const tc of calls) {
       let args: any = {};
       try { args = JSON.parse(tc.function.arguments || "{}"); } catch { args = {}; }
-      const result = await executeTool(tc.function.name, args);
+      let result: any;
+      try {
+        result = await executeTool(tc.function.name, args);
+      } catch (err: any) {
+        result = { error: err?.message ?? String(err), tool: tc.function.name };
+      }
       messages.push(toToolResultMessage(tc.id, result));
     }
 
     if (i === maxIter - 1) {
-      final = messages[messages.length - 1];
+      const lastMsg = await callLLM(messages, false);
+      if (lastMsg) {
+        messages.push(lastMsg);
+        final = lastMsg;
+      } else {
+        final = messages[messages.length - 1];
+      }
     }
   }
 
