@@ -51,9 +51,23 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<ChatCubit, ChatState>(
-      builder: (context, state) {
-        final messages = state.messages;
+    return BlocListener<ChatCubit, ChatState>(
+      listener: (context, state) {
+        if (state is ChatLoaded || state is ChatStreaming) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (_scrollController.hasClients) {
+              _scrollController.animateTo(
+                _scrollController.position.maxScrollExtent,
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOut,
+              );
+            }
+          });
+        }
+      },
+      child: BlocBuilder<ChatCubit, ChatState>(
+        builder: (context, state) {
+          final messages = state.messages;
         final isStreaming = state is ChatStreaming;
         return Scaffold(
           backgroundColor: AppColors.background,
@@ -81,6 +95,7 @@ class _ChatPageState extends State<ChatPage> {
           ),
           body: Column(
             children: [
+              if (isStreaming) const LinearProgressIndicator(),
               Expanded(
                 child: state is ChatLoading
                     ? const Center(child: CircularProgressIndicator())

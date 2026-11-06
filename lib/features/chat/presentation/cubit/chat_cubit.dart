@@ -19,25 +19,7 @@ class ChatCubit extends Cubit<ChatState> {
     _currentAssistantContent = '';
     _currentMessageId = null;
     _currentConversationId = null;
-    try {
-      final conversationId = await _chatRepository.createConversation('New Conversation', null);
-      _currentConversationId = conversationId;
-      emit(ChatLoaded(
-        messages: const [],
-        models: _models,
-        conversationId: conversationId,
-        currentModel: null,
-        creditBalance: _creditBalance,
-      ));
-    } catch (e) {
-      emit(ChatError(
-        message: e.toString(),
-        messages: const [],
-        models: _models,
-        conversationId: _currentConversationId,
-        currentModel: null,
-      ));
-    }
+    emit(const ChatLoaded(messages: [], models: [], conversationId: null, currentModel: null));
   }
 
   Future<void> startNewConversation([String? modelId]) async {
@@ -106,7 +88,7 @@ class ChatCubit extends Cubit<ChatState> {
       conversationId: conversationId,
       role: 'user',
       content: message,
-      status: MessageStatus.sent,
+      status: 'sent',
       createdAt: DateTime.now(),
     );
     final assistantMessage = MessageEntity(
@@ -114,7 +96,7 @@ class ChatCubit extends Cubit<ChatState> {
       conversationId: conversationId,
       role: 'assistant',
       content: '',
-      status: MessageStatus.streaming,
+      status: 'streaming',
       isStreaming: true,
       createdAt: DateTime.now(),
     );
@@ -135,7 +117,13 @@ class ChatCubit extends Cubit<ChatState> {
       );
       onStreamComplete();
     } catch (e) {
-      onStreamError(e.toString());
+      emit(ChatLoaded(
+        messages: state.messages,
+        conversationId: conversationId,
+        currentModel: currentModel,
+        isStreaming: false,
+      ));
+      onStreamError('Failed to connect: ${e.toString()}');
     }
   }
 
@@ -153,7 +141,7 @@ class ChatCubit extends Cubit<ChatState> {
       return message.copyWith(
         content: _currentAssistantContent,
         streamedContent: _currentAssistantContent,
-        status: MessageStatus.streaming,
+        status: 'streaming',
         isStreaming: true,
       );
     }).toList();
@@ -179,7 +167,7 @@ class ChatCubit extends Cubit<ChatState> {
       return message.copyWith(
         content: _currentAssistantContent,
         streamedContent: _currentAssistantContent,
-        status: MessageStatus.completed,
+        status: 'completed',
         isStreaming: false,
       );
     }).toList();
@@ -207,7 +195,7 @@ class ChatCubit extends Cubit<ChatState> {
     _currentMessageId = null;
     final updatedMessages = existingMessages.map((message) {
       if (message.id != messageId) return message;
-      return message.copyWith(status: MessageStatus.error, isStreaming: false);
+      return message.copyWith(status: 'error', isStreaming: false);
     }).toList();
     emit(ChatError(
       message: error,

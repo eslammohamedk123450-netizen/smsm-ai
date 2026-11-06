@@ -141,9 +141,7 @@ class SseClient {
           }
         }
       } on TimeoutException {
-        if (attempt >= _maxAttempts) {
-          yield SseError('SSE connection timed out (attempt $attempt of $_maxAttempts)');
-        }
+        if (attempt >= _maxAttempts) yield SseError('Connection timeout');
       }
 
       if (attempt < _maxAttempts) {

@@ -10,7 +10,7 @@ class MessageEntity {
   final DateTime createdAt;
   final bool isStreaming;
   final String streamedContent;
-  final MessageStatus status;
+  final String status;
 
   const MessageEntity({
     required this.id,
@@ -22,7 +22,7 @@ class MessageEntity {
     required this.createdAt,
     this.isStreaming = false,
     this.streamedContent = '',
-    this.status = MessageStatus.sent,
+    this.status = 'sent',
   });
 
   bool get isUser => role == 'user';
@@ -38,7 +38,7 @@ class MessageEntity {
     DateTime? createdAt,
     bool? isStreaming,
     String? streamedContent,
-    MessageStatus? status,
+    String? status,
   }) {
     return MessageEntity(
       id: id ?? this.id,
