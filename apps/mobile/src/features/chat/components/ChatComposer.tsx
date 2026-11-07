@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { forwardRef, useImperativeHandle, useRef, useState } from "react";
+import type { ElementRef } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition";
 import { colors } from "../../../theme/colors";
@@ -8,19 +9,33 @@ import { AttachSheet } from "./AttachSheet";
 import type { PickedMedia } from "../../media/media-service";
 
 export type ChatAttachment = PickedMedia;
+export interface ChatComposerHandle {
+  editMessage(content: string): void;
+}
 export interface ChatComposerProps {
   onSend(content: string, attachment?: ChatAttachment): void;
   disabled?: boolean;
   isStreaming?: boolean;
   onCancel?(): void;
 }
-export function ChatComposer({ onSend, disabled = false, isStreaming = false, onCancel }: ChatComposerProps) {
+export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(function ChatComposer({ onSend, disabled = false, isStreaming = false, onCancel }, ref) {
   const [text, setText] = useState("");
+  const [selection, setSelection] = useState<{ start: number; end: number } | undefined>();
   const [attachment, setAttachment] = useState<ChatAttachment | null>(null);
   const [isListening, setIsListening] = useState(false);
   const [attachVisible, setAttachVisible] = useState(false);
   const speechBase = useRef("");
+  const inputRef = useRef<ElementRef<typeof TextInput>>(null);
   const { show } = useToast();
+  useImperativeHandle(ref, () => ({
+    editMessage(content: string) {
+      setText(content);
+      setAttachment(null);
+      speechBase.current = "";
+      setSelection({ start: content.length, end: content.length });
+      requestAnimationFrame(() => inputRef.current?.focus());
+    },
+  }), []);
   useSpeechRecognitionEvent("start", () => setIsListening(true));
   useSpeechRecognitionEvent("end", () => setIsListening(false));
   useSpeechRecognitionEvent("error", (event) => {
@@ -38,7 +53,7 @@ export function ChatComposer({ onSend, disabled = false, isStreaming = false, on
     const content = text.trim();
     if (!content || disabled) return;
     onSend(content, attachment ?? undefined);
-    setText(""); setAttachment(null); speechBase.current = "";
+    setText(""); setSelection(undefined); setAttachment(null); speechBase.current = "";
   };
   const startOrStopVoice = async () => {
     if (isListening) { ExpoSpeechRecognitionModule.stop(); return; }
@@ -58,7 +73,7 @@ export function ChatComposer({ onSend, disabled = false, isStreaming = false, on
       </View> : null}
       <View style={styles.container}>
         <IconButton icon="＋" label="إضافة صورة أو فيديو أو ملف" onPress={() => setAttachVisible(true)} disabled={disabled || isStreaming} />
-        <TextInput value={text} onChangeText={setText} editable={!disabled && !isStreaming} placeholder="اكتب رسالة إلى Suly…" placeholderTextColor={colors.textMuted} style={styles.input} multiline maxLength={16000} textAlign="right" accessibilityLabel="نص الرسالة" />
+        <TextInput ref={inputRef} value={text} onChangeText={setText} selection={selection} onSelectionChange={(event) => setSelection(event.nativeEvent.selection)} editable={!disabled && !isStreaming} placeholder="اكتب رسالة إلى Suly…" placeholderTextColor={colors.textMuted} style={styles.input} multiline maxLength={16000} textAlign="right" accessibilityLabel="نص الرسالة" />
         <Pressable onPress={() => void startOrStopVoice()} disabled={disabled || isStreaming} style={[styles.iconButton, isListening && styles.listeningButton]} accessibilityRole="button" accessibilityLabel={isListening ? "إيقاف الإملاء الصوتي" : "إملاء صوتي"}>
           <Text style={[styles.icon, isListening && styles.listeningIcon]}>{isListening ? "■" : "♩"}</Text>
         </Pressable>
@@ -69,7 +84,7 @@ export function ChatComposer({ onSend, disabled = false, isStreaming = false, on
       <AttachSheet visible={attachVisible} onClose={() => setAttachVisible(false)} onPicked={setAttachment} />
     </View>
   );
-}
+});
 const styles = StyleSheet.create({
   wrapper: { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 8, backgroundColor: colors.background },
   container: { minHeight: 58, flexDirection: "row", alignItems: "flex-end", gap: 7, padding: 7, borderRadius: 28, borderWidth: 1, borderColor: colors.inputBorder, backgroundColor: colors.surface },

@@ -1,4 +1,5 @@
-import { Image, Pressable, Share, StyleSheet, Text, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { Animated, Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { colors } from "../../../theme/colors";
 import { useToast } from "../../../components/ui/Toast";
@@ -10,6 +11,7 @@ export interface MessageBubbleProps {
   isStreaming?: boolean;
   feedback?: Feedback;
   onFeedback?(value: Feedback): void | Promise<void>;
+  onEdit?(content: string): void;
   onRegenerate?(): void;
 }
 
@@ -17,24 +19,90 @@ export type Feedback = "like" | "dislike" | null;
 export type MessageFeedback = Exclude<Feedback, null>;
 const imagePattern = /(?:!\[[^\]]*\]\((https?:\/\/[^)\s]+)\)|(https?:\/\/[^\s]+?\.(?:png|jpe?g|gif|webp|avif)(?:\?[^\s]*)?))/gi;
 
-export function MessageBubble({ role, content, isStreaming = false, feedback = null, onFeedback, onRegenerate }: MessageBubbleProps) {
+type ActionKind = "edit" | "copy" | "like" | "dislike";
+
+function ReactionGlyph({ kind, selected, copied }: { kind: ActionKind; selected?: boolean; copied?: boolean }) {
+  if (kind === "like" || kind === "dislike") {
+    const color = selected ? colors.background : colors.textSecondary;
+    const fill = selected ? colors.background : colors.surfaceElevated;
+    return (
+      <View style={[styles.thumbGlyph, kind === "dislike" && styles.thumbDown]}>
+        <View style={[styles.thumbPalm, { borderColor: color, backgroundColor: fill }]} />
+        <View style={[styles.thumbFinger, { borderColor: color, backgroundColor: fill }]} />
+        <View style={[styles.thumbWrist, { borderColor: color, backgroundColor: fill }]} />
+      </View>
+    );
+  }
+  const glyph = copied ? "✓" : kind === "edit" ? "✎" : "⧉";
+  return <Text style={[styles.glyphText, copied && styles.copiedGlyph]}>{glyph}</Text>;
+}
+
+function MessageAction({
+  kind,
+  label,
+  selected = false,
+  copied = false,
+  onPress,
+}: {
+  kind: ActionKind;
+  label: string;
+  selected?: boolean;
+  copied?: boolean;
+  onPress(): void;
+}) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const isFeedback = kind === "like" || kind === "dislike";
+  const useNativeDriver = Platform.OS !== "web";
+  const handlePress = () => {
+    if (isFeedback) {
+      Animated.sequence([
+        Animated.timing(scale, { toValue: 1.08, duration: 90, useNativeDriver }),
+        Animated.timing(scale, { toValue: 1, duration: 110, useNativeDriver }),
+      ]).start();
+    }
+    onPress();
+  };
+  const selectedStyle = selected ? (kind === "like" ? styles.likeSelected : styles.dislikeSelected) : null;
+
+  return (
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityState={{ selected }}
+        onPress={handlePress}
+        style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
+      >
+        <View style={[styles.actionIcon, selectedStyle]}>
+          <ReactionGlyph kind={kind} selected={selected} copied={copied} />
+        </View>
+        <Text style={[styles.actionLabel, selected && (kind === "like" ? styles.likeLabel : kind === "dislike" ? styles.dislikeLabel : null)]}>{label}</Text>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+export function MessageBubble({ role, content, isStreaming = false, feedback = null, onFeedback, onEdit, onRegenerate }: MessageBubbleProps) {
   const isUser = role === "user";
   const { show } = useToast();
+  const [copied, setCopied] = useState(false);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const copyToClipboard = async (text: string) => {
+  useEffect(() => () => {
+    if (copiedTimer.current) clearTimeout(copiedTimer.current);
+  }, []);
+
+  const copyToClipboard = async (text: string, showCheck = false) => {
     try {
       await Clipboard.setStringAsync(text);
-      show("نُسخت الرسالة إلى الحافظة.", "success");
+      show("تم النسخ", "success");
+      if (showCheck) {
+        setCopied(true);
+        if (copiedTimer.current) clearTimeout(copiedTimer.current);
+        copiedTimer.current = setTimeout(() => setCopied(false), 2000);
+      }
     } catch {
       show("تعذّر النسخ إلى الحافظة.", "error");
-    }
-  };
-
-  const shareMessage = async () => {
-    try {
-      await Share.share({ message: content });
-    } catch {
-      show("تعذّرت مشاركة الرسالة.", "error");
     }
   };
 
@@ -71,33 +139,33 @@ export function MessageBubble({ role, content, isStreaming = false, feedback = n
     return <View key={`text-${index}`} style={styles.paragraph}>{renderText(part, `part-${index}`)}</View>;
   });
 
+  const canShowActions = !isStreaming && content.length > 0;
+  const canRegenerate = !isUser && canShowActions && Boolean(onRegenerate);
+
   return (
     <View style={[styles.row, isUser ? styles.userRow : styles.assistantRow]}>
       {!isUser && <View style={styles.avatar}><Text style={styles.avatarLetter}>S</Text></View>}
       <View style={[styles.messageColumn, isUser && styles.userColumn]}>
-        <View style={[styles.bubble, isUser ? styles.userBubble : styles.assistantBubble]}>
+        <Pressable
+          onLongPress={canRegenerate ? onRegenerate : undefined}
+          delayLongPress={500}
+          style={[styles.bubble, isUser ? styles.userBubble : styles.assistantBubble]}
+          accessibilityHint={canRegenerate ? "اضغط مطولًا لإعادة إنشاء الرد" : undefined}
+        >
           {renderContent()}
           {isStreaming && <View style={styles.pulse} />}
-        </View>
-        {!isStreaming && content.length > 0 && (
+        </Pressable>
+        {canShowActions && (
           <View style={styles.actions}>
-            <Pressable onPress={() => void copyToClipboard(content)} style={styles.action} accessibilityRole="button" accessibilityLabel="نسخ الرسالة">
-              <Text style={styles.actionText}>نسخ</Text>
-            </Pressable>
-            <Pressable onPress={() => void shareMessage()} style={styles.action} accessibilityRole="button" accessibilityLabel="مشاركة الرسالة">
-              <Text style={styles.actionText}>مشاركة</Text>
-            </Pressable>
-            {!isUser && <>
-              <Pressable onPress={onRegenerate} style={styles.action} accessibilityRole="button" accessibilityLabel="إعادة إنشاء الرد">
-                <Text style={styles.actionText}>إعادة</Text>
-              </Pressable>
-              <Pressable onPress={() => onFeedback?.(feedback === "like" ? null : "like")} style={[styles.action, feedback === "like" && styles.selectedAction]} accessibilityRole="button" accessibilityLabel="أعجبني">
-                <Text style={[styles.actionText, feedback === "like" && styles.selectedText]}>إعجاب</Text>
-              </Pressable>
-              <Pressable onPress={() => onFeedback?.(feedback === "dislike" ? null : "dislike")} style={[styles.action, feedback === "dislike" && styles.selectedAction]} accessibilityRole="button" accessibilityLabel="لم يعجبني">
-                <Text style={[styles.actionText, feedback === "dislike" && styles.selectedText]}>عدم إعجاب</Text>
-              </Pressable>
-            </>}
+            {isUser ? (
+              <MessageAction kind="edit" label="تعديل" onPress={() => onEdit?.(content)} />
+            ) : (
+              <>
+                <MessageAction kind="copy" label="نسخ" copied={copied} onPress={() => void copyToClipboard(content, true)} />
+                <MessageAction kind="like" label="إعجاب" selected={feedback === "like"} onPress={() => onFeedback?.(feedback === "like" ? null : "like")} />
+                <MessageAction kind="dislike" label="عدم إعجاب" selected={feedback === "dislike"} onPress={() => onFeedback?.(feedback === "dislike" ? null : "dislike")} />
+              </>
+            )}
           </View>
         )}
       </View>
@@ -126,9 +194,20 @@ const styles = StyleSheet.create({
   codeText: { color: colors.textPrimary, fontFamily: "monospace", fontSize: 13, lineHeight: 20, textAlign: "left", writingDirection: "ltr" },
   image: { width: 250, height: 230, borderRadius: 10, marginVertical: 8, backgroundColor: colors.surfaceElevated },
   pulse: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary, marginTop: 8 },
-  actions: { flexDirection: "row", flexWrap: "wrap", gap: 5, marginTop: 7 },
-  action: { paddingVertical: 5, paddingHorizontal: 8, borderRadius: 8, backgroundColor: "transparent" },
-  actionText: { fontSize: 11, color: colors.textMuted },
-  selectedAction: { backgroundColor: colors.surfaceElevated },
-  selectedText: { color: colors.primary, fontWeight: "700" },
+  actions: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 9, marginTop: 7 },
+  action: { flexDirection: "row", alignItems: "center", gap: 5, minHeight: 34, opacity: 0.7 },
+  actionPressed: { opacity: 1 },
+  actionIcon: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.surfaceElevated, alignItems: "center", justifyContent: "center" },
+  actionLabel: { color: colors.textMuted, fontSize: 11 },
+  likeSelected: { backgroundColor: colors.primary },
+  dislikeSelected: { backgroundColor: colors.warning },
+  likeLabel: { color: colors.primary, fontWeight: "700" },
+  dislikeLabel: { color: colors.warning, fontWeight: "700" },
+  glyphText: { color: colors.textSecondary, fontSize: 19, lineHeight: 22, textAlign: "center" },
+  copiedGlyph: { color: colors.primary, fontSize: 17, fontWeight: "700" },
+  thumbGlyph: { width: 18, height: 18 },
+  thumbDown: { transform: [{ scaleY: -1 }] },
+  thumbPalm: { position: "absolute", left: 7, top: 7, width: 9, height: 9, borderWidth: 1.4, borderRadius: 2 },
+  thumbFinger: { position: "absolute", left: 2, top: 1, width: 6, height: 9, borderWidth: 1.4, borderTopLeftRadius: 5, borderTopRightRadius: 3, borderBottomLeftRadius: 2, transform: [{ rotate: "-12deg" }] },
+  thumbWrist: { position: "absolute", left: 9, top: 15, width: 6, height: 3, borderWidth: 1.2, borderBottomLeftRadius: 2, borderBottomRightRadius: 2 },
 });

@@ -6,7 +6,7 @@ import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { useAuth } from "../../src/features/auth/auth-provider";
 import { chatService, type ChatMessage } from "../../src/features/chat/chat-service";
 import { runOnce } from "../../src/features/chat/submission-guard";
-import { ChatComposer, type ChatAttachment } from "../../src/features/chat/components/ChatComposer";
+import { ChatComposer, type ChatAttachment, type ChatComposerHandle } from "../../src/features/chat/components/ChatComposer";
 import { MessageBubble, type MessageFeedback } from "../../src/features/chat/components/MessageBubble";
 import { StreamingStatus } from "../../src/features/chat/components/StreamingStatus";
 import { uploadMediaFile } from "../../src/features/media/media-service";
@@ -34,6 +34,7 @@ export default function ChatPage() {
   const [feedbackByMessage, setFeedbackByMessage] = useState<Record<string, MessageFeedback>>({});
   const [shareVisible, setShareVisible] = useState(false);
   const closeShareSheet = useCallback(() => setShareVisible(false), []);
+  const composerRef = useRef<ChatComposerHandle>(null);
   const listRef = useRef<FlatList<ChatMessage>>(null);
   const lock = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -208,6 +209,7 @@ export default function ChatPage() {
       content={item.content}
       isStreaming={item.status === "streaming"}
       feedback={feedbackByMessage[item.id] ?? null}
+      onEdit={item.role === "user" ? (content) => composerRef.current?.editMessage(content) : undefined}
       onFeedback={item.role === "assistant" && item.status !== "streaming" ? (value) => updateFeedback(item.id, value) : undefined}
       onRegenerate={item.role === "assistant" ? () => void regenerate(item.id) : undefined}
     />
@@ -245,7 +247,7 @@ export default function ChatPage() {
         )}
         {isUploadingAttachment ? <View style={styles.uploadStatus}><ActivityIndicator size="small" color={colors.primary} /><Text style={styles.loadingText}>جارٍ حفظ المرفق في Cloudinary…</Text></View> : null}
         <StreamingStatus isStreaming={isSending && !isUploadingAttachment} onCancel={() => abortRef.current?.abort()} />
-        <ChatComposer onSend={handleSend} disabled={isSending} isStreaming={isSending} onCancel={() => abortRef.current?.abort()} />
+        <ChatComposer ref={composerRef} onSend={handleSend} disabled={isSending} isStreaming={isSending} onCancel={() => abortRef.current?.abort()} />
       </KeyboardAvoidingView>
       <ShareConversationSheet visible={shareVisible} conversationId={conversationId} title={shareTitle} plainText={shareText} onClose={closeShareSheet} />
     </SafeAreaView>
