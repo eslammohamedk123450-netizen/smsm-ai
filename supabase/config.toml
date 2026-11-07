@@ -40,3 +40,9 @@ port = 54327
 
 [analytics]
 enabled = false
+
+[functions.media-gateway]
+verify_jwt = true
+
+[functions.ai-router]
+verify_jwt = true

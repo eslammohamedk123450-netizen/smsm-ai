@@ -108,4 +108,83 @@ export const tools = [
       },
     },
   },
+  // ---- Global infrastructure tools: shared by every feature ----
+  {
+    type: "function",
+    function: {
+      name: "memory_search",
+      description: "Search the user's saved task memories across every feature of the app.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "What to look for." },
+          feature_key: { type: "string", description: "Optional feature namespace filter." },
+          limit: { type: "integer", description: "Maximum memories to return (1-10)." },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "media_search",
+      description: "Find files the user uploaded earlier (documents, lectures, images) and return their links.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "File name or keyword." },
+          feature_key: { type: "string", description: "Optional feature namespace filter." },
+          limit: { type: "integer", description: "Maximum results (1-20)." },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "document_read",
+      description: "Read the text content of a stored file by its https link.",
+      parameters: {
+        type: "object",
+        properties: {
+          url: { type: "string", description: "Public https link of the stored file." },
+          max_chars: { type: "integer", description: "Maximum characters to return (default 8000)." },
+        },
+        required: ["url"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "feature_resources",
+      description: "List the resource links of an activated feature (for example the study content library).",
+      parameters: {
+        type: "object",
+        properties: {
+          feature_key: { type: "string", description: "Feature namespace, for example hims." },
+        },
+        required: ["feature_key"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "task_memory_save",
+      description: "Save a durable note about the user's task so future agents can recall it.",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "Short title." },
+          content: { type: "string", description: "What should be remembered." },
+          feature_key: { type: "string", description: "Optional feature namespace." },
+          task_kind: { type: "string", description: "Optional task category." },
+        },
+        required: ["content"],
+      },
+    },
+  },
 ];

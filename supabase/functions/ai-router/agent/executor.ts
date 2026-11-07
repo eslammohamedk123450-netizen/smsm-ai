@@ -1,5 +1,8 @@
 // supabase/functions/ai-router/agent/executor.ts
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { normalizeFeatureKey } from "../../_shared/prompt_keys.ts";
+import { searchTaskMemories, storeTaskMemory } from "../../_shared/task_memory.ts";
+import { getFeatureContext } from "../../_shared/feature_flags.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -16,10 +19,25 @@ const TAVILY_API_KEY = Deno.env.get("TAVILY_API_KEY") ?? "";
 async function logExecution(tool: string, args: any, result: any, status: string, latency: number, userId?: string) {
   try {
     await supabase.from("tool_execution_logs").insert({
-      tool_name: tool, args, result, status, latency_ms: latency, user_id: userId ?? null,
+      tool_name: tool,
+      args: safeJson(args),
+      result: safeJson(result),
+      status,
+      latency_ms: latency,
+      user_id: userId ?? null,
       created_at: new Date().toISOString(),
     });
   } catch (e) { console.error("logExecution failed", e); }
+}
+
+// tool_execution_logs stores text columns; objects must be serialized first.
+function safeJson(value: unknown): string | null {
+  try {
+    const text = typeof value === "string" ? value : JSON.stringify(value);
+    return text === undefined ? null : text.slice(0, 8000);
+  } catch {
+    return null;
+  }
 }
 
 export async function executeTool(name: string, args: any, userId?: string): Promise<any> {
@@ -34,6 +52,11 @@ export async function executeTool(name: string, args: any, userId?: string): Pro
       case "whatsapp_manager": result = await whatsappManager(args); break;
       case "calendar_manager": result = await calendarManager(args); break;
       case "financial_analyzer": result = await financialAnalyzer(args); break;
+      case "memory_search": result = await memorySearch(args, userId); break;
+      case "media_search": result = await mediaSearch(args, userId); break;
+      case "document_read": result = await documentRead(args); break;
+      case "feature_resources": result = await featureResources(args, userId); break;
+      case "task_memory_save": result = await taskMemorySave(args, userId); break;
       default: throw new Error(`Unknown tool: ${name}`);
     }
   } catch (err: any) {
@@ -165,4 +188,160 @@ async function financialAnalyzer(args: any) {
     }
     default: throw new Error(`Unknown financial action: ${args.action}`);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Global infrastructure tools.
+// Every tool is scoped to the calling user; none of them accepts a user id.
+// ---------------------------------------------------------------------------
+
+function requireUser(userId?: string): string {
+  if (!userId) throw new Error("This tool requires a signed-in user context.");
+  return userId;
+}
+
+function clampInt(value: unknown, fallback: number, min: number, max: number): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(Math.trunc(parsed), min), max);
+}
+
+async function memorySearch(args: any, userId?: string) {
+  const owner = requireUser(userId);
+  const query = String(args.query ?? "").trim();
+  if (!query) throw new Error("query is required");
+  const { memories } = await searchTaskMemories({
+    supabase,
+    userId: owner,
+    query,
+    featureKey: args.feature_key ? normalizeFeatureKey(args.feature_key) : null,
+    matchCount: clampInt(args.limit, 5, 1, 10),
+  });
+  return {
+    query,
+    count: memories.length,
+    memories: memories.map((memory) => ({
+      id: memory.id,
+      feature: memory.featureKey,
+      kind: memory.taskKind,
+      title: memory.title,
+      content: memory.content,
+      similarity: Number(memory.similarity.toFixed(3)),
+      source: memory.sourceRef,
+      created_at: memory.createdAt,
+    })),
+  };
+}
+
+async function mediaSearch(args: any, userId?: string) {
+  const owner = requireUser(userId);
+  const raw = String(args.query ?? "").trim();
+  let request = supabase
+    .from("global_media_assets")
+    .select("id,feature_key,public_url,mime_type,size_bytes,original_filename,created_at")
+    .eq("user_id", owner)
+    .order("created_at", { ascending: false })
+    .limit(clampInt(args.limit, 10, 1, 20));
+  if (args.feature_key) request = request.eq("feature_key", normalizeFeatureKey(args.feature_key));
+  if (raw) {
+    // Strip wildcards so a query cannot broaden the match.
+    const safeTerm = raw.replace(/[%_\\]/g, "");
+    if (safeTerm) request = request.ilike("original_filename", `%${safeTerm}%`);
+  }
+  const { data, error } = await request;
+  if (error) throw new Error("Could not search the media registry.");
+  return { query: raw, count: (data ?? []).length, assets: data ?? [] };
+}
+
+function safeDocumentUrl(value: unknown): URL | null {
+  if (typeof value !== "string" || value.length > 2048) return null;
+  try {
+    const url = new URL(value.trim());
+    const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+    if (url.protocol !== "https:" || url.username || url.password || !host) return null;
+    if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal")) return null;
+    if (/^(10\.|127\.|0\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host)) return null;
+    if (host.includes(":") || /^\d+(?:\.\d+){3}$/.test(host)) return null;
+    return url;
+  } catch {
+    return null;
+  }
+}
+
+async function documentRead(args: any) {
+  const url = safeDocumentUrl(args.url);
+  if (!url) throw new Error("url must be a public https link");
+  const maxChars = clampInt(args.max_chars, 8000, 500, 20000);
+  const maxBytes = 2 * 1024 * 1024;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  try {
+    const response = await fetch(url.toString(), {
+      headers: { Accept: "text/plain, text/markdown, text/csv, application/json, text/*" },
+      signal: controller.signal,
+      redirect: "follow",
+    });
+    if (!response.ok) throw new Error(`Document fetch failed with HTTP ${response.status}.`);
+    const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
+    if (!/^(text\/|application\/(json|xml))/.test(contentType)) {
+      throw new Error("Only text-based documents can be read; the file must be downloaded instead.");
+    }
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error("Document body could not be read.");
+    const decoder = new TextDecoder();
+    let text = "";
+    let bytes = 0;
+    while (bytes < maxBytes) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      text += decoder.decode(value, { stream: true });
+      if (text.length > maxChars * 4) break;
+    }
+    await reader.cancel().catch(() => undefined);
+    text += decoder.decode();
+    return {
+      url: url.toString(),
+      content_type: contentType,
+      truncated: text.length > maxChars || bytes >= maxBytes,
+      content: text.slice(0, maxChars),
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function featureResources(args: any, userId?: string) {
+  const owner = requireUser(userId);
+  const featureKey = normalizeFeatureKey(args.feature_key);
+  const context = await getFeatureContext(supabase, owner);
+  const info = context.features[featureKey];
+  if (!info) {
+    return { feature_key: featureKey, known: false, activated: false, resources: [] };
+  }
+  return {
+    feature_key: featureKey,
+    known: true,
+    label: info.label,
+    activated: info.activated,
+    resources: info.resources,
+  };
+}
+
+async function taskMemorySave(args: any, userId?: string) {
+  const owner = requireUser(userId);
+  const content = String(args.content ?? "").trim();
+  if (content.length < 12) throw new Error("content is too short to be remembered");
+  const id = await storeTaskMemory({
+    supabase,
+    userId: owner,
+    featureKey: normalizeFeatureKey(args.feature_key ?? "general"),
+    taskKind: String(args.task_kind ?? "note").slice(0, 80),
+    title: args.title ? String(args.title) : null,
+    content,
+    importance: 3,
+    metadata: { source: "agent_tool" },
+  });
+  if (!id) throw new Error("Memory could not be stored.");
+  return { saved: true, id };
 }

@@ -1,10 +1,20 @@
 import { executeTool, toToolResultMessage } from "./executor.ts";
 
+export interface AgentLoopOptions {
+  maxIter?: number;
+  /** Required by the global tools (memory, media, feature resources). */
+  userId?: string;
+}
+
 export async function agentLoop(
   initialMessages: any[],
   callLLM: (msgs: any[], useTools?: boolean) => Promise<any>,
-  maxIter = 5,
+  maxIterOrOptions: number | AgentLoopOptions = 5,
 ): Promise<any> {
+  const options: AgentLoopOptions = typeof maxIterOrOptions === "number"
+    ? { maxIter: maxIterOrOptions }
+    : maxIterOrOptions;
+  const maxIter = Math.max(1, Math.min(options.maxIter ?? 5, 10));
   const messages = [...initialMessages];
   let final: any = null;
 
@@ -24,7 +34,7 @@ export async function agentLoop(
       try { args = JSON.parse(tc.function.arguments || "{}"); } catch { args = {}; }
       let result: any;
       try {
-        result = await executeTool(tc.function.name, args);
+        result = await executeTool(tc.function.name, args, options.userId);
       } catch (err: any) {
         result = { error: err?.message ?? String(err), tool: tc.function.name };
       }
