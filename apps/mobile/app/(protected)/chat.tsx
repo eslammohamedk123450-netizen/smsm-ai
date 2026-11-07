@@ -10,6 +10,8 @@ import { ChatComposer } from "../../src/features/chat/components/ChatComposer";
 import { ChatErrorBanner } from "../../src/features/chat/components/ChatErrorBanner";
 import { MessageBubble } from "../../src/features/chat/components/MessageBubble";
 import { StreamingStatus } from "../../src/features/chat/components/StreamingStatus";
+import { RewardAdButton } from "../../src/features/ads/RewardAdButton";
+import { BannerAdSlot } from "../../src/features/ads/BannerAdSlot";
 import { colors } from "../../src/theme/colors";
 
 const STREAMING_ID = "local-streaming-assistant";
@@ -140,6 +142,8 @@ export default function ChatPage() {
           )}
           <StreamingStatus isStreaming={isSending} onCancel={() => abortRef.current?.abort()} />
           <ChatComposer onSend={(text) => void handleSend(text)} disabled={isSending} isStreaming={isSending} onCancel={() => abortRef.current?.abort()} />
+          <RewardAdButton />
+          <BannerAdSlot />
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>

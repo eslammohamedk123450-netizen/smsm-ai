@@ -236,21 +236,25 @@ export const adminService = {
     }).eq("id", planId);
     if (error) throw error;
   },
-  async getAdMobAppId(): Promise<string> {
+  async getAdMobSettings(): Promise<{ appId: string; rewardedUnitId: string; bannerUnitId: string }> {
     await requireAdmin();
-    const { data, error } = await supabase.from("system_settings").select("value").eq("key", "admob_app_id").maybeSingle();
+    const { data, error } = await supabase.from("system_settings").select("key,value").in("key", ["admob_app_id", "admob_rewarded_unit_id", "admob_banner_unit_id"]);
     if (error) throw error;
-    return typeof data?.value === "string" ? data.value : "";
+    const values = new Map((data ?? []).map((row) => [String(row.key), String(row.value ?? "").trim()]));
+    return {
+      appId: values.get("admob_app_id") || "",
+      rewardedUnitId: values.get("admob_rewarded_unit_id") || "",
+      bannerUnitId: values.get("admob_banner_unit_id") || "",
+    };
   },
-  async updateAdMobAppId(value: string) {
+  async updateAdMobSettings(settings: { appId: string; rewardedUnitId: string; bannerUnitId: string }) {
     await requireAdmin();
-    const appId = value.trim();
-    if (appId.length > 256) throw new Error("معرّف AdMob طويل جدًا.");
-    const { error } = await supabase.from("system_settings").upsert({
-      key: "admob_app_id",
-      value: appId,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "key" });
+    const toUpdate = [
+      { key: "admob_app_id", value: settings.appId.trim() },
+      { key: "admob_rewarded_unit_id", value: settings.rewardedUnitId.trim() },
+      { key: "admob_banner_unit_id", value: settings.bannerUnitId.trim() },
+    ];
+    const { error } = await supabase.from("system_settings").upsert(toUpdate, { onConflict: "key" });
     if (error) throw error;
   },
 };
