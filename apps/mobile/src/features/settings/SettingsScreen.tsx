@@ -58,6 +58,7 @@ export default function SettingsScreen() {
           </View>)}
         </>}
     {isAdmin ? <Link href="/admin" asChild><Pressable style={styles.adminButton} accessibilityRole="button"><Text style={styles.adminButtonText}>لوحة التحكم</Text></Pressable></Link> : null}
+    <Link href="/media" asChild><Pressable style={styles.adminButton} accessibilityRole="button"><Text style={styles.adminButtonText}>مكتبة الوسائط</Text></Pressable></Link>
     {error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
     <Pressable style={styles.button} onPress={() => void handleLogout()} disabled={busy}>{busy ? <ActivityIndicator color={colors.textPrimary} /> : <Text style={styles.buttonText}>تسجيل الخروج</Text>}</Pressable>
     <Pressable style={styles.backButton} onPress={() => router.replace("/chat")}><Text style={styles.backButtonText}>العودة إلى الدردشة</Text></Pressable>

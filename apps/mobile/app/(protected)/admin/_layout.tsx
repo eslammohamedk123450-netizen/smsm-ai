@@ -1,7 +1,8 @@
-import { Redirect, Stack } from "expo-router";
+import { Redirect } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "../../../src/features/auth/auth-provider";
+import { AdminShell } from "../../../src/features/admin/AdminShell";
 import { supabase } from "../../../src/lib/supabase/client";
 import { colors } from "../../../src/theme/colors";
 
@@ -34,7 +35,7 @@ export default function AdminLayout() {
   if (!user) return <Redirect href="/login" />;
   if (adminState === "denied") return <Redirect href="/chat" />;
   if (adminState === "error") return <View style={styles.center}><Text style={styles.error}>تعذر التحقق من صلاحية المشرف. لم تُفتح أدوات الإدارة.</Text></View>;
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return <AdminShell />;
 }
 
 const styles = StyleSheet.create({ center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, padding: 24, backgroundColor: colors.background }, text: { color: colors.textSecondary }, error: { color: colors.error, textAlign: "center", maxWidth: 480 } });

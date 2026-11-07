@@ -3,6 +3,8 @@ import { supabase } from "../../lib/supabase/client";
 import { streamChatPlatform } from "../../lib/network/sse-client";
 import type { ChatRequestBody } from "../../lib/network/sse-transport";
 
+export { titleFromMessage } from "./conversation-title";
+
 export type MessageRole = "user" | "assistant" | "system";
 export interface ChatMessage {
   id: string;
@@ -51,6 +53,8 @@ function mapMessage(row: MessageRow): ChatMessage {
     status: "sent",
   };
 }
+
+const TITLE_LIMIT = 48;
 
 export const chatService = {
   async getAvailableModels(): Promise<ChatModel[]> {
@@ -108,6 +112,29 @@ export const chatService = {
       .limit(500);
     if (error) throw new Error("تعذر تحميل رسائل المحادثة.");
     return (data ?? []).map((row) => mapMessage(row as MessageRow));
+  },
+
+  /** Most recently active conversations first, scoped to the signed-in user by RLS. */
+  async listConversations(limit = 50): Promise<Conversation[]> {
+    const { data, error } = await supabase.from("suly_conversations")
+      .select("id,title,model_id,created_at,updated_at")
+      .order("updated_at", { ascending: false })
+      .limit(limit);
+    if (error) throw new Error("تعذر تحميل سجل المحادثات.");
+    return (data ?? []).map((row) => ({
+      id: String(row.id),
+      title: String(row.title ?? "محادثة جديدة"),
+      modelId: row.model_id == null ? null : String(row.model_id),
+      createdAt: String(row.created_at),
+      updatedAt: String(row.updated_at),
+    }));
+  },
+
+  async renameConversation(conversationId: string, title: string): Promise<void> {
+    const trimmed = title.trim().slice(0, 120);
+    if (!trimmed) return;
+    const { error } = await supabase.from("suly_conversations").update({ title: trimmed }).eq("id", conversationId);
+    if (error) throw new Error("تعذر تحديث عنوان المحادثة.");
   },
 
   async sendMessage(options: {
