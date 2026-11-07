@@ -1,69 +1,228 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Animated, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Link, useRouter } from "expo-router";
+import { DrawerActions } from "@react-navigation/native";
+import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { useAuth } from "../../src/features/auth/auth-provider";
-import { chatService, type ChatMessage, type ChatModel } from "../../src/features/chat/chat-service";
+import { chatService, type ChatMessage } from "../../src/features/chat/chat-service";
 import { runOnce } from "../../src/features/chat/submission-guard";
-import { ChatComposer } from "../../src/features/chat/components/ChatComposer";
+import { ChatComposer, type ChatAttachment } from "../../src/features/chat/components/ChatComposer";
 import { MessageBubble } from "../../src/features/chat/components/MessageBubble";
+import { StreamingStatus } from "../../src/features/chat/components/StreamingStatus";
 import { colors } from "../../src/theme/colors";
 
-const suggestions = [
-    { title: "اكتبلي كود لعبة بسيطة" },
-    { title: "اشرحلي درس صعب بطريقة سهلة" },
-    { title: "اعملي ملخص لدرس" },
-    { title: "اكتبلي ايميل رسمي" },
-];
+const STREAMING_ID = "local-streaming-assistant";
+const suggestions = ["اكتبلي كود لعبة بسيطة", "اشرحلي درس صعب بطريقة سهلة", "اعملي ملخص لدرس", "اكتبلي ايميل رسمي"];
 
 export default function ChatPage() {
+  const { user } = useAuth();
   const router = useRouter();
+  const navigation = useNavigation();
+  const params = useLocalSearchParams<{ conversationId?: string | string[] }>();
+  const routeConversationId = Array.isArray(params.conversationId) ? params.conversationId[0] : params.conversationId;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [conversationId, setConversationId] = useState<string | null>(routeConversationId || null);
   const [isSending, setIsSending] = useState(false);
+  const [isLoading, setIsLoading] = useState(Boolean(routeConversationId));
+  const [error, setError] = useState<string | null>(null);
   const listRef = useRef<FlatList<ChatMessage>>(null);
+  const lock = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    abortRef.current?.abort();
+    setConversationId(routeConversationId || null);
+    setMessages([]);
+    setError(null);
+    if (!routeConversationId) {
+      setIsLoading(false);
+      return () => { active = false; };
+    }
+    setIsLoading(true);
+    void chatService.getMessages(routeConversationId).then((saved) => {
+      if (active) setMessages(saved);
+    }).catch((cause) => {
+      if (active) setError(cause instanceof Error ? cause.message : "تعذر تحميل المحادثة.");
+    }).finally(() => {
+      if (active) setIsLoading(false);
+    });
+    return () => { active = false; };
+  }, [routeConversationId]);
+
+  useEffect(() => {
+    if (messages.length) requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
+  }, [messages.length]);
+
+  const reloadMessages = useCallback(async (id: string) => {
+    const saved = await chatService.getMessages(id);
+    setMessages(saved);
+  }, []);
+
+  const sendText = async (content: string) => {
+    await runOnce(lock, async () => {
+      if (!user || !content.trim()) return;
+      setError(null);
+      setIsSending(true);
+      const controller = new AbortController();
+      abortRef.current = controller;
+      let id = conversationId;
+      let savedUserMessage = false;
+      try {
+        if (!id) {
+          const conversation = await chatService.createConversation();
+          id = conversation.id;
+          setConversationId(id);
+          router.replace({ pathname: "/(protected)/chat", params: { conversationId: id } });
+        }
+        const conversationKey = id;
+        await chatService.sendMessage({
+          conversationId: conversationKey,
+          content,
+          signal: controller.signal,
+          onUserSaved(message) {
+            savedUserMessage = true;
+            setMessages((current) => [...current.filter((item) => item.id !== STREAMING_ID), message]);
+          },
+          onChunk(text) {
+            setMessages((current) => {
+              const existing = current.find((item) => item.id === STREAMING_ID);
+              if (existing) return current.map((item) => item.id === STREAMING_ID ? { ...item, content: item.content + text } : item);
+              const assistant: ChatMessage = { id: STREAMING_ID, conversationId: conversationKey, role: "assistant", content: text, createdAt: new Date().toISOString(), modelId: null, status: "streaming" };
+              return [...current, assistant];
+            });
+          },
+        });
+        await reloadMessages(conversationKey);
+      } catch (cause) {
+        setMessages((current) => current.filter((item) => item.id !== STREAMING_ID));
+        if (controller.signal.aborted) setError(savedUserMessage ? "أُوقف الرد. رسالة المستخدم محفوظة ويمكن إعادة المحاولة." : "تم إيقاف الطلب قبل حفظ الرسالة.");
+        else setError(cause instanceof Error ? cause.message : "تعذر إرسال الرسالة. تحقق من الاتصال وحاول مجددًا.");
+      } finally {
+        if (abortRef.current === controller) abortRef.current = null;
+        setIsSending(false);
+      }
+    });
+  };
+
+  const handleSend = (content: string, attachment?: ChatAttachment) => {
+    if (attachment) {
+      Alert.alert("المرفق لم يُرسل", `تم اختيار «${attachment.name}»، لكن واجهة API الحالية تقبل النص فقط. سيتم إرسال نص رسالتك دون الملف.`, [
+        { text: "إلغاء", style: "cancel" },
+        { text: "إرسال النص فقط", onPress: () => void sendText(content) },
+      ]);
+      return;
+    }
+    void sendText(content);
+  };
+
+  const startNewChat = () => {
+    abortRef.current?.abort();
+    setMessages([]);
+    setConversationId(null);
+    setError(null);
+    router.replace("/(protected)/chat");
+  };
+
+  const regenerate = async (messageId: string) => {
+    if (!conversationId || isSending) return;
+    const answerIndex = messages.findIndex((message) => message.id === messageId);
+    if (answerIndex < 0) return;
+    let userIndex = answerIndex - 1;
+    while (userIndex >= 0 && messages[userIndex].role !== "user") userIndex -= 1;
+    if (userIndex < 0) {
+      Alert.alert("تعذر إعادة الرد", "لم يتم العثور على رسالة المستخدم المرتبطة بهذا الرد.");
+      return;
+    }
+    const history = messages.slice(0, userIndex + 1);
+    setMessages(history);
+    setIsSending(true);
+    const controller = new AbortController();
+    abortRef.current = controller;
+    try {
+      await chatService.regenerateAssistant({
+        conversationId,
+        history,
+        signal: controller.signal,
+        onChunk(text) {
+          setMessages((current) => {
+            const existing = current.find((item) => item.id === STREAMING_ID);
+            if (existing) return current.map((item) => item.id === STREAMING_ID ? { ...item, content: item.content + text } : item);
+            return [...current, { id: STREAMING_ID, conversationId, role: "assistant", content: text, createdAt: new Date().toISOString(), modelId: null, status: "streaming" }];
+          });
+        },
+      });
+      await reloadMessages(conversationId);
+    } catch (cause) {
+      setMessages((current) => current.filter((item) => item.id !== STREAMING_ID));
+      setError(cause instanceof Error ? cause.message : "تعذرت إعادة توليد الرد.");
+    } finally {
+      abortRef.current = null;
+      setIsSending(false);
+    }
+  };
 
   const renderMessage = ({ item }: { item: ChatMessage }) => (
-    <MessageBubble role={item.role === "user" ? "user" : "assistant"} content={item.content} isStreaming={item.status === "streaming"} />
+    <MessageBubble
+      messageId={item.id}
+      role={item.role === "user" ? "user" : "assistant"}
+      content={item.content}
+      isStreaming={item.status === "streaming"}
+      onRegenerate={item.role === "assistant" ? () => void regenerate(item.id) : undefined}
+    />
   );
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right", "bottom"]}>
-      <View style={styles.appBar}>
-        <Pressable onPress={() => console.log("Open Drawer")}><Text style={styles.icon}>☰</Text></Pressable>
-        <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <View style={styles.appBar}>
+          <Pressable onPress={() => navigation.dispatch(DrawerActions.openDrawer())} style={styles.headerButton} accessibilityRole="button" accessibilityLabel="فتح سجل المحادثات"><Text style={styles.headerIcon}>☰</Text></Pressable>
+          <View style={styles.brand}>
             <Text style={styles.title}>Suly Agent AI</Text>
-            <View style={{width: 8, height: 8, borderRadius: 4, backgroundColor: colors.success}} />
-        </View>
-        <Pressable><Text style={styles.icon}>＋</Text></Pressable>
-      </View>
-
-      {messages.length === 0 ? (
-        <View style={styles.empty}>
-          <Text style={styles.logo}>🤖</Text>
-          <Text style={styles.emptyTitle}>كيف أقدر أساعدك؟</Text>
-          <View style={styles.suggestionsGrid}>
-            {suggestions.map((s, i) => (
-                <Pressable key={i} style={styles.suggestionCard}><Text style={styles.suggestionText}>{s.title}</Text></Pressable>
-            ))}
+            <View style={styles.onlineDot} />
           </View>
+          <Pressable onPress={startNewChat} style={styles.headerButton} accessibilityRole="button" accessibilityLabel="محادثة جديدة"><Text style={styles.headerIcon}>＋</Text></Pressable>
         </View>
-      ) : (
-        <FlatList ref={listRef} data={messages} renderItem={renderMessage} />
-      )}
-      <ChatComposer onSend={(text) => console.log(text)} isStreaming={isSending} />
+
+        {error ? <Pressable onPress={() => setError(null)} style={styles.errorBox}><Text style={styles.errorText}>{error}  ×</Text></Pressable> : null}
+        {isLoading ? <View style={styles.loading}><ActivityIndicator color={colors.primary} /><Text style={styles.loadingText}>جارٍ تحميل المحادثة…</Text></View> : messages.length === 0 ? (
+          <View style={styles.empty}>
+            <View style={styles.logo}><Text style={styles.logoLetter}>S</Text></View>
+            <Text style={styles.emptyTitle}>كيف أقدر أساعدك؟</Text>
+            <View style={styles.suggestionsGrid}>
+              {suggestions.map((suggestion) => <Pressable key={suggestion} style={styles.suggestionCard} onPress={() => handleSend(suggestion)} accessibilityRole="button"><Text style={styles.suggestionText}>{suggestion}</Text></Pressable>)}
+            </View>
+          </View>
+        ) : (
+          <FlatList ref={listRef} style={styles.messages} contentContainerStyle={styles.messageContent} data={messages} renderItem={renderMessage} keyExtractor={(item) => item.id} keyboardShouldPersistTaps="handled" />
+        )}
+        <StreamingStatus isStreaming={isSending} onCancel={() => abortRef.current?.abort()} />
+        <ChatComposer onSend={handleSend} disabled={isSending} isStreaming={isSending} onCancel={() => abortRef.current?.abort()} />
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  appBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16 },
-  icon: { color: colors.textPrimary, fontSize: 24 },
-  title: { color: colors.textPrimary, fontSize: 18, fontWeight: "700" },
-  empty: { flex: 1, justifyContent: "center", alignItems: "center", padding: 20 },
-  logo: { fontSize: 60, marginBottom: 20 },
-  emptyTitle: { color: colors.textPrimary, fontSize: 24, fontWeight: "700", marginBottom: 30 },
-  suggestionsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12, justifyContent: "center" },
-  suggestionCard: { padding: 16, borderRadius: 12, backgroundColor: colors.surface, width: "45%" },
-  suggestionText: { color: colors.textPrimary, fontSize: 14 }
+  flex: { flex: 1 },
+  appBar: { height: 58, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: colors.divider },
+  headerButton: { width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 21 },
+  headerIcon: { color: colors.textPrimary, fontSize: 25 },
+  brand: { flexDirection: "row", alignItems: "center", gap: 7 },
+  title: { color: colors.textPrimary, fontSize: 17, fontWeight: "700" },
+  onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.success },
+  errorBox: { marginHorizontal: 14, marginTop: 8, padding: 10, borderRadius: 10, backgroundColor: "#EF444422" },
+  errorText: { color: colors.error, textAlign: "right", fontSize: 12 },
+  loading: { flex: 1, justifyContent: "center", alignItems: "center", gap: 10 },
+  loadingText: { color: colors.textSecondary },
+  messages: { flex: 1 },
+  messageContent: { flexGrow: 1, paddingVertical: 12 },
+  empty: { flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 20 },
+  logo: { width: 76, height: 76, borderRadius: 38, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.primary, alignItems: "center", justifyContent: "center", marginBottom: 16 },
+  logoLetter: { color: colors.primary, fontSize: 48, fontWeight: "800" },
+  emptyTitle: { color: colors.textPrimary, fontSize: 24, fontWeight: "700", marginBottom: 24 },
+  suggestionsGrid: { width: "100%", maxWidth: 520, flexDirection: "row", flexWrap: "wrap", gap: 10, justifyContent: "center" },
+  suggestionCard: { width: "47%", minHeight: 68, padding: 13, borderRadius: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, justifyContent: "center" },
+  suggestionText: { color: colors.textPrimary, fontSize: 14, textAlign: "right", lineHeight: 20 },
 });

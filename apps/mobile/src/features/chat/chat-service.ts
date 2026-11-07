@@ -2,7 +2,7 @@ import { randomUUID } from "expo-crypto";
 import { supabase } from "../../lib/supabase/client";
 import { streamChatPlatform } from "../../lib/network/sse-client";
 import type { ChatRequestBody } from "../../lib/network/sse-transport";
-
+import { titleFromMessage } from "./conversation-title";
 export { titleFromMessage } from "./conversation-title";
 
 export type MessageRole = "user" | "assistant" | "system";
@@ -137,6 +137,14 @@ export const chatService = {
     if (error) throw new Error("تعذر تحديث عنوان المحادثة.");
   },
 
+  async deleteConversation(conversationId: string): Promise<void> {
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) throw new Error("سجّل الدخول مجددًا.");
+    const { error } = await supabase.from("suly_conversations").delete()
+      .eq("id", conversationId).eq("user_id", user.id);
+    if (error) throw new Error("تعذر حذف المحادثة.");
+  },
+
   async sendMessage(options: {
     conversationId: string;
     content: string;
@@ -161,10 +169,11 @@ export const chatService = {
     if (insertError || !inserted) throw new Error("تعذر حفظ رسالتك. لم يُرسل الطلب إلى نموذج الذكاء الاصطناعي.");
 
     options.onUserSaved(mapMessage(inserted as MessageRow));
+    const conversationUpdate: { updated_at: string; title?: string } = { updated_at: new Date().toISOString() };
+    if (priorMessages.length === 0) conversationUpdate.title = titleFromMessage(content);
     const { error: updateError } = await supabase.from("suly_conversations")
-      .update({ updated_at: new Date().toISOString() })
-      .eq("id", options.conversationId)
-      .eq("user_id", user.id);
+      .update(conversationUpdate)
+      .eq("id", options.conversationId).eq("user_id", user.id);
     if (updateError) throw new Error("حُفظت رسالتك، لكن تعذر تحديث ترتيب المحادثة.");
 
     const history: ChatRequestBody["messages"] = priorMessages
@@ -180,5 +189,27 @@ export const chatService = {
       stream: true,
     };
     await streamChatPlatform(requestBody, options.signal, { onChunk: options.onChunk, onDone() {} });
+  },
+
+  async regenerateAssistant(options: {
+    conversationId: string;
+    history: ChatMessage[];
+    signal: AbortSignal;
+    onChunk(text: string): void;
+  }): Promise<void> {
+    const messages: ChatRequestBody["messages"] = options.history
+      .filter((entry): entry is ChatMessage & { role: "user" | "assistant" } => entry.role === "user" || entry.role === "assistant")
+      .slice(-20)
+      .map(({ role, content }) => ({ role, content }));
+    if (!messages.length || messages[messages.length - 1].role !== "user") {
+      throw new Error("لا توجد رسالة مستخدم لإعادة توليد الرد عليها.");
+    }
+    await streamChatPlatform({
+      conversation_id: options.conversationId,
+      request_id: randomUUID(),
+      messages,
+      routing_mode: "auto",
+      stream: true,
+    }, options.signal, { onChunk: options.onChunk, onDone() {} });
   },
 };
