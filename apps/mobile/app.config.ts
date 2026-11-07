@@ -4,6 +4,7 @@ const easProjectId = process.env.EAS_PROJECT_ID;
 
 const config: ExpoConfig = {
   name: "Suly Agent AI",
+  owner: "suly-sam100",
   slug: "smsm-ai",
   scheme: "suly-agent-ai",
   version: "1.0.0",
@@ -11,12 +12,12 @@ const config: ExpoConfig = {
     package: "com.suly.agentai",
     versionCode: 1,
   },
-  updates: easProjectId ? {
-    url: `https://u.expo.dev/${easProjectId}`,
+  updates: {
+    url: `https://u.expo.dev/${easProjectId ?? "4eb557a8-8aea-4ea9-a3d7-7ccba99f6c73"}`,
     checkAutomatically: "ON_LOAD",
     fallbackToCacheTimeout: 0,
-  } : undefined,
-  extra: easProjectId ? { eas: { projectId: easProjectId } } : undefined,
+  },
+  extra: { eas: { projectId: easProjectId ?? "4eb557a8-8aea-4ea9-a3d7-7ccba99f6c73" } },
   orientation: "portrait",
   userInterfaceStyle: "automatic",
   platforms: ["ios", "android", "web"],
