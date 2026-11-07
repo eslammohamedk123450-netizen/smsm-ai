@@ -35,4 +35,4 @@ jobs:
           EXPO_PUBLIC_SUPABASE_URL: https://razvryvazmqvvqkzetuo.supabase.co
           EXPO_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_t5xrzZNN6Uj9zhhBLUYQVg_mj7qPjQL
           EXPO_PUBLIC_EDGE_FUNCTION_BASE_URL: https://razvryvazmqvvqkzetuo.supabase.co/functions/v1
-        run: npx eas-cli@latest update --branch production --message "release-v1-${{ github.sha }}" --non-interactive
+        run: npx eas-cli@latest update --branch preview --environment preview --message "release-v1-${{ github.sha }}" --non-interactive

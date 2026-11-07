@@ -8,6 +8,7 @@ const config: ExpoConfig = {
   slug: "smsm-ai",
   scheme: "suly-agent-ai",
   version: "1.0.0",
+  runtimeVersion: { policy: "appVersion" },
   android: {
     package: "com.suly.agentai",
     versionCode: 1,
