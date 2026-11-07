@@ -9,7 +9,9 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "test": "jest --config jest.config.cjs"
+    "test": "jest --config jest.config.cjs",
+    "build:apk": "expo prebuild --platform android --clean && cd android && ./gradlew assembleRelease --split-per-abi",
+    "build:aab": "eas build -p android --profile production"
   },
   "dependencies": {
     "@expo/metro-runtime": "58.0.17",
@@ -17,6 +19,7 @@
     "@react-navigation/drawer": "^7.14.4",
     "@supabase/supabase-js": "^2.119.0",
     "expo": "~58.0.23",
+    "expo-build-properties": "~58.0.12",
     "expo-clipboard": "^58.0.4",
     "expo-constants": "~58.0.15",
     "expo-crypto": "~58.0.7",
@@ -25,7 +28,6 @@
     "expo-image-picker": "~58.0.10",
     "expo-linking": "~58.0.16",
     "expo-router": "~58.0.30",
-    "expo-sharing": "~58.0.22",
     "expo-speech-recognition": "^58.0.1",
     "expo-status-bar": "~58.0.4",
     "expo-updates": "~58.0.21",
