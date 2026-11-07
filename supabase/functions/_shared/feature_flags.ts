@@ -7,6 +7,7 @@
 
 import { interpretActivationResponse, type ActivationResult } from "./activation_command.ts";
 import { normalizeFeatureKey } from "./prompt_keys.ts";
+import { cloudinaryAuthenticatedDeliveryUrl } from "./cloudinary_delivery.ts";
 
 export interface FeatureResource {
   title: string;
@@ -69,6 +70,41 @@ export async function getFeatureContext(supabase: any, userId: string): Promise<
           };
         }).filter((resource) => resource.title.length > 0 && /^https:\/\//i.test(resource.url)),
       };
+    }
+    const activeKeys = Object.entries(parsed).filter(([, info]) => info.activated).map(([key]) => key);
+    for (const [key, info] of Object.entries(parsed)) if (!info.activated) info.resources = [];
+    if (activeKeys.length) {
+      const { data: resourceRows, error: resourceError } = await supabase.from("suly_feature_resources")
+        .select("feature_key,title,url,media_asset_id,kind,description")
+        .in("feature_key", activeKeys).eq("is_active", true).limit(200);
+      if (resourceError) throw new Error(resourceError.message);
+      const rows = (resourceRows ?? []) as Array<Record<string, unknown>>;
+      const mediaIds = [...new Set(rows.map((row) => typeof row.media_asset_id === "string" ? row.media_asset_id : "").filter(Boolean))];
+      const assetsById = new Map<string, Record<string, unknown>>();
+      if (mediaIds.length) {
+        const { data: assets, error: assetsError } = await supabase.from("global_media_assets")
+          .select("id,feature_key,storage_provider,bucket,object_key,metadata,delivery_type")
+          .in("id", mediaIds).limit(200);
+        if (assetsError) throw new Error(assetsError.message);
+        for (const asset of assets ?? []) assetsById.set(String(asset.id), asset as Record<string, unknown>);
+      }
+      const resourcesByFeature = new Map<string, FeatureResource[]>();
+      for (const row of rows) {
+        const featureKey = String(row.feature_key ?? "");
+        let url: string | null = typeof row.url === "string" && /^https:\/\//i.test(row.url) ? row.url : "";
+        const mediaId = typeof row.media_asset_id === "string" ? row.media_asset_id : "";
+        if (mediaId) {
+          const asset = assetsById.get(mediaId);
+          if (asset && asset.feature_key === featureKey && asset.storage_provider === "cloudinary" && asset.delivery_type === "authenticated") {
+            url = await cloudinaryAuthenticatedDeliveryUrl({ bucket: String(asset.bucket), object_key: String(asset.object_key), metadata: asRecord(asset.metadata) });
+          }
+        }
+        if (!url) continue;
+        const current = resourcesByFeature.get(featureKey) ?? [];
+        current.push({ title: String(row.title ?? ""), url, kind: String(row.kind ?? "link"), description: typeof row.description === "string" ? row.description : null });
+        resourcesByFeature.set(featureKey, current);
+      }
+      for (const key of activeKeys) parsed[key].resources = resourcesByFeature.get(key) ?? [];
     }
     return { features: parsed };
   } catch (error) {

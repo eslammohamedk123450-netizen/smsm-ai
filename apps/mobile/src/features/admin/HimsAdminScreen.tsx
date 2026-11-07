@@ -32,6 +32,7 @@ export function HimsAdminScreen() {
   const [maxUses, setMaxUses] = useState("1");
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
+  const [mediaAssetId, setMediaAssetId] = useState<string | null>(null);
   const [kind, setKind] = useState("lecture");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(true);
@@ -88,8 +89,9 @@ export function HimsAdminScreen() {
       setNotice(`جارٍ رفع ${picked.part.name} إلى Cloudinary…`);
       const asset = await uploadMediaFile({ picked, featureKey: "hims" });
       setPreview(asset);
+      setMediaAssetId(asset.id);
       if (!title.trim()) setTitle(asset.filename ?? "ملف HIMS");
-      setUrl(asset.url);
+      setUrl("");
       setKind(asset.kind === "video" ? "video" : asset.kind === "image" ? "image" : "file");
       setNotice(`تم رفع الملف (${formatBytes(asset.sizeBytes)}). اضغط «إضافة المورد» لحفظه داخل HIMS.`);
     } catch (cause) {
@@ -99,12 +101,12 @@ export function HimsAdminScreen() {
   };
 
   const createResource = async () => {
-    if (!title.trim() || !url.trim()) { setError("اكتب عنوان المورد والرابط، أو ارفع ملفًا أولًا."); return; }
-    try { if (new URL(url.trim()).protocol !== "https:") throw new Error(); } catch { setError("رابط المورد يجب أن يبدأ بـ https://"); return; }
+    if (!title.trim() || (!mediaAssetId && !url.trim())) { setError("اكتب عنوان المورد والرابط، أو ارفع ملفًا أولًا."); return; }
+    if (!mediaAssetId) { try { if (new URL(url.trim()).protocol !== "https:") throw new Error(); } catch { setError("رابط المورد يجب أن يبدأ بـ https://"); return; } }
     setBusy(true); setError(null); setNotice(null);
     try {
-      await adminService.createHimsResource({ title, url, kind, description });
-      setTitle(""); setUrl(""); setDescription(""); setPreview(null);
+      await adminService.createHimsResource({ title, url, kind, description, mediaAssetId });
+      setTitle(""); setUrl(""); setMediaAssetId(null); setDescription(""); setPreview(null);
       setNotice("تمت إضافة مورد HIMS بنجاح.");
       await load();
     }
@@ -114,7 +116,7 @@ export function HimsAdminScreen() {
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <View style={styles.header}><Text style={styles.title}>إدارة HIMS</Text><Pressable onPress={() => void load()}><Text style={styles.link}>تحديث</Text></Pressable></View>
-    <Text style={styles.explainer}>أنشئ أكواد تفعيل وأضف محاضرات وملفات. الوسائط تُرفع إلى Cloudinary ويُحفظ رابطها فقط في Supabase.</Text>
+      <Text style={styles.explainer}>أنشئ أكواد تفعيل وأضف محاضرات وملفات. ملفات Cloudinary تُحفظ كأصول خاصة، وتُسجّل بياناتها وملكية الوصول في Supabase.</Text>
     {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
     {notice ? <Text style={styles.success}>{notice}</Text> : null}
 
@@ -146,11 +148,11 @@ export function HimsAdminScreen() {
         <View style={styles.flex}>
           <Text style={styles.cardTitle}>{preview.filename ?? "ملف مرفوع"}</Text>
           <Text style={styles.detail}>{preview.kind} · {formatBytes(preview.sizeBytes)}</Text>
-          <Text selectable numberOfLines={1} style={styles.detail}>{preview.url}</Text>
+          <Text selectable numberOfLines={1} style={styles.detail}>{mediaAssetId ? `Cloudinary خاص · ${mediaAssetId}` : preview.url}</Text>
         </View>
       </View> : null}
       <Field label="العنوان" value={title} onChange={setTitle} placeholder="محاضرة الشبكات - الوحدة الأولى" />
-      <Field label="الرابط HTTPS" value={url} onChange={setUrl} placeholder="https://..." keyboardType="url" />
+      <Field label="الرابط HTTPS" value={url} onChange={(value) => { setUrl(value); setMediaAssetId(null); }} placeholder="https://..." keyboardType="url" />
       <Field label="النوع" value={kind} onChange={setKind} placeholder="lecture أو image أو video أو file" />
       <Field label="الوصف" value={description} onChange={setDescription} placeholder="وصف اختياري" />
       <Button label={busy ? "جارٍ الحفظ…" : "إضافة المورد"} onPress={() => void createResource()} disabled={busy || uploading !== null} />

@@ -1,17 +1,10 @@
 import { useRef, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import * as DocumentPicker from "expo-document-picker";
-import * as ImagePicker from "expo-image-picker";
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition";
 import { colors } from "../../../theme/colors";
+import { pickMedia, type PickedMedia } from "../../media/media-service";
 
-export interface ChatAttachment {
-  uri: string;
-  name: string;
-  mimeType?: string | null;
-  size?: number | null;
-}
-
+export type ChatAttachment = PickedMedia;
 export interface ChatComposerProps {
   onSend(content: string, attachment?: ChatAttachment): void;
   disabled?: boolean;
@@ -29,9 +22,7 @@ export function ChatComposer({ onSend, disabled = false, isStreaming = false, on
   useSpeechRecognitionEvent("end", () => setIsListening(false));
   useSpeechRecognitionEvent("error", (event) => {
     setIsListening(false);
-    if (event.error !== "no-speech" && event.error !== "aborted") {
-      Alert.alert("تعذر التعرف على الصوت", event.message || "تحقق من إذن الميكروفون وخدمة التعرف على الكلام.");
-    }
+    if (event.error !== "no-speech" && event.error !== "aborted") Alert.alert("تعذر التعرف على الصوت", event.message || "تحقق من إذن الميكروفون وخدمة التعرف على الكلام.");
   });
   useSpeechRecognitionEvent("result", (event) => {
     const transcript = event.results?.[0]?.transcript?.trim();
@@ -51,82 +42,45 @@ export function ChatComposer({ onSend, disabled = false, isStreaming = false, on
   };
 
   const startOrStopVoice = async () => {
-    if (isListening) {
-      ExpoSpeechRecognitionModule.stop();
-      return;
-    }
+    if (isListening) { ExpoSpeechRecognitionModule.stop(); return; }
     try {
       const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert("إذن الميكروفون مطلوب", "اسمح باستخدام الميكروفون والتعرف على الكلام لإملاء رسالتك.");
-        return;
-      }
+      if (!permission.granted) { Alert.alert("إذن الميكروفون مطلوب", "اسمح باستخدام الميكروفون والتعرف على الكلام لإملاء رسالتك."); return; }
       speechBase.current = text.trim();
       ExpoSpeechRecognitionModule.start({ lang: "ar-EG", interimResults: true, continuous: false, maxAlternatives: 1 });
-    } catch {
-      Alert.alert("التعرف الصوتي غير متاح", "تحقق من توفر خدمة التعرف على الكلام على هذا الجهاز.");
+    } catch { Alert.alert("التعرف الصوتي غير متاح", "تحقق من توفر خدمة التعرف على الكلام على هذا الجهاز."); }
+  };
+
+  const choose = async (kind: "image" | "document") => {
+    try {
+      const picked = await pickMedia(kind);
+      if (picked) setAttachment(picked);
+    } catch (cause) {
+      Alert.alert("تعذر اختيار الملف", cause instanceof Error ? cause.message : "حاول مرة أخرى.");
     }
   };
-
-  const choosePhoto = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert("إذن الصور مطلوب", "اسمح بالوصول إلى مكتبة الصور لاختيار صورة.");
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.85 });
-    if (result.canceled || !result.assets[0]) return;
-    const asset = result.assets[0];
-    setAttachment({ uri: asset.uri, name: asset.fileName || "image", mimeType: asset.mimeType, size: asset.fileSize });
-  };
-
-  const chooseFile = async () => {
-    const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true, multiple: false });
-    if (result.canceled || !result.assets[0]) return;
-    const asset = result.assets[0];
-    setAttachment({ uri: asset.uri, name: asset.name, mimeType: asset.mimeType, size: asset.size });
-  };
-
   const pickAttachment = () => Alert.alert("إضافة مرفق", "اختر نوع الملف", [
-    { text: "صورة", onPress: () => void choosePhoto() },
-    { text: "ملف", onPress: () => void chooseFile() },
+    { text: "صورة", onPress: () => void choose("image") },
+    { text: "ملف", onPress: () => void choose("document") },
     { text: "إلغاء", style: "cancel" },
   ]);
 
   return (
     <View style={styles.wrapper}>
-      {attachment && (
-        <View style={styles.attachmentChip}>
-          <Text numberOfLines={1} style={styles.attachmentText}>مرفق: {attachment.name}</Text>
-          <Pressable onPress={() => setAttachment(null)} accessibilityRole="button" accessibilityLabel="إزالة المرفق"><Text style={styles.removeAttachment}>×</Text></Pressable>
-        </View>
-      )}
+      {attachment && <View style={styles.attachmentChip}>
+        <Text numberOfLines={1} style={styles.attachmentText}>مرفق: {attachment.part.name}</Text>
+        <Pressable onPress={() => setAttachment(null)} accessibilityRole="button" accessibilityLabel="إزالة المرفق"><Text style={styles.removeAttachment}>×</Text></Pressable>
+      </View>}
       <View style={styles.container}>
-        <Pressable onPress={pickAttachment} disabled={disabled || isStreaming} style={styles.iconButton} accessibilityRole="button" accessibilityLabel="إرفاق صورة أو ملف">
-          <Text style={styles.icon}>＋</Text>
-        </Pressable>
-        <TextInput
-          value={text}
-          onChangeText={setText}
-          editable={!disabled && !isStreaming}
-          placeholder="اكتب رسالة إلى Suly…"
-          placeholderTextColor={colors.textMuted}
-          style={styles.input}
-          multiline
-          maxLength={16000}
-          textAlign="right"
-          accessibilityLabel="نص الرسالة"
-        />
+        <Pressable onPress={pickAttachment} disabled={disabled || isStreaming} style={styles.iconButton} accessibilityRole="button" accessibilityLabel="إرفاق صورة أو ملف"><Text style={styles.icon}>＋</Text></Pressable>
+        <TextInput value={text} onChangeText={setText} editable={!disabled && !isStreaming} placeholder="اكتب رسالة إلى Suly…" placeholderTextColor={colors.textMuted} style={styles.input} multiline maxLength={16000} textAlign="right" accessibilityLabel="نص الرسالة" />
         <Pressable onPress={() => void startOrStopVoice()} disabled={disabled || isStreaming} style={[styles.iconButton, isListening && styles.listeningButton]} accessibilityRole="button" accessibilityLabel={isListening ? "إيقاف الإملاء الصوتي" : "إملاء صوتي"}>
           <Text style={[styles.icon, isListening && styles.listeningIcon]}>{isListening ? "■" : "🎙"}</Text>
         </Pressable>
-        {isStreaming ? (
-          <Pressable style={[styles.sendButton, styles.stopButton]} onPress={onCancel} accessibilityRole="button" accessibilityLabel="إيقاف الرد"><Text style={styles.sendText}>■</Text></Pressable>
-        ) : (
-          <Pressable style={[styles.sendButton, (!text.trim() || disabled) && styles.sendDisabled]} onPress={submit} disabled={disabled || !text.trim()} accessibilityRole="button" accessibilityLabel="إرسال الرسالة"><Text style={styles.sendText}>↑</Text></Pressable>
-        )}
+        {isStreaming ? <Pressable style={[styles.sendButton, styles.stopButton]} onPress={onCancel} accessibilityRole="button" accessibilityLabel="إيقاف الرد"><Text style={styles.sendText}>■</Text></Pressable> :
+          <Pressable style={[styles.sendButton, (!text.trim() || disabled) && styles.sendDisabled]} onPress={submit} disabled={disabled || !text.trim()} accessibilityRole="button" accessibilityLabel="إرسال الرسالة"><Text style={styles.sendText}>↑</Text></Pressable>}
       </View>
-      {attachment && <Text style={styles.attachmentNotice}>المرفق محدد محلياً؛ خدمة الدردشة الحالية تقبل النص فقط، لذلك لن يصل محتوى الملف إلى المساعد.</Text>}
+      {attachment && <Text style={styles.attachmentNotice}>سيُحفظ الملف داخل سجل المحادثة. واجهة الذكاء الاصطناعي الحالية تستقبل النص فقط ولا تحلل محتوى الملف بعد.</Text>}
     </View>
   );
 }

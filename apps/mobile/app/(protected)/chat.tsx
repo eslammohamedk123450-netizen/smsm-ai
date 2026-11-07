@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Animated, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { DrawerActions } from "@react-navigation/native";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
@@ -7,8 +7,10 @@ import { useAuth } from "../../src/features/auth/auth-provider";
 import { chatService, type ChatMessage } from "../../src/features/chat/chat-service";
 import { runOnce } from "../../src/features/chat/submission-guard";
 import { ChatComposer, type ChatAttachment } from "../../src/features/chat/components/ChatComposer";
-import { MessageBubble } from "../../src/features/chat/components/MessageBubble";
+import { MessageBubble, type MessageFeedback } from "../../src/features/chat/components/MessageBubble";
 import { StreamingStatus } from "../../src/features/chat/components/StreamingStatus";
+import { uploadMediaFile } from "../../src/features/media/media-service";
+import { logFrictionEvent } from "../../src/features/telemetry/friction";
 import { colors } from "../../src/theme/colors";
 
 const STREAMING_ID = "local-streaming-assistant";
@@ -23,8 +25,10 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(routeConversationId || null);
   const [isSending, setIsSending] = useState(false);
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
   const [isLoading, setIsLoading] = useState(Boolean(routeConversationId));
   const [error, setError] = useState<string | null>(null);
+  const [feedbackByMessage, setFeedbackByMessage] = useState<Record<string, MessageFeedback>>({});
   const listRef = useRef<FlatList<ChatMessage>>(null);
   const lock = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -34,14 +38,17 @@ export default function ChatPage() {
     abortRef.current?.abort();
     setConversationId(routeConversationId || null);
     setMessages([]);
+    setFeedbackByMessage({});
     setError(null);
     if (!routeConversationId) {
       setIsLoading(false);
       return () => { active = false; };
     }
     setIsLoading(true);
-    void chatService.getMessages(routeConversationId).then((saved) => {
-      if (active) setMessages(saved);
+    void chatService.getMessages(routeConversationId).then(async (saved) => {
+      if (!active) return;
+      setMessages(saved);
+      try { const feedback = await chatService.getMessageFeedback(saved.map((message) => message.id)); if (active) setFeedbackByMessage(feedback); } catch { /* feedback is optional to rendering */ }
     }).catch((cause) => {
       if (active) setError(cause instanceof Error ? cause.message : "تعذر تحميل المحادثة.");
     }).finally(() => {
@@ -57,13 +64,15 @@ export default function ChatPage() {
   const reloadMessages = useCallback(async (id: string) => {
     const saved = await chatService.getMessages(id);
     setMessages(saved);
+    try { setFeedbackByMessage(await chatService.getMessageFeedback(saved.map((message) => message.id))); } catch { setFeedbackByMessage({}); }
   }, []);
 
-  const sendText = async (content: string) => {
+  const sendText = async (content: string, attachment?: ChatAttachment) => {
     await runOnce(lock, async () => {
       if (!user || !content.trim()) return;
       setError(null);
       setIsSending(true);
+      void logFrictionEvent({ eventKind: "task_start", screenKey: "chat", featureKey: "chat", stepKey: "send_message", conversationId });
       const controller = new AbortController();
       abortRef.current = controller;
       let id = conversationId;
@@ -76,13 +85,28 @@ export default function ChatPage() {
           router.replace({ pathname: "/(protected)/chat", params: { conversationId: id } });
         }
         const conversationKey = id;
+        let mediaAssetId: string | null = null;
+        if (attachment) {
+          setIsUploadingAttachment(true);
+          try {
+            const asset = await uploadMediaFile({ picked: attachment, featureKey: "chat", conversationId: conversationKey });
+            mediaAssetId = asset.id;
+          } catch (cause) {
+            void logFrictionEvent({ eventKind: "upload_failed", screenKey: "chat", featureKey: "chat", stepKey: "chat_attachment", errorCode: "upload_failed", conversationId: conversationKey });
+            throw cause;
+          } finally { setIsUploadingAttachment(false); }
+        }
         await chatService.sendMessage({
           conversationId: conversationKey,
           content,
           signal: controller.signal,
-          onUserSaved(message) {
+          async onUserSaved(message) {
             savedUserMessage = true;
             setMessages((current) => [...current.filter((item) => item.id !== STREAMING_ID), message]);
+            if (mediaAssetId) {
+              try { await chatService.attachMediaToMessage(mediaAssetId, message.id); }
+              catch { void logFrictionEvent({ eventKind: "action_failed", screenKey: "chat", featureKey: "chat", stepKey: "link_attachment", errorCode: "media_link_failed", conversationId: conversationKey }); }
+            }
           },
           onChunk(text) {
             setMessages((current) => {
@@ -96,8 +120,13 @@ export default function ChatPage() {
         await reloadMessages(conversationKey);
       } catch (cause) {
         setMessages((current) => current.filter((item) => item.id !== STREAMING_ID));
-        if (controller.signal.aborted) setError(savedUserMessage ? "أُوقف الرد. رسالة المستخدم محفوظة ويمكن إعادة المحاولة." : "تم إيقاف الطلب قبل حفظ الرسالة.");
-        else setError(cause instanceof Error ? cause.message : "تعذر إرسال الرسالة. تحقق من الاتصال وحاول مجددًا.");
+        if (controller.signal.aborted) {
+          setError(savedUserMessage ? "أُوقف الرد. رسالة المستخدم محفوظة ويمكن إعادة المحاولة." : "تم إيقاف الطلب قبل حفظ الرسالة.");
+          if (savedUserMessage) void logFrictionEvent({ eventKind: "response_stopped", screenKey: "chat", featureKey: "chat", stepKey: "response", conversationId });
+        } else {
+          setError(cause instanceof Error ? cause.message : "تعذر إرسال الرسالة. تحقق من الاتصال وحاول مجددًا.");
+          void logFrictionEvent({ eventKind: "action_failed", screenKey: "chat", featureKey: "chat", stepKey: "send_message", errorCode: "send_failed", conversationId });
+        }
       } finally {
         if (abortRef.current === controller) abortRef.current = null;
         setIsSending(false);
@@ -105,15 +134,20 @@ export default function ChatPage() {
     });
   };
 
-  const handleSend = (content: string, attachment?: ChatAttachment) => {
-    if (attachment) {
-      Alert.alert("المرفق لم يُرسل", `تم اختيار «${attachment.name}»، لكن واجهة API الحالية تقبل النص فقط. سيتم إرسال نص رسالتك دون الملف.`, [
-        { text: "إلغاء", style: "cancel" },
-        { text: "إرسال النص فقط", onPress: () => void sendText(content) },
-      ]);
-      return;
+  const handleSend = (content: string, attachment?: ChatAttachment) => { void sendText(content, attachment); };
+
+  const updateFeedback = async (messageId: string, value: MessageFeedback | null) => {
+    const previous = feedbackByMessage[messageId] ?? null;
+    setFeedbackByMessage((current) => {
+      const next = { ...current };
+      if (value) next[messageId] = value; else delete next[messageId];
+      return next;
+    });
+    try { await chatService.setMessageFeedback(messageId, value); }
+    catch (cause) {
+      setFeedbackByMessage((current) => { const next = { ...current }; if (previous) next[messageId] = previous; else delete next[messageId]; return next; });
+      Alert.alert("تعذر حفظ التقييم", cause instanceof Error ? cause.message : "حاول مرة أخرى.");
     }
-    void sendText(content);
   };
 
   const startNewChat = () => {
@@ -168,6 +202,8 @@ export default function ChatPage() {
       role={item.role === "user" ? "user" : "assistant"}
       content={item.content}
       isStreaming={item.status === "streaming"}
+      feedback={feedbackByMessage[item.id] ?? null}
+      onFeedback={item.role === "assistant" && item.status !== "streaming" ? (value) => updateFeedback(item.id, value) : undefined}
       onRegenerate={item.role === "assistant" ? () => void regenerate(item.id) : undefined}
     />
   );
@@ -196,7 +232,8 @@ export default function ChatPage() {
         ) : (
           <FlatList ref={listRef} style={styles.messages} contentContainerStyle={styles.messageContent} data={messages} renderItem={renderMessage} keyExtractor={(item) => item.id} keyboardShouldPersistTaps="handled" />
         )}
-        <StreamingStatus isStreaming={isSending} onCancel={() => abortRef.current?.abort()} />
+        {isUploadingAttachment ? <View style={styles.uploadStatus}><ActivityIndicator size="small" color={colors.primary} /><Text style={styles.loadingText}>جارٍ حفظ المرفق في Cloudinary…</Text></View> : null}
+        <StreamingStatus isStreaming={isSending && !isUploadingAttachment} onCancel={() => abortRef.current?.abort()} />
         <ChatComposer onSend={handleSend} disabled={isSending} isStreaming={isSending} onCancel={() => abortRef.current?.abort()} />
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -216,6 +253,7 @@ const styles = StyleSheet.create({
   errorText: { color: colors.error, textAlign: "right", fontSize: 12 },
   loading: { flex: 1, justifyContent: "center", alignItems: "center", gap: 10 },
   loadingText: { color: colors.textSecondary },
+  uploadStatus: { flexDirection: "row-reverse", justifyContent: "center", alignItems: "center", gap: 8, paddingVertical: 8 },
   messages: { flex: 1 },
   messageContent: { flexGrow: 1, paddingVertical: 12 },
   empty: { flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 20 },

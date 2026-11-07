@@ -1,5 +1,6 @@
 import { randomUUID } from "expo-crypto";
 import { supabase } from "../../lib/supabase/client";
+import { getMediaDeliveryUrl } from "../media/media-service";
 
 export interface ProviderInput {
   name: string;
@@ -38,6 +39,7 @@ export interface HimsResource {
   feature_key: string;
   title: string;
   url: string;
+  media_asset_id?: string | null;
   kind: string;
   description: string | null;
   is_active: boolean;
@@ -80,19 +82,23 @@ export const adminService = {
   },
   async getHimsResources(): Promise<HimsResource[]> {
     await requireAdmin();
-    const { data, error } = await supabase.rpc("suly_admin_list_feature_resources", { p_feature_key: "hims" });
+    const { data, error } = await supabase.rpc("suly_admin_list_feature_resources_v2", { p_feature_key: "hims" });
     if (error) throw error;
-    return (data ?? []) as HimsResource[];
+    return Promise.all(((data ?? []) as HimsResource[]).map(async (resource) => ({
+      ...resource,
+      url: resource.media_asset_id ? await getMediaDeliveryUrl(resource.media_asset_id) : resource.url ?? "",
+    })));
   },
-  async createHimsResource(input: { title: string; url: string; kind: string; description: string }) {
+  async createHimsResource(input: { title: string; url: string; kind: string; description: string; mediaAssetId?: string | null }) {
     await requireAdmin();
-    const { data, error } = await supabase.rpc("suly_admin_upsert_feature_resource", {
+    const { data, error } = await supabase.rpc("suly_admin_upsert_feature_resource_v2", {
       p_feature_key: "hims",
       p_title: input.title.trim(),
-      p_url: input.url.trim(),
+      p_url: input.mediaAssetId ? null : input.url.trim(),
       p_kind: input.kind.trim() || "lecture",
       p_description: input.description.trim() || null,
       p_is_active: true,
+      p_media_asset_id: input.mediaAssetId ?? null,
     });
     if (error) throw error;
     return data as { success?: boolean; id?: string; feature_key?: string };

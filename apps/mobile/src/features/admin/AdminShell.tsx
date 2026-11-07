@@ -10,6 +10,8 @@ const NAV = [
   { path: "/admin/credit-management", label: "الرصيد والتسعير" },
   { path: "/admin/pricing", label: "الباقات والإعلانات" },
   { path: "/admin/hims", label: "نظام HIMS" },
+  { path: "/admin/support", label: "الدعم والشكاوى" },
+  { path: "/admin/friction", label: "التقييم والتعثر" },
   { path: "/admin/circuit-breaker", label: "قاطع الدائرة" },
 ] as const;
 
