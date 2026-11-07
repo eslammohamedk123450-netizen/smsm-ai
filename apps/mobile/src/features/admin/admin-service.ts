@@ -36,9 +36,7 @@ function describeFunctionFailure(error: unknown, functionName: string): string {
 export const adminService = {
   async getProviders() {
     await requireAdmin();
-    const { data, error } = await supabase.from("ai_providers_catalog")
-      .select("id,name,provider_type,base_url,enabled,priority,last_test_status,last_tested_at")
-      .order("priority", { ascending: true }).limit(100);
+    const { data, error } = await supabase.rpc("suly_admin_list_providers");
     if (error) throw error;
     return data ?? [];
   },
@@ -91,7 +89,7 @@ export const adminService = {
     if (modelsResult.error) throw modelsResult.error;
     if (healthResult.error) throw healthResult.error;
     if (settingsResult.error) throw settingsResult.error;
-    const providerNames = new Map<number, string>(providers.map((item) => [Number(item.id), String(item.name ?? item.provider_type)]));
+    const providerNames = new Map<number, string>(providers.map((item: { id: number; name?: string | null; provider_type?: string | null }) => [Number(item.id), String(item.name ?? item.provider_type ?? "—")]));
     const health = new Map<number, Record<string, unknown>>((healthResult.data ?? []).map((row) => [Number(row.model_id), row]));
     return {
       models: (modelsResult.data ?? []).map((row) => ({ ...row, provider_name: providerNames.get(Number(row.provider_id)) ?? "—", health: health.get(Number(row.id)) ?? null })),
