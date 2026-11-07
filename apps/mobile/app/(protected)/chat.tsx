@@ -120,7 +120,7 @@ export default function ChatPage() {
             </View>
             {isAdmin ? (
               <Link href="/admin" asChild>
-                <Pressable style={[styles.headerButton, styles.headerButtonPrimary]} accessibilityRole="button">
+                <Pressable style={StyleSheet.flatten([styles.headerButton, styles.headerButtonPrimary])} accessibilityRole="button">
                   <Text style={styles.headerButtonPrimaryText}>لوحة التحكم</Text>
                 </Pressable>
               </Link>
