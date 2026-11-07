@@ -81,7 +81,8 @@ async function discoverModels(providerType: string, baseUrl: string, apiKey: str
     let endpoint: string;
     const headers: Record<string, string> = { Accept: "application/json" };
     if (providerType === "google_ai") {
-      endpoint = `${baseUrl}/models?key=${encodeURIComponent(apiKey)}`;
+      endpoint = `${baseUrl}/models`;
+      headers["x-goog-api-key"] = apiKey;
     } else if (providerType === "anthropic") {
       endpoint = `${baseUrl}/models`;
       headers["x-api-key"] = apiKey;
@@ -92,7 +93,8 @@ async function discoverModels(providerType: string, baseUrl: string, apiKey: str
     }
     const response = await fetch(endpoint, { method: "GET", headers, signal: controller.signal });
     if (!response.ok) {
-      return { identifiers: [], warning: `لم يستجب المزود لقائمة النماذج (HTTP ${response.status}).` };
+      const errorBody = (await response.text().catch(() => "")).replace(/AIza[\w-]+/gi, "[redacted]").slice(0, 240);
+      return { identifiers: [], warning: `رفض المزود طلب النماذج (HTTP ${response.status})${errorBody ? `: ${errorBody}` : "."}` };
     }
     const payload = asRecord(await response.json());
     const rows: unknown[] = Array.isArray(payload.data)
@@ -105,6 +107,10 @@ async function discoverModels(providerType: string, baseUrl: string, apiKey: str
     const identifiers: string[] = [];
     for (const row of rows) {
       const item = asRecord(row);
+      if (providerType === "google_ai") {
+        const methods = Array.isArray(item.supportedGenerationMethods) ? item.supportedGenerationMethods.map((method) => String(method)) : [];
+        if (methods.length > 0 && !methods.includes("generateContent")) continue;
+      }
       const raw = cleanText(item.id, 200) || cleanText(item.name, 200);
       if (!raw) continue;
       const identifier = raw.replace(/^models\//, "");

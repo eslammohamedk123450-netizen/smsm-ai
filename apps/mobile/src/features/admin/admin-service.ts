@@ -133,6 +133,18 @@ export const adminService = {
     };
   },
 
+  async setProviderEnabled(providerId: number, enabled: boolean) {
+    await requireAdmin();
+    const { error } = await supabase.rpc("suly_admin_set_provider_enabled", { p_provider_id: providerId, p_enabled: enabled });
+    if (error) throw error;
+  },
+
+  async deleteProvider(providerId: number) {
+    await requireAdmin();
+    const { error } = await supabase.rpc("suly_admin_delete_provider", { p_provider_id: providerId });
+    if (error) throw error;
+  },
+
   async getModelsOverview() {
     await requireAdmin();
     const [modelsResult, healthResult, settingsResult, providers] = await Promise.all([

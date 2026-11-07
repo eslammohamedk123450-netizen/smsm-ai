@@ -56,6 +56,25 @@ export function ProvidersAdminScreen() {
     }
   };
 
+  const toggleProvider = async (provider: ProviderRow) => {
+    setBusyId(provider.id); setError(null); setNotice(null);
+    try {
+      await adminService.setProviderEnabled(provider.id, !provider.enabled);
+      setNotice(`${provider.name}: تم ${provider.enabled ? "تعطيل" : "تفعيل"} المزود وكل نماذجه.`);
+      await load();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر تغيير حالة المزود."); }
+    finally { setBusyId(null); }
+  };
+
+  const removeProvider = async (provider: ProviderRow) => {
+    const confirmed = await confirmAdminAction("حذف المزود", `سيُحذف ${provider.name} ومفتاحه وكل نماذجه نهائيًا.`, "حذف نهائي");
+    if (!confirmed) return;
+    setBusyId(provider.id); setError(null); setNotice(null);
+    try { await adminService.deleteProvider(provider.id); setNotice(`تم حذف ${provider.name} ومفتاحه ونماذجه.`); await load(); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر حذف المزود."); }
+    finally { setBusyId(null); }
+  };
+
   const selectPreset = (preset: ProviderPreset) => {
     setSelectedType(preset.type);
     setName(preset.name);
@@ -148,7 +167,7 @@ export function ProvidersAdminScreen() {
       </> : null}
     </Card>
     <View style={styles.sectionRow}><Text style={styles.sectionTitle}>المزودون المسجلون</Text><Pressable onPress={() => void load()}><Text style={styles.link}>تحديث</Text></Pressable></View>
-    {loading ? <ActivityIndicator color={colors.primary} /> : providers.length === 0 ? <Text style={styles.detail}>لا يوجد مزود مسجل بعد. اختر مزودًا وأضف مفتاحه ليظهر هنا.</Text> : providers.map((provider) => <Card key={provider.id}><Text style={styles.cardTitle}>{provider.name}</Text><Text style={styles.detail}>{provider.provider_type} · {provider.enabled ? "مفعّل" : "معطّل"} · اختبار: {provider.last_test_status ?? "غير مختبر"}</Text><Text numberOfLines={1} style={styles.detail}>{provider.base_url ?? ""}</Text><PrimaryButton label={busyId === provider.id ? "جارٍ المزامنة…" : "مزامنة النماذج"} onPress={() => void syncProvider(provider)} disabled={busyId !== null} /></Card>)}
+    {loading ? <ActivityIndicator color={colors.primary} /> : providers.length === 0 ? <Text style={styles.detail}>لا يوجد مزود مسجل بعد. اختر مزودًا وأضف مفتاحه ليظهر هنا.</Text> : providers.map((provider) => <Card key={provider.id}><Text style={styles.cardTitle}>{provider.name}</Text><Text style={styles.detail}>{provider.provider_type} · {provider.enabled ? "مفعّل" : "معطّل"} · اختبار: {provider.last_test_status ?? "غير مختبر"}</Text><Text numberOfLines={1} style={styles.detail}>{provider.base_url ?? ""}</Text><PrimaryButton label={busyId === provider.id ? "جارٍ التنفيذ…" : "مزامنة النماذج"} onPress={() => void syncProvider(provider)} disabled={busyId !== null} /><PrimaryButton label={provider.enabled ? "تعطيل المزود وكل نماذجه" : "تفعيل المزود وكل نماذجه"} onPress={() => void toggleProvider(provider)} disabled={busyId !== null} /><Pressable onPress={() => void removeProvider(provider)} disabled={busyId !== null}><Text style={styles.error}>حذف المفتاح والمزود وكل النماذج</Text></Pressable></Card>)}
   </ScrollView>;
 }
 
