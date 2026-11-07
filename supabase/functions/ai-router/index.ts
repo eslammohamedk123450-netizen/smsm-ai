@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { prepareAgentMemory, saveAgentMemory } from "./agent/memory.ts";
-import { activationOutcomeMessage, parseActivationCommand } from "../_shared/activation_command.ts";
+import { activationOutcomeMessage, parseActivationCommand, shouldReportActivationFailure } from "../_shared/activation_command.ts";
 import { activateFeatureByCode, buildFeatureSystemContext, getFeatureContext } from "../_shared/feature_flags.ts";
 import { buildSulyIdentityContext, containsHimsReference, IDENTITY_ANSWER_TEXT, INACTIVE_UNKNOWN_ANSWER, isIdentityQuestion, sanitizeContextText } from "../_shared/identity_context.ts";
 import { normalizeFeatureKey } from "../_shared/prompt_keys.ts";
@@ -455,20 +455,24 @@ async function handleRequest(req: Request): Promise<Response> {
   const activationCommand = parseActivationCommand(latestUserMessage);
   if (activationCommand) {
     const activation = await activateFeatureByCode(supabase, user.id, activationCommand.code);
-    const activatedHims = activation.featureKey?.toLowerCase() === "hims" &&
-      (activation.outcome === "activated" || activation.outcome === "already_active");
-    let text = activationOutcomeMessage(activation.outcome, activation.label);
-    if (activatedHims) {
+    const activationSucceeded = activation.outcome === "activated" || activation.outcome === "already_active";
+    // The success wording belongs to the feature row, so the router stays generic.
+    const text = activationOutcomeMessage(activation.outcome, activation.label, activation.activationMessage);
+    if (activationSucceeded && activation.featureKey?.toLowerCase() === "hims") {
       himsActivated = true;
       identityContext = buildSulyIdentityContext(true);
       userMetadata = identityContext.userMetadata;
       systemPrompt = identityContext.systemPrompt;
-      text = "تم تفعيل نظام HIMS بنجاح. أهلاً بك في عالم الدراسة الذكي من Suly-Technologies. لقد حصلت على شارة HIMS المتميزة!";
     }
-    return respondDeterministically(text, {
-      feature: { key: activation.featureKey, outcome: activation.outcome },
-      billing: null,
-    }, `feature_activation:${activation.outcome}`, activation.outcome === "unavailable" ? "error" : "success");
+    // An explicit `!ACTIVATE` command always answers. A message that was nothing
+    // but an unrecognised code continues as a normal chat turn, so ordinary
+    // one-word messages are never met with an activation error.
+    if (shouldReportActivationFailure(activationCommand, activation.outcome)) {
+      return respondDeterministically(text, {
+        feature: { key: activation.featureKey, outcome: activation.outcome },
+        billing: null,
+      }, `feature_activation:${activation.outcome}`, activationSucceeded ? "success" : "error");
+    }
   }
 
   if (!himsActivated && containsHimsReference(latestUserMessage)) {

@@ -112,7 +112,7 @@ export async function activateFeatureByCode(supabase: any, userId: string, code:
     return interpretActivationResponse(data);
   } catch (error) {
     console.warn("Feature activation failed:", error instanceof Error ? error.message : String(error));
-    return { outcome: "unavailable", featureKey: null, label: null };
+    return { outcome: "unavailable", featureKey: null, label: null, activationMessage: null };
   }
 }
 

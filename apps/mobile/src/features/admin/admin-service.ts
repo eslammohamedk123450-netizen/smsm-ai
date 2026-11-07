@@ -22,6 +22,8 @@ export interface HimsActivationCode {
   id: string;
   feature_key: string;
   label: string | null;
+  /** Full code, readable only through the admin-guarded RPC so it can be copied again. */
+  code_plain: string | null;
   code_fingerprint: string;
   max_uses: number | null;
   used_count: number;
@@ -74,7 +76,7 @@ export const adminService = {
       p_expires_at: input.expiresAt,
     });
     if (error) throw error;
-    return data as { success?: boolean; id?: string; feature_key?: string };
+    return data as { success?: boolean; id?: string; feature_key?: string; code?: string; command?: string };
   },
   async getHimsResources(): Promise<HimsResource[]> {
     await requireAdmin();
