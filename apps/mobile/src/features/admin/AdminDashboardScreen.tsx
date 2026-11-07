@@ -17,6 +17,7 @@ export function AdminDashboardScreen() {
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <Text style={styles.title}>لوحة المشرف</Text>
       <Text style={styles.subtitle}>تم التحقق من الصلاحية بواسطة suly_is_admin. تظل سياسات RLS وRPC هي حدود الأمان الفعلية.</Text>
+      <Link href="/chat" asChild><Pressable style={styles.appButton}><Text style={styles.appButtonText}>الذهاب إلى التطبيق وتجربة المحادثة</Text></Pressable></Link>
       {sections.map((section) => (
         <Link key={section.path} href={section.path} asChild>
           <Pressable style={styles.card}><Text style={styles.cardTitle}>{section.title}</Text><Text style={styles.cardDetail}>{section.detail}</Text></Pressable>
@@ -26,4 +27,4 @@ export function AdminDashboardScreen() {
   );
 }
 
-const styles = StyleSheet.create({ screen: { flex: 1, backgroundColor: colors.background }, content: { width: "100%", maxWidth: 900, alignSelf: "center", padding: 20, gap: 12 }, title: { color: colors.textPrimary, fontSize: 28, fontWeight: "800", textAlign: "right" }, subtitle: { color: colors.textSecondary, textAlign: "right", lineHeight: 21, marginBottom: 8 }, card: { padding: 18, borderRadius: 14, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface }, cardTitle: { color: colors.textPrimary, fontSize: 17, fontWeight: "700", textAlign: "right" }, cardDetail: { color: colors.textSecondary, marginTop: 6, textAlign: "right" } });
+const styles = StyleSheet.create({ screen: { flex: 1, backgroundColor: colors.background }, content: { width: "100%", maxWidth: 900, alignSelf: "center", padding: 20, gap: 12 }, title: { color: colors.textPrimary, fontSize: 28, fontWeight: "800", textAlign: "right" }, subtitle: { color: colors.textSecondary, textAlign: "right", lineHeight: 21, marginBottom: 8 }, appButton: { padding: 16, borderRadius: 12, backgroundColor: colors.primary }, appButtonText: { color: "#FFFFFF", fontWeight: "800", textAlign: "center" }, card: { padding: 18, borderRadius: 14, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface }, cardTitle: { color: colors.textPrimary, fontSize: 17, fontWeight: "700", textAlign: "right" }, cardDetail: { color: colors.textSecondary, marginTop: 6, textAlign: "right" } });

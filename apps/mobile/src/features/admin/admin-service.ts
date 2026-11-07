@@ -139,6 +139,12 @@ export const adminService = {
     if (error) throw error;
   },
 
+  async setProviderLifecycle(providerId: number, enabled: boolean, hideModels: boolean) {
+    await requireAdmin();
+    const { error } = await supabase.rpc("suly_admin_set_provider_lifecycle", { p_provider_id: providerId, p_enabled: enabled, p_hide_models: hideModels });
+    if (error) throw error;
+  },
+
   async deleteProvider(providerId: number) {
     await requireAdmin();
     const { error } = await supabase.rpc("suly_admin_delete_provider", { p_provider_id: providerId });

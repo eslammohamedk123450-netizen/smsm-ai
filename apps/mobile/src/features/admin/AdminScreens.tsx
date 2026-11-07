@@ -28,6 +28,7 @@ export function ProvidersAdminScreen() {
   const [key, setKey] = useState("");
   const [description, setDescription] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [hideModelsOnDisable, setHideModelsOnDisable] = useState(true);
   const [busy, setBusy] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -59,7 +60,7 @@ export function ProvidersAdminScreen() {
   const toggleProvider = async (provider: ProviderRow) => {
     setBusyId(provider.id); setError(null); setNotice(null);
     try {
-      await adminService.setProviderEnabled(provider.id, !provider.enabled);
+      await adminService.setProviderLifecycle(provider.id, !provider.enabled, hideModelsOnDisable);
       setNotice(`${provider.name}: تم ${provider.enabled ? "تعطيل" : "تفعيل"} المزود وكل نماذجه.`);
       await load();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر تغيير حالة المزود."); }
@@ -115,6 +116,7 @@ export function ProvidersAdminScreen() {
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <PageHeader title="مزودو الخدمة" />
     <Text style={styles.explainer}>اختر المزود ثم الصق مفتاحه فقط. الرابط يُملأ تلقائيًا من قائمة المزودين المدعومة، ولا يُرسل المفتاح إلا إلى وظيفة السيرفر المحمية.</Text>
+    <Card><Toggle label="عند تعطيل مزود: إخفاء نماذجه من التوجيه" value={hideModelsOnDisable} onChange={setHideModelsOnDisable} /><Text style={styles.detail}>عند إيقاف هذا الخيار ستبقى النماذج ظاهرة في لوحة النماذج، لكنها لن تعمل ما دام المزود معطّلًا.</Text></Card>
     <Card>
       <Text style={styles.sectionTitle}>١. اختر المزود</Text>
       <View style={styles.rowWrap}>
@@ -173,6 +175,7 @@ export function ProvidersAdminScreen() {
 
 export function ModelsAdminScreen() {
   const [models, setModels] = useState<ModelRow[]>([]);
+  const [search, setSearch] = useState("");
   const [settings, setSettings] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -182,6 +185,10 @@ export function ModelsAdminScreen() {
   const [parallel, setParallel] = useState("10");
   const [paidFallback, setPaidFallback] = useState(true);
   const [autoRestrict, setAutoRestrict] = useState(true);
+  const filteredModels = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return query ? models.filter((model) => `${model.name} ${model.model_identifier} ${model.provider_name} ${model.routing_group}`.toLowerCase().includes(query)) : models;
+  }, [models, search]);
   const load = async () => {
     setLoading(true); setError(null);
     try {
@@ -228,8 +235,9 @@ export function ModelsAdminScreen() {
     <ErrorText>{error}</ErrorText>
     {loading ? <ActivityIndicator color={colors.primary} /> : <>
       {settings && <Card><Text style={styles.sectionTitle}>إعدادات ai_router_settings</Text><NumberField label="مهلة سباق النماذج (ms)" value={freeTimeout} onChange={setFreeTimeout} /><NumberField label="مهلة البديل المدفوع (ms)" value={fallbackTimeout} onChange={setFallbackTimeout} /><NumberField label="أقصى نماذج متوازية" value={parallel} onChange={setParallel} /><Toggle label="تفعيل البديل المدفوع" value={paidFallback} onChange={setPaidFallback} /><Toggle label="التقييد التلقائي للصحة" value={autoRestrict} onChange={setAutoRestrict} /><PrimaryButton label={busy ? "جارٍ الحفظ…" : "حفظ الإعدادات"} onPress={() => void saveSettings()} disabled={busy} /></Card>}
-      <Text style={styles.sectionTitle}>النماذج المفعلة والمعطلة ({models.length})</Text>
-      {models.map((model) => <Card key={model.id}>
+      <View style={styles.searchWrap}><TextInput style={styles.input} value={search} onChangeText={setSearch} placeholder="ابحث باسم النموذج أو المزود" placeholderTextColor={colors.textMuted} autoCapitalize="none" /><Pressable onPress={() => setSearch("")}><Text style={styles.link}>مسح</Text></Pressable></View>
+      <Text style={styles.sectionTitle}>النماذج المفعلة والمعطلة ({filteredModels.length} من {models.length})</Text>
+      {filteredModels.map((model) => <Card key={model.id}>
         <Text style={styles.cardTitle}>{model.name} · {model.provider_name}</Text>
         <Text style={styles.detail}>{model.model_identifier} · {model.enabled ? `مفعّل (${model.routing_group})` : "معطّل"} · أولوية {model.priority}</Text>
         <Text style={styles.detail}>الحالة: {model.health?.last_status ?? "غير مسجلة"} · إخفاقات متتالية: {model.health?.consecutive_failures ?? 0} · تقييد تلقائي: {model.health?.auto_restricted ? "نعم" : "لا"}</Text>
