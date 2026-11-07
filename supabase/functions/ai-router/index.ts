@@ -17,13 +17,13 @@ function corsHeadersFor(req: Request): Record<string, string> {
   const origin = configuredCorsOrigin || (trustedPreviewOrigin ? requestOrigin : "https://8081-iaoy3lkpkvsmck8vuiukc-5cd4efc3.sg2.manus.computer");
   return {
     ...(origin ? { "Access-Control-Allow-Origin": origin, "Vary": "Origin" } : {}),
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, cache-control",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
   };
 }
 const corsHeaders = {
   ...(configuredCorsOrigin ? { "Access-Control-Allow-Origin": configuredCorsOrigin, "Vary": "Origin" } : { "Access-Control-Allow-Origin": "https://8081-iaoy3lkpkvsmck8vuiukc-5cd4efc3.sg2.manus.computer", "Vary": "Origin" }),
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, cache-control",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
