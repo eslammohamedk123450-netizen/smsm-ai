@@ -98,7 +98,14 @@ export default function ProtectedLayout() {
   if (status === "loading") return <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>;
   if (status === "misconfigured") return <Redirect href="/" />;
   if (!user) return <Redirect href="/login" />;
-  return <Drawer drawerContent={(props) => <CustomDrawerContent {...props} />} screenOptions={{ headerShown: false, drawerPosition: "right", drawerStyle: { backgroundColor: colors.background, width: 320 }, swipeEdgeWidth: 36 }} />;
+  return (
+    <Drawer drawerContent={(props) => <CustomDrawerContent {...props} />} screenOptions={{ headerShown: false, drawerPosition: "right", drawerStyle: { backgroundColor: colors.background, width: 320 }, swipeEdgeWidth: 36 }}>
+      <Drawer.Screen name="chat" options={{ title: "المحادثة" }} />
+      <Drawer.Screen name="media" options={{ title: "المكتبة" }} />
+      <Drawer.Screen name="admin" options={{ title: "لوحة التحكم" }} />
+      <Drawer.Screen name="settings" options={{ title: "الإعدادات" }} />
+    </Drawer>
+  );
 }
 
 const styles = StyleSheet.create({
