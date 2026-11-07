@@ -8,6 +8,15 @@ export interface ProviderInput {
   description: string;
   api_key: string;
 }
+export interface PricingPlan {
+  id: number;
+  name: string;
+  price: number;
+  max_requests: number;
+  daily_credits: number;
+  enabled: boolean;
+  updated_at?: string;
+}
 
 async function requireAdmin(): Promise<void> {
   const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -198,5 +207,50 @@ export const adminService = {
     });
     if (error) throw error;
     return data as { success?: boolean };
+  },
+  async getPricingPlans(): Promise<PricingPlan[]> {
+    await requireAdmin();
+    const { data, error } = await supabase.from("subscription_plans")
+      .select("id,name,price,max_requests,daily_credits,is_active,updated_at")
+      .order("id", { ascending: true });
+    if (error) throw error;
+    return (data ?? []).map((plan) => ({
+      ...plan,
+      price: Number(plan.price ?? 0),
+      max_requests: Number(plan.max_requests ?? 0),
+      daily_credits: Number(plan.daily_credits ?? 0),
+      enabled: plan.is_active !== false,
+    })) as PricingPlan[];
+  },
+  async updatePricingPlan(planId: number, data: { price: number; max_requests: number; daily_credits: number }) {
+    await requireAdmin();
+    if (![1, 2, 3, 4].includes(planId)) throw new Error("الباقة غير معروفة.");
+    if (!Number.isFinite(data.price) || data.price < 0 || data.price > 1_000_000 || !Number.isInteger(data.max_requests) || data.max_requests < 0 || data.max_requests > 1_000_000_000 || !Number.isInteger(data.daily_credits) || data.daily_credits < 0 || data.daily_credits > 1_000_000_000) {
+      throw new Error("أدخل سعرًا وحدودًا صحيحة غير سالبة.");
+    }
+    const { error } = await supabase.from("subscription_plans").update({
+      price: Number(data.price.toFixed(2)),
+      max_requests: data.max_requests,
+      daily_credits: data.daily_credits,
+      updated_at: new Date().toISOString(),
+    }).eq("id", planId);
+    if (error) throw error;
+  },
+  async getAdMobAppId(): Promise<string> {
+    await requireAdmin();
+    const { data, error } = await supabase.from("system_settings").select("value").eq("key", "admob_app_id").maybeSingle();
+    if (error) throw error;
+    return typeof data?.value === "string" ? data.value : "";
+  },
+  async updateAdMobAppId(value: string) {
+    await requireAdmin();
+    const appId = value.trim();
+    if (appId.length > 256) throw new Error("معرّف AdMob طويل جدًا.");
+    const { error } = await supabase.from("system_settings").upsert({
+      key: "admob_app_id",
+      value: appId,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "key" });
+    if (error) throw error;
   },
 };

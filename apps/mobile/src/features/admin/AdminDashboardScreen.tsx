@@ -7,6 +7,7 @@ const sections = [
   { path: "/admin/models", title: "النماذج والتوجيه", detail: "النماذج المفعلة والمعطلة، الصحة وإعدادات التوجيه" },
   { path: "/admin/users", title: "المستخدمون", detail: "البحث، حالة الحظر، الرصيد وسجل المعاملات" },
   { path: "/admin/credit-management", title: "إدارة الرصيد", detail: "إعدادات التسعير وآخر معاملات التسوية" },
+  { path: "/admin/pricing", title: "إدارة الباقات والأسعار", detail: "أسعار Free وLite وPro وMax وحدود الاستخدام وAdMob" },
   { path: "/admin/circuit-breaker", title: "قاطع الدائرة", detail: "غير مكتمل في تطبيق Flutter الحالي؛ لا تُعرض بيانات وهمية" },
 ] as const;
 

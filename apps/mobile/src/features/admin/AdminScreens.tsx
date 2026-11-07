@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "expo-router";
 import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
-import { adminService } from "./admin-service";
+import { adminService, type PricingPlan } from "./admin-service";
 import { providerPresets, findPreset, type ProviderPreset } from "./provider-presets";
 import { confirmAdminAction } from "./admin-confirm";
 import { colors } from "../../theme/colors";
@@ -291,6 +291,71 @@ export function CreditManagementAdminScreen() {
     <Card><Text style={styles.sectionTitle}>آخر 100 معاملة</Text><Text style={styles.detail}>تسويات: {settlements.length} · الرصيد المحصل: {billed} · tokens المسجلة: {tokens} · حجوزات: {transactions.filter((row) => row.event_type === "reserve").length}</Text></Card>
     {transactions.map((row, index) => <Card key={`${row.id ?? row.created_at}-${index}`}><Text style={styles.cardTitle}>{row.event_type} · {row.amount}</Text><Text style={styles.detail}>رصيد ما بعد العملية: {row.balance_after} · source: {row.source ?? "—"}</Text><Text style={styles.detail}>المستخدم: {row.user_id ?? "—"} · {row.created_at}</Text>{row.reason && <Text style={styles.detail}>السبب: {row.reason}</Text>}</Card>)}
   </>}</ScrollView>;
+}
+
+export function PricingAdminScreen() {
+  const [plans, setPlans] = useState<PricingPlan[]>([]);
+  const [drafts, setDrafts] = useState<Record<string, { price: string; max_requests: string; daily_credits: string }>>({});
+  const [adMobAppId, setAdMobAppId] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const load = async () => {
+    setLoading(true); setError(null);
+    try {
+      const [loadedPlans, loadedAdMobAppId] = await Promise.all([adminService.getPricingPlans(), adminService.getAdMobAppId()]);
+      setPlans(loadedPlans);
+      setDrafts(Object.fromEntries(loadedPlans.map((plan) => [plan.id, { price: String(plan.price), max_requests: String(plan.max_requests), daily_credits: String(plan.daily_credits) }])));
+      setAdMobAppId(loadedAdMobAppId);
+    } catch { setError("تعذر تحميل الباقات أو إعداد AdMob. تحقق من migration والصلاحية."); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { void load(); }, []);
+  const updateDraft = (planId: number, key: "price" | "max_requests" | "daily_credits", value: string) => {
+    const draftKey = String(planId);
+    setDrafts((current) => ({ ...current, [draftKey]: { ...current[draftKey], [key]: value } }));
+  };
+  const save = async () => {
+    const values = plans.map((plan) => {
+      const draft = drafts[plan.id];
+      return { plan, price: Number(draft?.price), max_requests: Number(draft?.max_requests), daily_credits: Number(draft?.daily_credits) };
+    });
+    if (values.some(({ price, max_requests, daily_credits }) => !Number.isFinite(price) || price < 0 || !Number.isInteger(max_requests) || max_requests < 0 || !Number.isInteger(daily_credits) || daily_credits < 0)) {
+      setError("كل الأسعار والحدود يجب أن تكون أرقامًا غير سالبة، والحدود أعدادًا صحيحة."); return;
+    }
+    setBusy(true); setError(null); setNotice(null);
+    try {
+      await Promise.all(values.map(({ plan, price, max_requests, daily_credits }) => adminService.updatePricingPlan(plan.id, { price, max_requests, daily_credits })));
+      await adminService.updateAdMobAppId(adMobAppId);
+      setNotice("تم حفظ الباقات وإعداد AdMob بنجاح.");
+      await load();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر حفظ إعدادات الباقات."); }
+    finally { setBusy(false); }
+  };
+  return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <PageHeader title="إدارة الباقات والأسعار" />
+    <Text style={styles.explainer}>تُحفظ التعديلات مباشرة في Supabase، وتظل الكتابة محمية بـ suly_is_admin وسياسات RLS.</Text>
+    <ErrorText>{error}</ErrorText>
+    {notice && <Text style={styles.success}>{notice}</Text>}
+    {loading ? <ActivityIndicator color={colors.primary} /> : <>
+      {plans.map((plan) => {
+        const draft = drafts[plan.id];
+        return <Card key={plan.id}>
+          <Text style={styles.cardTitle}>{plan.name} ({plan.id})</Text>
+          <NumberField label="السعر" value={draft?.price ?? ""} onChange={(value) => updateDraft(plan.id, "price", value)} />
+          <NumberField label="الحد الأقصى للطلبات" value={draft?.max_requests ?? ""} onChange={(value) => updateDraft(plan.id, "max_requests", value)} />
+          <NumberField label="الرصيد اليومي" value={draft?.daily_credits ?? ""} onChange={(value) => updateDraft(plan.id, "daily_credits", value)} />
+        </Card>;
+      })}
+      <Card>
+        <Text style={styles.sectionTitle}>إعدادات الإدارة</Text>
+        <Text style={styles.label}>AdMob App ID</Text>
+        <TextInput style={styles.input} value={adMobAppId} onChangeText={setAdMobAppId} placeholder="ca-app-pub-..." placeholderTextColor={colors.textMuted} autoCapitalize="none" autoCorrect={false} />
+        <PrimaryButton label={busy ? "جارٍ الحفظ…" : "حفظ الباقات والإعدادات"} onPress={() => void save()} disabled={busy} />
+      </Card>
+    </>}
+  </ScrollView>;
 }
 
 export function CircuitBreakerAdminScreen() {
