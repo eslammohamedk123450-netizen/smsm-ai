@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Appearance, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { ActivityIndicator, Appearance, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useAuth } from "../auth/auth-provider";
 import { supabase } from "../../lib/supabase/client";
 import { colors } from "../../theme/colors";
+import { BottomSheet } from "../../components/ui/BottomSheet";
+import { useToast } from "../../components/ui/Toast";
 
 type CreditEntry = { id: string; event_type: string; amount: number; balance_delta: number; balance_after: number; source: string; reason: string | null; created_at: string };
 type Language = "ar" | "en";
@@ -20,6 +22,7 @@ function applyColorScheme(dark: boolean): void {
 
 export default function SettingsScreen() {
   const { user, logout } = useAuth();
+  const { show } = useToast();
   const router = useRouter();
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [language, setLanguage] = useState<Language>("ar");
@@ -29,6 +32,7 @@ export default function SettingsScreen() {
   const [creditModal, setCreditModal] = useState(false);
   const [policyModal, setPolicyModal] = useState<"privacy" | "terms" | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [confirmLogoutVisible, setConfirmLogoutVisible] = useState(false);
   const isArabic = language === "ar";
 
   useEffect(() => {
@@ -79,16 +83,13 @@ export default function SettingsScreen() {
       await logout();
       router.replace("/(auth)/login");
     } catch {
-      Alert.alert(isArabic ? "تعذر تسجيل الخروج" : "Sign out failed", isArabic ? "تحقق من الاتصال وحاول مجدداً." : "Check your connection and try again.");
+      show(isArabic ? "تعذّر تسجيل الخروج. تحقق من الاتصال وحاول مجددًا." : "Sign out failed. Check your connection and try again.", "error");
     } finally {
       setLoggingOut(false);
     }
   };
 
-  const confirmLogout = () => Alert.alert(isArabic ? "تسجيل الخروج؟" : "Sign out?", isArabic ? "هل تريد تسجيل الخروج من حسابك؟" : "Do you want to sign out?", [
-    { text: isArabic ? "إلغاء" : "Cancel", style: "cancel" },
-    { text: isArabic ? "تسجيل الخروج" : "Sign out", style: "destructive", onPress: () => void doLogout() },
-  ]);
+  const confirmLogout = () => setConfirmLogoutVisible(true);
 
   const transactionTitle = (entry: CreditEntry) => {
     if (entry.reason) return entry.reason;
@@ -144,19 +145,15 @@ export default function SettingsScreen() {
         </View>
 
         <Pressable style={styles.logoutButton} onPress={confirmLogout} disabled={loggingOut} accessibilityRole="button">
-          {loggingOut ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.logoutText}>{isArabic ? "تسجيل الخروج" : "Sign out"}</Text>}
+          {loggingOut ? <ActivityIndicator color={colors.background} /> : <Text style={styles.logoutText}>{isArabic ? "تسجيل الخروج" : "Sign out"}</Text>}
         </Pressable>
       </ScrollView>
 
-      <Modal visible={creditModal} animationType="slide" onRequestClose={() => setCreditModal(false)}>
-        <View style={styles.modalScreen}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalHeading}>{isArabic ? "الرصيد وسجل العمليات" : "Balance & activity"}</Text>
-            <Pressable onPress={() => setCreditModal(false)} style={styles.backButton}><Text style={styles.backIcon}>×</Text></Pressable>
-          </View>
+      <BottomSheet visible={creditModal} title={isArabic ? "الرصيد وسجل العمليات" : "Balance & activity"} onClose={() => setCreditModal(false)}>
+        <View style={styles.sheetContent}>
           <View style={styles.balanceCard}><Text style={styles.balanceLabel}>{isArabic ? "الرصيد الحالي" : "Current balance"}</Text><Text style={styles.modalBalance}>{loadingCredits ? "…" : balance === null ? "—" : balance.toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text></View>
           <Text style={styles.sectionTitle}>{isArabic ? "سجل الرصيد" : "Credit history"}</Text>
-          {loadingCredits ? <ActivityIndicator color={colors.primary} /> : <ScrollView>
+          {loadingCredits ? <ActivityIndicator color={colors.primary} /> : <ScrollView style={styles.historyList}>
             {transactions.length === 0 ? <Text style={styles.emptyHistory}>{isArabic ? "لا توجد معاملات مسجلة." : "No transactions yet."}</Text> : transactions.map((entry) => (
               <View key={entry.id} style={styles.transaction}>
                 <View style={styles.transactionCopy}><Text style={styles.transactionTitle}>{transactionTitle(entry)}</Text><Text style={styles.transactionDate}>{new Date(entry.created_at).toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text></View>
@@ -165,15 +162,20 @@ export default function SettingsScreen() {
             ))}
           </ScrollView>}
         </View>
-      </Modal>
+      </BottomSheet>
 
-      <Modal visible={Boolean(policyModal)} transparent animationType="fade" onRequestClose={() => setPolicyModal(null)}>
-        <View style={styles.modalBackdrop}><View style={styles.policyModal}>
-          <Text style={styles.modalHeading}>{policyModal === "privacy" ? (isArabic ? "سياسة الخصوصية" : "Privacy policy") : (isArabic ? "شروط الاستخدام والحماية" : "Terms & safety")}</Text>
-          <Text style={styles.policyNotice}>{isArabic ? "لا يوجد في المشروع حالياً نص رسمي منشور لهذه السياسة. لا تُدخل بيانات شديدة الحساسية في المحادثات؛ تُرسل رسائلك إلى خدمة الذكاء الاصطناعي المرتبطة بحسابك. ينبغي لمالك التطبيق إضافة رابط السياسة والشروط الرسمية قبل الإطلاق العام." : "No official published policy text is configured in this project yet. Avoid sharing highly sensitive information; messages are sent to the AI service connected to your account. The app owner should add official policy and terms links before public release."}</Text>
-          <Pressable onPress={() => setPolicyModal(null)} style={styles.modalClose}><Text style={styles.newChatText}>{isArabic ? "إغلاق" : "Close"}</Text></Pressable>
-        </View></View>
-      </Modal>
+      <BottomSheet visible={Boolean(policyModal)} title={policyModal === "privacy" ? (isArabic ? "سياسة الخصوصية" : "Privacy policy") : (isArabic ? "شروط الاستخدام والحماية" : "Terms & safety")} onClose={() => setPolicyModal(null)}>
+        <Text style={styles.policyNotice}>{isArabic ? "لا يوجد في المشروع حاليًا نص رسمي منشور لهذه السياسة. لا تُدخل بيانات شديدة الحساسية في المحادثات؛ تُرسل رسائلك إلى خدمة الذكاء الاصطناعي المرتبطة بحسابك. ينبغي لمالك التطبيق إضافة رابط السياسة والشروط الرسمية قبل الإطلاق العام." : "No official published policy text is configured in this project yet. Avoid sharing highly sensitive information; messages are sent to the AI service connected to your account. The app owner should add official policy and terms links before public release."}</Text>
+        <Pressable onPress={() => setPolicyModal(null)} style={styles.modalClose}><Text style={styles.newChatText}>{isArabic ? "إغلاق" : "Close"}</Text></Pressable>
+      </BottomSheet>
+
+      <BottomSheet visible={confirmLogoutVisible} title={isArabic ? "تسجيل الخروج؟" : "Sign out?"} onClose={() => setConfirmLogoutVisible(false)}>
+        <Text style={styles.policyNotice}>{isArabic ? "هل تريد تسجيل الخروج من حسابك؟" : "Do you want to sign out?"}</Text>
+        <View style={styles.confirmActions}>
+          <Pressable onPress={() => setConfirmLogoutVisible(false)} style={styles.cancelAction}><Text style={styles.cancelActionText}>{isArabic ? "إلغاء" : "Cancel"}</Text></Pressable>
+          <Pressable onPress={() => { setConfirmLogoutVisible(false); void doLogout(); }} style={styles.dangerAction} disabled={loggingOut}><Text style={styles.dangerActionText}>{isArabic ? "تسجيل الخروج" : "Sign out"}</Text></Pressable>
+        </View>
+      </BottomSheet>
     </>
   );
 }
@@ -195,7 +197,7 @@ const styles = StyleSheet.create({
   cardRow: { minHeight: 58, paddingHorizontal: 15, paddingVertical: 10, borderRadius: 14, backgroundColor: colors.surface, flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between" },
   rowText: { color: colors.textPrimary, fontSize: 14 },
   languageOption: { borderRadius: 9, paddingVertical: 8, paddingHorizontal: 13 },
-  languageSelected: { backgroundColor: "#10B98122" },
+  languageSelected: { backgroundColor: colors.surfaceElevated },
   languageSelectedText: { color: colors.primary, fontWeight: "700" },
   linkText: { color: colors.primary, fontSize: 13 },
   balanceValue: { color: colors.textPrimary, fontWeight: "800", fontSize: 20 },
@@ -204,10 +206,9 @@ const styles = StyleSheet.create({
   chevron: { color: colors.textMuted, fontSize: 22 },
   separator: { height: 1, backgroundColor: colors.divider },
   logoutButton: { padding: 15, borderRadius: 12, backgroundColor: colors.error, marginTop: 30, alignItems: "center", minHeight: 50, justifyContent: "center" },
-  logoutText: { color: "#FFFFFF", fontWeight: "700", fontSize: 15 },
-  modalScreen: { flex: 1, backgroundColor: colors.background, padding: 20, paddingTop: 48 },
-  modalHeader: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", marginBottom: 20 },
-  modalHeading: { color: colors.textPrimary, fontSize: 20, fontWeight: "700", textAlign: "right" },
+  logoutText: { color: colors.background, fontWeight: "700", fontSize: 15 },
+  sheetContent: { maxHeight: 520 },
+  historyList: { maxHeight: 340 },
   balanceCard: { padding: 20, borderRadius: 16, backgroundColor: colors.surface, alignItems: "center" },
   balanceLabel: { color: colors.textSecondary, fontSize: 14 },
   modalBalance: { color: colors.primary, fontSize: 34, fontWeight: "800", marginTop: 8 },
@@ -221,9 +222,12 @@ const styles = StyleSheet.create({
   positive: { color: colors.success },
   negative: { color: colors.error },
   balanceAfter: { color: colors.textMuted, fontSize: 10, marginTop: 4 },
-  modalBackdrop: { flex: 1, backgroundColor: "#00000099", alignItems: "center", justifyContent: "center", padding: 24 },
-  policyModal: { width: "100%", maxWidth: 440, backgroundColor: colors.surface, borderRadius: 18, padding: 22 },
   policyNotice: { color: colors.textSecondary, fontSize: 14, lineHeight: 22, textAlign: "right", marginTop: 15 },
   modalClose: { backgroundColor: colors.primary, borderRadius: 10, padding: 12, marginTop: 20 },
-  newChatText: { color: "#FFFFFF", fontWeight: "700", textAlign: "center" },
+  newChatText: { color: colors.background, fontWeight: "700", textAlign: "center" },
+  confirmActions: { flexDirection: "row-reverse", gap: 10, marginTop: 18 },
+  cancelAction: { flex: 1, minHeight: 48, borderRadius: 13, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" },
+  cancelActionText: { color: colors.textPrimary, fontWeight: "600" },
+  dangerAction: { flex: 1, minHeight: 48, borderRadius: 13, backgroundColor: colors.error, alignItems: "center", justifyContent: "center" },
+  dangerActionText: { color: colors.background, fontWeight: "700" },
 });

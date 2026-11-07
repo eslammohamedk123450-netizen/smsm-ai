@@ -1,25 +1,30 @@
 import { Redirect, useFocusEffect, useRouter } from "expo-router";
 import { Drawer, DrawerContentScrollView, type DrawerContentComponentProps } from "expo-router/drawer";
-import { ActivityIndicator, Alert, FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useCallback, useState } from "react";
 import { useAuth } from "../../src/features/auth/auth-provider";
 import { chatService, type Conversation } from "../../src/features/chat/chat-service";
 import { colors } from "../../src/theme/colors";
+import { BottomSheet } from "../../src/components/ui/BottomSheet";
+import { useToast } from "../../src/components/ui/Toast";
 
 function CustomDrawerContent(props: DrawerContentComponentProps) {
   const { user } = useAuth();
+  const { show } = useToast();
   const router = useRouter();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [renameTarget, setRenameTarget] = useState<Conversation | null>(null);
+  const [actionTarget, setActionTarget] = useState<Conversation | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Conversation | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
   const refresh = useCallback(async () => {
     try { setConversations(await chatService.listConversations(100)); }
-    catch (cause) { Alert.alert("تعذر تحميل المحادثات", cause instanceof Error ? cause.message : "حاول مرة أخرى."); }
+    catch (cause) { show(cause instanceof Error ? cause.message : "تعذّر تحميل المحادثات.", "error"); }
     finally { setLoading(false); }
-  }, []);
+  }, [show]);
   useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
 
   const goToChat = (conversationId?: string) => {
@@ -35,18 +40,17 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
       setRenameTarget(null);
       await refresh();
     } catch (cause) {
-      Alert.alert("تعذر إعادة التسمية", cause instanceof Error ? cause.message : "حاول مرة أخرى.");
+      setRenameTarget(null);
+      show(cause instanceof Error ? cause.message : "تعذّرت إعادة تسمية المحادثة.", "error");
     }
   };
 
-  const confirmConversationActions = (conversation: Conversation) => Alert.alert(conversation.title, "اختر إجراءً للمحادثة", [
-    { text: "إعادة تسمية", onPress: () => { setRenameValue(conversation.title); setRenameTarget(conversation); } },
-    { text: "حذف", style: "destructive", onPress: () => Alert.alert("حذف المحادثة؟", "سيتم حذف المحادثة ورسائلها نهائياً.", [
-      { text: "إلغاء", style: "cancel" },
-      { text: "حذف", style: "destructive", onPress: () => void chatService.deleteConversation(conversation.id).then(refresh).catch((cause) => Alert.alert("تعذر الحذف", cause instanceof Error ? cause.message : "حاول مرة أخرى.")) },
-    ]) },
-    { text: "إلغاء", style: "cancel" },
-  ]);
+  const confirmConversationActions = (conversation: Conversation) => setActionTarget(conversation);
+  const deleteConversation = async () => {
+    if (!deleteTarget) return;
+    try { await chatService.deleteConversation(deleteTarget.id); setDeleteTarget(null); await refresh(); show("حُذفت المحادثة.", "success"); }
+    catch (cause) { setDeleteTarget(null); show(cause instanceof Error ? cause.message : "تعذّر حذف المحادثة.", "error"); }
+  };
 
   const filtered = conversations.filter((conversation) => conversation.title.toLocaleLowerCase().includes(query.toLocaleLowerCase()));
   const displayName = typeof user?.user_metadata?.full_name === "string" ? user.user_metadata.full_name : "حسابي";
@@ -78,18 +82,26 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
           <View style={styles.profileCopy}><Text style={styles.userName} numberOfLines={1}>{displayName}</Text><Text style={styles.email} numberOfLines={1}>{user?.email || ""}</Text></View>
         </View>
       </View>
-      <Modal visible={Boolean(renameTarget)} transparent animationType="fade" onRequestClose={() => setRenameTarget(null)}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>إعادة تسمية المحادثة</Text>
-            <TextInput value={renameValue} onChangeText={setRenameValue} style={styles.renameInput} maxLength={120} autoFocus accessibilityLabel="اسم المحادثة الجديد" />
-            <View style={styles.modalActions}>
-              <Pressable onPress={() => setRenameTarget(null)} style={styles.modalButton}><Text style={styles.modalCancel}>إلغاء</Text></Pressable>
-              <Pressable onPress={() => void rename()} style={[styles.modalButton, styles.modalSave]}><Text style={styles.newChatText}>حفظ</Text></Pressable>
-            </View>
-          </View>
+      <BottomSheet visible={Boolean(actionTarget)} title={actionTarget?.title ?? "إجراءات المحادثة"} onClose={() => setActionTarget(null)}>
+        <View style={styles.sheetActions}>
+          <Pressable onPress={() => { if (actionTarget) { setRenameValue(actionTarget.title); setRenameTarget(actionTarget); } setActionTarget(null); }} style={styles.sheetAction}><Text style={styles.sheetActionText}>إعادة تسمية</Text></Pressable>
+          <Pressable onPress={() => { setDeleteTarget(actionTarget); setActionTarget(null); }} style={[styles.sheetAction, styles.deleteAction]}><Text style={styles.deleteActionText}>حذف المحادثة</Text></Pressable>
         </View>
-      </Modal>
+      </BottomSheet>
+      <BottomSheet visible={Boolean(renameTarget)} title="إعادة تسمية المحادثة" onClose={() => setRenameTarget(null)}>
+        <TextInput value={renameValue} onChangeText={setRenameValue} style={styles.renameInput} maxLength={120} autoFocus accessibilityLabel="اسم المحادثة الجديد" />
+        <View style={styles.modalActions}>
+          <Pressable onPress={() => setRenameTarget(null)} style={styles.modalButton}><Text style={styles.modalCancel}>إلغاء</Text></Pressable>
+          <Pressable onPress={() => void rename()} style={[styles.modalButton, styles.modalSave]}><Text style={styles.newChatText}>حفظ</Text></Pressable>
+        </View>
+      </BottomSheet>
+      <BottomSheet visible={Boolean(deleteTarget)} title="حذف المحادثة؟" onClose={() => setDeleteTarget(null)}>
+        <Text style={styles.deleteNotice}>سيتم حذف المحادثة ورسائلها نهائيًا.</Text>
+        <View style={styles.modalActions}>
+          <Pressable onPress={() => setDeleteTarget(null)} style={styles.modalButton}><Text style={styles.modalCancel}>إلغاء</Text></Pressable>
+          <Pressable onPress={() => void deleteConversation()} style={[styles.modalButton, styles.deleteButton]}><Text style={styles.newChatText}>حذف</Text></Pressable>
+        </View>
+      </BottomSheet>
     </View>
   );
 }
@@ -114,7 +126,7 @@ const styles = StyleSheet.create({
   drawerRoot: { flex: 1, backgroundColor: colors.background },
   drawerContent: { flexGrow: 1, paddingHorizontal: 14, paddingTop: 22 },
   newChatButton: { paddingVertical: 14, paddingHorizontal: 16, borderRadius: 14, backgroundColor: colors.primary, marginBottom: 18 },
-  newChatText: { color: "#FFFFFF", fontWeight: "700", textAlign: "center" },
+  newChatText: { color: colors.background, fontWeight: "700", textAlign: "center" },
   searchInput: { paddingHorizontal: 14, paddingVertical: 11, borderRadius: 11, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, color: colors.textPrimary, marginBottom: 18, textAlign: "right" },
   sectionTitle: { color: colors.textMuted, fontSize: 12, marginBottom: 8, textAlign: "right" },
   loader: { marginTop: 22 },
@@ -131,12 +143,16 @@ const styles = StyleSheet.create({
   profileCopy: { flex: 1 },
   userName: { color: colors.textPrimary, fontSize: 13, fontWeight: "700", textAlign: "right" },
   email: { color: colors.textMuted, fontSize: 11, textAlign: "right", marginTop: 2 },
-  modalBackdrop: { flex: 1, backgroundColor: "#00000099", alignItems: "center", justifyContent: "center", padding: 24 },
-  modalCard: { width: "100%", maxWidth: 400, backgroundColor: colors.surface, borderRadius: 18, padding: 20 },
-  modalTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: "700", textAlign: "right", marginBottom: 16 },
   renameInput: { color: colors.textPrimary, padding: 12, borderWidth: 1, borderColor: colors.divider, borderRadius: 10, textAlign: "right" },
   modalActions: { flexDirection: "row", justifyContent: "flex-start", gap: 10, marginTop: 18 },
   modalButton: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 9, backgroundColor: colors.surfaceElevated },
   modalSave: { backgroundColor: colors.primary },
   modalCancel: { color: colors.textPrimary },
+  sheetActions: { gap: 10 },
+  sheetAction: { minHeight: 50, borderRadius: 14, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surfaceElevated, alignItems: "center", justifyContent: "center" },
+  sheetActionText: { color: colors.textPrimary, fontWeight: "600" },
+  deleteAction: { borderColor: colors.error },
+  deleteActionText: { color: colors.error, fontWeight: "700" },
+  deleteButton: { backgroundColor: colors.error },
+  deleteNotice: { color: colors.textSecondary, textAlign: "right", lineHeight: 22 },
 });

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { DrawerActions } from "@react-navigation/native";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
@@ -12,12 +12,15 @@ import { StreamingStatus } from "../../src/features/chat/components/StreamingSta
 import { uploadMediaFile } from "../../src/features/media/media-service";
 import { logFrictionEvent } from "../../src/features/telemetry/friction";
 import { colors } from "../../src/theme/colors";
+import { ShareConversationSheet } from "../../src/features/chat/components/ShareConversationSheet";
+import { useToast } from "../../src/components/ui/Toast";
 
 const STREAMING_ID = "local-streaming-assistant";
 const suggestions = ["اكتبلي كود لعبة بسيطة", "اشرحلي درس صعب بطريقة سهلة", "اعملي ملخص لدرس", "اكتبلي ايميل رسمي"];
 
 export default function ChatPage() {
   const { user } = useAuth();
+  const { show } = useToast();
   const router = useRouter();
   const navigation = useNavigation();
   const params = useLocalSearchParams<{ conversationId?: string | string[] }>();
@@ -29,6 +32,8 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = useState(Boolean(routeConversationId));
   const [error, setError] = useState<string | null>(null);
   const [feedbackByMessage, setFeedbackByMessage] = useState<Record<string, MessageFeedback>>({});
+  const [shareVisible, setShareVisible] = useState(false);
+  const closeShareSheet = useCallback(() => setShareVisible(false), []);
   const listRef = useRef<FlatList<ChatMessage>>(null);
   const lock = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -146,7 +151,7 @@ export default function ChatPage() {
     try { await chatService.setMessageFeedback(messageId, value); }
     catch (cause) {
       setFeedbackByMessage((current) => { const next = { ...current }; if (previous) next[messageId] = previous; else delete next[messageId]; return next; });
-      Alert.alert("تعذر حفظ التقييم", cause instanceof Error ? cause.message : "حاول مرة أخرى.");
+      show(cause instanceof Error ? cause.message : "تعذّر حفظ التقييم. حاول مرة أخرى.", "error");
     }
   };
 
@@ -165,7 +170,7 @@ export default function ChatPage() {
     let userIndex = answerIndex - 1;
     while (userIndex >= 0 && messages[userIndex].role !== "user") userIndex -= 1;
     if (userIndex < 0) {
-      Alert.alert("تعذر إعادة الرد", "لم يتم العثور على رسالة المستخدم المرتبطة بهذا الرد.");
+      show("تعذّر العثور على رسالة المستخدم المرتبطة بهذا الرد.", "error");
       return;
     }
     const history = messages.slice(0, userIndex + 1);
@@ -208,6 +213,9 @@ export default function ChatPage() {
     />
   );
 
+  const shareTitle = messages.find((message) => message.role === "user")?.content.slice(0, 48) || "محادثة Suly";
+  const shareText = messages.map((message) => `${message.role === "user" ? "أنت" : "Suly"}:\n${message.content}`).join("\n\n");
+
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right", "bottom"]}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
@@ -217,7 +225,10 @@ export default function ChatPage() {
             <Text style={styles.title}>Suly Agent AI</Text>
             <View style={styles.onlineDot} />
           </View>
-          <Pressable onPress={startNewChat} style={styles.headerButton} accessibilityRole="button" accessibilityLabel="محادثة جديدة"><Text style={styles.headerIcon}>＋</Text></Pressable>
+          <View style={styles.headerActions}>
+            <Pressable onPress={() => setShareVisible(true)} style={styles.headerButton} accessibilityRole="button" accessibilityLabel="مشاركة المحادثة"><Text style={styles.headerIcon}>↗</Text></Pressable>
+            <Pressable onPress={startNewChat} style={styles.headerButton} accessibilityRole="button" accessibilityLabel="محادثة جديدة"><Text style={styles.headerIcon}>＋</Text></Pressable>
+          </View>
         </View>
 
         {error ? <Pressable onPress={() => setError(null)} style={styles.errorBox}><Text style={styles.errorText}>{error}  ×</Text></Pressable> : null}
@@ -236,6 +247,7 @@ export default function ChatPage() {
         <StreamingStatus isStreaming={isSending && !isUploadingAttachment} onCancel={() => abortRef.current?.abort()} />
         <ChatComposer onSend={handleSend} disabled={isSending} isStreaming={isSending} onCancel={() => abortRef.current?.abort()} />
       </KeyboardAvoidingView>
+      <ShareConversationSheet visible={shareVisible} conversationId={conversationId} title={shareTitle} plainText={shareText} onClose={closeShareSheet} />
     </SafeAreaView>
   );
 }
@@ -245,11 +257,12 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   appBar: { height: 58, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: colors.divider },
   headerButton: { width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 21 },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 2 },
   headerIcon: { color: colors.textPrimary, fontSize: 25 },
   brand: { flexDirection: "row", alignItems: "center", gap: 7 },
   title: { color: colors.textPrimary, fontSize: 17, fontWeight: "700" },
   onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.success },
-  errorBox: { marginHorizontal: 14, marginTop: 8, padding: 10, borderRadius: 10, backgroundColor: "#EF444422" },
+  errorBox: { marginHorizontal: 14, marginTop: 8, padding: 10, borderRadius: 10, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.error },
   errorText: { color: colors.error, textAlign: "right", fontSize: 12 },
   loading: { flex: 1, justifyContent: "center", alignItems: "center", gap: 10 },
   loadingText: { color: colors.textSecondary },

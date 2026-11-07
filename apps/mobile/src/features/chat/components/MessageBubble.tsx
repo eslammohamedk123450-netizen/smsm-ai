@@ -1,6 +1,7 @@
-import { Alert, Image, Pressable, Share, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, Share, StyleSheet, Text, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { colors } from "../../../theme/colors";
+import { useToast } from "../../../components/ui/Toast";
 
 export interface MessageBubbleProps {
   role: "user" | "assistant";
@@ -18,13 +19,14 @@ const imagePattern = /(?:!\[[^\]]*\]\((https?:\/\/[^)\s]+)\)|(https?:\/\/[^\s]+?
 
 export function MessageBubble({ role, content, isStreaming = false, feedback = null, onFeedback, onRegenerate }: MessageBubbleProps) {
   const isUser = role === "user";
+  const { show } = useToast();
 
   const copyToClipboard = async (text: string) => {
     try {
       await Clipboard.setStringAsync(text);
-      Alert.alert("تم النسخ", "نُسخت الرسالة إلى الحافظة.");
+      show("نُسخت الرسالة إلى الحافظة.", "success");
     } catch {
-      Alert.alert("تعذر النسخ", "لم يتمكن التطبيق من الوصول إلى الحافظة.");
+      show("تعذّر النسخ إلى الحافظة.", "error");
     }
   };
 
@@ -32,7 +34,7 @@ export function MessageBubble({ role, content, isStreaming = false, feedback = n
     try {
       await Share.share({ message: content });
     } catch {
-      Alert.alert("تعذرت المشاركة", "لم يتمكن الجهاز من فتح قائمة المشاركة.");
+      show("تعذّرت مشاركة الرسالة.", "error");
     }
   };
 
@@ -108,7 +110,7 @@ const styles = StyleSheet.create({
   userRow: { justifyContent: "flex-end" },
   assistantRow: { justifyContent: "flex-start" },
   avatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.primary, marginRight: 8, marginTop: 3, alignItems: "center", justifyContent: "center" },
-  avatarLetter: { color: "#FFFFFF", fontWeight: "800", fontSize: 15 },
+  avatarLetter: { color: colors.background, fontWeight: "800", fontSize: 15 },
   messageColumn: { maxWidth: "86%", minWidth: 0 },
   userColumn: { alignItems: "flex-end" },
   bubble: { borderRadius: 18, paddingHorizontal: 15, paddingVertical: 12, maxWidth: "100%" },
@@ -116,17 +118,17 @@ const styles = StyleSheet.create({
   assistantBubble: { backgroundColor: colors.surface },
   paragraph: { flexDirection: "row", flexWrap: "wrap", alignItems: "center" },
   text: { fontSize: 16, lineHeight: 25, color: colors.textPrimary, textAlign: "right", writingDirection: "rtl" },
-  codeContainer: { backgroundColor: "#030712", borderRadius: 12, padding: 12, marginVertical: 8, width: "100%", alignSelf: "stretch" },
+  codeContainer: { backgroundColor: colors.background, borderRadius: 12, padding: 12, marginVertical: 8, width: "100%", alignSelf: "stretch" },
   codeHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
   codeHeaderText: { color: colors.textMuted, fontSize: 12 },
   copyButton: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 7, backgroundColor: colors.surfaceElevated },
   copyText: { color: colors.primary, fontSize: 12, fontWeight: "700" },
-  codeText: { color: "#E2E8F0", fontFamily: "monospace", fontSize: 13, lineHeight: 20, textAlign: "left", writingDirection: "ltr" },
+  codeText: { color: colors.textPrimary, fontFamily: "monospace", fontSize: 13, lineHeight: 20, textAlign: "left", writingDirection: "ltr" },
   image: { width: 250, height: 230, borderRadius: 10, marginVertical: 8, backgroundColor: colors.surfaceElevated },
   pulse: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary, marginTop: 8 },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: 5, marginTop: 7 },
   action: { paddingVertical: 5, paddingHorizontal: 8, borderRadius: 8, backgroundColor: "transparent" },
   actionText: { fontSize: 11, color: colors.textMuted },
-  selectedAction: { backgroundColor: "#10B98122" },
+  selectedAction: { backgroundColor: colors.surfaceElevated },
   selectedText: { color: colors.primary, fontWeight: "700" },
 });
