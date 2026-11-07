@@ -37,6 +37,7 @@ export default function SettingsScreen() {
   };
   return <View style={styles.container}>
     <Text style={styles.title}>الإعدادات</Text>
+
     <Text style={styles.label}>الحساب</Text>
     <Text selectable style={styles.value}>{user?.email ?? ""}</Text>
     {typeof user?.user_metadata?.full_name === "string" && <Text style={styles.value}>{user.user_metadata.full_name}</Text>}
@@ -63,7 +64,7 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 24, backgroundColor: colors.background },
   title: { fontSize: 24, fontWeight: "700", marginBottom: 24, color: colors.textPrimary, textAlign: "right" },
-  label: { fontSize: 14, color: colors.textSecondary, marginBottom: 6, textAlign: "right" },
+  label: { fontSize: 14, color: colors.textSecondary, marginBottom: 8, textAlign: "right" },
   value: { fontSize: 16, color: colors.textPrimary, marginBottom: 16, textAlign: "right" },
   loading: { marginBottom: 16 },
   featureRow: { flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.divider },
