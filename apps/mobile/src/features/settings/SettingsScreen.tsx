@@ -9,6 +9,15 @@ import { colors } from "../../theme/colors";
 type CreditEntry = { id: string; event_type: string; amount: number; balance_delta: number; balance_after: number; source: string; reason: string | null; created_at: string };
 type Language = "ar" | "en";
 
+function applyColorScheme(dark: boolean): void {
+  // The web runtime bundled with Expo 58 may expose Appearance without the
+  // optional native setter. Persistence still works even when the setter is
+  // unavailable on that platform.
+  if (typeof Appearance?.setColorScheme === "function") {
+    Appearance.setColorScheme(dark ? "dark" : "light");
+  }
+}
+
 export default function SettingsScreen() {
   const { user, logout } = useAuth();
   const router = useRouter();
@@ -27,7 +36,7 @@ export default function SettingsScreen() {
       AsyncStorage.getItem("suly:appearance").then((value) => {
         const dark = value !== "light";
         setIsDarkMode(dark);
-        Appearance.setColorScheme(dark ? "dark" : "light");
+        applyColorScheme(dark);
       }),
       AsyncStorage.getItem("suly:language").then((value) => {
         if (value === "en" || value === "ar") setLanguage(value);
@@ -55,7 +64,7 @@ export default function SettingsScreen() {
 
   const changeAppearance = async (dark: boolean) => {
     setIsDarkMode(dark);
-    Appearance.setColorScheme(dark ? "dark" : "light");
+    applyColorScheme(dark);
     await AsyncStorage.setItem("suly:appearance", dark ? "dark" : "light");
   };
 
