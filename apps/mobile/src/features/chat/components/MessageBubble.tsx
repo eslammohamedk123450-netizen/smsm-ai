@@ -1,5 +1,6 @@
-import { Pressable, StyleSheet, Text, View, Image } from "react-native";
+import { Pressable, StyleSheet, Text, View, Image, Alert } from "react-native";
 import { colors } from "../../../theme/colors";
+import * as Clipboard from 'expo-clipboard';
 
 export interface MessageBubbleProps {
   role: "user" | "assistant";
@@ -10,11 +11,13 @@ export interface MessageBubbleProps {
 export function MessageBubble({ role, content, isStreaming = false }: MessageBubbleProps) {
   const isUser = role === "user";
 
+  const copyToClipboard = async (text: string) => {
+    await Clipboard.setStringAsync(text);
+    Alert.alert("تم النسخ", "تم نسخ الكود للحافظة");
+  };
+
   const renderContent = (text: string) => {
-    // Regex to detect markdown images or raw image URLs
     const imageRegex = /(?:!\[.*?\]\((https?:\/\/.*\.(?:png|jpg|jpeg|gif|webp))\))|(https?:\/\/.*\.(?:png|jpg|jpeg|gif|webp))/gi;
-    
-    // Split text to separate code blocks and images
     const parts = text.split(/(```[\s\S]*?```)/g);
     
     return parts.map((part, index) => {
@@ -24,13 +27,13 @@ export function MessageBubble({ role, content, isStreaming = false }: MessageBub
           <View key={index} style={styles.codeContainer}>
             <View style={styles.codeHeader}>
               <Text style={styles.codeHeaderText}>Code</Text>
+              <Pressable onPress={() => copyToClipboard(code)}><Text style={styles.copyText}>نسخ</Text></Pressable>
             </View>
             <Text style={styles.codeText}>{code}</Text>
           </View>
         );
       }
       
-      // Check for image links within this part
       if (part.match(imageRegex)) {
         const match = imageRegex.exec(part);
         const url = match ? (match[1] || match[2]) : part;
@@ -49,7 +52,7 @@ export function MessageBubble({ role, content, isStreaming = false }: MessageBub
         {isStreaming && <View style={styles.pulse} />}
         {!isUser && !isStreaming && (
             <View style={styles.footer}>
-                <Pressable style={styles.iconButton}><Text style={styles.icon}>📋</Text></Pressable>
+                <Pressable style={styles.iconButton} onPress={() => copyToClipboard(content)}><Text style={styles.icon}>📋</Text></Pressable>
                 <Pressable style={styles.iconButton}><Text style={styles.icon}>🔄</Text></Pressable>
                 <Pressable style={styles.iconButton}><Text style={styles.icon}>👍</Text></Pressable>
                 <Pressable style={styles.iconButton}><Text style={styles.icon}>👎</Text></Pressable>
@@ -68,14 +71,15 @@ const styles = StyleSheet.create({
   bubble: { maxWidth: "80%", borderRadius: 16, padding: 16 },
   userBubble: { backgroundColor: colors.primary },
   assistantBubble: { backgroundColor: colors.surface },
-  text: { fontSize: 16, lineHeight: 24, color: colors.textPrimary },
-  codeContainer: { backgroundColor: "#000000", borderRadius: 8, padding: 12, marginVertical: 8 },
+  text: { fontSize: 16, lineHeight: 24, color: colors.textPrimary, textAlign: "right" },
+  codeContainer: { backgroundColor: "#000000", borderRadius: 8, padding: 12, marginVertical: 8, direction: "ltr" },
   codeHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
   codeHeaderText: { color: colors.textMuted, fontSize: 12 },
+  copyText: { color: colors.primary, fontSize: 12, fontWeight: "600" },
   codeText: { color: "#FFFFFF", fontFamily: "monospace" },
   pulse: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary, marginTop: 8 },
   image: { width: 250, height: 250, borderRadius: 8, marginVertical: 8, backgroundColor: colors.surfaceElevated },
-  footer: { flexDirection: "row", marginTop: 12, gap: 12 },
+  footer: { flexDirection: "row", marginTop: 12, gap: 16 },
   iconButton: { padding: 4 },
-  icon: { fontSize: 14 }
+  icon: { fontSize: 16 }
 });
