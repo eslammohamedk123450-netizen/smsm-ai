@@ -34,7 +34,7 @@ export function ChatComposer({ onSend, disabled = false, isStreaming = false, on
         accessibilityLabel="رسالة الدردشة"
       />
       {isStreaming ? (
-        <Pressable style={[styles.button, styles.cancel]} onPress={onCancel} accessibilityRole="button"><Text style={styles.buttonText}>إلغاء</Text></Pressable>
+        <Pressable style={[styles.button, styles.cancel]} onPress={onCancel} accessibilityRole="button"><Text style={styles.buttonText}>إيقاف</Text></Pressable>
       ) : (
         <Pressable style={[styles.button, disabled && styles.disabled]} onPress={submit} disabled={disabled || !text.trim()} accessibilityRole="button"><Text style={styles.buttonText}>إرسال</Text></Pressable>
       )}
@@ -43,9 +43,9 @@ export function ChatComposer({ onSend, disabled = false, isStreaming = false, on
 }
 
 const styles = StyleSheet.create({
-  container: { flexDirection: "row", alignItems: "flex-end", gap: 8, paddingVertical: 10, paddingBottom: 8, borderTopWidth: 1, borderTopColor: colors.divider },
-  input: { flex: 1, minHeight: 48, maxHeight: 140, borderRadius: 15, borderWidth: 1, borderColor: colors.inputBorder, backgroundColor: colors.inputBackground, color: colors.textPrimary, paddingHorizontal: 14, paddingVertical: 12, textAlignVertical: "center", textAlign: "auto" },
-  button: { minHeight: 46, minWidth: 64, paddingHorizontal: 13, borderRadius: 12, justifyContent: "center", alignItems: "center", backgroundColor: colors.primary },
+  container: { flexDirection: "row", alignItems: "flex-end", gap: 12, paddingVertical: 12, paddingHorizontal: 16, backgroundColor: colors.background },
+  input: { flex: 1, minHeight: 48, maxHeight: 140, borderRadius: 999, borderWidth: 1, borderColor: colors.inputBorder, backgroundColor: colors.inputBackground, color: colors.textPrimary, paddingHorizontal: 20, paddingVertical: 12, textAlignVertical: "center" },
+  button: { height: 48, paddingHorizontal: 20, borderRadius: 999, justifyContent: "center", alignItems: "center", backgroundColor: colors.primary },
   cancel: { backgroundColor: colors.error },
   disabled: { opacity: 0.5 },
   buttonText: { color: colors.textPrimary, fontWeight: "700" },
