@@ -3,6 +3,7 @@ import { Animated, Image, Platform, Pressable, StyleSheet, Text, View } from "re
 import * as Clipboard from "expo-clipboard";
 import { colors } from "../../../theme/colors";
 import { useToast } from "../../../components/ui/Toast";
+import { MarkdownView } from "./MarkdownView";
 
 export interface MessageBubbleProps {
   role: "user" | "assistant";
@@ -152,7 +153,11 @@ export function MessageBubble({ role, content, isStreaming = false, feedback = n
           style={[styles.bubble, isUser ? styles.userBubble : styles.assistantBubble]}
           accessibilityHint={canRegenerate ? "اضغط مطولًا لإعادة إنشاء الرد" : undefined}
         >
-          {renderContent()}
+          {!isUser && !isStreaming
+            ? <MarkdownView content={content} onCopyCode={(code) => void copyToClipboard(code)} />
+            : isStreaming
+              ? <Text style={styles.text}>{content}</Text>
+              : renderContent()}
           {isStreaming && <View style={styles.pulse} />}
         </Pressable>
         {canShowActions && (
