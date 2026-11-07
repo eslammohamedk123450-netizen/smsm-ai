@@ -16,7 +16,18 @@ import { ShareConversationSheet } from "../../src/features/chat/components/Share
 import { useToast } from "../../src/components/ui/Toast";
 
 const STREAMING_ID = "local-streaming-assistant";
-const suggestions = ["اكتبلي كود لعبة بسيطة", "اشرحلي درس صعب بطريقة سهلة", "اعملي ملخص لدرس", "اكتبلي ايميل رسمي"];
+const suggestionSets = {
+  morning: ["خططلي يومي بطريقة بسيطة", "اشرحلي درس صعب بطريقة سهلة", "اعملي ملخص لدرس", "اكتبلي ايميل رسمي"],
+  afternoon: ["ساعدني أرتب أفكاري", "اكتبلي كود لعبة بسيطة", "اقترحلي وجبة سهلة", "لخصلي موضوع مهم"],
+  evening: ["راجع معايا اللي اتعلمته النهارده", "اكتبلي قصة قصيرة", "ساعدني أجهز لبكرة", "اشرحلي فكرة بطريقة بسيطة"],
+};
+
+function getSuggestions(): string[] {
+  const hour = new Date().getHours();
+  if (hour < 12) return suggestionSets.morning;
+  if (hour < 18) return suggestionSets.afternoon;
+  return suggestionSets.evening;
+}
 
 export default function ChatPage() {
   const { user } = useAuth();
@@ -31,6 +42,7 @@ export default function ChatPage() {
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
   const [isLoading, setIsLoading] = useState(Boolean(routeConversationId));
   const [error, setError] = useState<string | null>(null);
+  const [retryFailure, setRetryFailure] = useState<{ conversationId: string; userMessageId: string } | null>(null);
   const [feedbackByMessage, setFeedbackByMessage] = useState<Record<string, MessageFeedback>>({});
   const [shareVisible, setShareVisible] = useState(false);
   const closeShareSheet = useCallback(() => setShareVisible(false), []);
@@ -46,6 +58,7 @@ export default function ChatPage() {
     setMessages([]);
     setFeedbackByMessage({});
     setError(null);
+    setRetryFailure(null);
     if (!routeConversationId) {
       setIsLoading(false);
       return () => { active = false; };
@@ -77,12 +90,15 @@ export default function ChatPage() {
     await runOnce(lock, async () => {
       if (!user || !content.trim()) return;
       setError(null);
+      setRetryFailure(null);
       setIsSending(true);
       void logFrictionEvent({ eventKind: "task_start", screenKey: "chat", featureKey: "chat", stepKey: "send_message", conversationId });
       const controller = new AbortController();
       abortRef.current = controller;
       let id = conversationId;
       let savedUserMessage = false;
+      let savedUserMessageId: string | null = null;
+      let streamCompleted = false;
       try {
         if (!id) {
           const conversation = await chatService.createConversation();
@@ -108,6 +124,7 @@ export default function ChatPage() {
           signal: controller.signal,
           async onUserSaved(message) {
             savedUserMessage = true;
+            savedUserMessageId = message.id;
             setMessages((current) => [...current.filter((item) => item.id !== STREAMING_ID), message]);
             if (mediaAssetId) {
               try { await chatService.attachMediaToMessage(mediaAssetId, message.id); }
@@ -123,15 +140,64 @@ export default function ChatPage() {
             });
           },
         });
+        streamCompleted = true;
         await reloadMessages(conversationKey);
       } catch (cause) {
         setMessages((current) => current.filter((item) => item.id !== STREAMING_ID));
         if (controller.signal.aborted) {
-          setError(savedUserMessage ? "أُوقف الرد. رسالة المستخدم محفوظة ويمكن إعادة المحاولة." : "تم إيقاف الطلب قبل حفظ الرسالة.");
+          setError(null);
+          setRetryFailure(null);
           if (savedUserMessage) void logFrictionEvent({ eventKind: "response_stopped", screenKey: "chat", featureKey: "chat", stepKey: "response", conversationId });
+        } else if (savedUserMessage && savedUserMessageId && id && !streamCompleted) {
+          setError(null);
+          setRetryFailure({ conversationId: id, userMessageId: savedUserMessageId });
+          void logFrictionEvent({ eventKind: "action_failed", screenKey: "chat", featureKey: "chat", stepKey: "send_message", errorCode: "send_failed", conversationId: id });
         } else {
           setError(cause instanceof Error ? cause.message : "تعذر إرسال الرسالة. تحقق من الاتصال وحاول مجددًا.");
           void logFrictionEvent({ eventKind: "action_failed", screenKey: "chat", featureKey: "chat", stepKey: "send_message", errorCode: "send_failed", conversationId });
+        }
+      } finally {
+        if (abortRef.current === controller) abortRef.current = null;
+        setIsSending(false);
+      }
+    });
+  };
+
+  const retryResponse = async () => {
+    const failed = retryFailure;
+    if (!failed || isSending) return;
+    await runOnce(lock, async () => {
+      setError(null);
+      setRetryFailure(null);
+      setIsSending(true);
+      const controller = new AbortController();
+      abortRef.current = controller;
+      let streamCompleted = false;
+      try {
+        await chatService.retryAssistant({
+          ...failed,
+          signal: controller.signal,
+          onChunk(text) {
+            setMessages((current) => {
+              const existing = current.find((item) => item.id === STREAMING_ID);
+              if (existing) return current.map((item) => item.id === STREAMING_ID ? { ...item, content: item.content + text } : item);
+              return [...current, { id: STREAMING_ID, conversationId: failed.conversationId, role: "assistant", content: text, createdAt: new Date().toISOString(), modelId: null, status: "streaming" }];
+            });
+          },
+        });
+        streamCompleted = true;
+        await reloadMessages(failed.conversationId);
+      } catch (cause) {
+        setMessages((current) => current.filter((item) => item.id !== STREAMING_ID));
+        if (controller.signal.aborted) {
+          setError(null);
+          setRetryFailure(null);
+        } else if (!streamCompleted) {
+          setError(null);
+          setRetryFailure(failed);
+          void logFrictionEvent({ eventKind: "action_failed", screenKey: "chat", featureKey: "chat", stepKey: "send_message", errorCode: "retry_failed", conversationId: failed.conversationId });
+        } else {
+          setError(cause instanceof Error ? cause.message : "تعذر تحميل الرد. أعد تحميل المحادثة.");
         }
       } finally {
         if (abortRef.current === controller) abortRef.current = null;
@@ -161,6 +227,7 @@ export default function ChatPage() {
     setMessages([]);
     setConversationId(null);
     setError(null);
+    setRetryFailure(null);
     router.replace("/(protected)/chat");
   };
 
@@ -234,12 +301,13 @@ export default function ChatPage() {
         </View>
 
         {error ? <Pressable onPress={() => setError(null)} style={styles.errorBox}><Text style={styles.errorText}>{error}  ×</Text></Pressable> : null}
+        {retryFailure ? <View style={styles.retryWarning} accessibilityRole="alert"><Text style={styles.retryWarningText}>حُفظت رسالتك، لكن تعذّر إكمال الرد.</Text><Pressable onPress={() => void retryResponse()} disabled={isSending} accessibilityRole="button" accessibilityLabel="إعادة محاولة الرد" style={styles.retryButton}><Text style={styles.retryButtonText}>{isSending ? "جارٍ إعادة المحاولة…" : "إعادة المحاولة"}</Text></Pressable></View> : null}
         {isLoading ? <View style={styles.loading}><ActivityIndicator color={colors.primary} /><Text style={styles.loadingText}>جارٍ تحميل المحادثة…</Text></View> : messages.length === 0 ? (
           <View style={styles.empty}>
             <View style={styles.logo}><Text style={styles.logoLetter}>S</Text></View>
             <Text style={styles.emptyTitle}>كيف أقدر أساعدك؟</Text>
             <View style={styles.suggestionsGrid}>
-              {suggestions.map((suggestion) => <Pressable key={suggestion} style={styles.suggestionCard} onPress={() => handleSend(suggestion)} accessibilityRole="button"><Text style={styles.suggestionText}>{suggestion}</Text></Pressable>)}
+              {getSuggestions().map((suggestion) => <Pressable key={suggestion} style={styles.suggestionCard} onPress={() => handleSend(suggestion)} accessibilityRole="button"><Text style={styles.suggestionText}>{suggestion}</Text></Pressable>)}
             </View>
           </View>
         ) : (
@@ -266,6 +334,10 @@ const styles = StyleSheet.create({
   onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.success },
   errorBox: { marginHorizontal: 14, marginTop: 8, padding: 10, borderRadius: 10, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.error },
   errorText: { color: colors.error, textAlign: "right", fontSize: 12 },
+  retryWarning: { marginHorizontal: 14, marginTop: 8, padding: 12, borderRadius: 10, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  retryWarningText: { color: colors.textSecondary, textAlign: "right", fontSize: 12, flex: 1 },
+  retryButton: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: colors.primary },
+  retryButtonText: { color: colors.surface, fontSize: 12, fontWeight: "700" },
   loading: { flex: 1, justifyContent: "center", alignItems: "center", gap: 10 },
   loadingText: { color: colors.textSecondary },
   uploadStatus: { flexDirection: "row-reverse", justifyContent: "center", alignItems: "center", gap: 8, paddingVertical: 8 },

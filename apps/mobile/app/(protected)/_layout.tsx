@@ -9,7 +9,7 @@ import { BottomSheet } from "../../src/components/ui/BottomSheet";
 import { useToast } from "../../src/components/ui/Toast";
 
 function CustomDrawerContent(props: DrawerContentComponentProps) {
-  const { user } = useAuth();
+  const { user, profileFullName } = useAuth();
   const { show } = useToast();
   const router = useRouter();
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -53,7 +53,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
   };
 
   const filtered = conversations.filter((conversation) => conversation.title.toLocaleLowerCase().includes(query.toLocaleLowerCase()));
-  const displayName = typeof user?.user_metadata?.full_name === "string" ? user.user_metadata.full_name : "حسابي";
+  const displayName = profileFullName || (typeof user?.user_metadata?.full_name === "string" ? user.user_metadata.full_name : "حسابي");
 
   return (
     <View style={styles.drawerRoot}>

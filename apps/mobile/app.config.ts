@@ -12,6 +12,14 @@ const config: ExpoConfig = {
   android: {
     package: "com.suly.agentai",
     versionCode: 1,
+    intentFilters: [
+      {
+        action: "VIEW",
+        autoVerify: false,
+        data: [{ scheme: "suly-agent-ai", host: "auth", pathPrefix: "/callback" }],
+        category: ["BROWSABLE", "DEFAULT"],
+      },
+    ],
   },
   updates: {
     url: `https://u.expo.dev/${easProjectId ?? "4eb557a8-8aea-4ea9-a3d7-7ccba99f6c73"}`,

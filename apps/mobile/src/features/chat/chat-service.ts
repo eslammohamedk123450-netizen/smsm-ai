@@ -3,6 +3,7 @@ import { supabase } from "../../lib/supabase/client";
 import { streamChatPlatform } from "../../lib/network/sse-client";
 import type { ChatRequestBody } from "../../lib/network/sse-transport";
 import { titleFromMessage } from "./conversation-title";
+import { buildRetryHistory } from "./chat-retry";
 export { titleFromMessage } from "./conversation-title";
 
 export type MessageRole = "user" | "assistant" | "system";
@@ -211,6 +212,22 @@ export const chatService = {
       routing_mode: "auto",
       stream: true,
     }, options.signal, { onChunk: options.onChunk, onDone() {} });
+  },
+
+  async retryAssistant(options: {
+    conversationId: string;
+    userMessageId: string;
+    signal: AbortSignal;
+    onChunk(text: string): void;
+  }): Promise<void> {
+    const savedMessages = await this.getMessages(options.conversationId);
+    const history = buildRetryHistory(savedMessages, options.userMessageId);
+    await this.regenerateAssistant({
+      conversationId: options.conversationId,
+      history,
+      signal: options.signal,
+      onChunk: options.onChunk,
+    });
   },
 
   async getMessageFeedback(messageIds: string[]): Promise<Record<string, "like" | "dislike">> {

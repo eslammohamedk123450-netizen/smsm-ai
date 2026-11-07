@@ -21,7 +21,7 @@ function applyColorScheme(dark: boolean): void {
 }
 
 export default function SettingsScreen() {
-  const { user, logout } = useAuth();
+  const { user, profileFullName, logout } = useAuth();
   const { show } = useToast();
   const router = useRouter();
   const [isDarkMode, setIsDarkMode] = useState(true);
@@ -99,7 +99,7 @@ export default function SettingsScreen() {
     return entry.source || (isArabic ? "معاملة رصيد" : "Credit transaction");
   };
 
-  const name = typeof user?.user_metadata?.full_name === "string" ? user.user_metadata.full_name : (isArabic ? "مستخدم Suly" : "Suly user");
+  const name = profileFullName || (typeof user?.user_metadata?.full_name === "string" ? user.user_metadata.full_name : (isArabic ? "مستخدم Suly" : "Suly user"));
   const back = () => { if (router.canGoBack()) router.back(); else router.replace("/(protected)/chat"); };
 
   return (

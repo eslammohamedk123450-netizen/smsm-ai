@@ -11,6 +11,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
+  const [profileFullName, setProfileFullName] = useState<string | null>(null);
   const [status, setStatus] = useState<AuthContextValue["status"]>("loading");
   const configurationError = env.isConfigured
     ? null
@@ -23,23 +24,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     let active = true;
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    let currentUserId: string | null = null;
+    const applySession = (nextSession: Session | null) => {
       if (!active) return;
+      const nextUser = nextSession?.user ?? null;
+      const nextUserId = nextUser?.id ?? null;
+      if (currentUserId !== nextUserId) setProfileFullName(null);
+      currentUserId = nextUserId;
       setSession(nextSession);
-      setUser(nextSession?.user ?? null);
-      setStatus(nextSession?.user ? "authenticated" : "unauthenticated");
+      setUser(nextUser);
+      setStatus(nextUser ? "authenticated" : "unauthenticated");
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      applySession(nextSession);
     });
 
-    void authService.getSession().then((initialSession) => {
+    void authService.getSession().then(applySession).catch(() => {
       if (!active) return;
-      setSession(initialSession);
-      setUser(initialSession?.user ?? null);
-      setStatus(initialSession?.user ? "authenticated" : "unauthenticated");
-    }).catch(() => {
-      if (!active) return;
-      setSession(null);
-      setUser(null);
-      setStatus("unauthenticated");
+      applySession(null);
     });
 
     const appStateSubscription = Platform.OS === "web"
@@ -59,13 +62,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  useEffect(() => {
+    const userId = user?.id;
+    if (!userId) {
+      setProfileFullName(null);
+      return;
+    }
+    let active = true;
+    void Promise.resolve(supabase.from("suly_profiles").select("full_name").eq("id", userId).maybeSingle())
+      .then(({ data }) => {
+        if (active) setProfileFullName(typeof data?.full_name === "string" ? data.full_name : null);
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [user?.id]);
+
   const value = useMemo<AuthContextValue>(() => ({
     user,
     session,
+    profileFullName,
     status,
     configurationError,
-    async login(email, password) {
-      await authService.signIn(email.trim(), password);
+    async sendEmailOtp(email) {
+      await authService.sendEmailOtp(email.trim());
+    },
+    async verifyEmailOtp(email, token) {
+      await authService.verifyEmailOtp(email.trim(), token.trim());
+    },
+    async sendEmailLink(email) {
+      await authService.sendEmailLink(email.trim());
     },
     async register(email, password, fullName) {
       const result = await authService.signUp(email.trim(), password, fullName.trim());
@@ -74,7 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async logout() {
       await authService.signOut();
     },
-  }), [user, session, status, configurationError]);
+  }), [user, session, profileFullName, status, configurationError]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

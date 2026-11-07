@@ -5,9 +5,12 @@ export type AuthStatus = "loading" | "authenticated" | "unauthenticated" | "misc
 export interface AuthContextValue {
   user: User | null;
   session: Session | null;
+  profileFullName: string | null;
   status: AuthStatus;
   configurationError: string | null;
-  login(email: string, password: string): Promise<void>;
+  sendEmailOtp(email: string): Promise<void>;
+  verifyEmailOtp(email: string, token: string): Promise<void>;
+  sendEmailLink(email: string): Promise<void>;
   register(email: string, password: string, fullName: string): Promise<boolean>;
   logout(): Promise<void>;
 }
