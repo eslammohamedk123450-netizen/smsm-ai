@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { colors } from "../../theme/colors";
 
 const sections = [
+  { path: "/admin/hims", title: "إدارة HIMS", detail: "إنشاء أكواد التفعيل وإضافة روابط المحاضرات والملفات" },
   { path: "/admin/api-keys", title: "مزودو الخدمة", detail: "عرض المزودين العامين وإضافة مزود عبر وظيفة محمية" },
   { path: "/admin/models", title: "النماذج والتوجيه", detail: "النماذج المفعلة والمعطلة، الصحة وإعدادات التوجيه" },
   { path: "/admin/users", title: "المستخدمون", detail: "البحث، حالة الحظر، الرصيد وسجل المعاملات" },

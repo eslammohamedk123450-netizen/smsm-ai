@@ -18,6 +18,30 @@ export interface PricingPlan {
   updated_at?: string;
 }
 
+export interface HimsActivationCode {
+  id: string;
+  feature_key: string;
+  label: string | null;
+  code_fingerprint: string;
+  max_uses: number | null;
+  used_count: number;
+  expires_at: string | null;
+  is_active: boolean;
+  last_used_at: string | null;
+  created_at: string;
+}
+
+export interface HimsResource {
+  id: string;
+  feature_key: string;
+  title: string;
+  url: string;
+  kind: string;
+  description: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
 async function requireAdmin(): Promise<void> {
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) throw new Error("سجّل الدخول مجددًا.");
@@ -34,6 +58,43 @@ function describeFunctionFailure(error: unknown, functionName: string): string {
 }
 
 export const adminService = {
+  async getHimsActivationCodes(): Promise<HimsActivationCode[]> {
+    await requireAdmin();
+    const { data, error } = await supabase.rpc("suly_admin_list_activation_codes", { p_feature_key: "hims" });
+    if (error) throw error;
+    return (data ?? []) as HimsActivationCode[];
+  },
+  async createHimsActivationCode(input: { code: string; label: string; maxUses: number | null; expiresAt: string | null }) {
+    await requireAdmin();
+    const { data, error } = await supabase.rpc("suly_admin_create_activation_code", {
+      p_feature_key: "hims",
+      p_code: input.code.trim().toUpperCase(),
+      p_label: input.label.trim() || null,
+      p_max_uses: input.maxUses,
+      p_expires_at: input.expiresAt,
+    });
+    if (error) throw error;
+    return data as { success?: boolean; id?: string; feature_key?: string };
+  },
+  async getHimsResources(): Promise<HimsResource[]> {
+    await requireAdmin();
+    const { data, error } = await supabase.rpc("suly_admin_list_feature_resources", { p_feature_key: "hims" });
+    if (error) throw error;
+    return (data ?? []) as HimsResource[];
+  },
+  async createHimsResource(input: { title: string; url: string; kind: string; description: string }) {
+    await requireAdmin();
+    const { data, error } = await supabase.rpc("suly_admin_upsert_feature_resource", {
+      p_feature_key: "hims",
+      p_title: input.title.trim(),
+      p_url: input.url.trim(),
+      p_kind: input.kind.trim() || "lecture",
+      p_description: input.description.trim() || null,
+      p_is_active: true,
+    });
+    if (error) throw error;
+    return data as { success?: boolean; id?: string; feature_key?: string };
+  },
   async getProviders() {
     await requireAdmin();
     const { data, error } = await supabase.rpc("suly_admin_list_providers");

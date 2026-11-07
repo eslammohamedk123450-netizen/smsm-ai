@@ -10,8 +10,19 @@ import { CircuitBreaker } from "./circuit_breaker.ts";
 // Native Android/iOS clients do not require CORS. Web access must set WEB_CORS_ORIGIN
 // explicitly; never fall back to a wildcard in a deployed environment.
 const configuredCorsOrigin = Deno.env.get("WEB_CORS_ORIGIN")?.trim();
+function corsHeadersFor(req: Request): Record<string, string> {
+  const requestOrigin = req.headers.get("origin")?.trim() ?? "";
+  const trustedPreviewOrigin = /^https:\/\/[a-z0-9-]+\.manus\.computer$/i.test(requestOrigin)
+    || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(requestOrigin);
+  const origin = configuredCorsOrigin || (trustedPreviewOrigin ? requestOrigin : "https://8081-iaoy3lkpkvsmck8vuiukc-5cd4efc3.sg2.manus.computer");
+  return {
+    ...(origin ? { "Access-Control-Allow-Origin": origin, "Vary": "Origin" } : {}),
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
+}
 const corsHeaders = {
-  ...(configuredCorsOrigin ? { "Access-Control-Allow-Origin": configuredCorsOrigin } : {}),
+  ...(configuredCorsOrigin ? { "Access-Control-Allow-Origin": configuredCorsOrigin, "Vary": "Origin" } : { "Access-Control-Allow-Origin": "https://8081-iaoy3lkpkvsmck8vuiukc-5cd4efc3.sg2.manus.computer", "Vary": "Origin" }),
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
@@ -68,16 +79,16 @@ type ReadyCandidate = Candidate & {
 };
 type AttemptRecorder = (candidate: Candidate, status: AttemptStatus, durationMs: number, errorCode?: string | null, errorReason?: string | null) => Promise<void>;
 
-function jsonResponse(body: unknown, status = 200): Response {
+function jsonResponse(body: unknown, status = 200, req?: Request): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json; charset=utf-8" },
+    headers: { ...corsHeadersFor(req ?? new Request("https://localhost")), "Content-Type": "application/json; charset=utf-8" },
   });
 }
 
 // Deterministic responses (feature activation, semantic cache hits) reuse the
 // same SSE contract as model output so the client needs no special path.
-function sseTextResponse(text: string, info: Record<string, unknown> = {}): Response {
+function sseTextResponse(text: string, info: Record<string, unknown> = {}, req?: Request): Response {
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
@@ -89,7 +100,7 @@ function sseTextResponse(text: string, info: Record<string, unknown> = {}): Resp
   return new Response(stream, {
     status: 200,
     headers: {
-      ...corsHeaders,
+      ...corsHeadersFor(req ?? new Request("https://localhost")),
       "Content-Type": "text/event-stream; charset=utf-8",
       "Cache-Control": "no-cache, no-transform",
       "Connection": "keep-alive",
