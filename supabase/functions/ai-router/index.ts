@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { prepareAgentMemory, saveAgentMemory } from "./agent/memory.ts";
+import { CircuitBreaker } from "./circuit_breaker.ts";
 
 // Native Android/iOS clients do not require CORS. Web access must set WEB_CORS_ORIGIN
 // explicitly; never fall back to a wildcard in a deployed environment.
@@ -420,9 +421,6 @@ async function handleRequest(req: Request): Promise<Response> {
     (healthRows ?? []).map((row: { model_id: number; auto_restricted: boolean; restriction_reason: string | null }) => [row.model_id, row]),
   );
   
-  // Define categories based on model capabilities and tier requirements
-  const isComplexTask = messages.length > 5 || messages.some(m => m.content.length > 500);
-  
   const settings = {
     freeRaceTimeoutMs: Math.max(1000, Math.min(30000, Number(settingsRow?.free_race_timeout_ms) || 5000)),
     paidFallbackEnabled: settingsRow?.paid_fallback_enabled !== false,
@@ -440,13 +438,10 @@ async function handleRequest(req: Request): Promise<Response> {
   if (routingMode === "manual") {
     candidatesFrom = healthyModels.filter((m: ModelRow) => m.id === modelId && m.routing_group !== "disabled");
   } else {
-    // Intelligent selection: prioritize complex models if the task is complex
+    // Auto routing always starts with the free race. Paid models are selected only
+    // after every free candidate has failed or no usable free candidate exists.
     const tierFiltered = healthyModels.filter((m: ModelRow) => (m.allowed_tiers ?? []).includes(userTier) && modelSupportsChat(m));
-    if (isComplexTask) {
-      candidatesFrom = tierFiltered.filter(m => m.routing_group === "paid_fallback").sort((a,b) => b.priority - a.priority);
-    } else {
-      candidatesFrom = tierFiltered.filter(m => m.routing_group === "free_race").sort((a,b) => b.priority - a.priority);
-    }
+    candidatesFrom = tierFiltered.filter(m => m.routing_group === "free_race").sort((a,b) => b.priority - a.priority);
   }
 
   if (routingMode === "manual" && candidatesFrom.length === 0) return jsonResponse({ error: "Model not found or disabled." }, 404);
@@ -498,6 +493,25 @@ async function handleRequest(req: Request): Promise<Response> {
       p_error_reason: safeReason || null,
     });
     if (error) console.error("Could not persist model health attempt:", error.message);
+    if (status === "error" || status === "timeout" || status === "empty") {
+      const statusCodeMatch = errorReason?.match(/provider_http_(\d{3})/i);
+      try {
+        await CircuitBreaker.recordFailure(
+          String(candidate.model.id),
+          candidate.provider.name || candidate.provider.provider_type,
+          candidate.model.model_identifier,
+          errorCode ?? status,
+          safeReason || status,
+          Math.max(0, Math.floor(durationMs)),
+          statusCodeMatch ? Number(statusCodeMatch[1]) : undefined,
+        );
+      } catch (circuitBreakerError) {
+        console.error(
+          "Could not record model failure with circuit breaker:",
+          circuitBreakerError instanceof Error ? circuitBreakerError.message : String(circuitBreakerError),
+        );
+      }
+    }
   };
   const recordPreflightProblems = async (models: ModelRow[]) => {
     await Promise.all(models.map(async (model) => {
@@ -640,8 +654,11 @@ async function handleRequest(req: Request): Promise<Response> {
 
   if (!winner) {
     const billing = await finalizeBilling(null, "", "model_failure", providerCandidateAvailable);
-    await recordEvent(null, "error", routingMode === "auto" ? "No model returned text before configured timeout." : "Selected model failed before returning text.");
-    return jsonResponse({ error: routingMode === "auto" ? "No model responded within the configured free/fallback timeouts." : "The selected model did not return a response.", billing }, 502);
+    const errorMessage = routingMode === "auto"
+      ? "No eligible free_race or paid_fallback model returned a response."
+      : "The selected model did not return a response.";
+    await recordEvent(null, "error", errorMessage);
+    return jsonResponse({ error: errorMessage, billing }, routingMode === "auto" ? 404 : 502);
   }
 
   const streamRequested = body.stream === true;
