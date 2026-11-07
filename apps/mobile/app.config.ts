@@ -21,6 +21,10 @@ const config: ExpoConfig = {
   ],
   web: {
     bundler: "metro",
+    output: "static",
+  },
+  experiments: {
+    baseUrl: "/smsm-ai",
   },
 };
 
