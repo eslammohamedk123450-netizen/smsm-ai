@@ -35,6 +35,7 @@ jobs:
       - name: Export static web app
         working-directory: apps/mobile
         env:
+          EXPO_PUBLIC_WEB_BASE_URL: /smsm-ai
           EXPO_PUBLIC_SUPABASE_URL: https://razvryvazmqvvqkzetuo.supabase.co
           EXPO_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_t5xrzZNN6Uj9zhhBLUYQVg_mj7qPjQL
           EXPO_PUBLIC_EDGE_FUNCTION_BASE_URL: https://razvryvazmqvvqkzetuo.supabase.co/functions/v1

@@ -1,10 +1,14 @@
 import type { ExpoConfig } from "expo/config";
 
 const config: ExpoConfig = {
-  name: "SMSM AI",
+  name: "Suly Agent AI",
   slug: "smsm-ai",
-  scheme: "smsm-ai",
+  scheme: "suly-agent-ai",
   version: "1.0.0",
+  android: {
+    package: "com.suly.agentai",
+    versionCode: 1,
+  },
   orientation: "portrait",
   userInterfaceStyle: "automatic",
   platforms: ["ios", "android", "web"],
@@ -24,7 +28,9 @@ const config: ExpoConfig = {
     output: "static",
   },
   experiments: {
-    baseUrl: "/smsm-ai",
+    // Root-relative by default (Cloudflare Pages / Netlify). GitHub Pages builds
+    // override this with EXPO_PUBLIC_WEB_BASE_URL=/smsm-ai.
+    baseUrl: process.env.EXPO_PUBLIC_WEB_BASE_URL ?? "",
   },
 };
 
