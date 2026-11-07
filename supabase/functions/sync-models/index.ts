@@ -11,9 +11,8 @@
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
-const configuredCorsOrigin = Deno.env.get("WEB_CORS_ORIGIN")?.trim();
 const corsHeaders = {
-  ...(configuredCorsOrigin ? { "Access-Control-Allow-Origin": configuredCorsOrigin } : {}),
+  "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
@@ -58,43 +57,14 @@ function safeHttpsUrl(value: string): string | null {
   try {
     const url = new URL(value);
     if (url.protocol !== "https:") return null;
-    const host = url.hostname.toLowerCase();
-    if (host === "localhost" || host.endsWith(".local") || host.endsWith(".internal")) return null;
-    if (/^(127\.|10\.|192\.168\.|169\.254\.|0\.)/.test(host)) return null;
-    if (/^172\.(1[6-9]|2\d|3[01])\./.test(host)) return null;
-    if (host === "::1" || host.startsWith("fc") || host.startsWith("fd")) return null;
+    const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+    if (url.username || url.password || url.search || url.hash || !host) return null;
+    if (host === "localhost" || host === "metadata" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal")) return null;
+    if (/^(10\.|127\.|0\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host)) return null;
+    if (host.includes(":") || /^\d+(?:\.\d+){3}$/.test(host)) return null;
     return url.toString().replace(/\/+$/, "");
   } catch {
     return null;
-  }
-}
-
-/** Stores the provider key in Vault and returns its secret id. */
-async function storeProviderKey(
-  supabase: SupabaseClient,
-  providerName: string,
-  apiKey: string,
-): Promise<{ secretId: string | null; error: string | null }> {
-  const name = `ai_provider_${providerName}_${Date.now()}`;
-  const description = "SMSM AI provider API key";
-  const attempts: Array<Record<string, string>> = [
-    { new_secret: apiKey, new_name: name, new_description: description },
-    { secret: apiKey, name, description },
-  ];
-  let lastError = "Supabase Vault is not available on this project.";
-  for (const params of attempts) {
-    const { data, error } = await supabase.schema("vault").rpc("create_secret", params);
-    if (!error && typeof data === "string" && data.length > 0) return { secretId: data, error: null };
-    if (error) lastError = error.message;
-  }
-  return { secretId: null, error: lastError };
-}
-
-async function deleteSecret(supabase: SupabaseClient, secretId: string): Promise<void> {
-  try {
-    await supabase.schema("vault").rpc("delete_secret", { secret_id: secretId });
-  } catch {
-    // Best-effort cleanup only; the original failure is reported to the caller.
   }
 }
 
@@ -170,12 +140,21 @@ async function insertMissingModels(
     provider_id: providerId,
     name: identifier,
     model_identifier: identifier,
+    description: null,
+    input_price: 0,
+    output_price: 0,
+    context_window: 32768,
+    capabilities_json: JSON.stringify({ chat: true }),
     enabled: true,
     priority: 50,
+    fallback_eligible: true,
     routing_group: "free_race",
     allowed_tiers: ["free", "lite", "pro", "max"],
   }));
-  const { error: insertError } = await supabase.from("ai_models").insert(rows);
+  const { error: insertError } = await supabase.from("ai_models").upsert(rows, {
+    onConflict: "provider_id,model_identifier",
+    ignoreDuplicates: true,
+  });
   if (insertError) return { created: 0, failed: insertError.message };
   return { created: rows.length, failed: null };
 }
@@ -273,33 +252,21 @@ Deno.serve(async (request: Request): Promise<Response> => {
   if (!baseUrl) return jsonResponse({ error: "A valid https base URL is required." }, 422);
   if (apiKey.length < 8 || apiKey.length > 400) return jsonResponse({ error: "A valid API key is required." }, 422);
 
-  const { secretId, error: vaultError } = await storeProviderKey(supabase, providerType, apiKey);
-  if (!secretId) {
-    console.error("Vault create_secret failed:", vaultError);
-    return jsonResponse({ error: "The API key could not be stored in Supabase Vault, so nothing was saved." }, 500);
+  // The SECURITY DEFINER RPC verifies the admin again, performs an idempotent
+  // upsert by provider name, and stores/replaces the credential in Supabase Vault.
+  const { data: providerIdResult, error: providerSaveError } = await supabase.rpc("suly_admin_add_provider", {
+    p_user_id: authData.user.id,
+    p_name: name,
+    p_provider_type: providerType,
+    p_base_url: baseUrl,
+    p_description: description,
+    p_api_key: apiKey,
+  });
+  if (providerSaveError || !Number.isSafeInteger(Number(providerIdResult)) || Number(providerIdResult) <= 0) {
+    console.error("suly_admin_add_provider failed:", providerSaveError?.code ?? "no_provider_id");
+    return jsonResponse({ error: "تعذر حفظ المزود بأمان. تحقق من صلاحية المشرف وبيانات المزود." }, 500);
   }
-
-  const { data: inserted, error: insertError } = await supabase
-    .from("ai_providers")
-    .insert({
-      name,
-      provider_type: providerType,
-      base_url: baseUrl,
-      description: description || null,
-      enabled: true,
-      priority: 50,
-      api_key_vault_id: secretId,
-    })
-    .select("id")
-    .single();
-
-  if (insertError || !inserted) {
-    await deleteSecret(supabase, secretId);
-    console.error("ai_providers insert failed:", insertError?.message);
-    return jsonResponse({ error: "The provider row could not be created, so nothing was saved." }, 500);
-  }
-
-  const providerId = Number((inserted as { id: number }).id);
+  const providerId = Number(providerIdResult);
   const discovery = await discoverModels(providerType, baseUrl, apiKey);
   const insertion = await insertMissingModels(supabase, providerId, discovery.identifiers);
 
