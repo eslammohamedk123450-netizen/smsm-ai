@@ -3,7 +3,7 @@ import type { ExpoConfig } from "expo/config";
 const easProjectId = process.env.EAS_PROJECT_ID;
 
 const config: ExpoConfig = {
-  name: "Suly Agent AI",
+  name: "Suly",
   owner: "suly-sam100",
   slug: "smsm-ai",
   scheme: "suly-agent-ai",

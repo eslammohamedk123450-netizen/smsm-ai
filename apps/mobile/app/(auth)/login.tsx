@@ -111,7 +111,7 @@ export default function LoginPage() {
       <KeyboardAvoidingView style={styles.safe} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <View style={styles.card}>
-            <Text style={styles.brand}>SMSM AI</Text>
+            <Text style={styles.brand}>Suly</Text>
             <Text style={styles.subtitle}>مساعد ذكاء اصطناعي للدردشة النصية</Text>
             <Text style={styles.heading}>{isRegister ? "إنشاء حساب" : isVerifyingCode ? "أدخل رمز التحقق" : "تسجيل الدخول"}</Text>
             {isRegister && <TextInput value={fullName} onChangeText={setFullName} placeholder="الاسم الكامل" placeholderTextColor={colors.textMuted} style={styles.input} autoComplete="name" returnKeyType="next" />}

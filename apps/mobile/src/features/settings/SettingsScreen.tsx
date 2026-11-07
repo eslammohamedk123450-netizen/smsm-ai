@@ -99,7 +99,7 @@ export default function SettingsScreen() {
     return entry.source || (isArabic ? "معاملة رصيد" : "Credit transaction");
   };
 
-  const name = profileFullName || (typeof user?.user_metadata?.full_name === "string" ? user.user_metadata.full_name : (isArabic ? "مستخدم Suly" : "Suly user"));
+  const name = profileFullName?.trim() || "Suly";
   const back = () => { if (router.canGoBack()) router.back(); else router.replace("/(protected)/chat"); };
 
   return (

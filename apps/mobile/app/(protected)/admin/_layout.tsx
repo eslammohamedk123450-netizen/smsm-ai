@@ -10,28 +10,29 @@ type AdminState = "checking" | "authorized" | "denied" | "error";
 
 export default function AdminLayout() {
   const { user, status } = useAuth();
-  const [adminState, setAdminState] = useState<AdminState>("checking");
+  const [access, setAccess] = useState<{ userId: string | null; state: AdminState }>({ userId: null, state: "checking" });
+  const adminState = access.userId === user?.id ? access.state : "checking";
   useEffect(() => {
     let active = true;
     if (status === "loading") return () => { active = false; };
     if (!user || status !== "authenticated") {
-      setAdminState("denied");
+      setAccess({ userId: user?.id ?? null, state: "denied" });
       return () => { active = false; };
     }
-    setAdminState("checking");
+    setAccess({ userId: user.id, state: "checking" });
     void (async () => {
       try {
         const { data, error } = await supabase.rpc("suly_is_admin");
-        if (active) setAdminState(error ? "error" : data === true ? "authorized" : "denied");
+        if (active) setAccess({ userId: user.id, state: error ? "error" : data === true ? "authorized" : "denied" });
       } catch {
-        if (active) setAdminState("error");
+        if (active) setAccess({ userId: user.id, state: "error" });
       }
     })();
     return () => { active = false; };
   }, [user?.id, status]);
 
-  if (status === "loading" || adminState === "checking") return <View style={styles.center}><ActivityIndicator color={colors.primary} /><Text style={styles.text}>جارٍ التحقق من صلاحية المشرف…</Text></View>;
   if (status === "misconfigured") return <Redirect href="/" />;
+  if (status === "loading" || adminState === "checking") return <View style={styles.center}><ActivityIndicator color={colors.primary} /><Text style={styles.text}>جارٍ التحقق من صلاحية المشرف…</Text></View>;
   if (!user) return <Redirect href="/login" />;
   if (adminState === "denied") return <Redirect href="/chat" />;
   if (adminState === "error") return <View style={styles.center}><Text style={styles.error}>تعذر التحقق من صلاحية المشرف. لم تُفتح أدوات الإدارة.</Text></View>;

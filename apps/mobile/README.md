@@ -1,6 +1,6 @@
-# SMSM AI — Expo Universal Client
+# Suly — Expo Universal Client
 
-Expo Router (React Native + TypeScript) client for the existing SMSM AI Supabase backend. The Flutter app under `lib/` remains the behavioral reference and is not modified by this package.
+Expo Router (React Native + TypeScript) client for the Suly Agent AI application and its configured Supabase backend.
 
 ## Structure
 

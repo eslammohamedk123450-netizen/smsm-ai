@@ -14,6 +14,7 @@ import { logFrictionEvent } from "../../src/features/telemetry/friction";
 import { colors } from "../../src/theme/colors";
 import { ShareConversationSheet } from "../../src/features/chat/components/ShareConversationSheet";
 import { useToast } from "../../src/components/ui/Toast";
+import { supabase } from "../../src/lib/supabase/client";
 
 const STREAMING_ID = "local-streaming-assistant";
 const suggestionSets = {
@@ -43,13 +44,34 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = useState(Boolean(routeConversationId));
   const [error, setError] = useState<string | null>(null);
   const [retryFailure, setRetryFailure] = useState<{ conversationId: string; userMessageId: string } | null>(null);
+  const [adminAccess, setAdminAccess] = useState<{ userId: string | null; allowed: boolean }>({ userId: null, allowed: false });
   const [feedbackByMessage, setFeedbackByMessage] = useState<Record<string, MessageFeedback>>({});
   const [shareVisible, setShareVisible] = useState(false);
   const closeShareSheet = useCallback(() => setShareVisible(false), []);
   const composerRef = useRef<ChatComposerHandle>(null);
   const listRef = useRef<FlatList<ChatMessage>>(null);
   const lock = useRef(false);
+  const newConversationLock = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
+  const isAdmin = Boolean(user?.id && adminAccess.userId === user.id && adminAccess.allowed);
+
+  useEffect(() => {
+    let active = true;
+    if (!user) {
+      setAdminAccess({ userId: null, allowed: false });
+      return () => { active = false; };
+    }
+    setAdminAccess({ userId: user.id, allowed: false });
+    void (async () => {
+      try {
+        const { data, error: rpcError } = await supabase.rpc("suly_is_admin");
+        if (active) setAdminAccess({ userId: user.id, allowed: !rpcError && data === true });
+      } catch {
+        if (active) setAdminAccess({ userId: user.id, allowed: false });
+      }
+    })();
+    return () => { active = false; };
+  }, [user?.id]);
 
   useEffect(() => {
     let active = true;
@@ -222,13 +244,23 @@ export default function ChatPage() {
     }
   };
 
-  const startNewChat = () => {
+  const startNewChat = async () => {
+    if (newConversationLock.current) return;
+    newConversationLock.current = true;
     abortRef.current?.abort();
-    setMessages([]);
-    setConversationId(null);
     setError(null);
     setRetryFailure(null);
-    router.replace("/(protected)/chat");
+    try {
+      const conversation = await chatService.createConversation();
+      setMessages([]);
+      setFeedbackByMessage({});
+      setConversationId(conversation.id);
+      router.replace({ pathname: "/(protected)/chat", params: { conversationId: conversation.id } });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذّر إنشاء محادثة جديدة.");
+    } finally {
+      newConversationLock.current = false;
+    }
   };
 
   const regenerate = async (messageId: string) => {
@@ -292,11 +324,12 @@ export default function ChatPage() {
           <Pressable onPress={() => navigation.dispatch(DrawerActions.openDrawer())} style={styles.headerButton} accessibilityRole="button" accessibilityLabel="فتح سجل المحادثات"><Text style={styles.headerIcon}>☰</Text></Pressable>
           <View style={styles.brand}>
             <Text style={styles.title}>Suly Agent AI</Text>
-            <View style={styles.onlineDot} />
+            <View style={styles.onlineStatus}><View style={styles.onlineDot} /><Text style={styles.onlineLabel}>متصل</Text></View>
           </View>
           <View style={styles.headerActions}>
+            {isAdmin ? <Pressable onPress={() => router.push("/(protected)/admin")} style={styles.adminShortcut} accessibilityRole="button" accessibilityLabel="لوحة التحكم"><Text style={styles.adminShortcutText}>إدارة</Text></Pressable> : null}
             <Pressable onPress={() => setShareVisible(true)} style={styles.headerButton} accessibilityRole="button" accessibilityLabel="مشاركة المحادثة"><Text style={styles.headerIcon}>↗</Text></Pressable>
-            <Pressable onPress={startNewChat} style={styles.headerButton} accessibilityRole="button" accessibilityLabel="محادثة جديدة"><Text style={styles.headerIcon}>＋</Text></Pressable>
+            <Pressable onPress={() => void startNewChat()} style={[styles.headerButton, styles.newChatButton]} accessibilityRole="button" accessibilityLabel="إنشاء محادثة جديدة"><Text style={styles.newChatIcon}>＋</Text></Pressable>
           </View>
         </View>
 
@@ -329,9 +362,15 @@ const styles = StyleSheet.create({
   headerButton: { width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 21 },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 2 },
   headerIcon: { color: colors.textPrimary, fontSize: 25 },
-  brand: { flexDirection: "row", alignItems: "center", gap: 7 },
-  title: { color: colors.textPrimary, fontSize: 17, fontWeight: "700" },
+  brand: { flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 },
+  title: { color: colors.textPrimary, fontSize: 15, fontWeight: "700", flexShrink: 1 },
+  onlineStatus: { flexDirection: "row", alignItems: "center", gap: 4 },
+  onlineLabel: { color: colors.success, fontSize: 10, fontWeight: "600" },
   onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.success },
+  newChatButton: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.primary },
+  newChatIcon: { color: colors.primary, fontSize: 25, fontWeight: "600", lineHeight: 28 },
+  adminShortcut: { minWidth: 42, height: 36, paddingHorizontal: 7, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceElevated },
+  adminShortcutText: { color: colors.primary, fontSize: 11, fontWeight: "700" },
   errorBox: { marginHorizontal: 14, marginTop: 8, padding: 10, borderRadius: 10, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.error },
   errorText: { color: colors.error, textAlign: "right", fontSize: 12 },
   retryWarning: { marginHorizontal: 14, marginTop: 8, padding: 12, borderRadius: 10, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", gap: 12 },

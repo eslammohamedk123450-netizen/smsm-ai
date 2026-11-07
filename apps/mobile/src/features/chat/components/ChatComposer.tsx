@@ -207,7 +207,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
         {!voiceActive ? <Pressable onPress={() => setPermissionVisible(true)} disabled={disabled || isStreaming || !voiceSupported} style={[styles.iconButton, !voiceSupported && styles.voiceUnavailable]} accessibilityRole="button" accessibilityLabel="إملاء صوتي" accessibilityState={{ disabled: disabled || isStreaming || !voiceSupported }}>
           <Text style={[styles.icon, !voiceSupported && { color: palette.textMuted }]}>♩</Text>
         </Pressable> : null}
-        {isStreaming ? <Pressable style={[styles.sendButton, styles.stopButton]} onPress={onCancel} accessibilityRole="button" accessibilityLabel="إيقاف الرد"><Text style={styles.sendText}>■</Text></Pressable> : voiceActive ? null :
+        {isStreaming ? <Pressable style={[styles.sendButton, styles.stopButton]} onPress={onCancel} accessibilityRole="button" accessibilityLabel="إيقاف الرد"><ActivityIndicator size="small" color={colors.background} /></Pressable> : voiceActive ? null :
           <Pressable style={[styles.sendButton, (!text.trim() || disabled) && styles.sendDisabled]} onPress={submit} disabled={disabled || !text.trim()} accessibilityRole="button" accessibilityLabel="إرسال الرسالة"><Text style={styles.sendText}>↑</Text></Pressable>}
       </View>
       {!voiceSupported ? <Text style={[styles.voiceHint, { color: palette.textMuted }]}>الإملاء الصوتي غير مدعوم في هذا المتصفح.</Text> : null}
@@ -230,7 +230,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
 
 const styles = StyleSheet.create({
   wrapper: { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 8, backgroundColor: colors.background },
-  container: { minHeight: 58, flexDirection: "row", alignItems: "flex-end", gap: 7, padding: 7, borderRadius: 28, borderWidth: 1, borderColor: colors.inputBorder, backgroundColor: colors.surface },
+  container: { minHeight: 58, flexDirection: "row-reverse", alignItems: "flex-end", gap: 7, padding: 7, borderRadius: 28, borderWidth: 1, borderColor: colors.inputBorder, backgroundColor: colors.surface },
   input: { flex: 1, minHeight: 42, maxHeight: 130, color: colors.textPrimary, paddingHorizontal: 7, paddingVertical: 10, textAlignVertical: "center" },
   iconButton: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 19 },
   icon: { fontSize: 21, color: colors.textSecondary },
