@@ -1,5 +1,7 @@
 import type { ExpoConfig } from "expo/config";
 
+const easProjectId = process.env.EAS_PROJECT_ID;
+
 const config: ExpoConfig = {
   name: "Suly Agent AI",
   slug: "smsm-ai",
@@ -9,6 +11,12 @@ const config: ExpoConfig = {
     package: "com.suly.agentai",
     versionCode: 1,
   },
+  updates: easProjectId ? {
+    url: `https://u.expo.dev/${easProjectId}`,
+    checkAutomatically: "ON_LOAD",
+    fallbackToCacheTimeout: 0,
+  } : undefined,
+  extra: easProjectId ? { eas: { projectId: easProjectId } } : undefined,
   orientation: "portrait",
   userInterfaceStyle: "automatic",
   platforms: ["ios", "android", "web"],
