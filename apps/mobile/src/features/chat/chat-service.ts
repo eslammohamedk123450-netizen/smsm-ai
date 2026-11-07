@@ -149,7 +149,7 @@ export const chatService = {
     conversationId: string;
     content: string;
     signal: AbortSignal;
-    onUserSaved(message: ChatMessage): void;
+    onUserSaved(message: ChatMessage): void | Promise<void>;
     onChunk(text: string): void;
   }): Promise<void> {
     const content = options.content.trim();
@@ -168,7 +168,7 @@ export const chatService = {
     }).select("id,conversation_id,role,content,model_id,created_at").single();
     if (insertError || !inserted) throw new Error("تعذر حفظ رسالتك. لم يُرسل الطلب إلى نموذج الذكاء الاصطناعي.");
 
-    options.onUserSaved(mapMessage(inserted as MessageRow));
+    await options.onUserSaved(mapMessage(inserted as MessageRow));
     const conversationUpdate: { updated_at: string; title?: string } = { updated_at: new Date().toISOString() };
     if (priorMessages.length === 0) conversationUpdate.title = titleFromMessage(content);
     const { error: updateError } = await supabase.from("suly_conversations")
@@ -211,5 +211,36 @@ export const chatService = {
       routing_mode: "auto",
       stream: true,
     }, options.signal, { onChunk: options.onChunk, onDone() {} });
+  },
+
+  async getMessageFeedback(messageIds: string[]): Promise<Record<string, "like" | "dislike">> {
+    const ids = [...new Set(messageIds)].filter((id) => id && id !== "local-streaming-assistant").slice(0, 500);
+    if (!ids.length) return {};
+    const { data, error } = await supabase.from("suly_message_feedback")
+      .select("message_id,reaction").in("message_id", ids).limit(500);
+    if (error) throw new Error("تعذر تحميل تقييمات الرسائل.");
+    const result: Record<string, "like" | "dislike"> = {};
+    for (const row of data ?? []) {
+      if (row.reaction === "like" || row.reaction === "dislike") result[String(row.message_id)] = row.reaction;
+    }
+    return result;
+  },
+
+  async setMessageFeedback(messageId: string, reaction: "like" | "dislike" | null): Promise<void> {
+    if (reaction === null) {
+      const { error } = await supabase.from("suly_message_feedback").delete().eq("message_id", messageId);
+      if (error) throw new Error("تعذر إزالة التقييم.");
+      return;
+    }
+    const { error } = await supabase.from("suly_message_feedback").upsert(
+      { message_id: messageId, reaction, updated_at: new Date().toISOString() },
+      { onConflict: "user_id,message_id" },
+    );
+    if (error) throw new Error("تعذر حفظ تقييمك على الخادم.");
+  },
+
+  async attachMediaToMessage(mediaId: string, messageId: string): Promise<void> {
+    const { error } = await supabase.rpc("suly_media_attach_to_message", { p_media_id: mediaId, p_message_id: messageId });
+    if (error) throw new Error("تعذر ربط الملف برسالة المحادثة.");
   },
 };

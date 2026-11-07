@@ -1,6 +1,4 @@
-import { useEffect, useState } from "react";
 import { Alert, Image, Pressable, Share, StyleSheet, Text, View } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Clipboard from "expo-clipboard";
 import { colors } from "../../../theme/colors";
 
@@ -9,23 +7,17 @@ export interface MessageBubbleProps {
   content: string;
   messageId: string;
   isStreaming?: boolean;
+  feedback?: Feedback;
+  onFeedback?(value: Feedback): void | Promise<void>;
   onRegenerate?(): void;
 }
 
-type Feedback = "like" | "dislike" | null;
+export type Feedback = "like" | "dislike" | null;
+export type MessageFeedback = Exclude<Feedback, null>;
 const imagePattern = /(?:!\[[^\]]*\]\((https?:\/\/[^)\s]+)\)|(https?:\/\/[^\s]+?\.(?:png|jpe?g|gif|webp|avif)(?:\?[^\s]*)?))/gi;
 
-export function MessageBubble({ role, content, messageId, isStreaming = false, onRegenerate }: MessageBubbleProps) {
+export function MessageBubble({ role, content, isStreaming = false, feedback = null, onFeedback, onRegenerate }: MessageBubbleProps) {
   const isUser = role === "user";
-  const [feedback, setFeedback] = useState<Feedback>(null);
-
-  useEffect(() => {
-    let active = true;
-    void AsyncStorage.getItem(`suly:message-feedback:${messageId}`).then((value) => {
-      if (active && (value === "like" || value === "dislike")) setFeedback(value);
-    });
-    return () => { active = false; };
-  }, [messageId]);
 
   const copyToClipboard = async (text: string) => {
     try {
@@ -33,18 +25,6 @@ export function MessageBubble({ role, content, messageId, isStreaming = false, o
       Alert.alert("تم النسخ", "نُسخت الرسالة إلى الحافظة.");
     } catch {
       Alert.alert("تعذر النسخ", "لم يتمكن التطبيق من الوصول إلى الحافظة.");
-    }
-  };
-
-  const setReaction = async (value: Exclude<Feedback, null>) => {
-    const next = feedback === value ? null : value;
-    setFeedback(next);
-    try {
-      const key = `suly:message-feedback:${messageId}`;
-      if (next) await AsyncStorage.setItem(key, next);
-      else await AsyncStorage.removeItem(key);
-    } catch {
-      Alert.alert("تعذر حفظ التقييم", "حاول مرة أخرى.");
     }
   };
 
@@ -109,10 +89,10 @@ export function MessageBubble({ role, content, messageId, isStreaming = false, o
               <Pressable onPress={onRegenerate} style={styles.action} accessibilityRole="button" accessibilityLabel="إعادة إنشاء الرد">
                 <Text style={styles.actionText}>إعادة</Text>
               </Pressable>
-              <Pressable onPress={() => void setReaction("like")} style={[styles.action, feedback === "like" && styles.selectedAction]} accessibilityRole="button" accessibilityLabel="أعجبني">
+              <Pressable onPress={() => onFeedback?.(feedback === "like" ? null : "like")} style={[styles.action, feedback === "like" && styles.selectedAction]} accessibilityRole="button" accessibilityLabel="أعجبني">
                 <Text style={[styles.actionText, feedback === "like" && styles.selectedText]}>إعجاب</Text>
               </Pressable>
-              <Pressable onPress={() => void setReaction("dislike")} style={[styles.action, feedback === "dislike" && styles.selectedAction]} accessibilityRole="button" accessibilityLabel="لم يعجبني">
+              <Pressable onPress={() => onFeedback?.(feedback === "dislike" ? null : "dislike")} style={[styles.action, feedback === "dislike" && styles.selectedAction]} accessibilityRole="button" accessibilityLabel="لم يعجبني">
                 <Text style={[styles.actionText, feedback === "dislike" && styles.selectedText]}>عدم إعجاب</Text>
               </Pressable>
             </>}

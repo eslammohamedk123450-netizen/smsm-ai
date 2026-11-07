@@ -15,7 +15,7 @@
    │
    ├─ 3) النموذج (ai-router)
    │
-   └─ 4) Global Media Storage (global_media_assets + R2) ──► الملفات تُخزَّن خارج Supabase
+   └─ 4) Global Media Storage (global_media_assets + Cloudinary) ──► الملفات خارج Supabase، والبيانات الوصفية في Supabase
 ```
 
 ## 1) الكاش الدلالي العالمي — `ai_response_cache`
@@ -54,34 +54,27 @@
 - المستخدم يستطيع البحث في ذكرياته فقط عبر `suly_my_task_memories` (تعتمد `auth.uid()`).
 - الأسئلة التي تحتوي أسرارًا لا تُخزَّن.
 
-## 3) التخزين الخارجي الشامل — `global_media_assets` + Cloudflare R2
+## 3) التخزين الخارجي الشامل — `global_media_assets` + Cloudinary
 
-**القاعدة الصارمة:** Supabase لا يخزّن أي ملفات؛ يخزّن **روابط** فقط.
+**القاعدة الصارمة:** بايتات الملفات تذهب إلى Cloudinary؛ Supabase يحتفظ ببيانات الفهرسة والملكية والروابط السياقية فقط.
 
-- كل رفع يمر عبر Edge Function `media-gateway` (لا يوجد مسار آخر).
-- البايتات تُرفع إلى R2 بتوقيع SigV4 (WebCrypto، بلا مكتبات خارجية).
-- المسار: `<feature>/<yyyy>/<mm>/<user>/<uuid>-<sanitized-name>`.
-- يُسجَّل في `global_media_assets`: `public_url`, `bucket`, `object_key`, `mime_type`, `size_bytes`, `checksum_sha256`.
-- RLS: المستخدم يقرأ صفوفه فقط؛ **الكتابة ممنوعة على العميل نهائيًا** (service_role فقط).
-- التحقق: الحجم (25MB افتراضيًا، قابل للضبط)، نوع MIME (قائمة سماح)، رفض التنفيذيات و`text/html` و`svg`، ورفض أي رابط غير `https`.
+- العميل يطلب توقيع رفع قصير من Edge Function `media-gateway`، ثم يرفع مباشرة إلى Cloudinary بنوع توصيل `authenticated`؛ لا يوجد upload preset أو مفتاح API سري في التطبيق.
+- مفاتيح الأصول: `suly/<user-uuid>/<feature>/<uuid>`، ويُتحقق من ملكية الأصل عبر Cloudinary Admin API قبل تسجيله.
+- يسجل `global_media_assets` المالك، الميزة، نوع الملف، الحجم، معرف Cloudinary، إصدار الأصل، المحادثة/الرسالة أو تذكرة الدعم المرتبطة.
+- تُصدر روابط عرض موقعة بعد فحص صلاحيات المالك/المشرف؛ أصول HIMS الخاصة لا تُتاح إلا للمشرف أو لمستخدم فعّل HIMS.
+- حد الرفع 100MB، مع قائمة MIME مسموح بها. صور/فيديوهات/ملفات جديدة لا تُرفع إلى Supabase Storage.
+- RLS يحصر السجلات حسب المستخدم؛ والـ Edge Function تتحقق أيضًا من المحادثة أو التذكرة والسياق قبل التوقيع والتسجيل.
+- مسارات R2 القديمة معطلة للكتابة. تبقى السجلات القديمة كما هي إلى أن تُرحّل الأصول أو تُحذف يدويًا؛ لا تحذف هذه التغييرات أي ملفات قديمة تلقائيًا.
 
 ### عقد `media-gateway`
 
-```http
-POST /functions/v1/media-gateway
-Authorization: Bearer <user access token>
+كل الطلبات `POST /functions/v1/media-gateway` وتتطلب `Authorization: Bearer <user access token>`:
 
-# إما JSON:
-{ "feature_key": "hims", "filename": "lecture1.pdf",
-  "mime_type": "application/pdf", "content_base64": "...", "metadata": {} }
+- `sign_upload`: يوقع حقول Cloudinary لنوع ملف وسياق مسموحين.
+- `register`: يتحقق عبر Cloudinary Admin API من وجود الأصل ثم يسجل بياناته وسياقه في Supabase.
+- `get_url` / `get_urls`: يصدر رابط تسليم موقّع فقط للأصول التي يملك المتصل صلاحية الوصول إليها.
 
-# أو multipart/form-data مع الحقول: file, feature_key, metadata
-
-# القائمة:
-POST /functions/v1/media-gateway?action=list
-```
-
-الاستجابة: `{ success, id, url, object_key, mime_type, size_bytes, feature_key }`.
+مرفقات المحادثة والدعم مرتبطة بمعرفات قاعدة البيانات، لا بروابط عامة دائمة. واجهة المحادثة الحالية تحفظ المرفقات لكنها لا تمرر محتواها إلى نموذج الذكاء الاصطناعي.
 
 ## 4) تفعيل الميزات المعتمد على البيانات — HIMS كنموذج
 
@@ -105,7 +98,7 @@ values ('hims', 'HIMS - المحتوى الدراسي', 'hims_activated', 'hims_
    - يسجّل صفًا في `suly_feature_activations` + `admin_audit_logs`.
 4. الرد نصي فوري (بدون تكلفة)، ويُحفظ في المحادثة كرسالة مساعد.
 
-**لإضافة ميزة جديدة لاحقًا:** أدخل صفًا في `suly_feature_flags` + عمودًا في `suly_profiles` + كودًا + روابط. لا تعديل على أي Edge Function.
+**لإضافة ميزة جديدة لاحقًا:** أدخل صفًا في `suly_feature_flags` + عمودًا في `suly_profiles` + كودًا + موردًا عامًا أو معرف أصل Cloudinary خاصًا. تتطلب أنواع الموارد الجديدة مراجعة الصلاحيات قبل النشر.
 
 ### إدارة الأكواد والروابط (من لوحة التحكم)
 
@@ -136,26 +129,23 @@ select suly_admin_grant_feature('<user-uuid>', 'hims', true);
 
 | المتغير | الاستخدام |
 | --- | --- |
-| `R2_ACCOUNT_ID` | معرّف حساب Cloudflare. |
-| `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | مفاتيح S3 API في R2. |
-| `R2_BUCKET` | اسم الحاوية. |
-| `R2_PUBLIC_BASE_URL` | النطاق العام للقراءة (https). |
-| `R2_ENDPOINT` | اختياري، الافتراضي `https://<account>.r2.cloudflarestorage.com`. |
-| `R2_REGION` | افتراضي `auto`. |
-| `MEDIA_MAX_UPLOAD_BYTES` | اختياري، الافتراضي 25MB. |
+| `CLOUDINARY_CLOUD_NAME` | اسم مساحة Cloudinary. |
+| `CLOUDINARY_API_KEY` | المفتاح العام المستخدم فقط في نموذج الرفع الموقّع. |
+| `CLOUDINARY_API_SECRET` | السرّ؛ يستخدمه Edge Function فقط لتوقيع الرفع وروابط العرض والتحقق من الأصل. |
 
 ```bash
-supabase secrets set R2_ACCOUNT_ID=... R2_ACCESS_KEY_ID=... \
-  R2_SECRET_ACCESS_KEY=... R2_BUCKET=... R2_PUBLIC_BASE_URL=https://cdn.example.com
+supabase secrets set CLOUDINARY_CLOUD_NAME=... CLOUDINARY_API_KEY=... CLOUDINARY_API_SECRET=...
 ```
+
+لا تضف `CLOUDINARY_API_SECRET` إلى `.env` الخاص بتطبيق الهاتف أو Expo؛ يجب أن يبقى سرًا على الخادم.
 
 ## النشر
 
 ```bash
-# 1) الهجرة
+# 1) الهجرات
 supabase db push
 
-# 2) الدوال
+# 2) نشر الدوال بعد ضبط أسرار Cloudinary
 supabase functions deploy ai-router
 supabase functions deploy media-gateway
 ```
@@ -179,6 +169,6 @@ cd apps/mobile && npx jest src/lib/infra --runInBand
 
 - كل دوال الكاش والذاكرة والتفعيل: `security definer` + `service_role` فقط + `revoke` صريح من `anon` و`authenticated`.
 - جداول الكاش/الذاكرة/الأكواد/التفعيلات: RLS بـ `false` للعميل، و`select` محدود للمستخدم على صفوفه في الوسائط فقط.
-- `media-gateway` يتحقق من التوكن بنفسه (`auth.getUser`) ويرفض الحسابات الموقوفة.
+- `media-gateway` يتحقق من التوكن بنفسه (`auth.getUser`) ويرفض الحسابات الموقوفة، ويوقّع ملفات Cloudinary الخاصة فقط بعد فحص سياق الملكية.
 - لا تُعاد رسائل أخطاء السيرفر الخام إلى العميل؛ تُحوَّل إلى رموز نتيجة محدودة.
-- الملفات: قائمة سماح MIME، حد حجم، أسماء منظّفة، مفاتيح كائنات مُتحقَّق منها، ورفض `http`.
+- الملفات: قائمة سماح MIME، حد حجم، معرفات Cloudinary عشوائية مرتبطة بالمستخدم، روابط عرض موقعة، ورفض `http`.

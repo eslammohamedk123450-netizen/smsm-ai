@@ -83,6 +83,12 @@ export function AdminDashboardScreen() {
         <Pressable accessibilityRole="button" onPress={() => router.push("/admin/hims")} style={styles.secondaryAction}>
           <Text style={styles.secondaryActionText}>أكواد تفعيل HIMS</Text>
         </Pressable>
+        <Pressable accessibilityRole="button" onPress={() => router.push("/admin/support")} style={styles.secondaryAction}>
+          <Text style={styles.secondaryActionText}>صندوق الدعم والشكاوى</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" onPress={() => router.push("/admin/friction")} style={styles.secondaryAction}>
+          <Text style={styles.secondaryActionText}>التقييمات ونقاط التعثر</Text>
+        </Pressable>
         <Pressable accessibilityRole="button" onPress={() => router.push("/chat")} style={styles.secondaryAction}>
           <Text style={styles.secondaryActionText}>تجربة التطبيق</Text>
         </Pressable>

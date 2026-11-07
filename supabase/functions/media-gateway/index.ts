@@ -1,273 +1,225 @@
-// Global media gateway.
-//
-// Single entry point for every upload in the application (chat attachments,
-// HIMS lectures, future features). Responsibilities:
-//   1. authenticate the caller and reject suspended accounts,
-//   2. validate size and content type,
-//   3. stream bytes to the configured external store (Cloudflare R2),
-//   4. record only metadata + public URL in Supabase.
-// Supabase Storage is intentionally unused: the database stores links, not files.
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import {
-  R2StorageDriver,
-  StorageNotConfiguredError,
-  StorageUploadError,
-  readR2Config,
-  resolveStorageDriver,
-  type StorageDriver,
-} from "../_shared/storage_strategy.ts";
-import {
-  DEFAULT_MAX_UPLOAD_BYTES,
-  buildObjectKey,
-  checkUploadSize,
-  isAllowedMimeType,
-  isSafeObjectKey,
-} from "../_shared/storage_keys.ts";
-import { normalizeFeatureKey } from "../_shared/prompt_keys.ts";
-
-const configuredCorsOrigin = Deno.env.get("WEB_CORS_ORIGIN")?.trim();
+const corsOrigin = Deno.env.get("WEB_CORS_ORIGIN")?.trim();
 const corsHeaders = {
-  ...(configuredCorsOrigin ? { "Access-Control-Allow-Origin": configuredCorsOrigin } : {}),
+  ...(corsOrigin ? { "Access-Control-Allow-Origin": corsOrigin } : {}),
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Vary": "Origin",
 };
+const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
+const encoder = new TextEncoder();
 
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json; charset=utf-8" },
+type FeatureKey = "chat" | "support" | "hims" | "general";
+type ResourceType = "image" | "video" | "raw";
+interface CloudinaryConfig { cloudName: string; apiKey: string; apiSecret: string; }
+interface AuthContext { userId: string; service: SupabaseClient; user: SupabaseClient; isAdmin: boolean; }
+
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
+}
+function getCloudinaryConfig(): CloudinaryConfig | null {
+  const cloudName = Deno.env.get("CLOUDINARY_CLOUD_NAME")?.trim() ?? "";
+  const apiKey = Deno.env.get("CLOUDINARY_API_KEY")?.trim() ?? "";
+  const apiSecret = Deno.env.get("CLOUDINARY_API_SECRET")?.trim() ?? "";
+  return cloudName && apiKey && apiSecret ? { cloudName, apiKey, apiSecret } : null;
+}
+function safeString(value: unknown, max = 300): string { return typeof value === "string" ? value.trim().slice(0, max) : ""; }
+function validUuid(value: unknown): value is string { return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value); }
+function validResourceType(value: unknown): value is ResourceType { return value === "image" || value === "video" || value === "raw"; }
+function validFeature(value: unknown): value is FeatureKey { return value === "chat" || value === "support" || value === "hims" || value === "general"; }
+function hex(bytes: Uint8Array): string { return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join(""); }
+async function sha1(value: string): Promise<Uint8Array> { return new Uint8Array(await crypto.subtle.digest("SHA-1", encoder.encode(value))); }
+async function uploadSignature(fields: Record<string, string>, secret: string): Promise<string> {
+  const serialized = Object.entries(fields).filter(([, value]) => value !== "").sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => `${key}=${value}`).join("&");
+  return hex(await sha1(`${serialized}${secret}`));
+}
+function cloudinaryPathPart(value: string): string { return value.split("/").map((segment) => encodeURIComponent(segment)).join("/"); }
+async function deliverySignature(path: string, secret: string): Promise<string> {
+  const digest = await sha1(`${path}${secret}`);
+  return btoa(String.fromCharCode(...digest)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "").slice(0, 8);
+}
+function mimeIsAllowed(mime: string, resourceType: ResourceType): boolean {
+  const value = mime.split(";")[0].trim().toLowerCase();
+  if (!value || value === "application/x-msdownload" || value === "application/x-executable" || value === "text/html" || value === "image/svg+xml") return false;
+  if (resourceType === "image") return ["image/jpeg", "image/png", "image/webp", "image/gif", "image/heic", "image/heif", "image/avif"].includes(value);
+  if (resourceType === "video") return ["video/mp4", "video/webm", "video/quicktime", "video/x-m4v"].includes(value);
+  return ["application/pdf", "application/json", "application/zip", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/vnd.openxmlformats-officedocument.presentationml.presentation", "text/plain", "text/csv", "audio/mpeg", "audio/mp4", "audio/wav", "application/octet-stream"].includes(value);
+}
+async function authenticate(req: Request): Promise<AuthContext | Response> {
+  const url = Deno.env.get("SUPABASE_URL");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  if (!url || !serviceKey || !anonKey) return json({ error: "Supabase function configuration is incomplete.", code: "server_configuration" }, 500);
+  const userJwt = req.headers.get("Authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
+  if (!userJwt) return json({ error: "Authentication required." }, 401);
+  const service = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const { data, error } = await service.auth.getUser(userJwt);
+  if (error || !data.user) return json({ error: "Invalid or expired session." }, 401);
+  const user = createClient(url, anonKey, {
+    global: { headers: { Authorization: `Bearer ${userJwt}` } },
+    auth: { persistSession: false, autoRefreshToken: false },
   });
+  const [{ data: profile, error: profileError }, { data: adminData, error: adminError }] = await Promise.all([
+    service.from("suly_profiles").select("is_banned,hims_activated").eq("id", data.user.id).maybeSingle(),
+    user.rpc("suly_is_admin"),
+  ]);
+  if (profileError || adminError) return json({ error: "Could not validate account permissions." }, 500);
+  if (!profile || profile.is_banned) return json({ error: "This account is unavailable." }, 403);
+  return { userId: data.user.id, service, user, isAdmin: adminData === true };
 }
-
-function maxUploadBytes(): number {
-  const configured = Number(Deno.env.get("MEDIA_MAX_UPLOAD_BYTES"));
-  if (Number.isFinite(configured) && configured > 0) return Math.min(Math.floor(configured), 200 * 1024 * 1024);
-  return DEFAULT_MAX_UPLOAD_BYTES;
-}
-
-function decodeBase64(value: string): Uint8Array {
-  const binary = atob(value.replace(/\s+/g, ""));
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-  return bytes;
-}
-
-async function sha256Hex(bytes: Uint8Array): Promise<string> {
-  // Copy into an ArrayBuffer-backed view: WebCrypto rejects wider buffer types.
-  const source = new Uint8Array(new ArrayBuffer(bytes.byteLength));
-  source.set(bytes);
-  const digest = await crypto.subtle.digest("SHA-256", source);
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-interface UploadRequest {
-  featureKey: string;
-  filename: string;
-  mimeType: string;
-  bytes: Uint8Array;
-  metadata: Record<string, unknown>;
-}
-
-async function readUpload(req: Request, limit: number): Promise<{ ok: true; value: UploadRequest } | { ok: false; error: string; status: number }> {
-  const contentType = req.headers.get("content-type") ?? "";
-  if (contentType.includes("multipart/form-data")) {
-    let form: FormData;
-    try {
-      form = await req.formData();
-    } catch {
-      return { ok: false, error: "تعذر قراءة بيانات النموذج المرسل.", status: 400 };
+async function verifyUploadContext(ctx: AuthContext, feature: FeatureKey, conversationId: string | null, messageId: string | null, ticketId: string | null): Promise<string | null> {
+  if (feature === "chat") {
+    if (!conversationId) return "A chat attachment must be linked to a conversation.";
+    const { data, error } = await ctx.service.from("suly_conversations").select("id").eq("id", conversationId).eq("user_id", ctx.userId).maybeSingle();
+    if (error || !data) return "You do not have access to that conversation.";
+    if (messageId) {
+      const { data: message, error: messageError } = await ctx.service.from("suly_messages").select("id").eq("id", messageId).eq("conversation_id", conversationId).eq("user_id", ctx.userId).eq("role", "user").maybeSingle();
+      if (messageError || !message) return "The attachment message does not belong to this conversation.";
     }
-    const file = form.get("file");
-    if (!(file instanceof File)) return { ok: false, error: "لم يُرفق أي ملف في الطلب.", status: 400 };
-    if (file.size > limit) return { ok: false, error: "حجم الملف يتجاوز الحد المسموح.", status: 413 };
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    const metadataRaw = form.get("metadata");
-    let metadata: Record<string, unknown> = {};
-    if (typeof metadataRaw === "string" && metadataRaw.trim()) {
-      try {
-        const parsed = JSON.parse(metadataRaw);
-        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) metadata = parsed as Record<string, unknown>;
-      } catch {
-        metadata = {};
-      }
-    }
-    return {
-      ok: true,
-      value: {
-        featureKey: normalizeFeatureKey(form.get("feature_key")),
-        filename: typeof file.name === "string" ? file.name : "file",
-        mimeType: (file.type || "application/octet-stream").toLowerCase(),
-        bytes,
-        metadata,
-      },
-    };
+  } else if (feature === "support") {
+    if (!ticketId) return "A support attachment must be linked to a ticket.";
+    const { data, error } = await ctx.service.from("suly_support_tickets").select("id,status").eq("id", ticketId).eq("user_id", ctx.userId).maybeSingle();
+    if (error || !data || data.status === "closed") return "You cannot attach a file to that support ticket.";
+  } else if (!ctx.isAdmin) {
+    return "Administrator access is required for this media library.";
   }
-
+  return null;
+}
+async function verifyCloudinaryAsset(config: CloudinaryConfig, resourceType: ResourceType, publicId: string): Promise<Record<string, unknown> | null> {
+  const path = publicId.split("/").map((part) => encodeURIComponent(part)).join("/");
+  const endpoint = `https://api.cloudinary.com/v1_1/${encodeURIComponent(config.cloudName)}/resources/${resourceType}/authenticated/${path}`;
+  const response = await fetch(endpoint, { headers: { Authorization: `Basic ${btoa(`${config.apiKey}:${config.apiSecret}`)}` } });
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`cloudinary_admin_${response.status}`);
+  const data = await response.json();
+  return data && typeof data === "object" && !Array.isArray(data) ? data as Record<string, unknown> : null;
+}
+async function buildDeliveryUrl(config: CloudinaryConfig, resourceType: ResourceType, publicId: string, versionValue: unknown, formatValue: unknown): Promise<string | null> {
+  const version = Number(versionValue);
+  if (!Number.isSafeInteger(version) || version < 1) return null;
+  const format = safeString(formatValue, 16).replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+  const suffix = resourceType === "raw" ? "" : (format ? `.${format}` : "");
+  const pathToSign = `v${version}/${publicId}${suffix}`;
+  const signature = await deliverySignature(pathToSign, config.apiSecret);
+  return `https://res.cloudinary.com/${encodeURIComponent(config.cloudName)}/${resourceType}/authenticated/s--${signature}--/v${version}/${cloudinaryPathPart(publicId)}${suffix}`;
+}
+async function getDeliveryUrl(ctx: AuthContext, config: CloudinaryConfig, mediaId: string): Promise<{ id: string; url: string; mime_type: string | null } | null> {
+  const { data: asset, error } = await ctx.service.from("global_media_assets")
+    .select("id,user_id,feature_key,storage_provider,bucket,object_key,public_url,mime_type,metadata,delivery_type,conversation_id,support_ticket_id")
+    .eq("id", mediaId).maybeSingle();
+  if (error || !asset) return null;
+  const ownsAsset = asset.user_id === ctx.userId;
+  let authorized = ownsAsset || ctx.isAdmin;
+  if (!authorized && asset.conversation_id) {
+    const { data } = await ctx.service.from("suly_conversations").select("id").eq("id", asset.conversation_id).eq("user_id", ctx.userId).maybeSingle();
+    authorized = Boolean(data);
+  }
+  if (!authorized && asset.support_ticket_id) {
+    const { data } = await ctx.service.from("suly_support_tickets").select("id").eq("id", asset.support_ticket_id).eq("user_id", ctx.userId).maybeSingle();
+    authorized = Boolean(data);
+  }
+  if (!authorized && asset.feature_key === "hims") {
+    const { data: profile } = await ctx.service.from("suly_profiles").select("hims_activated").eq("id", ctx.userId).maybeSingle();
+    const { data: resource } = await ctx.service.from("suly_feature_resources").select("id").eq("media_asset_id", asset.id).eq("feature_key", "hims").eq("is_active", true).maybeSingle();
+    authorized = ctx.isAdmin || (profile?.hims_activated === true && Boolean(resource));
+  }
+  if (!authorized || asset.storage_provider !== "cloudinary") return null;
+  if (asset.delivery_type !== "authenticated" && asset.public_url) return { id: asset.id, url: asset.public_url, mime_type: asset.mime_type };
+  const resourceType = asset.bucket as ResourceType;
+  if (!validResourceType(resourceType)) return null;
+  const metadata = asset.metadata && typeof asset.metadata === "object" ? asset.metadata as Record<string, unknown> : {};
+  const url = await buildDeliveryUrl(config, resourceType, String(asset.object_key), metadata.version, metadata.format);
+  return url ? { id: asset.id, url, mime_type: asset.mime_type } : null;
+}
+async function handle(req: Request): Promise<Response> {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method !== "POST") return json({ error: "Use POST." }, 405);
+  const ctx = await authenticate(req);
+  if (ctx instanceof Response) return ctx;
   let body: Record<string, unknown>;
   try {
-    const parsed = await req.json();
-    body = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
-  } catch {
-    return { ok: false, error: "جسم الطلب يجب أن يكون JSON صحيحًا أو نموذج ملفات.", status: 400 };
-  }
-  const base64 = typeof body.content_base64 === "string" ? body.content_base64 : "";
-  if (!base64) return { ok: false, error: "حقل content_base64 مطلوب لرفع الملف.", status: 400 };
-  if (base64.length > Math.ceil(limit * 1.4)) return { ok: false, error: "حجم الملف يتجاوز الحد المسموح.", status: 413 };
-  let bytes: Uint8Array;
-  try {
-    bytes = decodeBase64(base64);
-  } catch {
-    return { ok: false, error: "تعذر فك ترميز الملف المرسل.", status: 400 };
-  }
-  if (bytes.byteLength > limit) return { ok: false, error: "حجم الملف يتجاوز الحد المسموح.", status: 413 };
-  return {
-    ok: true,
-    value: {
-      featureKey: normalizeFeatureKey(body.feature_key),
-      filename: typeof body.filename === "string" ? body.filename : "file",
-      mimeType: typeof body.mime_type === "string" && body.mime_type.trim() ? body.mime_type.trim().toLowerCase() : "application/octet-stream",
-      bytes,
-      metadata: body.metadata && typeof body.metadata === "object" && !Array.isArray(body.metadata)
-        ? body.metadata as Record<string, unknown>
-        : {},
-    },
-  };
-}
+    const value = await req.json();
+    body = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  } catch { return json({ error: "Invalid JSON request." }, 400); }
+  const action = safeString(body.action, 40);
+  if (!["sign_upload", "register", "get_url", "get_urls"].includes(action)) return json({ error: "Unsupported action." }, 400);
+  const config = getCloudinaryConfig();
+  if (!config) return json({ error: "Cloudinary server credentials are not configured.", code: "cloudinary_not_configured" }, 503);
 
-async function handleRequest(req: Request): Promise<Response> {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-  if (req.method !== "POST") return jsonResponse({ error: "Method not allowed; use POST." }, 405);
-
-  const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!supabaseUrl || !serviceRoleKey) return jsonResponse({ error: "Server database configuration is incomplete." }, 500);
-
-  const userJwt = req.headers.get("Authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
-  if (!userJwt) return jsonResponse({ error: "A signed-in user's Bearer access token is required." }, 401);
-
-  const supabase = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data: authData, error: authError } = await supabase.auth.getUser(userJwt);
-  if (authError || !authData.user) return jsonResponse({ error: "Invalid or expired user access token." }, 401);
-  const user = authData.user;
-
-  const { data: profile, error: profileError } = await supabase
-    .from("suly_profiles")
-    .select("is_banned")
-    .eq("id", user.id)
-    .maybeSingle();
-  if (profileError) {
-    console.error("media-gateway profile lookup failed:", profileError.message);
-    return jsonResponse({ error: "Could not validate the application account." }, 500);
-  }
-  if (!profile) return jsonResponse({ error: "Application profile is missing. Sign out and sign in again." }, 403);
-  if (profile.is_banned) return jsonResponse({ error: "This account is suspended." }, 403);
-
-  const limit = maxUploadBytes();
-
-  // Listing is served from the registry; file bytes are never proxied.
-  const url = new URL(req.url);
-  if (url.searchParams.get("action") === "list") {
-    const { data, error } = await supabase
-      .from("global_media_assets")
-      .select("id,feature_key,bucket,object_key,public_url,mime_type,size_bytes,original_filename,created_at")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(50);
-    if (error) {
-      console.error("media-gateway listing failed:", error.message);
-      return jsonResponse({ error: "Could not load the media list." }, 500);
+  if (action === "sign_upload") {
+    const feature = body.feature_key;
+    const resourceType = body.resource_type;
+    const mime = safeString(body.mime_type, 120).toLowerCase();
+    const size = Number(body.size_bytes);
+    const conversationId = validUuid(body.conversation_id) ? body.conversation_id : null;
+    const messageId = validUuid(body.message_id) ? body.message_id : null;
+    const ticketId = validUuid(body.support_ticket_id) ? body.support_ticket_id : null;
+    if (!validFeature(feature) || !validResourceType(resourceType) || !mimeIsAllowed(mime, resourceType) || !Number.isSafeInteger(size) || size < 1 || size > MAX_UPLOAD_BYTES) {
+      return json({ error: "The file type or size is not supported." }, 400);
     }
-    return jsonResponse({ success: true, assets: data ?? [] });
+    const contextError = await verifyUploadContext(ctx, feature, conversationId, messageId, ticketId);
+    if (contextError) return json({ error: contextError }, 403);
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const publicId = `suly/${ctx.userId}/${feature}/${crypto.randomUUID()}`;
+    const fields = { overwrite: "false", public_id: publicId, timestamp, type: "authenticated" };
+    const signature = await uploadSignature(fields, config.apiSecret);
+    return json({ cloud_name: config.cloudName, api_key: config.apiKey, resource_type: resourceType, signed_fields: { ...fields, signature } });
   }
 
-  const parsedUpload = await readUpload(req, limit);
-  if (!parsedUpload.ok) return jsonResponse({ error: parsedUpload.error }, parsedUpload.status);
-  const upload = parsedUpload.value;
-
-  const sizeCheck = checkUploadSize(upload.bytes.byteLength, limit);
-  if (!sizeCheck.ok) {
-    return jsonResponse({ error: sizeCheck.reason === "empty" ? "الملف فارغ." : "حجم الملف يتجاوز الحد المسموح." }, sizeCheck.reason === "empty" ? 400 : 413);
-  }
-  if (!isAllowedMimeType(upload.mimeType)) {
-    return jsonResponse({ error: "نوع الملف غير مدعوم للرفع." }, 415);
-  }
-
-  let driver: StorageDriver;
-  try {
-    driver = resolveStorageDriver();
-  } catch (error) {
-    if (error instanceof StorageNotConfiguredError) {
-      console.error("media-gateway storage is not configured.");
-      return jsonResponse({ error: "التخزين الخارجي غير مهيأ على السيرفر. تواصل مع الدعم.", code: "storage_not_configured" }, 503);
-    }
-    throw error;
-  }
-
-  const objectKey = buildObjectKey({
-    featureKey: upload.featureKey,
-    userId: user.id,
-    filename: upload.filename,
-    uniqueId: crypto.randomUUID(),
-  });
-  if (!isSafeObjectKey(objectKey)) {
-    return jsonResponse({ error: "تعذر تكوين مسار آمن للملف." }, 400);
-  }
-
-  let stored;
-  try {
-    stored = await driver.put({
-      key: objectKey,
-      body: upload.bytes,
-      contentType: upload.mimeType,
-      cacheControl: "public, max-age=31536000, immutable",
+  if (action === "register") {
+    const feature = body.feature_key;
+    const resourceType = body.resource_type;
+    const publicId = safeString(body.public_id, 1024);
+    const conversationId = validUuid(body.conversation_id) ? body.conversation_id : null;
+    const messageId = validUuid(body.message_id) ? body.message_id : null;
+    const ticketId = validUuid(body.support_ticket_id) ? body.support_ticket_id : null;
+    if (!validFeature(feature) || !validResourceType(resourceType) || !publicId.startsWith(`suly/${ctx.userId}/`)) return json({ error: "Invalid Cloudinary asset details." }, 400);
+    const contextError = await verifyUploadContext(ctx, feature, conversationId, messageId, ticketId);
+    if (contextError) return json({ error: contextError }, 403);
+    let resource: Record<string, unknown> | null;
+    try { resource = await verifyCloudinaryAsset(config, resourceType, publicId); }
+    catch (error) { console.error("Cloudinary asset verification failed:", error instanceof Error ? error.message : "unknown"); return json({ error: "Cloudinary could not verify the uploaded asset." }, 502); }
+    if (!resource || String(resource.public_id ?? "") !== publicId) return json({ error: "The uploaded Cloudinary asset was not found." }, 404);
+    const bytes = Number(resource.bytes);
+    if (!Number.isSafeInteger(bytes) || bytes < 1 || bytes > MAX_UPLOAD_BYTES) return json({ error: "The uploaded asset exceeds the permitted size." }, 413);
+    const mime = safeString(body.mime_type, 120).toLowerCase();
+    if (!mimeIsAllowed(mime, resourceType)) return json({ error: "The file type is not permitted." }, 415);
+    const { data: assetId, error: registerError } = await ctx.user.rpc("suly_media_register_self_v2", {
+      p_feature_key: feature,
+      p_resource_type: resourceType,
+      p_object_key: publicId,
+      p_mime_type: mime,
+      p_size_bytes: bytes,
+      p_original_filename: safeString(body.original_filename, 300),
+      p_metadata: { version: Number(resource.version), format: safeString(resource.format, 16), delivery_type: "authenticated", cloudinary_asset_id: safeString(resource.asset_id, 80) },
+      p_conversation_id: conversationId,
+      p_message_id: messageId,
+      p_support_ticket_id: ticketId,
     });
-  } catch (error) {
-    if (error instanceof StorageUploadError) {
-      console.error("media-gateway upload rejected by storage:", error.status);
-      return jsonResponse({ error: "رفض التخزين الخارجي رفع الملف. حاول مرة أخرى." }, 502);
+    if (registerError || typeof assetId !== "string") {
+      console.error("Cloudinary media registration failed:", registerError?.message ?? "unknown");
+      return json({ error: "The uploaded file could not be registered in the media library." }, 500);
     }
-    console.error("media-gateway upload failed:", error instanceof Error ? error.message : String(error));
-    return jsonResponse({ error: "تعذر رفع الملف إلى التخزين الخارجي." }, 502);
+    const delivery = await getDeliveryUrl(ctx, config, assetId);
+    return json({ success: true, id: assetId, public_id: publicId, resource_type: resourceType, mime_type: mime, size_bytes: bytes, url: delivery?.url ?? null });
   }
 
-  const checksum = await sha256Hex(upload.bytes);
-  const { data: assetId, error: registerError } = await supabase.rpc("suly_media_register", {
-    p_user_id: user.id,
-    p_feature_key: upload.featureKey,
-    p_storage_provider: stored.provider,
-    p_bucket: stored.bucket,
-    p_object_key: stored.objectKey,
-    p_public_url: stored.url,
-    p_mime_type: upload.mimeType,
-    p_size_bytes: stored.size,
-    p_checksum_sha256: checksum,
-    p_original_filename: upload.filename.slice(0, 300),
-    p_metadata: upload.metadata,
-  });
-  if (registerError) {
-    console.error("media-gateway could not register the asset:", registerError.message);
-    return jsonResponse({ success: false, error: "تم رفع الملف لكن تعذر تسجيله في قاعدة البيانات.", url: stored.url }, 500);
+  if (action === "get_url") {
+    const id = validUuid(body.media_id) ? body.media_id : "";
+    if (!id) return json({ error: "Invalid media ID." }, 400);
+    const delivery = await getDeliveryUrl(ctx, config, id);
+    return delivery ? json({ success: true, ...delivery }) : json({ error: "Media not found or access denied." }, 404);
   }
-
-  return jsonResponse({
-    success: true,
-    id: assetId,
-    feature_key: upload.featureKey,
-    url: stored.url,
-    object_key: stored.objectKey,
-    mime_type: upload.mimeType,
-    size_bytes: stored.size,
-  });
+  const ids = Array.isArray(body.media_ids) ? body.media_ids.filter(validUuid).slice(0, 100) : [];
+  if (!ids.length) return json({ success: true, assets: [] });
+  const results = await Promise.all(ids.map((id) => getDeliveryUrl(ctx, config, id)));
+  return json({ success: true, assets: results.filter((item): item is NonNullable<typeof item> => Boolean(item)) });
 }
-
-Deno.serve(async (req: Request) => {
-  try {
-    return await handleRequest(req);
-  } catch (error) {
-    console.error("Unhandled media-gateway error:", error instanceof Error ? error.message : String(error));
-    return jsonResponse({ error: "Internal media-gateway error." }, 500);
+Deno.serve(async (req) => {
+  try { return await handle(req); }
+  catch (error) {
+    console.error("Unhandled media gateway error:", error instanceof Error ? error.message : "unknown");
+    return json({ error: "Internal media gateway error." }, 500);
   }
 });
-
-export { R2StorageDriver, readR2Config };

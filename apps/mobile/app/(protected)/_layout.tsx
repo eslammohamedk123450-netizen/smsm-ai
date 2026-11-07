@@ -71,6 +71,7 @@ function CustomDrawerContent(props: DrawerContentComponentProps) {
         ) : <Text style={styles.emptyHistory}>{query ? "لا توجد نتائج مطابقة." : "لا توجد محادثات سابقة."}</Text>}
       </DrawerContentScrollView>
       <View style={styles.drawerFooter}>
+        <Pressable style={styles.settingsRow} onPress={() => { router.push("/(protected)/support"); props.navigation.closeDrawer(); }} accessibilityRole="button"><Text style={styles.footerText}>الدعم والشكاوى</Text><Text style={styles.footerIcon}>✉</Text></Pressable>
         <Pressable style={styles.settingsRow} onPress={() => { router.push("/(protected)/settings"); props.navigation.closeDrawer(); }} accessibilityRole="button"><Text style={styles.footerText}>الإعدادات</Text><Text style={styles.footerIcon}>⚙</Text></Pressable>
         <View style={styles.profileRow}>
           <View style={styles.avatar}><Text style={styles.avatarText}>{displayName.slice(0, 1).toUpperCase()}</Text></View>
