@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View, useColorScheme } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, View, useColorScheme } from "react-native";
+import { PremiumText as Text } from "../../../components/ui/PremiumText";
 import { BottomSheet } from "../../../components/ui/BottomSheet";
 import { useToast } from "../../../components/ui/Toast";
 import { getThemeColors } from "../../../theme/colors";

@@ -1,6 +1,8 @@
 import { Redirect, useFocusEffect, useRouter } from "expo-router";
 import { Drawer, DrawerContentScrollView, type DrawerContentComponentProps } from "expo-router/drawer";
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, FlatList, StyleSheet, TextInput, TouchableOpacity, View } from "react-native";
+import { PremiumText as Text } from "../../src/components/ui/PremiumText";
+import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "../../src/features/auth/auth-provider";
 import { chatService, type Conversation } from "../../src/features/chat/chat-service";
@@ -8,6 +10,11 @@ import { supabase } from "../../src/lib/supabase/client";
 import { colors } from "../../src/theme/colors";
 import { BottomSheet } from "../../src/components/ui/BottomSheet";
 import { useToast } from "../../src/components/ui/Toast";
+
+function formatConversationDate(value?: string) {
+  const timestamp = Date.parse(value ?? "");
+  return Number.isNaN(timestamp) ? "" : new Date(timestamp).toLocaleDateString("ar-EG", { year: "numeric", month: "short", day: "numeric" });
+}
 
 function CustomDrawerContent({ isAdmin, ...props }: DrawerContentComponentProps & { isAdmin: boolean }) {
   const { user, profileFullName } = useAuth();
@@ -59,8 +66,8 @@ function CustomDrawerContent({ isAdmin, ...props }: DrawerContentComponentProps 
   return (
     <View style={styles.drawerRoot}>
       <DrawerContentScrollView {...props} contentContainerStyle={styles.drawerContent}>
-        <Pressable style={styles.newChatButton} onPress={() => goToChat()} accessibilityRole="button"><Text style={styles.newChatText}>＋  محادثة جديدة</Text></Pressable>
-        {isAdmin ? <Pressable style={styles.adminButton} onPress={() => { router.push("/(protected)/admin"); props.navigation.closeDrawer(); }} accessibilityRole="button" accessibilityLabel="لوحة التحكم"><Text style={styles.adminButtonText}>لوحة التحكم</Text></Pressable> : null}
+        <TouchableOpacity activeOpacity={0.7} style={styles.newChatButton} onPress={() => goToChat()} accessibilityRole="button"><Text style={styles.newChatText}>＋  محادثة جديدة</Text></TouchableOpacity>
+        {isAdmin ? <TouchableOpacity activeOpacity={0.7} style={styles.adminButton} onPress={() => { router.push("/(protected)/admin"); props.navigation.closeDrawer(); }} accessibilityRole="button" accessibilityLabel="لوحة التحكم"><Text style={styles.adminButtonText}>لوحة التحكم</Text></TouchableOpacity> : null}
         <TextInput value={query} onChangeText={setQuery} placeholder="بحث في المحادثات" placeholderTextColor={colors.textMuted} style={styles.searchInput} accessibilityLabel="بحث في سجل المحادثات" />
         <Text style={styles.sectionTitle}>سجل المحادثات</Text>
         {loading ? <ActivityIndicator color={colors.primary} style={styles.loader} /> : filtered.length ? (
@@ -69,16 +76,17 @@ function CustomDrawerContent({ isAdmin, ...props }: DrawerContentComponentProps 
             keyExtractor={(item) => item.id}
             scrollEnabled={false}
             renderItem={({ item }) => (
-              <Pressable onPress={() => goToChat(item.id)} onLongPress={() => confirmConversationActions(item)} delayLongPress={450} style={styles.chatItem} accessibilityRole="button" accessibilityHint="اضغط مطولاً لإعادة التسمية أو الحذف">
-                <Text numberOfLines={1} style={styles.chatItemText}>{item.title === "New Conversation" ? "محادثة جديدة" : item.title.slice(0, 30)}</Text>
-              </Pressable>
+              <TouchableOpacity activeOpacity={0.7} onPress={() => goToChat(item.id)} onLongPress={() => confirmConversationActions(item)} delayLongPress={450} style={styles.chatItem} accessibilityRole="button" accessibilityHint="اضغط مطولاً لإعادة التسمية أو الحذف">
+                <Ionicons name="chatbubble-outline" size={19} color={colors.textSecondary} />
+                <View style={styles.chatItemCopy}><Text numberOfLines={1} style={styles.chatItemText}>{item.title?.trim() && item.title !== "New Conversation" ? item.title.trim() : "محادثة بدون عنوان"}</Text><Text style={styles.chatItemDate}>{formatConversationDate(item.updatedAt)}</Text></View>
+              </TouchableOpacity>
             )}
           />
         ) : <Text style={styles.emptyHistory}>{query ? "لا توجد نتائج مطابقة." : "لا توجد محادثات سابقة."}</Text>}
       </DrawerContentScrollView>
       <View style={styles.drawerFooter}>
-        <Pressable style={styles.settingsRow} onPress={() => { router.push("/(protected)/support"); props.navigation.closeDrawer(); }} accessibilityRole="button"><Text style={styles.footerText}>الدعم والشكاوى</Text><Text style={styles.footerIcon}>✉</Text></Pressable>
-        <Pressable style={styles.settingsRow} onPress={() => { router.push("/(protected)/settings"); props.navigation.closeDrawer(); }} accessibilityRole="button"><Text style={styles.footerText}>الإعدادات</Text><Text style={styles.footerIcon}>⚙</Text></Pressable>
+        <TouchableOpacity activeOpacity={0.7} style={styles.settingsRow} onPress={() => { router.push("/(protected)/support"); props.navigation.closeDrawer(); }} accessibilityRole="button"><Text style={styles.footerText}>الدعم والشكاوى</Text><Ionicons name="mail-outline" size={19} color={colors.textSecondary} /></TouchableOpacity>
+        <TouchableOpacity activeOpacity={0.7} style={styles.settingsRow} onPress={() => { router.push("/(protected)/settings"); props.navigation.closeDrawer(); }} accessibilityRole="button"><Text style={styles.footerText}>الإعدادات</Text><Ionicons name="settings-outline" size={19} color={colors.textSecondary} /></TouchableOpacity>
         <View style={styles.profileRow}>
           <View style={styles.avatar}><Text style={styles.avatarText}>{displayName.slice(0, 1).toUpperCase()}</Text></View>
           <View style={styles.profileCopy}><Text style={styles.userName} numberOfLines={1}>{displayName}</Text><Text style={styles.email} numberOfLines={1}>{user?.email || ""}</Text></View>
@@ -86,22 +94,22 @@ function CustomDrawerContent({ isAdmin, ...props }: DrawerContentComponentProps 
       </View>
       <BottomSheet visible={Boolean(actionTarget)} title={actionTarget?.title ?? "إجراءات المحادثة"} onClose={() => setActionTarget(null)}>
         <View style={styles.sheetActions}>
-          <Pressable onPress={() => { if (actionTarget) { setRenameValue(actionTarget.title); setRenameTarget(actionTarget); } setActionTarget(null); }} style={styles.sheetAction}><Text style={styles.sheetActionText}>إعادة تسمية</Text></Pressable>
-          <Pressable onPress={() => { setDeleteTarget(actionTarget); setActionTarget(null); }} style={[styles.sheetAction, styles.deleteAction]}><Text style={styles.deleteActionText}>حذف المحادثة</Text></Pressable>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => { if (actionTarget) { setRenameValue(actionTarget.title); setRenameTarget(actionTarget); } setActionTarget(null); }} style={styles.sheetAction}><Text style={styles.sheetActionText}>إعادة تسمية</Text></TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => { setDeleteTarget(actionTarget); setActionTarget(null); }} style={[styles.sheetAction, styles.deleteAction]}><Text style={styles.deleteActionText}>حذف المحادثة</Text></TouchableOpacity>
         </View>
       </BottomSheet>
       <BottomSheet visible={Boolean(renameTarget)} title="إعادة تسمية المحادثة" onClose={() => setRenameTarget(null)}>
         <TextInput value={renameValue} onChangeText={setRenameValue} style={styles.renameInput} maxLength={120} autoFocus accessibilityLabel="اسم المحادثة الجديد" />
         <View style={styles.modalActions}>
-          <Pressable onPress={() => setRenameTarget(null)} style={styles.modalButton}><Text style={styles.modalCancel}>إلغاء</Text></Pressable>
-          <Pressable onPress={() => void rename()} style={[styles.modalButton, styles.modalSave]}><Text style={styles.newChatText}>حفظ</Text></Pressable>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => setRenameTarget(null)} style={styles.modalButton}><Text style={styles.modalCancel}>إلغاء</Text></TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => void rename()} style={[styles.modalButton, styles.modalSave]}><Text style={styles.newChatText}>حفظ</Text></TouchableOpacity>
         </View>
       </BottomSheet>
       <BottomSheet visible={Boolean(deleteTarget)} title="حذف المحادثة؟" onClose={() => setDeleteTarget(null)}>
         <Text style={styles.deleteNotice}>سيتم حذف المحادثة ورسائلها نهائيًا.</Text>
         <View style={styles.modalActions}>
-          <Pressable onPress={() => setDeleteTarget(null)} style={styles.modalButton}><Text style={styles.modalCancel}>إلغاء</Text></Pressable>
-          <Pressable onPress={() => void deleteConversation()} style={[styles.modalButton, styles.deleteButton]}><Text style={styles.newChatText}>حذف</Text></Pressable>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => setDeleteTarget(null)} style={styles.modalButton}><Text style={styles.modalCancel}>إلغاء</Text></TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => void deleteConversation()} style={[styles.modalButton, styles.deleteButton]}><Text style={styles.newChatText}>حذف</Text></TouchableOpacity>
         </View>
       </BottomSheet>
     </View>
@@ -147,19 +155,21 @@ export default function ProtectedLayout() {
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background },
   drawerRoot: { flex: 1, backgroundColor: colors.background },
-  drawerContent: { flexGrow: 1, paddingHorizontal: 14, paddingTop: 22 },
-  newChatButton: { paddingVertical: 14, paddingHorizontal: 16, borderRadius: 14, backgroundColor: colors.primary, marginBottom: 18 },
+  drawerContent: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 22 },
+  newChatButton: { paddingVertical: 14, paddingHorizontal: 16, borderRadius: 16, backgroundColor: colors.primary, marginBottom: 18 },
   newChatText: { color: colors.background, fontWeight: "700", textAlign: "center" },
   adminButton: { paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.primary, marginBottom: 16 },
   adminButtonText: { color: colors.primary, fontWeight: "700", textAlign: "right" },
   searchInput: { paddingHorizontal: 14, paddingVertical: 11, borderRadius: 11, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, color: colors.textPrimary, marginBottom: 18, textAlign: "right" },
   sectionTitle: { color: colors.textMuted, fontSize: 12, marginBottom: 8, textAlign: "right" },
   loader: { marginTop: 22 },
-  chatItem: { paddingVertical: 12, paddingHorizontal: 11, marginBottom: 4, borderRadius: 10 },
-  chatItemText: { color: colors.textPrimary, textAlign: "right", fontSize: 14 },
+  chatItem: { minHeight: 62, flexDirection: "row-reverse", alignItems: "center", gap: 12, paddingVertical: 9, paddingHorizontal: 11, marginBottom: 8, borderRadius: 16, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
+  chatItemCopy: { flex: 1, alignItems: "flex-end", gap: 3 },
+  chatItemText: { width: "100%", color: colors.textPrimary, textAlign: "right", fontSize: 14 },
+  chatItemDate: { color: colors.textSecondary, fontSize: 11, textAlign: "right" },
   emptyHistory: { color: colors.textMuted, textAlign: "right", padding: 10, fontSize: 13 },
   drawerFooter: { borderTopWidth: 1, borderTopColor: colors.divider, paddingHorizontal: 15, paddingVertical: 15, gap: 12 },
-  settingsRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 5 },
+  settingsRow: { minHeight: 42, flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", paddingVertical: 5 },
   footerText: { color: colors.textPrimary, fontSize: 14 },
   footerIcon: { color: colors.textSecondary, fontSize: 18 },
   profileRow: { flexDirection: "row", alignItems: "center", gap: 10 },

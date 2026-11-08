@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
-import { Animated, Modal, PanResponder, Pressable, StyleSheet, Text, View, useColorScheme } from "react-native";
+import { Animated, Modal, PanResponder, Pressable, StyleSheet, View, useColorScheme } from "react-native";
+import { PremiumText as Text } from "./PremiumText";
 import { getThemeColors } from "../../theme/colors";
 import { theme } from "../../theme/theme";
 

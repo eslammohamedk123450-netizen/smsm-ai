@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Platform, Pressable, Share, StyleSheet, Switch, Text, View, useColorScheme } from "react-native";
+import { ActivityIndicator, Platform, Pressable, Share, StyleSheet, Switch, View, useColorScheme } from "react-native";
+import { PremiumText as Text } from "../../../components/ui/PremiumText";
 import * as ExpoLinking from "expo-linking";
 import * as Clipboard from "expo-clipboard";
 import { BottomSheet } from "../../../components/ui/BottomSheet";

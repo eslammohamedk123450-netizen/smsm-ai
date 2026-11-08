@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "expo-router";
-import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, StyleSheet, Switch, TextInput, TouchableOpacity, View } from "react-native";
+import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { adminService, type PricingPlan } from "./admin-service";
 import { providerPresets, findPreset, type ProviderPreset } from "./provider-presets";
 import { confirmAdminAction } from "./admin-confirm";
@@ -31,7 +32,7 @@ type UserRow = { id: string; email: string; full_name: string | null; subscripti
 type TransactionRow = { id?: string; user_id?: string; event_type: string; amount: number; balance_delta?: number; balance_after: number; actual_cost?: number | null; input_tokens?: number; output_tokens?: number; model_id?: number | null; source?: string; reason?: string | null; created_at: string };
 
 function PageHeader({ title }: { title: string }) {
-  return <View style={styles.header}><Link href="/admin" asChild><Pressable><Text style={styles.back}>‹ لوحة المشرف</Text></Pressable></Link><Text style={styles.pageTitle}>{title}</Text></View>;
+  return <View style={styles.header}><Link href="/admin" asChild><TouchableOpacity activeOpacity={0.7}><Text style={styles.back}>‹ لوحة المشرف</Text></TouchableOpacity></Link><Text style={styles.pageTitle}>{title}</Text></View>;
 }
 function ErrorText({ children }: { children: string | null }) { return children ? <Text accessibilityRole="alert" style={styles.error}>{children}</Text> : null; }
 function probeErrorLabel(code: string | null) {
@@ -45,7 +46,7 @@ function probeErrorLabel(code: string | null) {
   return `فشل الاتصال (${code}).`;
 }
 function PrimaryButton({ label, onPress, disabled = false }: { label: string; onPress(): void; disabled?: boolean }) {
-  return <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={[styles.button, disabled && styles.disabled]}><Text style={styles.buttonText}>{label}</Text></Pressable>;
+  return <TouchableOpacity activeOpacity={0.7} accessibilityRole="button" disabled={disabled} onPress={onPress} style={[styles.button, disabled && styles.disabled]}><Text style={styles.buttonText}>{label}</Text></TouchableOpacity>;
 }
 function Card({ children }: { children: React.ReactNode }) { return <View style={styles.card}>{children}</View>; }
 
@@ -415,50 +416,64 @@ export function ModelsAdminScreen() {
     } finally { setTestingModelId(null); }
   };
 
-  return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-    <PageHeader title="النماذج والتوجيه" />
-    <ErrorText>{error}</ErrorText>
-    {loading ? <ActivityIndicator color={colors.primary} /> : <>
-      <Card><View style={styles.healthProbeHeading}><View style={styles.sectionIcon}><Text style={styles.sectionIconText}>ϟ</Text></View><View style={styles.settingsHeadingText}><Text style={styles.sectionTitle}>مراقبة صحة النماذج</Text><Text style={styles.detail}>فحص تلقائي يوميًا الساعة 02:00 UTC لكل نموذج مفعّل ولكل مفتاح مرتبط به. يستخدم طلبًا قصيرًا بحد أقصى 16 token، ولا يخصم رصيد المستخدم؛ قد يستهلك استخدامًا لدى مزود الخدمة.</Text></View></View><Text style={styles.detail}>بعد 3 إخفاقات فحص متتالية يُستبعد النموذج آليًا من التوجيه، ويعود بعد نجاح فحصين متتاليين. الإيقاف اليدوي لا يُلغى بالفحص.</Text></Card>
-      {settings && <Card><View style={styles.settingsHeading}><View style={styles.sectionIcon}><Text style={styles.sectionIconText}>⚙</Text></View><View style={styles.settingsHeadingText}><Text style={styles.sectionTitle}>إعدادات التوجيه</Text><Text style={styles.detail}>ai_router_settings · تؤثر على اختيار النماذج وتوازي الطلبات</Text></View></View><View style={styles.settingsFields}><NumberField label="مهلة سباق النماذج (ms)" value={freeTimeout} onChange={setFreeTimeout} /><NumberField label="مهلة البديل المدفوع (ms)" value={fallbackTimeout} onChange={setFallbackTimeout} /><NumberField label="أقصى نماذج متوازية" value={parallel} onChange={setParallel} /></View><View style={styles.settingsToggles}><Toggle label="تفعيل البديل المدفوع" value={paidFallback} onChange={setPaidFallback} /><Toggle label="التقييد التلقائي للصحة" value={autoRestrict} onChange={setAutoRestrict} /></View><PrimaryButton label={busy ? "جارٍ الحفظ…" : "✓  حفظ إعدادات التوجيه"} onPress={() => void saveSettings()} disabled={busy} /></Card>}
-      <View style={styles.modelsSectionHeader}><View style={styles.modelsHeadingCopy}><Text style={styles.sectionTitle}>كتالوج النماذج</Text><Text style={styles.detail}>إدارة الحالة ومسار التوجيه والقيود وسجل الصحة</Text></View><View style={styles.totalBadge}><Text style={styles.totalBadgeText}>{models.length} نموذج</Text></View></View>
-      <View style={styles.searchWrap}><Text style={styles.searchGlyph}>⌕</Text><TextInput style={[styles.input, styles.modelSearchInput]} value={search} onChangeText={setSearch} placeholder="ابحث بالاسم أو المزود أو المسار" placeholderTextColor={colors.textMuted} autoCapitalize="none" /><Pressable accessibilityRole="button" onPress={() => setSearch("")}><Text style={styles.link}>مسح</Text></Pressable></View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-        {([
-          ["all", `الكل · ${models.length}`],
-          ["enabled", `جاهزة · ${models.filter((model) => model.provider_enabled !== false && model.enabled && model.routing_group !== "disabled" && !model.health?.auto_restricted).length}`],
-          ["disabled", `معطّلة · ${models.filter((model) => model.provider_enabled === false || !model.enabled || model.routing_group === "disabled").length}`],
-          ["restricted", `مقيّدة · ${models.filter((model) => model.health?.auto_restricted).length}`],
-        ] as const).map(([filter, label]) => <Pressable key={filter} accessibilityRole="button" accessibilityState={{ selected: modelFilter === filter }} onPress={() => setModelFilter(filter)} style={[styles.filterChip, modelFilter === filter && styles.filterChipSelected]}><Text style={[styles.filterText, modelFilter === filter && styles.filterTextSelected]}>{label}</Text></Pressable>)}
-      </ScrollView>
-      <Text style={styles.resultsCount}>عرض {filteredModels.length} من {models.length}</Text>
-      {filteredModels.length === 0 ? <Card><Text style={styles.emptyIcon}>⌕</Text><Text style={styles.detail}>لا توجد نماذج تطابق البحث أو عامل التصفية المحدد.</Text></Card> : null}
-      {filteredModels.map((model) => {
-        const providerIsOff = model.provider_enabled === false;
-        const isManuallyOff = !model.enabled || model.routing_group === "disabled";
-        const status = model.health?.auto_restricted ? "مقيّد آليًا" : providerIsOff ? "المفتاح متوقف" : isManuallyOff ? "معطّل يدويًا" : "جاهز للتوجيه";
-        const statusStyle = model.health?.auto_restricted ? styles.statusRestricted : providerIsOff || isManuallyOff ? styles.statusDisabled : styles.statusEnabled;
-        const statusTextStyle = model.health?.auto_restricted ? styles.statusRestrictedText : providerIsOff || isManuallyOff ? styles.statusDisabledText : styles.statusEnabledText;
-        const scheduledStatus = model.probe?.last_scheduled_status === "success" ? "ناجح" : model.probe?.last_scheduled_status === "error" ? "فاشل" : "لم يُفحص بعد";
-        return <Card key={model.id}>
-          <View style={styles.modelCardHeader}>
-            <View style={[styles.statusBadge, statusStyle]}><Text style={[styles.statusBadgeText, statusTextStyle]}>{status}</Text></View>
-            <View style={styles.modelNameBlock}><Text style={styles.cardTitle}>{model.name}</Text><Text style={styles.detail}>{model.provider_name} · {model.model_identifier}</Text></View>
-          </View>
-          <View style={styles.modelMetaRow}><View style={styles.metaBadge}><Text style={styles.metaBadgeText}>{providerIsOff ? "⏸ المفتاح متوقف" : isManuallyOff ? "⏸ خارج التوجيه" : `⇢ ${model.routing_group === "free_race" ? "سباق مجاني" : model.routing_group === "paid_fallback" ? "بديل مدفوع" : model.routing_group}`}</Text></View><View style={styles.metaBadge}><Text style={styles.metaBadgeText}>أولوية {model.priority}</Text></View></View>
-          <View style={styles.modelDetailsBox}><Text style={styles.detail}>الشرائح المسموحة: {(model.allowed_tiers ?? ["free", "lite", "pro", "max"]).join(" · ")}</Text><Text style={styles.detail}>مهلة الاستجابة: {model.response_timeout_ms ?? 30000}ms</Text><Text style={styles.detail}>صحة طلبات المستخدمين: {model.health?.last_status ?? "غير مسجلة"} · إخفاقات: {model.health?.consecutive_failures ?? 0}</Text><Text style={styles.detail}>آخر فحص دوري: {scheduledStatus} · إخفاقات الفحص المتتالية: {model.probe?.consecutive_scheduled_failures ?? 0}</Text></View>
-          {testResults[model.id] ? <View style={styles.probeFeedback}><Text style={testResults[model.id].startsWith("نجح") ? styles.success : styles.warning}>{testResults[model.id]}</Text></View> : null}
-          {model.health?.restriction_reason ? <View style={styles.warningBox}><Text style={styles.warning}>⚠  {model.health.restriction_reason}</Text></View> : null}
-          <View style={styles.rowWrap}>
-            <Pressable accessibilityRole="button" onPress={() => void openModelDetails(model)} style={styles.detailsAction}><Text style={styles.link}>⚙  القيود وسجل الفحوص</Text></Pressable>
-            <PrimaryButton label={testingModelId === model.id ? "جارٍ الفحص…" : "اختبار بهذا المفتاح"} onPress={() => void testModel(model)} disabled={busy || testingModelId !== null} />
-            {model.health?.auto_restricted ? <PrimaryButton label="مراجعة وإعادة تفعيل" onPress={() => void resetHealth(model)} disabled={busy || testingModelId !== null} /> : providerIsOff ? <Link href="/admin/api-keys" asChild><Pressable style={styles.detailsAction}><Text style={styles.link}>اذهب لتفعيل المفتاح</Text></Pressable></Link> : isManuallyOff ? <><PrimaryButton label="تفعيل ضمن سباق مجاني" onPress={() => void assignRoute(model, "free_race")} disabled={busy || testingModelId !== null} /><PrimaryButton label="تفعيل كبديل مدفوع" onPress={() => void assignRoute(model, "paid_fallback")} disabled={busy || testingModelId !== null} /></> : <PrimaryButton label="تعطيل" onPress={() => void disable(model)} disabled={busy || testingModelId !== null} />}
-          </View>
-        </Card>;
-      })}
-    </>}
-
+  return <>
+    <View style={styles.screen}>
+      <FlatList
+        style={styles.screen}
+        contentContainerStyle={styles.content}
+        data={loading ? [] : filteredModels}
+        keyExtractor={(model) => String(model.id)}
+        initialNumToRender={6}
+        maxToRenderPerBatch={6}
+        windowSize={7}
+        keyboardShouldPersistTaps="handled"
+        ListHeaderComponent={<View style={styles.modelListHeader}>
+          <PageHeader title="النماذج والتوجيه" />
+          <ErrorText>{error}</ErrorText>
+          {!loading ? <>
+            <Card><View style={styles.healthProbeHeading}><View style={styles.sectionIcon}><Text style={styles.sectionIconText}>ϟ</Text></View><View style={styles.settingsHeadingText}><Text style={styles.sectionTitle}>مراقبة صحة النماذج</Text><Text style={styles.detail}>فحص تلقائي يوميًا الساعة 02:00 UTC لكل نموذج مفعّل ولكل مفتاح مرتبط به. يستخدم طلبًا قصيرًا بحد أقصى 16 token، ولا يخصم رصيد المستخدم؛ قد يستهلك استخدامًا لدى مزود الخدمة.</Text></View></View><Text style={styles.detail}>بعد 3 إخفاقات فحص متتالية يُستبعد النموذج آليًا من التوجيه، ويعود بعد نجاح فحصين متتاليين. الإيقاف اليدوي لا يُلغى بالفحص.</Text></Card>
+            {settings && <Card><View style={styles.settingsHeading}><View style={styles.sectionIcon}><Text style={styles.sectionIconText}>⚙</Text></View><View style={styles.settingsHeadingText}><Text style={styles.sectionTitle}>إعدادات التوجيه</Text><Text style={styles.detail}>ai_router_settings · تؤثر على اختيار النماذج وتوازي الطلبات</Text></View></View><View style={styles.settingsFields}><NumberField label="مهلة سباق النماذج (ms)" value={freeTimeout} onChange={setFreeTimeout} /><NumberField label="مهلة البديل المدفوع (ms)" value={fallbackTimeout} onChange={setFallbackTimeout} /><NumberField label="أقصى نماذج متوازية" value={parallel} onChange={setParallel} /></View><View style={styles.settingsToggles}><Toggle label="تفعيل البديل المدفوع" value={paidFallback} onChange={setPaidFallback} /><Toggle label="التقييد التلقائي للصحة" value={autoRestrict} onChange={setAutoRestrict} /></View><PrimaryButton label={busy ? "جارٍ الحفظ…" : "✓  حفظ إعدادات التوجيه"} onPress={() => void saveSettings()} disabled={busy} /></Card>}
+            <View style={styles.modelsSectionHeader}><View style={styles.modelsHeadingCopy}><Text style={styles.sectionTitle}>كتالوج النماذج</Text><Text style={styles.detail}>إدارة الحالة ومسار التوجيه والقيود وسجل الصحة</Text></View><View style={styles.totalBadge}><Text style={styles.totalBadgeText}>{models.length} نموذج</Text></View></View>
+            <View style={styles.searchWrap}><Text style={styles.searchGlyph}>⌕</Text><TextInput style={[styles.input, styles.modelSearchInput]} value={search} onChangeText={setSearch} placeholder="ابحث بالاسم أو المزود أو المسار" placeholderTextColor={colors.textMuted} autoCapitalize="none" /><Pressable accessibilityRole="button" onPress={() => setSearch("")}><Text style={styles.link}>مسح</Text></Pressable></View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+              {([
+                ["all", `الكل · ${models.length}`],
+                ["enabled", `جاهزة · ${models.filter((model) => model.provider_enabled !== false && model.enabled && model.routing_group !== "disabled" && !model.health?.auto_restricted).length}`],
+                ["disabled", `معطّلة · ${models.filter((model) => model.provider_enabled === false || !model.enabled || model.routing_group === "disabled").length}`],
+                ["restricted", `مقيّدة · ${models.filter((model) => model.health?.auto_restricted).length}`],
+              ] as const).map(([filter, label]) => <Pressable key={filter} accessibilityRole="button" accessibilityState={{ selected: modelFilter === filter }} onPress={() => setModelFilter(filter)} style={[styles.filterChip, modelFilter === filter && styles.filterChipSelected]}><Text style={[styles.filterText, modelFilter === filter && styles.filterTextSelected]}>{label}</Text></Pressable>)}
+            </ScrollView>
+            <Text style={styles.resultsCount}>عرض {filteredModels.length} من {models.length}</Text>
+          </> : null}
+        </View>}
+        ListEmptyComponent={loading ? <ActivityIndicator color={colors.primary} style={styles.listLoading} /> : <Card><Text style={styles.emptyIcon}>⌕</Text><Text style={styles.detail}>لا توجد نماذج تطابق البحث أو عامل التصفية المحدد.</Text></Card>}
+        renderItem={({ item: model }) => {
+          const providerIsOff = model.provider_enabled === false;
+          const isManuallyOff = !model.enabled || model.routing_group === "disabled";
+          const status = model.health?.auto_restricted ? "مقيّد آليًا" : providerIsOff ? "المفتاح متوقف" : isManuallyOff ? "معطّل يدويًا" : "جاهز للتوجيه";
+          const statusStyle = model.health?.auto_restricted ? styles.statusRestricted : providerIsOff || isManuallyOff ? styles.statusDisabled : styles.statusEnabled;
+          const statusTextStyle = model.health?.auto_restricted ? styles.statusRestrictedText : providerIsOff || isManuallyOff ? styles.statusDisabledText : styles.statusEnabledText;
+          const scheduledStatus = model.probe?.last_scheduled_status === "success" ? "ناجح" : model.probe?.last_scheduled_status === "error" ? "فاشل" : "لم يُفحص بعد";
+          return <Card>
+            <View style={styles.modelCardHeader}>
+              <View style={[styles.statusBadge, statusStyle]}><Text style={[styles.statusBadgeText, statusTextStyle]}>{status}</Text></View>
+              <View style={styles.modelNameBlock}><Text style={styles.cardTitle}>{model.name}</Text><Text style={styles.detail}>{model.provider_name} · {model.model_identifier}</Text></View>
+            </View>
+            <View style={styles.modelMetaRow}><View style={styles.metaBadge}><Text style={styles.metaBadgeText}>{providerIsOff ? "⏸ المفتاح متوقف" : isManuallyOff ? "⏸ خارج التوجيه" : `⇢ ${model.routing_group === "free_race" ? "سباق مجاني" : model.routing_group === "paid_fallback" ? "بديل مدفوع" : model.routing_group}`}</Text></View><View style={styles.metaBadge}><Text style={styles.metaBadgeText}>أولوية {model.priority}</Text></View></View>
+            <View style={styles.modelDetailsBox}><Text style={styles.detail}>الشرائح المسموحة: {(model.allowed_tiers ?? ["free", "lite", "pro", "max"]).join(" · ")}</Text><Text style={styles.detail}>مهلة الاستجابة: {model.response_timeout_ms ?? 30000}ms</Text><Text style={styles.detail}>صحة طلبات المستخدمين: {model.health?.last_status ?? "غير مسجلة"} · إخفاقات: {model.health?.consecutive_failures ?? 0}</Text><Text style={styles.detail}>آخر فحص دوري: {scheduledStatus} · إخفاقات الفحص المتتالية: {model.probe?.consecutive_scheduled_failures ?? 0}</Text></View>
+            {testResults[model.id] ? <View style={styles.probeFeedback}><Text style={testResults[model.id].startsWith("نجح") ? styles.success : styles.warning}>{testResults[model.id]}</Text></View> : null}
+            {model.health?.restriction_reason ? <View style={styles.warningBox}><Text style={styles.warning}>⚠  {model.health.restriction_reason}</Text></View> : null}
+            <View style={styles.rowWrap}>
+              <Pressable accessibilityRole="button" onPress={() => void openModelDetails(model)} style={styles.detailsAction}><Text style={styles.link}>⚙  القيود وسجل الفحوص</Text></Pressable>
+              <PrimaryButton label={testingModelId === model.id ? "جارٍ الفحص…" : "اختبار بهذا المفتاح"} onPress={() => void testModel(model)} disabled={busy || testingModelId !== null} />
+              {model.health?.auto_restricted ? <PrimaryButton label="مراجعة وإعادة تفعيل" onPress={() => void resetHealth(model)} disabled={busy || testingModelId !== null} /> : providerIsOff ? <Link href="/admin/api-keys" asChild><Pressable style={styles.detailsAction}><Text style={styles.link}>اذهب لتفعيل المفتاح</Text></Pressable></Link> : isManuallyOff ? <><PrimaryButton label="تفعيل ضمن سباق مجاني" onPress={() => void assignRoute(model, "free_race")} disabled={busy || testingModelId !== null} /><PrimaryButton label="تفعيل كبديل مدفوع" onPress={() => void assignRoute(model, "paid_fallback")} disabled={busy || testingModelId !== null} /></> : <PrimaryButton label="تعطيل" onPress={() => void disable(model)} disabled={busy || testingModelId !== null} />}
+            </View>
+          </Card>;
+        }}
+      />
+    </View>
     {/* Modal لتعديل النموذج الفردي واستعراض سجل محاولاته */}
+
     <Modal visible={!!selectedModel} transparent animationType="fade" onRequestClose={() => setSelectedModel(null)}>
       <View style={styles.modalBackdrop}>
         <ScrollView style={styles.modalScrollContent} contentContainerStyle={styles.modalCard}>
@@ -497,7 +512,7 @@ export function ModelsAdminScreen() {
         </ScrollView>
       </View>
     </Modal>
-  </ScrollView>;
+  </>;
 }
 
 export function UsersAdminScreen() {
@@ -652,7 +667,9 @@ function Toggle({ label, value, onChange }: { label: string; value: boolean; onC
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  content: { width: "100%", maxWidth: 1000, alignSelf: "center", padding: 16, gap: 10 },
+  content: { width: "100%", maxWidth: 1000, alignSelf: "center", padding: 20, gap: 12 },
+  modelListHeader: { width: "100%", gap: 12 },
+  listLoading: { marginVertical: 32 },
   healthProbeHeading: { flexDirection: "row-reverse", alignItems: "flex-start", gap: 11 },
   providerFormHeading: { flexDirection: "row-reverse", alignItems: "center", gap: 11, marginBottom: 8 },
   providerFormHeadingText: { flex: 1, gap: 3 },
@@ -673,9 +690,9 @@ const styles = StyleSheet.create({
   probeFeedback: { borderRightWidth: 3, borderRightColor: colors.primary, backgroundColor: colors.surfaceElevated, borderRadius: 5, paddingHorizontal: 8 },
   header: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
   back: { color: colors.accent, fontSize: 13 },
-  pageTitle: { color: colors.textPrimary, fontSize: 24, fontWeight: "800", textAlign: "right" },
+  pageTitle: { color: colors.textPrimary, fontSize: 22, fontWeight: "700", textAlign: "right" },
   explainer: { color: colors.textSecondary, lineHeight: 21, textAlign: "right", marginBottom: 8 },
-  card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 14, padding: 16, gap: 8 },
+  card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 16, padding: 16, gap: 12 },
   cardTitle: { color: colors.textPrimary, fontWeight: "700", fontSize: 16, textAlign: "right" },
   sectionTitle: { color: colors.textPrimary, fontWeight: "700", fontSize: 18, textAlign: "right" },
   settingsHeading: { flexDirection: "row-reverse", alignItems: "center", gap: 11, marginBottom: 4 },

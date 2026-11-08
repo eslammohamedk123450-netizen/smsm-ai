@@ -1,6 +1,8 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { ElementRef } from "react";
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextInput, View, useColorScheme } from "react-native";
+import { ActivityIndicator, Animated, Platform, Pressable, StyleSheet, TextInput, TouchableOpacity, View, useColorScheme } from "react-native";
+import { PremiumText as Text } from "../../../components/ui/PremiumText";
+import { Ionicons } from "@expo/vector-icons";
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition";
 import { colors, getThemeColors } from "../../../theme/colors";
 import { theme } from "../../../theme/theme";
@@ -38,6 +40,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
   const [permissionBusy, setPermissionBusy] = useState(false);
   const [attachVisible, setAttachVisible] = useState(false);
   const speechBase = useRef("");
+  const recordingPulse = useRef(new Animated.Value(0)).current;
   const inputRef = useRef<ElementRef<typeof TextInput>>(null);
   const voiceIntent = useRef(false);
   const ignoreRecognitionResults = useRef(false);
@@ -120,6 +123,19 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
     }, 1000);
     return () => clearInterval(interval);
   }, [voiceActive]);
+
+  useEffect(() => {
+    if (!voiceActive) {
+      recordingPulse.setValue(0);
+      return;
+    }
+    const pulse = Animated.loop(Animated.sequence([
+      Animated.timing(recordingPulse, { toValue: 1, duration: 600, useNativeDriver: true }),
+      Animated.timing(recordingPulse, { toValue: 0, duration: 600, useNativeDriver: true }),
+    ]));
+    pulse.start();
+    return () => pulse.stop();
+  }, [recordingPulse, voiceActive]);
 
   useEffect(() => () => {
     voiceIntent.current = false;
@@ -204,9 +220,10 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
       <View style={styles.container}>
         <IconButton icon="＋" label="إضافة صورة أو فيديو أو ملف" onPress={() => setAttachVisible(true)} disabled={disabled || isStreaming} />
         <TextInput ref={inputRef} value={text} onChangeText={setText} selection={selection} onSelectionChange={(event) => setSelection(event.nativeEvent.selection)} editable={!disabled && !isStreaming} placeholder="اكتب رسالة إلى Suly…" placeholderTextColor={colors.textMuted} style={styles.input} multiline maxLength={16000} textAlign="right" accessibilityLabel="نص الرسالة" />
-        {!voiceActive ? <Pressable onPress={() => setPermissionVisible(true)} disabled={disabled || isStreaming || !voiceSupported} style={[styles.iconButton, !voiceSupported && styles.voiceUnavailable]} accessibilityRole="button" accessibilityLabel="إملاء صوتي" accessibilityState={{ disabled: disabled || isStreaming || !voiceSupported }}>
-          <Text style={[styles.icon, !voiceSupported && { color: palette.textMuted }]}>♩</Text>
-        </Pressable> : null}
+        <TouchableOpacity onPress={() => voiceActive ? stopVoice() : setPermissionVisible(true)} disabled={disabled || isStreaming || !voiceSupported} activeOpacity={0.7} style={[styles.iconButton, !voiceSupported && styles.voiceUnavailable]} accessibilityRole="button" accessibilityLabel="إملاء صوتي" accessibilityState={{ disabled: disabled || isStreaming || !voiceSupported }}>
+          <Ionicons name={voiceActive ? "mic" : "mic-outline"} size={20} color={voiceActive ? "#EF4444" : colors.textSecondary} />
+          {voiceActive ? <Animated.View style={[styles.recordingPulse, { opacity: recordingPulse.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] }), transform: [{ scale: recordingPulse.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1.3] }) }] }]} /> : null}
+        </TouchableOpacity>
         {isStreaming ? <Pressable style={[styles.sendButton, styles.stopButton]} onPress={onCancel} accessibilityRole="button" accessibilityLabel="إيقاف الرد"><ActivityIndicator size="small" color={colors.background} /></Pressable> : voiceActive ? null :
           <Pressable style={[styles.sendButton, (!text.trim() || disabled) && styles.sendDisabled]} onPress={submit} disabled={disabled || !text.trim()} accessibilityRole="button" accessibilityLabel="إرسال الرسالة"><Text style={styles.sendText}>↑</Text></Pressable>}
       </View>
@@ -229,12 +246,12 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
 });
 
 const styles = StyleSheet.create({
-  wrapper: { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 8, backgroundColor: colors.background },
-  container: { minHeight: 58, flexDirection: "row-reverse", alignItems: "flex-end", gap: 7, padding: 7, borderRadius: 28, borderWidth: 1, borderColor: colors.inputBorder, backgroundColor: colors.surface },
-  input: { flex: 1, minHeight: 42, maxHeight: 130, color: colors.textPrimary, paddingHorizontal: 7, paddingVertical: 10, textAlignVertical: "center" },
+  wrapper: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8, backgroundColor: colors.background },
+  container: { minHeight: 58, flexDirection: "row-reverse", alignItems: "flex-end", gap: 7, padding: 7, borderRadius: 28, borderWidth: 1, borderColor: colors.inputBorder, backgroundColor: colors.inputBackground },
+  input: { flex: 1, minHeight: 42, maxHeight: 130, color: colors.textPrimary, paddingHorizontal: 7, paddingVertical: 10, textAlignVertical: "center", writingDirection: "rtl" },
   iconButton: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 19 },
-  icon: { fontSize: 21, color: colors.textSecondary },
   voiceUnavailable: { opacity: 0.4 },
+  recordingPulse: { position: "absolute", top: 4, right: 5, width: 7, height: 7, borderRadius: 4, backgroundColor: "#EF4444" },
   sendButton: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: colors.primary },
   sendDisabled: { opacity: 0.42 },
   stopButton: { backgroundColor: colors.error },

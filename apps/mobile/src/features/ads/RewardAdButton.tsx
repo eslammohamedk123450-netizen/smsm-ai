@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Text } from "react-native";
+import { ActivityIndicator, Platform, Pressable, StyleSheet } from "react-native";
+import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { randomUUID } from "expo-crypto";
 import { useRewardedAd } from "react-native-google-mobile-ads";
 import { supabase } from "../../lib/supabase/client";

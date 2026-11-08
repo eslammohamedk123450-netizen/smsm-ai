@@ -1,5 +1,6 @@
 import { Slot, usePathname, useRouter } from "expo-router";
-import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
+import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { colors } from "../../theme/colors";
 
 const NAV = [

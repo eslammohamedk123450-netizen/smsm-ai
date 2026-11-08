@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Linking, Pressable, StyleSheet, View } from "react-native";
+import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { Redirect, useRouter } from "expo-router";
 import { supabase } from "../../lib/supabase/client";
 import { mapAuthError } from "./auth-errors";

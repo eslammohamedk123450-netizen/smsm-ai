@@ -1,4 +1,5 @@
-import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { PremiumText as Text } from "../../../components/ui/PremiumText";
 import { colors } from "../../../theme/colors";
 import { parseMarkdownBlocks, type MarkdownBlock } from "./markdown-parser";
 

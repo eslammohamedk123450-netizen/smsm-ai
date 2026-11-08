@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text, useColorScheme } from "react-native";
+import { Pressable, StyleSheet, useColorScheme } from "react-native";
+import { PremiumText as Text } from "./PremiumText";
 import { getThemeColors } from "../../theme/colors";
 
 type Props = { icon: string; label: string; onPress(): void; disabled?: boolean; accent?: boolean };

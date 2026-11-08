@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TouchableOpacity, View } from "react-native";
+import { PremiumText as Text } from "../../src/components/ui/PremiumText";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { DrawerActions } from "@react-navigation/native";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
@@ -17,6 +20,7 @@ import { useToast } from "../../src/components/ui/Toast";
 import { supabase } from "../../src/lib/supabase/client";
 
 const STREAMING_ID = "local-streaming-assistant";
+const suggestionIcons = ["calendar-outline", "book-outline", "create-outline", "bulb-outline"] as const;
 const suggestionSets = {
   morning: ["خططلي يومي بطريقة بسيطة", "اشرحلي درس صعب بطريقة سهلة", "اعملي ملخص لدرس", "اكتبلي ايميل رسمي"],
   afternoon: ["ساعدني أرتب أفكاري", "اكتبلي كود لعبة بسيطة", "اقترحلي وجبة سهلة", "لخصلي موضوع مهم"],
@@ -328,7 +332,7 @@ export default function ChatPage() {
           </View>
           <View style={styles.headerActions}>
             {isAdmin ? <Pressable onPress={() => router.push("/(protected)/admin")} style={styles.adminShortcut} accessibilityRole="button" accessibilityLabel="لوحة التحكم"><Text style={styles.adminShortcutText}>إدارة</Text></Pressable> : null}
-            <Pressable onPress={() => setShareVisible(true)} style={styles.headerButton} accessibilityRole="button" accessibilityLabel="مشاركة المحادثة"><Text style={styles.headerIcon}>↗</Text></Pressable>
+            <TouchableOpacity onPress={() => setShareVisible(true)} style={styles.headerButton} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="مشاركة المحادثة"><Ionicons name="share-social-outline" size={18} color="#94A3B8" /></TouchableOpacity>
             <Pressable onPress={() => void startNewChat()} style={[styles.headerButton, styles.newChatButton]} accessibilityRole="button" accessibilityLabel="إنشاء محادثة جديدة"><Text style={styles.newChatIcon}>＋</Text></Pressable>
           </View>
         </View>
@@ -337,10 +341,11 @@ export default function ChatPage() {
         {retryFailure ? <View style={styles.retryWarning} accessibilityRole="alert"><Text style={styles.retryWarningText}>حُفظت رسالتك، لكن تعذّر إكمال الرد.</Text><Pressable onPress={() => void retryResponse()} disabled={isSending} accessibilityRole="button" accessibilityLabel="إعادة محاولة الرد" style={styles.retryButton}><Text style={styles.retryButtonText}>{isSending ? "جارٍ إعادة المحاولة…" : "إعادة المحاولة"}</Text></Pressable></View> : null}
         {isLoading ? <View style={styles.loading}><ActivityIndicator color={colors.primary} /><Text style={styles.loadingText}>جارٍ تحميل المحادثة…</Text></View> : messages.length === 0 ? (
           <View style={styles.empty}>
-            <View style={styles.logo}><Text style={styles.logoLetter}>S</Text></View>
+            <LinearGradient colors={["#10B981", "#0F624E", "#131C2E"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.logo}><Text style={styles.logoLetter}>S</Text></LinearGradient>
             <Text style={styles.emptyTitle}>كيف أقدر أساعدك؟</Text>
+            <Text style={styles.emptySubtitle}>اسألني عن أي درس أو واجب</Text>
             <View style={styles.suggestionsGrid}>
-              {getSuggestions().map((suggestion) => <Pressable key={suggestion} style={styles.suggestionCard} onPress={() => handleSend(suggestion)} accessibilityRole="button"><Text style={styles.suggestionText}>{suggestion}</Text></Pressable>)}
+              {getSuggestions().map((suggestion, index) => <TouchableOpacity key={suggestion} activeOpacity={0.7} style={styles.suggestionCard} onPress={() => handleSend(suggestion)} accessibilityRole="button"><Ionicons name={suggestionIcons[index % suggestionIcons.length]} size={19} color={colors.primary} /><Text style={styles.suggestionText}>{suggestion}</Text></TouchableOpacity>)}
             </View>
           </View>
         ) : (
@@ -358,7 +363,7 @@ export default function ChatPage() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
-  appBar: { height: 58, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: colors.divider },
+  appBar: { height: 58, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: colors.divider },
   headerButton: { width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 21 },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 2 },
   headerIcon: { color: colors.textPrimary, fontSize: 25 },
@@ -382,11 +387,12 @@ const styles = StyleSheet.create({
   uploadStatus: { flexDirection: "row-reverse", justifyContent: "center", alignItems: "center", gap: 8, paddingVertical: 8 },
   messages: { flex: 1 },
   messageContent: { flexGrow: 1, paddingVertical: 12 },
-  empty: { flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 20 },
-  logo: { width: 76, height: 76, borderRadius: 38, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.primary, alignItems: "center", justifyContent: "center", marginBottom: 16 },
-  logoLetter: { color: colors.primary, fontSize: 48, fontWeight: "800" },
-  emptyTitle: { color: colors.textPrimary, fontSize: 24, fontWeight: "700", marginBottom: 24 },
-  suggestionsGrid: { width: "100%", maxWidth: 520, flexDirection: "row", flexWrap: "wrap", gap: 10, justifyContent: "center" },
-  suggestionCard: { width: "47%", minHeight: 68, padding: 13, borderRadius: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, justifyContent: "center" },
-  suggestionText: { color: colors.textPrimary, fontSize: 14, textAlign: "right", lineHeight: 20 },
+  empty: { flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 20, gap: 12 },
+  logo: { width: 72, height: 72, borderRadius: 36, borderWidth: 1, borderColor: "#1E7B60", alignItems: "center", justifyContent: "center", marginBottom: 8, shadowColor: "#10B981", shadowOpacity: 0.22, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 7 },
+  logoLetter: { color: "#F8FAFC", fontSize: 40, fontWeight: "800" },
+  emptyTitle: { color: colors.textPrimary, fontSize: 22, fontWeight: "700" },
+  emptySubtitle: { color: colors.textSecondary, fontSize: 13, marginBottom: 8 },
+  suggestionsGrid: { width: "100%", maxWidth: 520, flexDirection: "row", flexWrap: "wrap", gap: 12, justifyContent: "center" },
+  suggestionCard: { width: "47%", height: 92, padding: 12, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, alignItems: "center", justifyContent: "center", gap: 8 },
+  suggestionText: { color: colors.textPrimary, fontSize: 14, textAlign: "center", lineHeight: 20 },
 });

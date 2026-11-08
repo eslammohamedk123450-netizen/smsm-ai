@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Animated, Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, Image, Platform, Pressable, StyleSheet, TouchableOpacity, View } from "react-native";
+import { PremiumText as Text } from "../../../components/ui/PremiumText";
+import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { colors } from "../../../theme/colors";
 import { useToast } from "../../../components/ui/Toast";
@@ -23,19 +25,9 @@ const imagePattern = /(?:!\[[^\]]*\]\((https?:\/\/[^)\s]+)\)|(https?:\/\/[^\s]+?
 type ActionKind = "edit" | "copy" | "like" | "dislike";
 
 function ReactionGlyph({ kind, selected, copied }: { kind: ActionKind; selected?: boolean; copied?: boolean }) {
-  if (kind === "like" || kind === "dislike") {
-    const color = selected ? colors.background : colors.textSecondary;
-    const fill = selected ? colors.background : colors.surfaceElevated;
-    return (
-      <View style={[styles.thumbGlyph, kind === "dislike" && styles.thumbDown]}>
-        <View style={[styles.thumbPalm, { borderColor: color, backgroundColor: fill }]} />
-        <View style={[styles.thumbFinger, { borderColor: color, backgroundColor: fill }]} />
-        <View style={[styles.thumbWrist, { borderColor: color, backgroundColor: fill }]} />
-      </View>
-    );
-  }
-  const glyph = copied ? "✓" : kind === "edit" ? "✎" : "⧉";
-  return <Text style={[styles.glyphText, copied && styles.copiedGlyph]}>{glyph}</Text>;
+  if (kind === "edit") return <Text style={styles.glyphText}>✎</Text>;
+  const iconName = kind === "copy" ? (copied ? "checkmark-outline" : "copy-outline") : kind === "like" ? "thumbs-up-outline" : "thumbs-down-outline";
+  return <Ionicons name={iconName} size={18} color={selected || copied ? "#10B981" : "#94A3B8"} />;
 }
 
 function MessageAction({
@@ -63,22 +55,19 @@ function MessageAction({
     }
     onPress();
   };
-  const selectedStyle = selected ? (kind === "like" ? styles.likeSelected : styles.dislikeSelected) : null;
-
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
-      <Pressable
+      <TouchableOpacity
         accessibilityRole="button"
         accessibilityLabel={label}
         accessibilityState={{ selected }}
         onPress={handlePress}
-        style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
+        activeOpacity={0.7}
+        style={styles.action}
       >
-        <View style={[styles.actionIcon, selectedStyle]}>
-          <ReactionGlyph kind={kind} selected={selected} copied={copied} />
-        </View>
-        <Text style={[styles.actionLabel, selected && (kind === "like" ? styles.likeLabel : kind === "dislike" ? styles.dislikeLabel : null)]}>{label}</Text>
-      </Pressable>
+        <View style={styles.actionIcon}><ReactionGlyph kind={kind} selected={selected} copied={copied} /></View>
+        {kind === "edit" ? <Text style={styles.actionLabel}>{label}</Text> : null}
+      </TouchableOpacity>
     </Animated.View>
   );
 }
@@ -100,7 +89,7 @@ export function MessageBubble({ role, content, isStreaming = false, feedback = n
       if (showCheck) {
         setCopied(true);
         if (copiedTimer.current) clearTimeout(copiedTimer.current);
-        copiedTimer.current = setTimeout(() => setCopied(false), 2000);
+        copiedTimer.current = setTimeout(() => setCopied(false), 1000);
       }
     } catch {
       show("تعذّر النسخ إلى الحافظة.", "error");
@@ -179,18 +168,18 @@ export function MessageBubble({ role, content, isStreaming = false, feedback = n
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: "row", width: "100%", marginVertical: 8, paddingHorizontal: 14, alignItems: "flex-start" },
+  row: { flexDirection: "row", width: "100%", marginVertical: 8, paddingHorizontal: 20, alignItems: "flex-start" },
   userRow: { justifyContent: "flex-end" },
   assistantRow: { justifyContent: "flex-start" },
   avatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.primary, marginRight: 8, marginTop: 3, alignItems: "center", justifyContent: "center" },
   avatarLetter: { color: colors.background, fontWeight: "800", fontSize: 15 },
   messageColumn: { maxWidth: "86%", minWidth: 0 },
   userColumn: { alignItems: "flex-end" },
-  bubble: { borderRadius: 18, paddingHorizontal: 15, paddingVertical: 12, maxWidth: "100%" },
+  bubble: { borderRadius: 16, paddingHorizontal: 16, paddingVertical: 16, maxWidth: "100%" },
   userBubble: { backgroundColor: colors.primary },
-  assistantBubble: { backgroundColor: colors.surface },
+  assistantBubble: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider },
   paragraph: { flexDirection: "row", flexWrap: "wrap", alignItems: "center" },
-  text: { fontSize: 16, lineHeight: 25, color: colors.textPrimary, textAlign: "right", writingDirection: "rtl" },
+  text: { fontSize: 16, lineHeight: 26, color: colors.textPrimary, textAlign: "right", writingDirection: "rtl" },
   codeContainer: { backgroundColor: colors.background, borderRadius: 12, padding: 12, marginVertical: 8, width: "100%", alignSelf: "stretch" },
   codeHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
   codeHeaderText: { color: colors.textMuted, fontSize: 12 },
@@ -199,20 +188,9 @@ const styles = StyleSheet.create({
   codeText: { color: colors.textPrimary, fontFamily: "monospace", fontSize: 13, lineHeight: 20, textAlign: "left", writingDirection: "ltr" },
   image: { width: 250, height: 230, borderRadius: 10, marginVertical: 8, backgroundColor: colors.surfaceElevated },
   pulse: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary, marginTop: 8 },
-  actions: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 9, marginTop: 7 },
-  action: { flexDirection: "row", alignItems: "center", gap: 5, minHeight: 34, opacity: 0.7 },
-  actionPressed: { opacity: 1 },
-  actionIcon: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.surfaceElevated, alignItems: "center", justifyContent: "center" },
+  actions: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 16, marginTop: 7 },
+  action: { flexDirection: "row", alignItems: "center", justifyContent: "center", minWidth: 28, minHeight: 34 },
+  actionIcon: { alignItems: "center", justifyContent: "center" },
   actionLabel: { color: colors.textMuted, fontSize: 11 },
-  likeSelected: { backgroundColor: colors.primary },
-  dislikeSelected: { backgroundColor: colors.warning },
-  likeLabel: { color: colors.primary, fontWeight: "700" },
-  dislikeLabel: { color: colors.warning, fontWeight: "700" },
   glyphText: { color: colors.textSecondary, fontSize: 19, lineHeight: 22, textAlign: "center" },
-  copiedGlyph: { color: colors.primary, fontSize: 17, fontWeight: "700" },
-  thumbGlyph: { width: 18, height: 18 },
-  thumbDown: { transform: [{ scaleY: -1 }] },
-  thumbPalm: { position: "absolute", left: 7, top: 7, width: 9, height: 9, borderWidth: 1.4, borderRadius: 2 },
-  thumbFinger: { position: "absolute", left: 2, top: 1, width: 6, height: 9, borderWidth: 1.4, borderTopLeftRadius: 5, borderTopRightRadius: 3, borderBottomLeftRadius: 2, transform: [{ rotate: "-12deg" }] },
-  thumbWrist: { position: "absolute", left: 9, top: 15, width: 6, height: 3, borderWidth: 1.2, borderBottomLeftRadius: 2, borderBottomRightRadius: 2 },
 });

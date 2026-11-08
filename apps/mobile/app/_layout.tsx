@@ -1,5 +1,6 @@
 import { Stack } from "expo-router";
 import { useEffect } from "react";
+import { useFonts } from "expo-font";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider } from "../src/features/auth/auth-provider";
@@ -8,6 +9,7 @@ import { ToastProvider } from "../src/components/ui/Toast";
 import { colors } from "../src/theme/colors";
 
 export default function RootLayout() {
+  useFonts({ Cairo_400Regular: require("../assets/fonts/Cairo-Regular.ttf"), Cairo_700Bold: require("../assets/fonts/Cairo-Bold.ttf") });
   useEffect(() => { void initializeAds().catch(() => undefined); }, []);
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

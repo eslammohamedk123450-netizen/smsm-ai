@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, StyleSheet, Text, View, useColorScheme } from "react-native";
+import { Animated, StyleSheet, View, useColorScheme } from "react-native";
+import { PremiumText as Text } from "./PremiumText";
 import { getThemeColors } from "../../theme/colors";
 
 type ToastKind = "success" | "error" | "info";

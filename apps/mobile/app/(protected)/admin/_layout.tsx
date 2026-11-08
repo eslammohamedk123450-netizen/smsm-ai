@@ -1,6 +1,7 @@
 import { Redirect } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { PremiumText as Text } from "../../../src/components/ui/PremiumText";
 import { useAuth } from "../../../src/features/auth/auth-provider";
 import { AdminShell } from "../../../src/features/admin/AdminShell";
 import { supabase } from "../../../src/lib/supabase/client";

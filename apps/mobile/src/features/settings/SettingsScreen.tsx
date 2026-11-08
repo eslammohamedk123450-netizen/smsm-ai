@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Appearance, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { ActivityIndicator, Appearance, Image, ScrollView, StyleSheet, Switch, TouchableOpacity, View } from "react-native";
+import { PremiumText as Text } from "../../components/ui/PremiumText";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useAuth } from "../auth/auth-provider";
@@ -100,6 +101,7 @@ export default function SettingsScreen() {
   };
 
   const name = profileFullName?.trim() || "Suly";
+  const avatarUrl = typeof user?.user_metadata?.avatar_url === "string" ? user.user_metadata.avatar_url : null;
   const back = () => { if (router.canGoBack()) router.back(); else router.replace("/(protected)/chat"); };
 
   return (
@@ -107,12 +109,12 @@ export default function SettingsScreen() {
       <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <Text style={styles.heading}>{isArabic ? "الإعدادات" : "Settings"}</Text>
-          <Pressable onPress={back} style={styles.backButton} accessibilityRole="button" accessibilityLabel={isArabic ? "رجوع" : "Back"}><Text style={styles.backIcon}>↩</Text></Pressable>
+          <TouchableOpacity activeOpacity={0.7} onPress={back} style={styles.backButton} accessibilityRole="button" accessibilityLabel={isArabic ? "رجوع" : "Back"}><Text style={styles.backIcon}>↩</Text></TouchableOpacity>
         </View>
 
         <Text style={styles.sectionTitle}>{isArabic ? "الحساب" : "Account"}</Text>
         <View style={styles.card}>
-          <View style={styles.avatar}><Text style={styles.avatarText}>{name.slice(0, 1).toUpperCase()}</Text></View>
+          <View style={styles.avatar}>{avatarUrl ? <Image source={{ uri: avatarUrl }} style={styles.avatarImage} /> : <Text style={styles.avatarText}>{name.slice(0, 1).toUpperCase()}</Text>}</View>
           <View style={styles.accountCopy}>
             <Text style={styles.userName}>{name}</Text>
             <Text style={styles.email}>{user?.email ?? "—"}</Text>
@@ -126,27 +128,28 @@ export default function SettingsScreen() {
         </View>
 
         <Text style={styles.sectionTitle}>{isArabic ? "اللغة" : "Language"}</Text>
-        <View style={styles.cardRow}>
-          <Pressable onPress={() => void changeLanguage("en")} style={[styles.languageOption, language === "en" && styles.languageSelected]}><Text style={[styles.rowText, language === "en" && styles.languageSelectedText]}>English</Text></Pressable>
-          <Pressable onPress={() => void changeLanguage("ar")} style={[styles.languageOption, language === "ar" && styles.languageSelected]}><Text style={[styles.rowText, language === "ar" && styles.languageSelectedText]}>العربية</Text></Pressable>
+        <View style={styles.languageControl}>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => void changeLanguage("en")} style={[styles.languageOption, language === "en" && styles.languageSelected]}><Text style={[styles.rowText, language === "en" && styles.languageSelectedText]}>English</Text></TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => void changeLanguage("ar")} style={[styles.languageOption, language === "ar" && styles.languageSelected]}><Text style={[styles.rowText, language === "ar" && styles.languageSelectedText]}>العربية</Text></TouchableOpacity>
         </View>
 
         <Text style={styles.sectionTitle}>{isArabic ? "الرصيد" : "Credits"}</Text>
-        <Pressable onPress={() => { setCreditModal(true); void loadCredits(); }} style={styles.cardRow} accessibilityRole="button">
-          <Text style={styles.linkText}>{isArabic ? "عرض الرصيد وسجل العمليات ←" : "View balance and transactions →"}</Text>
+        <View style={styles.creditCard}>
+          <Text style={styles.balanceLabel}>{isArabic ? "الرصيد الحالي" : "Current balance"}</Text>
           <Text style={styles.balanceValue}>{loadingCredits ? "…" : balance === null ? "—" : balance.toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text>
-        </Pressable>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => { setCreditModal(true); void loadCredits(); }} style={styles.historyButton} accessibilityRole="button"><Text style={styles.linkText}>{isArabic ? "عرض السجل" : "View history"}</Text></TouchableOpacity>
+        </View>
 
         <Text style={styles.sectionTitle}>{isArabic ? "المعلومات والسياسات" : "Information & policies"}</Text>
         <View style={styles.policyCard}>
-          <Pressable onPress={() => setPolicyModal("privacy")} style={styles.policyRow}><Text style={styles.rowText}>{isArabic ? "سياسة الخصوصية" : "Privacy policy"}</Text><Text style={styles.chevron}>‹</Text></Pressable>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => setPolicyModal("privacy")} style={styles.policyRow}><Text style={styles.rowText}>{isArabic ? "سياسة الخصوصية" : "Privacy policy"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
           <View style={styles.separator} />
-          <Pressable onPress={() => setPolicyModal("terms")} style={styles.policyRow}><Text style={styles.rowText}>{isArabic ? "شروط الاستخدام والحماية" : "Terms & safety"}</Text><Text style={styles.chevron}>‹</Text></Pressable>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => setPolicyModal("terms")} style={styles.policyRow}><Text style={styles.rowText}>{isArabic ? "شروط الاستخدام والحماية" : "Terms & safety"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
         </View>
 
-        <Pressable style={styles.logoutButton} onPress={confirmLogout} disabled={loggingOut} accessibilityRole="button">
-          {loggingOut ? <ActivityIndicator color={colors.background} /> : <Text style={styles.logoutText}>{isArabic ? "تسجيل الخروج" : "Sign out"}</Text>}
-        </Pressable>
+        <TouchableOpacity activeOpacity={0.7} style={styles.logoutButton} onPress={confirmLogout} disabled={loggingOut} accessibilityRole="button">
+          {loggingOut ? <ActivityIndicator color="#F87171" /> : <Text style={styles.logoutText}>{isArabic ? "تسجيل الخروج" : "Sign out"}</Text>}
+        </TouchableOpacity>
       </ScrollView>
 
       <BottomSheet visible={creditModal} title={isArabic ? "الرصيد وسجل العمليات" : "Balance & activity"} onClose={() => setCreditModal(false)}>
@@ -166,14 +169,14 @@ export default function SettingsScreen() {
 
       <BottomSheet visible={Boolean(policyModal)} title={policyModal === "privacy" ? (isArabic ? "سياسة الخصوصية" : "Privacy policy") : (isArabic ? "شروط الاستخدام والحماية" : "Terms & safety")} onClose={() => setPolicyModal(null)}>
         <Text style={styles.policyNotice}>{isArabic ? "لا يوجد في المشروع حاليًا نص رسمي منشور لهذه السياسة. لا تُدخل بيانات شديدة الحساسية في المحادثات؛ تُرسل رسائلك إلى خدمة الذكاء الاصطناعي المرتبطة بحسابك. ينبغي لمالك التطبيق إضافة رابط السياسة والشروط الرسمية قبل الإطلاق العام." : "No official published policy text is configured in this project yet. Avoid sharing highly sensitive information; messages are sent to the AI service connected to your account. The app owner should add official policy and terms links before public release."}</Text>
-        <Pressable onPress={() => setPolicyModal(null)} style={styles.modalClose}><Text style={styles.newChatText}>{isArabic ? "إغلاق" : "Close"}</Text></Pressable>
+        <TouchableOpacity activeOpacity={0.7} onPress={() => setPolicyModal(null)} style={styles.modalClose}><Text style={styles.newChatText}>{isArabic ? "إغلاق" : "Close"}</Text></TouchableOpacity>
       </BottomSheet>
 
       <BottomSheet visible={confirmLogoutVisible} title={isArabic ? "تسجيل الخروج؟" : "Sign out?"} onClose={() => setConfirmLogoutVisible(false)}>
         <Text style={styles.policyNotice}>{isArabic ? "هل تريد تسجيل الخروج من حسابك؟" : "Do you want to sign out?"}</Text>
         <View style={styles.confirmActions}>
-          <Pressable onPress={() => setConfirmLogoutVisible(false)} style={styles.cancelAction}><Text style={styles.cancelActionText}>{isArabic ? "إلغاء" : "Cancel"}</Text></Pressable>
-          <Pressable onPress={() => { setConfirmLogoutVisible(false); void doLogout(); }} style={styles.dangerAction} disabled={loggingOut}><Text style={styles.dangerActionText}>{isArabic ? "تسجيل الخروج" : "Sign out"}</Text></Pressable>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => setConfirmLogoutVisible(false)} style={styles.cancelAction}><Text style={styles.cancelActionText}>{isArabic ? "إلغاء" : "Cancel"}</Text></TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => { setConfirmLogoutVisible(false); void doLogout(); }} style={styles.dangerAction} disabled={loggingOut}><Text style={styles.dangerActionText}>{isArabic ? "تسجيل الخروج" : "Sign out"}</Text></TouchableOpacity>
         </View>
       </BottomSheet>
     </>
@@ -184,29 +187,33 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: 20, paddingBottom: 36 },
   header: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
-  heading: { fontSize: 24, fontWeight: "800", color: colors.textPrimary },
+  heading: { fontSize: 22, fontWeight: "700", color: colors.textPrimary },
   backButton: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" },
   backIcon: { color: colors.textPrimary, fontSize: 25 },
   sectionTitle: { color: colors.textSecondary, marginTop: 23, marginBottom: 10, textAlign: "right", fontSize: 14, fontWeight: "600" },
-  card: { padding: 16, borderRadius: 14, backgroundColor: colors.surface, flexDirection: "row-reverse", alignItems: "center", gap: 13 },
+  card: { padding: 16, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, flexDirection: "row-reverse", alignItems: "center", gap: 12 },
   avatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.surfaceElevated, alignItems: "center", justifyContent: "center" },
+  avatarImage: { width: 48, height: 48, borderRadius: 24 },
   avatarText: { color: colors.primary, fontSize: 20, fontWeight: "800" },
   accountCopy: { flex: 1, alignItems: "flex-end" },
   userName: { color: colors.textPrimary, fontSize: 15, fontWeight: "700" },
   email: { color: colors.textSecondary, marginTop: 4, fontSize: 13 },
-  cardRow: { minHeight: 58, paddingHorizontal: 15, paddingVertical: 10, borderRadius: 14, backgroundColor: colors.surface, flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between" },
+  cardRow: { minHeight: 58, paddingHorizontal: 15, paddingVertical: 10, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between" },
   rowText: { color: colors.textPrimary, fontSize: 14 },
-  languageOption: { borderRadius: 9, paddingVertical: 8, paddingHorizontal: 13 },
-  languageSelected: { backgroundColor: colors.surfaceElevated },
+  languageControl: { minHeight: 50, flexDirection: "row-reverse", gap: 6, padding: 5, borderWidth: 1, borderColor: colors.divider, borderRadius: 16, backgroundColor: colors.surface },
+  languageOption: { flex: 1, alignItems: "center", justifyContent: "center", borderRadius: 11, paddingVertical: 9, paddingHorizontal: 13 },
+  languageSelected: { backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.primary },
   languageSelectedText: { color: colors.primary, fontWeight: "700" },
-  linkText: { color: colors.primary, fontSize: 13 },
-  balanceValue: { color: colors.textPrimary, fontWeight: "800", fontSize: 20 },
-  policyCard: { borderRadius: 14, backgroundColor: colors.surface, paddingHorizontal: 15 },
+  linkText: { color: colors.primary, fontSize: 13, fontWeight: "700" },
+  balanceValue: { color: colors.textPrimary, fontWeight: "800", fontSize: 28 },
+  creditCard: { minHeight: 142, alignItems: "center", justifyContent: "center", gap: 6, padding: 16, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider },
+  historyButton: { minHeight: 32, justifyContent: "center", alignItems: "center", paddingHorizontal: 12, borderRadius: 10, backgroundColor: colors.surfaceElevated },
+  policyCard: { borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, paddingHorizontal: 15 },
   policyRow: { minHeight: 50, flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between" },
   chevron: { color: colors.textMuted, fontSize: 22 },
   separator: { height: 1, backgroundColor: colors.divider },
-  logoutButton: { padding: 15, borderRadius: 12, backgroundColor: colors.error, marginTop: 30, alignItems: "center", minHeight: 50, justifyContent: "center" },
-  logoutText: { color: colors.background, fontWeight: "700", fontSize: 15 },
+  logoutButton: { padding: 15, borderRadius: 14, backgroundColor: "#1F2937", marginTop: 30, alignItems: "center", minHeight: 50, justifyContent: "center" },
+  logoutText: { color: "#F87171", fontWeight: "700", fontSize: 15 },
   sheetContent: { maxHeight: 520 },
   historyList: { maxHeight: 340 },
   balanceCard: { padding: 20, borderRadius: 16, backgroundColor: colors.surface, alignItems: "center" },
@@ -228,6 +235,6 @@ const styles = StyleSheet.create({
   confirmActions: { flexDirection: "row-reverse", gap: 10, marginTop: 18 },
   cancelAction: { flex: 1, minHeight: 48, borderRadius: 13, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" },
   cancelActionText: { color: colors.textPrimary, fontWeight: "600" },
-  dangerAction: { flex: 1, minHeight: 48, borderRadius: 13, backgroundColor: colors.error, alignItems: "center", justifyContent: "center" },
-  dangerActionText: { color: colors.background, fontWeight: "700" },
+  dangerAction: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: "#1F2937", alignItems: "center", justifyContent: "center" },
+  dangerActionText: { color: "#F87171", fontWeight: "700" },
 });

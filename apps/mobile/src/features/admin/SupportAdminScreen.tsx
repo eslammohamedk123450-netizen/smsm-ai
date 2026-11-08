@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { colors } from "../../theme/colors";
 import { supportService, type SupportAttachment, type SupportReply, type SupportTicket, type TicketStatus } from "../support/support-service";
 

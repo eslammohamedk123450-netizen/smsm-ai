@@ -33,6 +33,7 @@ const config: ExpoConfig = {
   platforms: ["ios", "android", "web"],
   plugins: [
     "expo-router",
+    "expo-font",
     ["expo-speech-recognition", {
       microphonePermission: "السماح لـ Suly باستخدام الميكروفون لإملاء الرسائل.",
       speechRecognitionPermission: "السماح لـ Suly بتحويل الصوت إلى نص للرسائل.",

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Redirect, useRouter } from "expo-router";
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { PremiumText as Text } from "../../src/components/ui/PremiumText";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../src/features/auth/auth-provider";
 import { mapAuthError } from "../../src/features/auth/auth-errors";

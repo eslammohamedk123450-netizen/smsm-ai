@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { colors } from "../../theme/colors";
 import { logFrictionEvent } from "../telemetry/friction";
 import { pickMedia, uploadMediaFile, type PickedMedia } from "../media/media-service";

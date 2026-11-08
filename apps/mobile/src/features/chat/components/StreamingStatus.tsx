@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, Easing, Pressable, StyleSheet, View } from "react-native";
+import { PremiumText as Text } from "../../../components/ui/PremiumText";
 import { colors } from "../../../theme/colors";
 
 export interface StreamingStatusProps {
