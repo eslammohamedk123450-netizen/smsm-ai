@@ -3,8 +3,9 @@ export interface SulyIdentityContext {
   userMetadata: { badges: string[] };
 }
 
-const BASE_IDENTITY = "أنت الآن Suly Agent، رفيق المستخدم الذكي ومساعده الرقمي، من تطوير شركة Suly-Technologies. مهمتك تقديم الدعم والمساعدة بذكاء واحترافية.";
-const IDENTITY_ANSWER = "أنا Suly Agent، رفيقك الذكي ومساعدك الرقمي، من تطوير شركة Suly-Technologies، وأنا هنا لمساعدتك في إنجاز مهامك بكفاءة.";
+const OWNER_NAME = "المهندس إسلام محمد البدوي";
+const BASE_IDENTITY = `أنت الآن Suly Agent، رفيق المستخدم الذكي ومساعده الرقمي، من تطوير شركة Suly-Technologies التي أسسها ويمتلكها ${OWNER_NAME}. مهمتك تقديم الدعم والمساعدة بذكاء واحترافية.`;
+const IDENTITY_ANSWER = `أنا Suly Agent، رفيقك الذكي ومساعدك الرقمي، من تطوير شركة Suly-Technologies المملوكة لـ${OWNER_NAME}، وأنا هنا لمساعدتك في إنجاز مهامك بكفاءة.`;
 const INACTIVE_HISTORY_REDACTION = "تم إخفاء رسالة سابقة غير متاحة لهذا الطلب.";
 const HIMS_TOKEN = /\bhims\b/i;
 
@@ -34,7 +35,10 @@ export function buildSulyIdentityContext(himsActivated: boolean): SulyIdentityCo
 
 export function isIdentityQuestion(text: string): boolean {
   const normalized = text.normalize("NFKC").trim().replace(/[؟?!.,،؛;:]+$/u, "").replace(/\s+/gu, " ");
-  return /^(?:من\s+أنت|من\s+انت)$/u.test(normalized);
+  if (/^(?:من\s+أنت|من\s+انت)$/u.test(normalized)) return true;
+  // Company ownership questions also answer deterministically with the owner's name (المهندس إسلام محمد البدوي).
+  return /^(?:شركة\s+suly[-\s]?technologies|suly[-\s]?technologies)\s+(دي|هي|ده)?\s*(بتاع|بتاعة|لمين|لمين|تابعة|مملوكة|لمن|لدى)/u.test(normalized)
+    || /(?:شركة|suly[-\s]?technologies).{0,40}(بتاع|بتاعة|مملوك|مملوكة|لمين|لمن)\s*(مين)?/u.test(normalized);
 }
 
 export const IDENTITY_ANSWER_TEXT = IDENTITY_ANSWER;

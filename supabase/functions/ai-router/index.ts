@@ -7,6 +7,7 @@ import { normalizeFeatureKey } from "../_shared/prompt_keys.ts";
 import { lookupSemanticCache, recordCacheHit, storeSemanticCache } from "../_shared/semantic_cache.ts";
 import { buildMemoryContext, searchTaskMemories, storeTaskMemory } from "../_shared/task_memory.ts";
 import { CircuitBreaker } from "./circuit_breaker.ts";
+import { mergePartAnswers, probeCandidates, splitTask } from "./resilience.ts";
 
 // Native Android/iOS clients do not require CORS. Web access must set WEB_CORS_ORIGIN
 // explicitly; never fall back to a wildcard in a deployed environment.
@@ -322,16 +323,17 @@ async function persistAssistant(
   candidate: ReadyCandidate,
   content: string,
 ) {
-  if (!conversationId || !content) return;
-  const { error } = await supabase.from("suly_messages").insert({
+  if (!conversationId || !content) return null;
+  const { data, error } = await supabase.from("suly_messages").insert({
     conversation_id: conversationId,
     user_id: userId,
     model_id: candidate.model.id,
     role: "assistant",
     content,
     tokens_used: Math.ceil(content.length / 4),
-  });
+  }).select("id").maybeSingle();
   if (error) console.error("Could not save assistant message:", error.message);
+  return typeof data?.id === "string" ? data.id : null;
 }
 
 async function handleRequest(req: Request): Promise<Response> {
@@ -516,7 +518,7 @@ async function handleRequest(req: Request): Promise<Response> {
   };
 
   const [{ data: settingsRow }, { data: allModels, error: modelsError }, { data: providers, error: providersError }] = await Promise.all([
-    supabase.from("ai_router_settings").select("free_race_timeout_ms,paid_fallback_enabled,paid_fallback_timeout_ms,max_parallel_free_models,health_auto_restrict_enabled").eq("id", 1).maybeSingle(),
+    supabase.from("ai_router_settings").select("free_race_timeout_ms,paid_fallback_enabled,paid_fallback_timeout_ms,max_parallel_free_models,health_auto_restrict_enabled,preflight_probe_enabled,preflight_probe_timeout_ms,preflight_probe_max_models,task_split_enabled,task_split_max_parts").eq("id", 1).maybeSingle(),
     supabase.from("ai_models").select("id,name,provider_id,model_identifier,enabled,priority,routing_group,allowed_tiers,capabilities_json,response_timeout_ms,restriction_failure_threshold,restriction_window_minutes").eq("enabled", true).order("priority", { ascending: false }).limit(200),
     supabase.from("ai_providers").select("id,name,provider_type,base_url,enabled,timeout_seconds,api_key_vault_id").limit(100),
   ]);
@@ -541,6 +543,11 @@ async function handleRequest(req: Request): Promise<Response> {
     paidFallbackEnabled: settingsRow?.paid_fallback_enabled !== false,
     paidFallbackTimeoutMs: Math.max(1000, Math.min(120000, Number(settingsRow?.paid_fallback_timeout_ms) || 30000)),
     maxParallelFreeModels: Math.max(1, Math.min(50, Number(settingsRow?.max_parallel_free_models) || 10)),
+    preflightProbeEnabled: settingsRow?.preflight_probe_enabled !== false,
+    preflightProbeTimeoutMs: Math.max(300, Math.min(10000, Number(settingsRow?.preflight_probe_timeout_ms) || 1500)),
+    preflightProbeMaxModels: Math.max(1, Math.min(20, Number(settingsRow?.preflight_probe_max_models) || 6)),
+    taskSplitEnabled: settingsRow?.task_split_enabled !== false,
+    taskSplitMaxParts: Math.max(2, Math.min(12, Number(settingsRow?.task_split_max_parts) || 6)),
   };
   const providerById = new Map<number, ProviderRow>((providers ?? []).map((p: ProviderRow) => [p.id, p]));
   const healthyModels = (allModels ?? []).filter((model: ModelRow) => !healthByModel.get(model.id)?.auto_restricted);
@@ -807,10 +814,132 @@ async function handleRequest(req: Request): Promise<Response> {
   }
 
   let winner: ReadyCandidate | null = null;
+  // Fast pre-flight: a bounded parallel probe drops dead candidates in about a
+  // second instead of spending the whole race budget waiting on them.
+  let raceCandidates = usableInitial;
+  if (settings.preflightProbeEnabled && usableInitial.length > 1) {
+    const probeTargets = usableInitial
+      .slice(0, settings.preflightProbeMaxModels)
+      .map((candidate) => ({
+        candidate,
+        endpoint: candidate.endpoint,
+        apiKey: candidate.apiKey,
+        modelIdentifier: candidate.model.model_identifier,
+      }));
+    const { alive, dead } = await probeCandidates(probeTargets, settings.preflightProbeTimeoutMs);
+    if (dead.length > 0) {
+      const deadIds = new Set<number>(dead.map((item) => item.candidate.candidate.model.id));
+      for (const item of dead) {
+        await recordAttempt(item.candidate.candidate, "error", item.durationMs, "preflight_probe_failed", item.error);
+      }
+      const aliveIds = new Set<number>(alive.map((item) => item.candidate.model.id));
+      const survivors = usableInitial.filter((candidate) => aliveIds.has(candidate.model.id) || !deadIds.has(candidate.model.id));
+      if (survivors.length > 0) raceCandidates = survivors;
+    }
+  }
+
+  const logMessageModel = async (input: {
+    messageId: string | null;
+    modelId: number | null;
+    modelIdentifier: string | null;
+    providerType: string | null;
+    route: string;
+    attemptNo?: number;
+    durationMs: number;
+    partIndex?: number | null;
+    partCount?: number | null;
+  }) => {
+    const { error } = await supabase.from("suly_message_model_log").insert({
+      message_id: input.messageId,
+      conversation_id: conversationId,
+      user_id: user.id,
+      model_id: input.modelId,
+      model_identifier: input.modelIdentifier,
+      provider_type: input.providerType,
+      route: input.route,
+      attempt_no: Math.max(1, Math.floor(input.attemptNo ?? 1)),
+      duration_ms: Math.max(0, Math.floor(input.durationMs)),
+      part_index: input.partIndex ?? null,
+      part_count: input.partCount ?? null,
+    });
+    if (error) console.error("Could not persist message model log:", error.message);
+  };
+
+  // Long or multi-question prompts are decomposed: each part is answered by the
+  // fastest healthy model, failed parts fall back to other models, and the
+  // answers are merged so a single provider hiccup never fails the request.
+  const splitParts = settings.taskSplitEnabled
+    ? splitTask(latestUserMessage, settings.taskSplitMaxParts)
+    : [latestUserMessage];
+  if (splitParts.length > 1) {
+    const systemMessages = messages.filter((message) => message.role === "system");
+    const history = messages.filter((message) => message.role !== "system").slice(0, -1);
+    const partResults: Array<{ index: number; content: string; model: string | null }> = [];
+    let bestCandidate: ReadyCandidate | null = null;
+    for (let index = 0; index < splitParts.length; index += 1) {
+      const partMessages: ChatMessage[] = [
+        ...systemMessages,
+        ...history,
+        { role: "user", content: splitParts[index] },
+      ];
+      const partCandidates: Candidate[] = raceCandidates.map((candidate) => ({ ...candidate, requestMessages: partMessages }));
+      const partWinner = await firstReady(partCandidates, settings.freeRaceTimeoutMs, recordAttempt);
+      if (!partWinner) {
+        partResults.push({ index, content: "", model: null });
+        continue;
+      }
+      bestCandidate ??= partWinner;
+      try {
+        const content = await collectCandidate(partWinner);
+        partResults.push({ index, content, model: partWinner.model.model_identifier });
+      } catch {
+        partResults.push({ index, content: "", model: null });
+      }
+    }
+    const merged = mergePartAnswers(partResults);
+    const mergedModel = bestCandidate;
+    const messageId = mergedModel
+      ? await persistAssistant(supabase, conversationId, user.id, mergedModel, merged)
+      : null;
+    if (!mergedModel && conversationId) {
+      const { error } = await supabase.from("suly_messages").insert({
+        conversation_id: conversationId,
+        user_id: user.id,
+        model_id: null,
+        role: "assistant",
+        content: merged,
+        tokens_used: Math.ceil(merged.length / 4),
+      });
+      if (error) console.error("Could not save split assistant message:", error.message);
+    }
+    await logMessageModel({
+      messageId,
+      modelId: mergedModel?.model.id ?? null,
+      modelIdentifier: mergedModel?.model.model_identifier ?? null,
+      providerType: mergedModel?.provider.provider_type ?? null,
+      route: "task_split",
+      durationMs: Date.now() - startedAt,
+      partCount: splitParts.length,
+    });
+    await recordEvent(mergedModel?.model ?? null, "success", `task_split:${splitParts.length}_parts`);
+    const billing = await finalizeBilling(mergedModel, merged, "ai_request", Boolean(mergedModel));
+    const info = {
+      model_id: mergedModel?.model.id ?? null,
+      model: mergedModel?.model.model_identifier ?? "task-split",
+      provider: mergedModel?.provider.provider_type ?? "multi",
+      route: "task_split",
+      parts: splitParts.length,
+      billing,
+      user_metadata: userMetadata,
+    };
+    if (streamRequested) return sseTextResponse(merged, info, req);
+    return jsonResponse({ ...info, response: { choices: [{ message: { role: "assistant", content: merged } }] } }, 200, req);
+  }
+
   if (routingMode === "manual") {
-    winner = await firstReady(usableInitial, settings.paidFallbackTimeoutMs, recordAttempt);
+    winner = await firstReady(raceCandidates, settings.paidFallbackTimeoutMs, recordAttempt);
   } else {
-    winner = await firstReady(usableInitial, settings.freeRaceTimeoutMs, recordAttempt);
+    winner = await firstReady(raceCandidates, settings.freeRaceTimeoutMs, recordAttempt);
   }
 
   if (!winner && routingMode === "auto" && settings.paidFallbackEnabled) {
@@ -896,7 +1025,15 @@ async function handleRequest(req: Request): Promise<Response> {
             fullContent += chunk;
             emit({ chunk, done: false });
           }
-          await persistAssistant(supabase, conversationId, user.id, winner!, fullContent);
+          const messageId = await persistAssistant(supabase, conversationId, user.id, winner!, fullContent);
+          await logMessageModel({
+            messageId,
+            modelId: winner!.model.id,
+            modelIdentifier: winner!.model.model_identifier,
+            providerType: winner!.provider.provider_type,
+            route: modeUsed,
+            durationMs: Date.now() - winner!.startedAtMs,
+          });
           await persistLearning(winner, fullContent);
           await recordAttempt(winner!, "success", Date.now() - winner!.startedAtMs);
           attemptRecorded = true;
