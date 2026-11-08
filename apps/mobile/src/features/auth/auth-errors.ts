@@ -2,6 +2,15 @@ export function mapAuthError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error ?? "");
   const normalized = message.toLowerCase();
 
+  if (
+    normalized.includes("cancel") ||
+    normalized.includes("access_denied") ||
+    normalized.includes("user denied") ||
+    normalized.includes("authentication session was cancelled")
+  ) {
+    return "تم إلغاء تسجيل الدخول باستخدام Google.";
+  }
+
   if (normalized.includes("not confirmed") || normalized.includes("email_not_confirmed") || normalized.includes("email not confirmed")) {
     return "لم يتم تأكيد هذا البريد الإلكتروني بعد. تحقّق من رسالة التأكيد في بريدك ثم حاول مجددًا.";
   }

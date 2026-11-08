@@ -1,8 +1,13 @@
+jest.mock("expo-web-browser", () => ({
+  openAuthSessionAsync: jest.fn().mockResolvedValue({ type: "cancel" }),
+}));
+
 jest.mock("../../lib/supabase/client", () => ({
   supabase: {
     auth: {
       signInWithOtp: jest.fn(),
       verifyOtp: jest.fn(),
+      signInWithOAuth: jest.fn(),
     },
   },
 }));
@@ -13,6 +18,7 @@ import { authService, EMAIL_LINK_REDIRECT } from "./auth-service";
 const auth = supabase.auth as unknown as {
   signInWithOtp: jest.Mock;
   verifyOtp: jest.Mock;
+  signInWithOAuth: jest.Mock;
 };
 
 describe("email authentication", () => {
@@ -41,5 +47,15 @@ describe("email authentication", () => {
   it("verifies the supplied six-digit email code", async () => {
     await authService.verifyEmailOtp("person@example.com", "123456");
     expect(auth.verifyOtp).toHaveBeenCalledWith({ email: "person@example.com", token: "123456", type: "email" });
+  });
+
+  it("starts the real Google OAuth flow and reports cancellation", async () => {
+    auth.signInWithOAuth.mockResolvedValue({ data: { url: "https://accounts.google.com/o/oauth2/auth" }, error: null });
+
+    await expect(authService.signInWithGoogle()).rejects.toThrow("cancelled");
+    expect(auth.signInWithOAuth).toHaveBeenCalledWith(expect.objectContaining({
+      provider: "google",
+      options: expect.objectContaining({ redirectTo: expect.any(String) }),
+    }));
   });
 });

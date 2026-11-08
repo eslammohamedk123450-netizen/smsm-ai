@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Linking, Pressable, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { Redirect, useRouter } from "expo-router";
 import { supabase } from "../../lib/supabase/client";
 import { mapAuthError } from "./auth-errors";
 import { parseAuthCallbackUrl } from "./auth-callback";
 import { useAuth } from "./auth-provider";
+import { authService } from "./auth-service";
 import { colors } from "../../theme/colors";
 
 export default function AuthCallbackScreen() {
@@ -47,6 +48,9 @@ export default function AuthCallbackScreen() {
       } else {
         throw new Error("Invalid token");
       }
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      if (sessionData.session?.user) await authService.syncProfile(sessionData.session.user);
       router.replace("/chat");
     } catch (cause) {
       setError(mapAuthError(cause));
@@ -58,6 +62,7 @@ export default function AuthCallbackScreen() {
     void Linking.getInitialURL().then((url) => {
       if (url) void handleUrl(url);
     }).catch(() => undefined);
+    if (Platform.OS === "web") void handleUrl(window.location.href);
     return () => subscription.remove();
   }, [handleUrl]);
 

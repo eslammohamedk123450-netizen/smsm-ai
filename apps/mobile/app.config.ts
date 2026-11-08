@@ -34,6 +34,7 @@ const config: ExpoConfig & { splash?: { image: string; resizeMode: "contain"; ba
   platforms: ["ios", "android", "web"],
   plugins: [
     "expo-router",
+    "expo-web-browser",
     "expo-font",
     ["expo-speech-recognition", {
       microphonePermission: "السماح لـ Suly باستخدام الميكروفون لإملاء الرسائل.",

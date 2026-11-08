@@ -11,7 +11,7 @@ type LoginMethod = "otp" | "link";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { sendEmailOtp, verifyEmailOtp, sendEmailLink, register, status, user } = useAuth();
+  const { sendEmailOtp, verifyEmailOtp, sendEmailLink, signInWithGoogle, register, status, user } = useAuth();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [method, setMethod] = useState<LoginMethod>("otp");
   const [fullName, setFullName] = useState("");
@@ -62,6 +62,19 @@ export default function LoginPage() {
     } catch (cause) {
       setError(mapAuthError(cause));
     } finally {
+      setBusy(false);
+    }
+  };
+
+  const continueWithGoogle = async () => {
+    if (busy) return;
+    setBusy(true);
+    resetMessage();
+    try {
+      await signInWithGoogle();
+      router.replace("/chat");
+    } catch (cause) {
+      setError(mapAuthError(cause));
       setBusy(false);
     }
   };
@@ -135,6 +148,21 @@ export default function LoginPage() {
               {busy ? <ActivityIndicator color={colors.textPrimary} /> : <Text style={styles.buttonText}>{isRegister ? "إنشاء الحساب" : isVerifyingCode ? "تأكيد الرمز والدخول" : method === "otp" ? "إرسال رمز التحقق" : "إرسال رابط تسجيل الدخول"}</Text>}
             </Pressable>
 
+            <View style={styles.dividerRow}>
+              <View style={styles.divider} />
+              <Text style={styles.dividerText}>أو</Text>
+              <View style={styles.divider} />
+            </View>
+            <Pressable
+              style={[styles.googleButton, busy && styles.buttonDisabled]}
+              onPress={() => void continueWithGoogle()}
+              disabled={busy}
+              accessibilityRole="button"
+              accessibilityLabel="المتابعة باستخدام Google"
+            >
+              <Text style={styles.googleButtonText}>G&nbsp;&nbsp; المتابعة باستخدام Google</Text>
+            </Pressable>
+
             {!isRegister && (
               <Pressable style={styles.modeToggle} disabled={busy} onPress={changeLoginMethod}>
                 <Text style={styles.link}>{method === "otp" ? "استخدم رابطًا بالبريد بدل الرمز" : "استخدم رمز تحقق من 6 أرقام بدل الرابط"}</Text>
@@ -169,4 +197,9 @@ const styles = StyleSheet.create({
   buttonText: { color: colors.textPrimary, fontWeight: "700", fontSize: 16, textAlign: "center", paddingHorizontal: 8 },
   modeToggle: { marginTop: 14, alignItems: "center", padding: 8 },
   link: { color: colors.accent, textAlign: "center" },
+  dividerRow: { flexDirection: "row", alignItems: "center", gap: 10, marginVertical: 18 },
+  divider: { flex: 1, height: 1, backgroundColor: colors.divider },
+  dividerText: { color: colors.textMuted, fontSize: 13 },
+  googleButton: { minHeight: 50, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.textPrimary, borderWidth: 1, borderColor: colors.divider },
+  googleButtonText: { color: colors.background, fontWeight: "700", fontSize: 15 },
 });

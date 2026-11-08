@@ -34,6 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(nextSession);
       setUser(nextUser);
       setStatus(nextUser ? "authenticated" : "unauthenticated");
+      if (nextUser) void authService.syncProfile(nextUser).catch(() => undefined);
     };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
@@ -91,6 +92,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     async sendEmailLink(email) {
       await authService.sendEmailLink(email.trim());
+    },
+    async signInWithGoogle() {
+      await authService.signInWithGoogle();
     },
     async register(email, password, fullName) {
       const result = await authService.signUp(email.trim(), password, fullName.trim());

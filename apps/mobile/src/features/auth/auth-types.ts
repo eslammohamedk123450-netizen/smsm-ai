@@ -11,6 +11,7 @@ export interface AuthContextValue {
   sendEmailOtp(email: string): Promise<void>;
   verifyEmailOtp(email: string, token: string): Promise<void>;
   sendEmailLink(email: string): Promise<void>;
+  signInWithGoogle(): Promise<void>;
   register(email: string, password: string, fullName: string): Promise<boolean>;
   logout(): Promise<void>;
 }
