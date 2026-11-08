@@ -2,9 +2,10 @@ import { randomUUID } from "expo-crypto";
 import { supabase } from "../../lib/supabase/client";
 import { streamChatPlatform } from "../../lib/network/sse-client";
 import type { ChatRequestBody } from "../../lib/network/sse-transport";
-import { titleFromMessage } from "./conversation-title";
+import { summarizeContent } from "./conversation-title";
 import { buildRetryHistory } from "./chat-retry";
 export { titleFromMessage } from "./conversation-title";
+export { summarizeContent } from "./conversation-title";
 
 export type MessageRole = "user" | "assistant" | "system";
 export interface ChatMessage {
@@ -33,6 +34,8 @@ export interface Conversation {
   modelId: string | null;
   createdAt: string;
   updatedAt: string;
+  isPinned: boolean;
+  archivedAt: string | null;
 }
 interface MessageRow {
   id: string;
@@ -93,7 +96,7 @@ export const chatService = {
     if (authError || !user) throw new Error("سجّل الدخول لبدء محادثة.");
     const { data, error } = await supabase.from("suly_conversations")
       .insert({ user_id: user.id, title })
-      .select("id,title,model_id,created_at,updated_at")
+      .select("id,title,model_id,created_at,updated_at,is_pinned,archived_at")
       .single();
     if (error || !data) throw new Error("تعذر إنشاء محادثة جديدة.");
     return {
@@ -102,6 +105,8 @@ export const chatService = {
       modelId: data.model_id == null ? null : String(data.model_id),
       createdAt: String(data.created_at),
       updatedAt: String(data.updated_at),
+      isPinned: data.is_pinned === true,
+      archivedAt: data.archived_at == null ? null : String(data.archived_at),
     };
   },
 
@@ -118,7 +123,9 @@ export const chatService = {
   /** Most recently active conversations first, scoped to the signed-in user by RLS. */
   async listConversations(limit = 50): Promise<Conversation[]> {
     const { data, error } = await supabase.from("suly_conversations")
-      .select("id,title,model_id,created_at,updated_at")
+      .select("id,title,model_id,created_at,updated_at,is_pinned,archived_at")
+      .is("archived_at", null)
+      .order("is_pinned", { ascending: false })
       .order("updated_at", { ascending: false })
       .limit(limit);
     if (error) throw new Error("تعذر تحميل سجل المحادثات.");
@@ -128,7 +135,39 @@ export const chatService = {
       modelId: row.model_id == null ? null : String(row.model_id),
       createdAt: String(row.created_at),
       updatedAt: String(row.updated_at),
+      isPinned: row.is_pinned === true,
+      archivedAt: row.archived_at == null ? null : String(row.archived_at),
     }));
+  },
+
+  async listArchivedConversations(limit = 100): Promise<Conversation[]> {
+    const { data, error } = await supabase.from("suly_conversations")
+      .select("id,title,model_id,created_at,updated_at,is_pinned,archived_at")
+      .not("archived_at", "is", null)
+      .order("archived_at", { ascending: false })
+      .limit(limit);
+    if (error) throw new Error("تعذر تحميل الأرشيف.");
+    return (data ?? []).map((row) => ({
+      id: String(row.id), title: String(row.title ?? "محادثة جديدة"),
+      modelId: row.model_id == null ? null : String(row.model_id),
+      createdAt: String(row.created_at), updatedAt: String(row.updated_at),
+      isPinned: row.is_pinned === true, archivedAt: row.archived_at == null ? null : String(row.archived_at),
+    }));
+  },
+
+  async setConversationPinned(conversationId: string, pinned: boolean): Promise<void> {
+    const { error } = await supabase.rpc("suly_set_conversation_pinned", { p_conversation_id: conversationId, p_pinned: pinned });
+    if (error) {
+      if (error.message?.includes("PIN_LIMIT_REACHED")) throw new Error("الخطة المجانية تسمح بتثبيت 3 محادثات فقط. حدّث خطتك لتثبيت عدد أكبر.");
+      throw new Error("تعذر تحديث تثبيت المحادثة.");
+    }
+  },
+
+  async setConversationArchived(conversationId: string, archived: boolean): Promise<void> {
+    const { error } = await supabase.from("suly_conversations")
+      .update({ archived_at: archived ? new Date().toISOString() : null, ...(archived ? { is_pinned: false } : {}) })
+      .eq("id", conversationId);
+    if (error) throw new Error(archived ? "تعذر أرشفة المحادثة." : "تعذر استعادة المحادثة.");
   },
 
   async renameConversation(conversationId: string, title: string): Promise<void> {
@@ -171,7 +210,9 @@ export const chatService = {
 
     await options.onUserSaved(mapMessage(inserted as MessageRow));
     const conversationUpdate: { updated_at: string; title?: string } = { updated_at: new Date().toISOString() };
-    if (priorMessages.length === 0) conversationUpdate.title = titleFromMessage(content);
+    // Summarize only the first user message so later turns never overwrite
+    // the conversation label.
+    if (priorMessages.length === 0) conversationUpdate.title = summarizeContent(content);
     const { error: updateError } = await supabase.from("suly_conversations")
       .update(conversationUpdate)
       .eq("id", options.conversationId).eq("user_id", user.id);

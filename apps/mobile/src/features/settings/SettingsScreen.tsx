@@ -8,6 +8,7 @@ import { useAuth } from "../auth/auth-provider";
 import { colors } from "../../theme/colors";
 import { BottomSheet } from "../../components/ui/BottomSheet";
 import { useToast } from "../../components/ui/Toast";
+import { chatService, type Conversation } from "../chat/chat-service";
 
 type Language = "ar" | "en";
 
@@ -33,6 +34,9 @@ export default function SettingsScreen() {
   const [policyModal, setPolicyModal] = useState<"privacy" | "terms" | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
   const [confirmLogoutVisible, setConfirmLogoutVisible] = useState(false);
+  const [archiveVisible, setArchiveVisible] = useState(false);
+  const [archivedConversations, setArchivedConversations] = useState<Conversation[]>([]);
+  const [archiveLoading, setArchiveLoading] = useState(false);
   const isArabic = language === "ar";
 
   useEffect(() => {
@@ -87,6 +91,22 @@ export default function SettingsScreen() {
 
   const confirmLogout = () => setConfirmLogoutVisible(true);
 
+  const openArchive = async () => {
+    setArchiveVisible(true);
+    setArchiveLoading(true);
+    try { setArchivedConversations(await chatService.listArchivedConversations()); }
+    catch (cause) { show(cause instanceof Error ? cause.message : "تعذر تحميل الأرشيف.", "error"); }
+    finally { setArchiveLoading(false); }
+  };
+
+  const restoreConversation = async (conversation: Conversation) => {
+    try {
+      await chatService.setConversationArchived(conversation.id, false);
+      setArchivedConversations((current) => current.filter((item) => item.id !== conversation.id));
+      show("تمت استعادة المحادثة.", "success");
+    } catch (cause) { show(cause instanceof Error ? cause.message : "تعذر استعادة المحادثة.", "error"); }
+  };
+
   const transactionTitle = (entry: CreditEntry) => {
     if (entry.task_title && entry.event_type === "settle") return `${isArabic ? "مهمة" : "Task"}: ${entry.task_title}`;
     if (entry.reason) return entry.reason;
@@ -139,6 +159,9 @@ export default function SettingsScreen() {
         <Text style={styles.sectionTitle}>{isArabic ? "الدعم" : "Support"}</Text>
         <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/support")} accessibilityRole="button"><Text style={styles.rowText}>{isArabic ? "الشكاوى والدعم" : "Support & complaints"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
 
+        <Text style={styles.sectionTitle}>{isArabic ? "المحادثات" : "Conversations"}</Text>
+        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => void openArchive()} accessibilityRole="button"><Text style={styles.rowText}>{isArabic ? "الأرشيف" : "Archive"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
+
         <Text style={styles.sectionTitle}>{isArabic ? "المعلومات والسياسات" : "Information & policies"}</Text>
         <View style={styles.policyCard}>
           <TouchableOpacity activeOpacity={0.7} onPress={() => setPolicyModal("privacy")} style={styles.policyRow}><Text style={styles.rowText}>{isArabic ? "سياسة الخصوصية" : "Privacy policy"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
@@ -163,6 +186,17 @@ export default function SettingsScreen() {
               </View>
             ))}
           </ScrollView>}
+        </View>
+      </BottomSheet>
+
+      <BottomSheet visible={archiveVisible} title={isArabic ? "أرشيف المحادثات" : "Conversation archive"} onClose={() => setArchiveVisible(false)}>
+        <View style={styles.archiveContent}>
+          {archiveLoading ? <ActivityIndicator color={colors.primary} /> : archivedConversations.length === 0 ? <Text style={styles.emptyHistory}>{isArabic ? "لا توجد محادثات مؤرشفة." : "No archived conversations."}</Text> : archivedConversations.map((conversation) => (
+            <View key={conversation.id} style={styles.archiveRow}>
+              <TouchableOpacity activeOpacity={0.7} style={styles.archiveCopy} onPress={() => { setArchiveVisible(false); router.push({ pathname: "/(protected)/chat", params: { conversationId: conversation.id } }); }}><Text numberOfLines={2} style={styles.rowText}>{conversation.title || "محادثة بدون عنوان"}</Text></TouchableOpacity>
+              <TouchableOpacity activeOpacity={0.7} onPress={() => void restoreConversation(conversation)} style={styles.restoreButton}><Text style={styles.linkText}>{isArabic ? "استعادة" : "Restore"}</Text></TouchableOpacity>
+            </View>
+          ))}
         </View>
       </BottomSheet>
 
@@ -214,6 +248,10 @@ const styles = StyleSheet.create({
   logoutButton: { padding: 15, borderRadius: 14, backgroundColor: "#1F2937", marginTop: 30, alignItems: "center", minHeight: 50, justifyContent: "center" },
   logoutText: { color: "#F87171", fontWeight: "700", fontSize: 15 },
   sheetContent: { maxHeight: 520 },
+  archiveContent: { maxHeight: 520, gap: 8 },
+  archiveRow: { minHeight: 56, flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", paddingVertical: 9, paddingHorizontal: 10, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider },
+  archiveCopy: { flex: 1, alignItems: "flex-end", paddingHorizontal: 8 },
+  restoreButton: { paddingHorizontal: 9, paddingVertical: 7, borderRadius: 9, backgroundColor: colors.surfaceElevated },
   historyList: { maxHeight: 340 },
   balanceCard: { padding: 20, borderRadius: 16, backgroundColor: colors.surface, alignItems: "center" },
   balanceLabel: { color: colors.textSecondary, fontSize: 14 },

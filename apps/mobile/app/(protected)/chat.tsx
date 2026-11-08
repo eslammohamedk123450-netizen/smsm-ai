@@ -48,7 +48,6 @@ export default function ChatPage() {
   const [taskRating, setTaskRating] = useState<TaskRating | null>(null);
   const [ratingStars, setRatingStars] = useState(0);
   const [ratingNote, setRatingNote] = useState("");
-  const [ratingVisible, setRatingVisible] = useState(false);
   const [ratingSaving, setRatingSaving] = useState(false);
   const closeShareSheet = useCallback(() => setShareVisible(false), []);
   const composerRef = useRef<ChatComposerHandle>(null);
@@ -57,8 +56,8 @@ export default function ChatPage() {
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [suggestions, setSuggestions] = useState<SuggestionCard[]>(() => getRotatingSuggestions());
   const lock = useRef(false);
-  const newConversationLock = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
+  const streamedTextRef = useRef("");
   const isAdmin = Boolean(user?.id && adminAccess.userId === user.id && adminAccess.allowed);
 
   const loadTaskUsage = useCallback(async () => {
@@ -179,6 +178,7 @@ export default function ChatPage() {
           router.replace({ pathname: "/(protected)/chat", params: { conversationId: id } });
         }
         const conversationKey = id;
+        streamedTextRef.current = "";
         let mediaAssetId: string | null = null;
         if (attachment) {
           setIsUploadingAttachment(true);
@@ -204,6 +204,7 @@ export default function ChatPage() {
             }
           },
           onChunk(text) {
+            streamedTextRef.current += text;
             setMessages((current) => {
               const existing = current.find((item) => item.id === STREAMING_ID);
               if (existing) return current.map((item) => item.id === STREAMING_ID ? { ...item, content: item.content + text } : item);
@@ -215,15 +216,51 @@ export default function ChatPage() {
         streamCompleted = true;
         await reloadMessages(conversationKey);
       } catch (cause) {
-        setMessages((current) => current.filter((item) => item.id !== STREAMING_ID));
+        const partialContent = streamedTextRef.current.trim();
         if (controller.signal.aborted) {
+          if (partialContent) {
+            setMessages((current) => [...current.filter((item) => item.id !== STREAMING_ID), {
+              id: `partial-${savedUserMessageId ?? Date.now()}`,
+              conversationId: id ?? conversationId ?? "",
+              role: "assistant",
+              content: partialContent,
+              createdAt: new Date().toISOString(),
+              modelId: null,
+              status: "sent",
+            }]);
+          } else {
+            setMessages((current) => current.filter((item) => item.id !== STREAMING_ID));
+          }
           setError(null);
           setRetryFailure(null);
           if (savedUserMessage) void logFrictionEvent({ eventKind: "response_stopped", screenKey: "chat", featureKey: "chat", stepKey: "response", conversationId });
         } else if (savedUserMessage && savedUserMessageId && id && !streamCompleted) {
-          setError(null);
-          setRetryFailure({ conversationId: id, userMessageId: savedUserMessageId });
-          void logFrictionEvent({ eventKind: "action_failed", screenKey: "chat", featureKey: "chat", stepKey: "send_message", errorCode: "send_failed", conversationId: id });
+          setMessages((current) => current.filter((item) => item.id !== STREAMING_ID));
+          // The user message is already persisted. Retry only assistant
+          // generation, never sendMessage again, so it cannot be duplicated.
+          try {
+            await new Promise<void>((resolve) => setTimeout(resolve, 1_500));
+            await chatService.retryAssistant({
+              conversationId: id,
+              userMessageId: savedUserMessageId,
+              signal: controller.signal,
+              onChunk(text) {
+                streamedTextRef.current += text;
+                setMessages((current) => {
+                  const existing = current.find((item) => item.id === STREAMING_ID);
+                  if (existing) return current.map((item) => item.id === STREAMING_ID ? { ...item, content: item.content + text } : item);
+                  return [...current, { id: STREAMING_ID, conversationId: id!, role: "assistant", content: text, createdAt: new Date().toISOString(), modelId: null, status: "streaming" }];
+                });
+              },
+            });
+            streamCompleted = true;
+            await reloadMessages(id);
+            return;
+          } catch {
+            setError("يتأخر النموذج قليلًا، وسنترك لك زر إعادة المحاولة بدل إبقائك منتظرًا.");
+            setRetryFailure({ conversationId: id, userMessageId: savedUserMessageId });
+            void logFrictionEvent({ eventKind: "action_failed", screenKey: "chat", featureKey: "chat", stepKey: "send_failed_after_retry", errorCode: "send_failed", conversationId: id });
+          }
         } else {
           setError(cause instanceof Error ? cause.message : "تعذر إرسال الرسالة. تحقق من الاتصال وحاول مجددًا.");
           void logFrictionEvent({ eventKind: "action_failed", screenKey: "chat", featureKey: "chat", stepKey: "send_message", errorCode: "send_failed", conversationId });
@@ -244,12 +281,14 @@ export default function ChatPage() {
       setIsSending(true);
       const controller = new AbortController();
       abortRef.current = controller;
+      streamedTextRef.current = "";
       let streamCompleted = false;
       try {
         await chatService.retryAssistant({
           ...failed,
           signal: controller.signal,
           onChunk(text) {
+            streamedTextRef.current += text;
             setMessages((current) => {
               const existing = current.find((item) => item.id === STREAMING_ID);
               if (existing) return current.map((item) => item.id === STREAMING_ID ? { ...item, content: item.content + text } : item);
@@ -260,7 +299,19 @@ export default function ChatPage() {
         streamCompleted = true;
         await reloadMessages(failed.conversationId);
       } catch (cause) {
-        setMessages((current) => current.filter((item) => item.id !== STREAMING_ID));
+        if (controller.signal.aborted && streamedTextRef.current.trim()) {
+          setMessages((current) => [...current.filter((item) => item.id !== STREAMING_ID), {
+            id: `partial-${Date.now()}`,
+            conversationId: failed.conversationId,
+            role: "assistant",
+            content: streamedTextRef.current.trim(),
+            createdAt: new Date().toISOString(),
+            modelId: null,
+            status: "sent",
+          }]);
+        } else {
+          setMessages((current) => current.filter((item) => item.id !== STREAMING_ID));
+        }
         if (controller.signal.aborted) {
           setError(null);
           setRetryFailure(null);
@@ -291,25 +342,6 @@ export default function ChatPage() {
     catch (cause) {
       setFeedbackByMessage((current) => { const next = { ...current }; if (previous) next[messageId] = previous; else delete next[messageId]; return next; });
       show(cause instanceof Error ? cause.message : "تعذّر حفظ التقييم. حاول مرة أخرى.", "error");
-    }
-  };
-
-  const startNewChat = async () => {
-    if (newConversationLock.current) return;
-    newConversationLock.current = true;
-    abortRef.current?.abort();
-    setError(null);
-    setRetryFailure(null);
-    try {
-      const conversation = await chatService.createConversation();
-      setMessages([]);
-      setFeedbackByMessage({});
-      setConversationId(conversation.id);
-      router.replace({ pathname: "/(protected)/chat", params: { conversationId: conversation.id } });
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "تعذّر إنشاء محادثة جديدة.");
-    } finally {
-      newConversationLock.current = false;
     }
   };
 
@@ -372,17 +404,12 @@ export default function ChatPage() {
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : "height"} keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}>
         <View style={styles.appBar}>
           <Pressable onPress={() => navigation.dispatch(DrawerActions.openDrawer())} style={styles.headerButton} accessibilityRole="button" accessibilityLabel="فتح سجل المحادثات"><Text style={styles.headerIcon}>☰</Text></Pressable>
-          <View style={styles.brand}>
-            <AppLogo size={28} accessibilityLabel="أيقونة سولي" />
-            <Text style={styles.title}>سولي</Text>
-            <View style={styles.onlineStatus}><View style={styles.onlineDot} /><Text style={styles.onlineLabel}>متصل</Text></View>
-          </View>
+          <View style={styles.headerSpacer} />
           <View style={styles.headerActions}>
             {isAdmin ? <Pressable onPress={() => router.push("/(protected)/admin")} style={styles.adminShortcut} accessibilityRole="button" accessibilityLabel="لوحة التحكم"><Text style={styles.adminShortcutText}>إدارة</Text></Pressable> : null}
             <Pressable onPress={() => router.push("/(protected)/upgrade")} style={styles.upgradeShortcut} accessibilityRole="button" accessibilityLabel="ترقية الحساب"><Text style={styles.upgradeShortcutText}>ترقية</Text></Pressable>
             <TouchableOpacity onPress={() => { setUsageVisible(true); void loadTaskUsage(); }} style={styles.headerButton} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="إحصائيات استخدام المهمة"><Ionicons name="analytics-outline" size={20} color="#94A3B8" /></TouchableOpacity>
             <TouchableOpacity onPress={() => setShareVisible(true)} style={styles.headerButton} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="مشاركة المحادثة"><Ionicons name="share-social-outline" size={18} color="#94A3B8" /></TouchableOpacity>
-            <Pressable onPress={() => void startNewChat()} style={[styles.headerButton, styles.newChatButton]} accessibilityRole="button" accessibilityLabel="إنشاء محادثة جديدة"><Text style={styles.newChatIcon}>＋</Text></Pressable>
           </View>
         </View>
 
@@ -421,19 +448,19 @@ export default function ChatPage() {
           </View>
         )}
         {isUploadingAttachment ? <View style={styles.uploadStatus}><ActivityIndicator size="small" color={colors.primary} /><Text style={styles.loadingText}>جارٍ حفظ المرفق في Cloudinary…</Text></View> : null}
-        {conversationId && messages.some((message) => message.role === "assistant" && message.status !== "streaming") && !isSending ? <View style={styles.ratingBar}><Text style={styles.ratingLabel}>{taskRating ? "تقييمك لهذه المهمة" : "قيّم هذه المهمة"}</Text><View style={styles.starsRow}>{[1, 2, 3, 4, 5].map((star) => <Pressable key={star} onPress={() => { setRatingStars(star); setRatingVisible(true); }} accessibilityRole="button" accessibilityLabel={`تقييم ${star} نجوم`}><Text style={[styles.star, star <= (taskRating?.stars ?? ratingStars) && styles.starSelected]}>★</Text></Pressable>)}</View></View> : null}
         <StreamingStatus isStreaming={isSending && !isUploadingAttachment} onCancel={() => abortRef.current?.abort()} />
         <ChatComposer ref={composerRef} onSend={handleSend} disabled={isSending} isStreaming={isSending} onCancel={() => abortRef.current?.abort()} />
       </KeyboardAvoidingView>
       <ShareConversationSheet visible={shareVisible} conversationId={conversationId} title={shareTitle} plainText={shareText} onClose={closeShareSheet} />
-      <BottomSheet visible={ratingVisible} title="قيّم هذه المهمة" onClose={() => setRatingVisible(false)}>
-        <View style={styles.ratingSheet}><Text style={styles.ratingPrompt}>اختر تقييمك من نجمة إلى خمس نجوم</Text><View style={styles.starsRow}>{[1, 2, 3, 4, 5].map((star) => <Pressable key={star} onPress={() => setRatingStars(star)}><Text style={[styles.star, star <= ratingStars && styles.starSelected]}>★</Text></Pressable>)}</View><TextInput value={ratingNote} onChangeText={setRatingNote} placeholder="يمكنك تقديم ملاحظاتك للحصول على أفضل خدمة" placeholderTextColor={colors.textMuted} style={styles.ratingInput} multiline maxLength={2000} /><Pressable disabled={ratingSaving || ratingStars === 0} style={[styles.ratingSubmit, (ratingSaving || ratingStars === 0) && styles.disabled]} onPress={() => { if (!conversationId) return; setRatingSaving(true); void saveTaskRating({ conversationId, taskId: taskUsage?.taskId, stars: ratingStars, note: ratingNote }).then(() => { setTaskRating({ stars: ratingStars, note: ratingNote.trim() || null }); setRatingVisible(false); show("تم إرسال تقييم المهمة.", "success"); }).catch((cause) => show(cause instanceof Error ? cause.message : "تعذر إرسال التقييم.", "error")).finally(() => setRatingSaving(false)); }}><Text style={styles.ratingSubmitText}>{ratingSaving ? "جارٍ الإرسال…" : "إرسال"}</Text></Pressable></View>
-      </BottomSheet>
       <BottomSheet visible={usageVisible} title="إحصائيات المهمة الحالية" onClose={() => setUsageVisible(false)}>
         {usageLoading ? <ActivityIndicator color={colors.primary} /> : taskUsage ? <View style={styles.usageSheet}>
           <Text style={styles.usageTaskTitle}>{taskUsage.taskTitle}</Text>
           <View style={styles.usageMetric}><Text style={styles.usageMetricLabel}>الرصيد المستخدم في هذه المهمة</Text><Text style={styles.usageMetricValue}>{taskUsage.charged.toLocaleString("ar-EG")}</Text></View>
           <Text style={styles.usageStatus}>الحالة: {taskUsage.status === "settled" ? "مكتملة" : taskUsage.status === "held" ? "قيد التنفيذ" : taskUsage.status}</Text>
+          <Text style={styles.ratingPrompt}>{taskRating ? "تقييمك لهذه المهمة" : "قيّم هذه المهمة"}</Text>
+          <View style={styles.starsRow}>{[1, 2, 3, 4, 5].map((star) => <Pressable key={star} onPress={() => setRatingStars(star)} accessibilityRole="button" accessibilityLabel={`تقييم ${star} نجوم`}><Text style={[styles.star, star <= (taskRating?.stars ?? ratingStars) && styles.starSelected]}>★</Text></Pressable>)}</View>
+          <TextInput value={ratingNote} onChangeText={setRatingNote} placeholder="يمكنك تقديم ملاحظاتك للحصول على أفضل خدمة" placeholderTextColor={colors.textMuted} style={styles.ratingInput} multiline maxLength={2000} />
+          <Pressable disabled={ratingSaving || ratingStars === 0} style={[styles.ratingSubmit, (ratingSaving || ratingStars === 0) && styles.disabled]} onPress={() => { if (!conversationId) return; setRatingSaving(true); void saveTaskRating({ conversationId, taskId: taskUsage.taskId, stars: ratingStars, note: ratingNote }).then(() => { setTaskRating({ stars: ratingStars, note: ratingNote.trim() || null }); show("تم إرسال تقييم المهمة.", "success"); }).catch((cause) => show(cause instanceof Error ? cause.message : "تعذر إرسال التقييم.", "error")).finally(() => setRatingSaving(false)); }}><Text style={styles.ratingSubmitText}>{ratingSaving ? "جارٍ الإرسال…" : "حفظ التقييم"}</Text></Pressable>
         </View> : <Text style={styles.loadingText}>لا يوجد استهلاك مسجل لهذه المحادثة بعد.</Text>}
       </BottomSheet>
     </SafeAreaView>
@@ -445,15 +472,9 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   appBar: { height: 58, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: colors.divider },
   headerButton: { width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 21 },
+  headerSpacer: { width: 42, height: 42 },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 2 },
   headerIcon: { color: colors.textPrimary, fontSize: 25 },
-  brand: { flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 },
-  title: { color: colors.textPrimary, fontSize: 15, fontWeight: "700", flexShrink: 1 },
-  onlineStatus: { flexDirection: "row", alignItems: "center", gap: 4 },
-  onlineLabel: { color: colors.success, fontSize: 10, fontWeight: "600" },
-  onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.success },
-  newChatButton: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.primary },
-  newChatIcon: { color: colors.primary, fontSize: 25, fontWeight: "600", lineHeight: 28 },
   adminShortcut: { minWidth: 42, height: 36, paddingHorizontal: 7, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceElevated },
   adminShortcutText: { color: colors.primary, fontSize: 11, fontWeight: "700" },
   upgradeShortcut: { minHeight: 32, borderRadius: 9, paddingHorizontal: 9, justifyContent: "center", backgroundColor: colors.primary },
@@ -479,8 +500,6 @@ const styles = StyleSheet.create({
   suggestionsGrid: { width: "100%", maxWidth: 520, flexDirection: "row", flexWrap: "wrap", gap: 12, justifyContent: "center" },
   suggestionCard: { width: "47%", height: 92, padding: 12, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, alignItems: "center", justifyContent: "center", gap: 8 },
   suggestionText: { color: colors.textPrimary, fontSize: 14, textAlign: "center", lineHeight: 20 },
-  ratingBar: { minHeight: 54, flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 18, borderTopWidth: 1, borderTopColor: colors.divider },
-  ratingLabel: { color: colors.textSecondary, fontSize: 12 },
   starsRow: { flexDirection: "row", alignItems: "center", gap: 2 },
   star: { color: colors.textMuted, fontSize: 25 },
   starSelected: { color: "#FBBF24" },

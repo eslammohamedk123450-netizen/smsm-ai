@@ -1048,6 +1048,16 @@ async function handleRequest(req: Request): Promise<Response> {
         } catch (error) {
           const summary = error instanceof Error ? error.message : String(error);
           const attemptStatus: AttemptStatus = clientCancelled ? "cancelled" : winner!.controller.signal.aborted ? "timeout" : "error";
+          // A user-initiated stop is still useful work: persist the text that
+          // reached the client so stopping never erases a partial answer.
+          if (clientCancelled && fullContent.trim()) {
+            try {
+              await persistAssistant(supabase, conversationId, user.id, winner!, fullContent);
+            } catch {
+              // The client still keeps the partial text locally if persistence
+              // races with stream cancellation.
+            }
+          }
           if (!attemptRecorded) {
             await recordAttempt(winner!, attemptStatus, Date.now() - winner!.startedAtMs, attemptStatus === "timeout" ? "model_timeout" : "stream_error", summary);
             attemptRecorded = true;

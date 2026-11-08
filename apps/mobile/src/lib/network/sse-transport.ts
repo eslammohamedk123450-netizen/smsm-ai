@@ -60,7 +60,7 @@ export async function streamChat(
     idleTimer = setTimeout(() => {
       timedOut = true;
       controller.abort();
-    }, 45_000);
+    }, 90_000);
   };
 
   try {
@@ -81,7 +81,7 @@ export async function streamChat(
         timedOut = true;
         controller.abort();
         reject(new Error("انتهت مهلة الاتصال بخدمة الدردشة."));
-      }, 20_000);
+      }, 90_000);
     });
     const response = await Promise.race([responsePromise, timeoutPromise]);
     if (connectTimer) clearTimeout(connectTimer);

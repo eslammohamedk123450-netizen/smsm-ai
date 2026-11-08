@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { colors } from "../../theme/colors";
 import { logFrictionEvent } from "../telemetry/friction";
@@ -82,7 +82,7 @@ export function SupportScreen() {
     } catch (cause) { Alert.alert("تعذر إرسال الرد", cause instanceof Error ? cause.message : "حاول مرة أخرى."); }
   };
 
-  return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+  return <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : "height"} keyboardVerticalOffset={Platform.OS === "ios" ? 24 : 0}><ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <View style={styles.header}><Text style={styles.title}>الدعم والشكاوى</Text><Pressable onPress={() => void refresh()}><Text style={styles.link}>تحديث</Text></Pressable></View>
     <Text style={styles.subtitle}>اكتب وصف المشكلة، وأرفق صورة توضيحية إن احتجت. الطلب والمرفق يُحفظان بأمان ويراهما فريق الدعم والمشرفون فقط.</Text>
     <View style={styles.card}>
@@ -116,7 +116,7 @@ export function SupportScreen() {
         {selected && selected.status !== "closed" && selected.status !== "resolved" ? <View style={styles.replyComposer}><TextInput value={replyText} onChangeText={setReplyText} style={[styles.input, styles.replyInput]} placeholder="اكتب ردًا أو أضف تفاصيل…" placeholderTextColor={colors.textMuted} multiline /><Pressable style={styles.primaryButton} onPress={() => void sendReply()}><Text style={styles.primaryText}>إرسال</Text></Pressable></View> : null}
       </View>
     </Modal>
-  </ScrollView>;
+  </ScrollView></KeyboardAvoidingView>;
 }
 
 const styles = StyleSheet.create({

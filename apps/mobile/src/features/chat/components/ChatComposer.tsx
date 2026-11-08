@@ -36,8 +36,6 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
   const [voiceActive, setVoiceActive] = useState(false);
   const [voiceListening, setVoiceListening] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [permissionVisible, setPermissionVisible] = useState(false);
-  const [permissionBusy, setPermissionBusy] = useState(false);
   const [attachVisible, setAttachVisible] = useState(false);
   const speechBase = useRef("");
   const recordingPulse = useRef(new Animated.Value(0)).current;
@@ -172,7 +170,6 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
   };
 
   const beginVoice = () => {
-    setPermissionVisible(false);
     ignoreRecognitionResults.current = false;
     speechBase.current = text.trim();
     voiceIntent.current = true;
@@ -183,20 +180,15 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
   };
 
   const requestVoicePermission = async () => {
-    setPermissionBusy(true);
     try {
       const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-      setPermissionVisible(false);
       if (!permission.granted) {
-        show("اسمح باستخدام الميكروفون والتعرّف على الكلام لإملاء رسالتك.", "info");
+        show("لم يُمنح إذن الميكروفون.", "info");
         return;
       }
       beginVoice();
     } catch {
-      setPermissionVisible(false);
       show("تعذّر طلب إذن الميكروفون على هذا الجهاز.", "error");
-    } finally {
-      setPermissionBusy(false);
     }
   };
 
@@ -231,7 +223,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
       <View style={styles.container}>
         <IconButton icon="＋" label="إضافة صورة أو فيديو أو ملف" onPress={() => setAttachVisible(true)} disabled={disabled || isStreaming} />
         <TextInput ref={inputRef} value={text} onChangeText={setText} selection={selection} onSelectionChange={(event) => setSelection(event.nativeEvent.selection)} editable={!disabled && !isStreaming} placeholder="اكتب رسالة إلى Suly…" placeholderTextColor={colors.textMuted} style={styles.input} multiline maxLength={16000} textAlign="right" accessibilityLabel="نص الرسالة" />
-        <TouchableOpacity onPress={() => voiceActive ? stopVoice() : setPermissionVisible(true)} disabled={disabled || isStreaming || !voiceSupported} activeOpacity={0.7} style={[styles.iconButton, !voiceSupported && styles.voiceUnavailable]} accessibilityRole="button" accessibilityLabel="إملاء صوتي" accessibilityState={{ disabled: disabled || isStreaming || !voiceSupported }}>
+        <TouchableOpacity onPress={() => voiceActive ? stopVoice() : void requestVoicePermission()} disabled={disabled || isStreaming || !voiceSupported} activeOpacity={0.7} style={[styles.iconButton, !voiceSupported && styles.voiceUnavailable]} accessibilityRole="button" accessibilityLabel="إملاء صوتي" accessibilityState={{ disabled: disabled || isStreaming || !voiceSupported }}>
           <Ionicons name={voiceActive ? "mic" : "mic-outline"} size={20} color={voiceActive ? "#EF4444" : colors.textSecondary} />
           {voiceActive ? <Animated.View style={[styles.recordingPulse, { opacity: recordingPulse.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] }), transform: [{ scale: recordingPulse.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1.3] }) }] }]} /> : null}
         </TouchableOpacity>
@@ -241,17 +233,6 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
       {!voiceSupported ? <Text style={[styles.voiceHint, { color: palette.textMuted }]}>الإملاء الصوتي غير مدعوم في هذا المتصفح.</Text> : null}
       {attachment ? <Text style={styles.attachmentNotice}>سيُحفظ الملف في سجل المحادثة. قد لا تتمكن النماذج الحالية من تحليل محتواه.</Text> : null}
       <AttachSheet visible={attachVisible} onClose={() => setAttachVisible(false)} onPicked={setAttachment} />
-      <BottomSheet visible={permissionVisible} title="الإملاء الصوتي" onClose={() => setPermissionVisible(false)}>
-        <Text style={[styles.permissionCopy, { color: palette.textSecondary }]}>لإملاء رسالتك، نحتاج إذنك لاستخدام الميكروفون والتعرّف على الكلام. لن تُرسل الرسالة تلقائيًا؛ يمكنك مراجعة النص وتعديله قبل الإرسال.</Text>
-        <View style={styles.permissionActions}>
-          <Pressable onPress={() => void requestVoicePermission()} disabled={permissionBusy} accessibilityRole="button" style={({ pressed }) => [styles.permissionPrimary, { backgroundColor: palette.primary, opacity: permissionBusy ? 0.65 : pressed ? 0.82 : 1 }]}>
-            {permissionBusy ? <ActivityIndicator color={palette.background} /> : <Text style={[styles.permissionPrimaryText, { color: palette.background }]}>متابعة</Text>}
-          </Pressable>
-          <Pressable onPress={() => setPermissionVisible(false)} disabled={permissionBusy} accessibilityRole="button" style={({ pressed }) => [styles.permissionSecondary, { borderColor: palette.divider, opacity: pressed ? 0.7 : 1 }]}>
-            <Text style={[styles.permissionSecondaryText, { color: palette.textSecondary }]}>ليس الآن</Text>
-          </Pressable>
-        </View>
-      </BottomSheet>
     </View>
   );
 });

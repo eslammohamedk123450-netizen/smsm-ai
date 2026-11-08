@@ -352,14 +352,18 @@ export const adminService = {
   },
   async createPricingFeature(input: { planId: number; title: string; value: string; sortOrder?: number }) {
     await requireAdmin();
-    if (!input.title.trim() || !input.value.trim()) throw new Error("اكتب عنوان المزية وقيمتها.");
-    const { error } = await supabase.from("subscription_plan_features").insert({ plan_id: input.planId, title: input.title.trim(), value: input.value.trim(), sort_order: input.sortOrder ?? 0, is_active: true });
+    const title = input.title.trim().slice(0, 300);
+    const value = input.value.trim().slice(0, 2000);
+    if (!title || !value) throw new Error("اكتب عنوان المزية وقيمتها.");
+    const { error } = await supabase.from("subscription_plan_features").insert({ plan_id: input.planId, title, value, sort_order: input.sortOrder ?? 0, is_active: true });
     if (error) throw error;
   },
   async updatePricingFeature(id: number, input: { title: string; value: string }) {
     await requireAdmin();
-    if (!input.title.trim() || !input.value.trim()) throw new Error("اكتب عنوان المزية وقيمتها.");
-    const { error } = await supabase.from("subscription_plan_features").update({ title: input.title.trim(), value: input.value.trim(), updated_at: new Date().toISOString() }).eq("id", id);
+    const title = input.title.trim().slice(0, 300);
+    const value = input.value.trim().slice(0, 2000);
+    if (!title || !value) throw new Error("اكتب عنوان المزية وقيمتها.");
+    const { error } = await supabase.from("subscription_plan_features").update({ title, value, updated_at: new Date().toISOString() }).eq("id", id);
     if (error) throw error;
   },
   async deletePricingFeature(id: number) {

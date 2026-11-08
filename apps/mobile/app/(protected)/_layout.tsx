@@ -60,6 +60,22 @@ function CustomDrawerContent({ isAdmin, ...props }: DrawerContentComponentProps 
     catch (cause) { setDeleteTarget(null); show(cause instanceof Error ? cause.message : "تعذّر حذف المحادثة.", "error"); }
   };
 
+  const togglePinned = async () => {
+    if (!actionTarget) return;
+    const target = actionTarget;
+    setActionTarget(null);
+    try { await chatService.setConversationPinned(target.id, !target.isPinned); await refresh(); show(target.isPinned ? "تم إلغاء تثبيت المحادثة." : "تم تثبيت المحادثة.", "success"); }
+    catch (cause) { show(cause instanceof Error ? cause.message : "تعذر تحديث تثبيت المحادثة.", "error"); }
+  };
+
+  const toggleArchived = async () => {
+    if (!actionTarget) return;
+    const target = actionTarget;
+    setActionTarget(null);
+    try { await chatService.setConversationArchived(target.id, !target.archivedAt); await refresh(); show(target.archivedAt ? "تمت استعادة المحادثة من الأرشيف." : "تمت أرشفة المحادثة. ستجدها في الإعدادات > الأرشيف.", "success"); }
+    catch (cause) { show(cause instanceof Error ? cause.message : "تعذر تحديث أرشيف المحادثة.", "error"); }
+  };
+
   const filtered = conversations.filter((conversation) => conversation.title.toLocaleLowerCase().includes(query.toLocaleLowerCase()));
   const displayName = profileFullName?.trim() || "Suly";
 
@@ -76,8 +92,8 @@ function CustomDrawerContent({ isAdmin, ...props }: DrawerContentComponentProps 
             keyExtractor={(item) => item.id}
             scrollEnabled={false}
             renderItem={({ item }) => (
-              <TouchableOpacity activeOpacity={0.7} onPress={() => goToChat(item.id)} onLongPress={() => confirmConversationActions(item)} delayLongPress={450} style={styles.chatItem} accessibilityRole="button" accessibilityHint="اضغط مطولاً لإعادة التسمية أو الحذف">
-                <Ionicons name="chatbubble-outline" size={19} color={colors.textSecondary} />
+              <TouchableOpacity activeOpacity={0.7} onPress={() => goToChat(item.id)} onLongPress={() => confirmConversationActions(item)} delayLongPress={450} style={styles.chatItem} accessibilityRole="button" accessibilityHint="اضغط مطولاً للتثبيت أو الأرشفة أو إعادة التسمية أو الحذف">
+                <Ionicons name={item.isPinned ? "pin" : "chatbubble-outline"} size={19} color={item.isPinned ? colors.primary : colors.textSecondary} />
                 <View style={styles.chatItemCopy}><Text numberOfLines={1} style={styles.chatItemText}>{item.title?.trim() && item.title !== "New Conversation" ? item.title.trim() : "محادثة بدون عنوان"}</Text><Text style={styles.chatItemDate}>{formatConversationDate(item.updatedAt)}</Text></View>
               </TouchableOpacity>
             )}
@@ -85,7 +101,6 @@ function CustomDrawerContent({ isAdmin, ...props }: DrawerContentComponentProps 
         ) : <Text style={styles.emptyHistory}>{query ? "لا توجد نتائج مطابقة." : "لا توجد محادثات سابقة."}</Text>}
       </DrawerContentScrollView>
       <View style={styles.drawerFooter}>
-        <TouchableOpacity activeOpacity={0.7} style={styles.settingsRow} onPress={() => { router.push("/(protected)/support"); props.navigation.closeDrawer(); }} accessibilityRole="button"><Text style={styles.footerText}>الدعم والشكاوى</Text><Ionicons name="mail-outline" size={19} color={colors.textSecondary} /></TouchableOpacity>
         <TouchableOpacity activeOpacity={0.7} style={styles.settingsRow} onPress={() => { router.push("/(protected)/settings"); props.navigation.closeDrawer(); }} accessibilityRole="button"><Text style={styles.footerText}>الإعدادات</Text><Ionicons name="settings-outline" size={19} color={colors.textSecondary} /></TouchableOpacity>
         <View style={styles.profileRow}>
           <View style={styles.avatar}><Text style={styles.avatarText}>{displayName.slice(0, 1).toUpperCase()}</Text></View>
@@ -94,6 +109,8 @@ function CustomDrawerContent({ isAdmin, ...props }: DrawerContentComponentProps 
       </View>
       <BottomSheet visible={Boolean(actionTarget)} title={actionTarget?.title ?? "إجراءات المحادثة"} onClose={() => setActionTarget(null)}>
         <View style={styles.sheetActions}>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => void togglePinned()} style={styles.sheetAction}><Text style={styles.sheetActionText}>{actionTarget?.isPinned ? "إلغاء تثبيت المحادثة" : "تثبيت المحادثة"}</Text></TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => void toggleArchived()} style={styles.sheetAction}><Text style={styles.sheetActionText}>{actionTarget?.archivedAt ? "إلغاء الأرشفة" : "أرشفة المحادثة"}</Text></TouchableOpacity>
           <TouchableOpacity activeOpacity={0.7} onPress={() => { if (actionTarget) { setRenameValue(actionTarget.title); setRenameTarget(actionTarget); } setActionTarget(null); }} style={styles.sheetAction}><Text style={styles.sheetActionText}>إعادة تسمية</Text></TouchableOpacity>
           <TouchableOpacity activeOpacity={0.7} onPress={() => { setDeleteTarget(actionTarget); setActionTarget(null); }} style={[styles.sheetAction, styles.deleteAction]}><Text style={styles.deleteActionText}>حذف المحادثة</Text></TouchableOpacity>
         </View>

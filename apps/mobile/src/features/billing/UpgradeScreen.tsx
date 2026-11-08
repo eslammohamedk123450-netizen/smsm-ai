@@ -24,7 +24,13 @@ export default function UpgradeScreen() {
       supabase.from("subscription_plan_features").select("id,plan_id,title,value,sort_order").eq("is_active", true).order("sort_order").limit(200),
     ]);
     if (plansResult.error || featuresResult.error) setError("تعذر تحميل الباقات الآن. حاول مرة أخرى.");
-    else { setPlans((plansResult.data ?? []) as Plan[]); setFeatures((featuresResult.data ?? []) as Feature[]); }
+    else {
+      const publicPlans = ((plansResult.data ?? []) as Plan[])
+        .filter((plan) => ["lite", "pro", "max", "ultra"].includes(plan.name.trim().toLowerCase()))
+        .map((plan) => ({ ...plan, name: plan.name.trim().toUpperCase() }));
+      setPlans(publicPlans);
+      setFeatures((featuresResult.data ?? []) as Feature[]);
+    }
     setLoading(false);
   }, []);
   useEffect(() => { void load(); }, [load]);
