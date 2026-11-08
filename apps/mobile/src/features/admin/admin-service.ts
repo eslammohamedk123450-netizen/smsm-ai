@@ -30,6 +30,7 @@ export interface PricingFeature {
 export interface AgentConfig {
   id: string;
   name: string;
+  role: "planner" | "worker" | "reviewer";
   system_prompt: string;
   model_fallback_chain: string[];
   is_active: boolean;
@@ -265,6 +266,21 @@ export const adminService = {
     }
     return data as { model_id: number; status: "success" | "error"; duration_ms: number; error_code: string | null };
   },
+  async testModelsBatch(modelIds: number[], onResult?: (result: { modelId: number; status: "success" | "error"; durationMs: number; errorCode: string | null }) => void) {
+    const results: Array<{ modelId: number; status: "success" | "error"; durationMs: number; errorCode: string | null }> = [];
+    for (const modelId of [...new Set(modelIds)].slice(0, 500)) {
+      try {
+        const result = await this.testModel(modelId);
+        const item = { modelId, status: result.status, durationMs: Number(result.duration_ms ?? 0), errorCode: result.error_code ?? null };
+        results.push(item); onResult?.(item);
+        if (result.status === "success") await this.updateModel(modelId, { enabled: true, routing_group: "free_race" });
+      } catch (cause) {
+        const item = { modelId, status: "error" as const, durationMs: 0, errorCode: cause instanceof Error ? cause.message : "test_failed" };
+        results.push(item); onResult?.(item);
+      }
+    }
+    return results;
+  },
 
   async getUsers() {
     await requireAdmin();
@@ -419,17 +435,17 @@ export const adminService = {
   async getAgents(): Promise<AgentConfig[]> {
     await requireAdmin();
     const { data, error } = await supabase.from("agent_registry")
-      .select("id,name,system_prompt,model_fallback_chain,is_active,created_at,updated_at")
+      .select("id,name,role,system_prompt,model_fallback_chain,is_active,created_at,updated_at")
       .order("updated_at", { ascending: false }).limit(200);
     if (error) throw error;
-    return (data ?? []).map((row) => ({ ...row, model_fallback_chain: Array.isArray(row.model_fallback_chain) ? row.model_fallback_chain.map(String) : [] })) as AgentConfig[];
+    return (data ?? []).map((row) => ({ ...row, role: row.role === "planner" || row.role === "reviewer" ? row.role : "worker", model_fallback_chain: Array.isArray(row.model_fallback_chain) ? row.model_fallback_chain.map(String) : [] })) as AgentConfig[];
   },
-  async createAgent(input: { name: string; systemPrompt: string; modelFallbackChain: string[] }) {
+  async createAgent(input: { name: string; role: "planner" | "worker" | "reviewer"; systemPrompt: string; modelFallbackChain: string[] }) {
     await requireAdmin();
     const name = input.name.trim().slice(0, 120);
     const systemPrompt = input.systemPrompt.trim().slice(0, 12000);
     if (name.length < 2 || systemPrompt.length < 10) throw new Error("اكتب اسم المساعد وتعليماته بشكل صحيح.");
-    const { error } = await supabase.from("agent_registry").insert({ name, system_prompt: systemPrompt, model_fallback_chain: input.modelFallbackChain.slice(0, 20), is_active: true });
+    const { error } = await supabase.from("agent_registry").insert({ name, role: input.role, system_prompt: systemPrompt, model_fallback_chain: input.modelFallbackChain, is_active: true });
     if (error) throw error;
   },
   async updateAgent(id: string, input: { name: string; systemPrompt: string; modelFallbackChain: string[]; isActive: boolean }) {

@@ -163,6 +163,7 @@ export default function ProtectedLayout() {
     <Drawer drawerContent={(props) => <CustomDrawerContent {...props} isAdmin={isAdmin} />} screenOptions={{ headerShown: false, drawerPosition: "right", drawerStyle: { backgroundColor: colors.background, width: 320 }, swipeEdgeWidth: 36 }}>
       <Drawer.Screen name="chat" options={{ title: "المحادثة" }} />
       <Drawer.Screen name="media" options={{ title: "المكتبة" }} />
+      <Drawer.Screen name="upgrade" options={{ title: "الباقات والترقية", drawerItemStyle: { display: "none" } }} />
       <Drawer.Screen name="admin" options={{ title: "لوحة التحكم", drawerItemStyle: isAdmin ? undefined : { display: "none" } }} />
       <Drawer.Screen name="settings" options={{ title: "الإعدادات" }} />
     </Drawer>

@@ -1,9 +1,9 @@
 import { randomUUID } from "expo-crypto";
 import { supabase } from "../../lib/supabase/client";
-import { streamChatPlatform } from "../../lib/network/sse-client";
 import type { ChatRequestBody } from "../../lib/network/sse-transport";
 import { summarizeContent } from "./conversation-title";
 import { buildRetryHistory } from "./chat-retry";
+import { chatStreamManager } from "./chat-stream-manager";
 export { titleFromMessage } from "./conversation-title";
 export { summarizeContent } from "./conversation-title";
 
@@ -198,7 +198,7 @@ export const chatService = {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) throw new Error("انتهت الجلسة. سجّل الدخول مجددًا.");
 
-    // Read prior history before inserting the new user row, matching Flutter.
+    // Read prior history before inserting the new user row.
     const priorMessages = await this.getMessages(options.conversationId);
     const { data: inserted, error: insertError } = await supabase.from("suly_messages").insert({
       conversation_id: options.conversationId,
@@ -231,7 +231,7 @@ export const chatService = {
       routing_mode: "auto",
       stream: true,
     };
-    await streamChatPlatform(requestBody, options.signal, { onChunk: options.onChunk, onTaskUpdate: options.onTaskUpdate, onDone() {} });
+    await chatStreamManager.start(requestBody, { onChunk: options.onChunk, onTaskUpdate: options.onTaskUpdate, onDone() {} }, options.signal);
   },
 
   async regenerateAssistant(options: {
@@ -248,13 +248,13 @@ export const chatService = {
     if (!messages.length || messages[messages.length - 1].role !== "user") {
       throw new Error("لا توجد رسالة مستخدم لإعادة توليد الرد عليها.");
     }
-    await streamChatPlatform({
+    await chatStreamManager.start({
       conversation_id: options.conversationId,
       request_id: randomUUID(),
       messages,
       routing_mode: "auto",
       stream: true,
-    }, options.signal, { onChunk: options.onChunk, onTaskUpdate: options.onTaskUpdate, onDone() {} });
+    }, { onChunk: options.onChunk, onTaskUpdate: options.onTaskUpdate, onDone() {} }, options.signal);
   },
 
   async retryAssistant(options: {

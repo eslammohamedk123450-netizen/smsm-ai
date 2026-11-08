@@ -284,6 +284,8 @@ export function ModelsAdminScreen() {
   const [testingModelId, setTestingModelId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<number, string>>({});
+  const [batchTesting, setBatchTesting] = useState(false);
+  const [batchResults, setBatchResults] = useState<Record<number, { status: "success" | "error"; durationMs: number; errorCode: string | null }>>({});
 
   const [freeTimeout, setFreeTimeout] = useState("5000");
   const [fallbackTimeout, setFallbackTimeout] = useState("30000");
@@ -423,6 +425,19 @@ export function ModelsAdminScreen() {
     } finally { setTestingModelId(null); }
   };
 
+  const testFilteredModels = async () => {
+    if (!filteredModels.length) return;
+    setBatchTesting(true); setError(null); setBatchResults({});
+    try {
+      await adminService.testModelsBatch(filteredModels.map((model) => model.id), (result) => {
+        setBatchResults((current) => ({ ...current, [result.modelId]: result }));
+        setTestResults((current) => ({ ...current, [result.modelId]: result.status === "success" ? `نجح الاختبار · ${result.durationMs}ms · أُضيف للتشغيل` : probeErrorLabel(result.errorCode) }));
+      });
+      await load();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر إكمال الاختبار الشامل."); }
+    finally { setBatchTesting(false); }
+  };
+
   return <>
     <View style={styles.screen}>
       <FlatList
@@ -451,6 +466,7 @@ export function ModelsAdminScreen() {
               ] as const).map(([filter, label]) => <Pressable key={filter} accessibilityRole="button" accessibilityState={{ selected: modelFilter === filter }} onPress={() => setModelFilter(filter)} style={[styles.filterChip, modelFilter === filter && styles.filterChipSelected]}><Text style={[styles.filterText, modelFilter === filter && styles.filterTextSelected]}>{label}</Text></Pressable>)}
             </ScrollView>
             <Text style={styles.resultsCount}>عرض {filteredModels.length} من {models.length}</Text>
+            <Card><View style={styles.sectionRow}><View style={styles.batchCopy}><Text style={styles.sectionTitle}>اختبار شامل للنماذج</Text><Text style={styles.detail}>سيختبر النماذج الظاهرة حسب الفلتر الحالي، ويعيد الناجح تلقائياً إلى التشغيل.</Text></View><PrimaryButton label={batchTesting ? "جارٍ الاختبار…" : `اختبار ${filteredModels.length} نموذج`} onPress={() => void testFilteredModels()} disabled={batchTesting || testingModelId !== null || filteredModels.length === 0} /></View>{Object.keys(batchResults).length > 0 ? <View style={styles.batchSummary}><Text style={styles.success}>نجح: {Object.values(batchResults).filter((result) => result.status === "success").length}</Text><Text style={styles.warning}>فشل/مشكلة: {Object.values(batchResults).filter((result) => result.status === "error").length}</Text><Text style={styles.detail}>تم اختبار: {Object.keys(batchResults).length} من {filteredModels.length}</Text></View> : null}</Card>
           </> : null}
         </View>}
         ListEmptyComponent={loading ? <ActivityIndicator color={colors.primary} style={styles.listLoading} /> : <Card><Text style={styles.emptyIcon}>⌕</Text><Text style={styles.detail}>لا توجد نماذج تطابق البحث أو عامل التصفية المحدد.</Text></Card>}
@@ -686,6 +702,7 @@ export function AgentsAdminScreen() {
   const [name, setName] = useState("");
   const [prompt, setPrompt] = useState("");
   const [chain, setChain] = useState<string[]>([]);
+  const [role, setRole] = useState<"planner" | "worker" | "reviewer">("worker");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -699,18 +716,18 @@ export function AgentsAdminScreen() {
   useEffect(() => { void load(); }, []);
   const addAgent = async () => {
     setBusy(true); setError(null); setNotice(null);
-    try { await adminService.createAgent({ name, systemPrompt: prompt, modelFallbackChain: chain }); setName(""); setPrompt(""); setChain([]); setNotice("تمت إضافة المساعد."); await load(); }
+    try { await adminService.createAgent({ name, role, systemPrompt: prompt, modelFallbackChain: chain }); setName(""); setPrompt(""); setChain([]); setRole("worker"); setNotice("تمت إضافة المساعد."); await load(); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "تعذرت إضافة المساعد."); }
     finally { setBusy(false); }
   };
   const toggleModel = (id: string) => setChain((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <PageHeader title="إدارة المساعدين" />
-    <Text style={styles.explainer}>أضف مساعدين متخصصين وحدد تعليماتهم وسلسلة النماذج حسب الأولوية.</Text>
+    <Text style={styles.explainer}>أضف العقل والمراجع والمساعدين المتخصصين وحدد تعليماتهم وسلسلة نماذج غير محدودة عملياً حسب الأولوية.</Text>
     <ErrorText>{error}</ErrorText>{notice && <Text style={styles.success}>{notice}</Text>}
-    <Card><Text style={styles.sectionTitle}>إضافة مساعد</Text><TextInput style={styles.input} value={name} onChangeText={setName} placeholder="اسم المساعد" placeholderTextColor={colors.textMuted} /><TextInput style={[styles.input, { minHeight: 130 }]} value={prompt} onChangeText={setPrompt} placeholder="وظيفة المساعد وتعليماته" placeholderTextColor={colors.textMuted} multiline textAlignVertical="top" /><Text style={styles.label}>النماذج حسب الأولوية (اضغط بالترتيب)</Text><View style={styles.filterRow}>{models.filter((model) => model.enabled).map((model) => <Pressable key={String(model.id)} onPress={() => toggleModel(String(model.id))} style={[styles.filterChip, chain.includes(String(model.id)) && styles.filterChipSelected]}><Text style={[styles.filterText, chain.includes(String(model.id)) && styles.filterTextSelected]}>{chain.includes(String(model.id)) ? `${chain.indexOf(String(model.id)) + 1}. ` : ""}{model.name}</Text></Pressable>)}</View><PrimaryButton label={busy ? "جارٍ الحفظ…" : "إضافة المساعد"} onPress={() => void addAgent()} disabled={busy} /></Card>
+    <Card><Text style={styles.sectionTitle}>إضافة مكوّن</Text><View style={styles.filterRow}>{([['planner','العقل / المخطط'],['worker','مساعد متخصص'],['reviewer','المراجع / المنسق']] as const).map(([value, label]) => <Pressable key={value} onPress={() => setRole(value)} style={[styles.filterChip, role === value && styles.filterChipSelected]}><Text style={[styles.filterText, role === value && styles.filterTextSelected]}>{label}</Text></Pressable>)}</View><TextInput style={styles.input} value={name} onChangeText={setName} placeholder={role === "planner" ? "العقل المفكر" : role === "reviewer" ? "المراجع والمنسق" : "اسم المساعد"} placeholderTextColor={colors.textMuted} /><TextInput style={[styles.input, { minHeight: 130 }]} value={prompt} onChangeText={setPrompt} placeholder="وظيفة المساعد وتعليماته" placeholderTextColor={colors.textMuted} multiline textAlignVertical="top" /><Text style={styles.label}>النماذج حسب الأولوية (اضغط بالترتيب؛ بلا حد 20)</Text><View style={styles.filterRow}>{models.filter((model) => model.enabled).map((model) => <Pressable key={String(model.id)} onPress={() => toggleModel(String(model.id))} style={[styles.filterChip, chain.includes(String(model.id)) && styles.filterChipSelected]}><Text style={[styles.filterText, chain.includes(String(model.id)) && styles.filterTextSelected]}>{chain.includes(String(model.id)) ? `${chain.indexOf(String(model.id)) + 1}. ` : ""}{model.name}</Text></Pressable>)}</View><PrimaryButton label={busy ? "جارٍ الحفظ…" : "إضافة المكوّن"} onPress={() => void addAgent()} disabled={busy} /></Card>
     <Text style={styles.sectionTitle}>المساعدون الحاليون</Text>
-    {loading ? <ActivityIndicator color={colors.primary} /> : agents.map((agent) => <Card key={agent.id}><Text style={styles.cardTitle}>{agent.name}</Text><Text style={styles.detail}>{agent.system_prompt}</Text><Text style={styles.detail}>النماذج: {agent.model_fallback_chain.join(" → ") || "لم تحدد نماذج"}</Text><Pressable onPress={() => { void adminService.deleteAgent(agent.id).then(() => load()).catch((cause) => setError(cause instanceof Error ? cause.message : "تعذر حذف المساعد.")); }}><Text style={styles.deleteFeature}>حذف المساعد</Text></Pressable></Card>)}
+    {loading ? <ActivityIndicator color={colors.primary} /> : agents.map((agent) => <Card key={agent.id}><View style={styles.providerCardHeader}><Text style={styles.metaBadgeText}>{agent.role === "planner" ? "العقل" : agent.role === "reviewer" ? "المراجع" : "مساعد"}</Text><Text style={styles.cardTitle}>{agent.name}</Text></View><Text style={styles.detail}>{agent.system_prompt}</Text><Text style={styles.detail}>النماذج بالترتيب: {agent.model_fallback_chain.join(" → ") || "سيستخدم التوجيه العام"}</Text><Pressable onPress={() => { void adminService.deleteAgent(agent.id).then(() => load()).catch((cause) => setError(cause instanceof Error ? cause.message : "تعذر حذف المساعد.")); }}><Text style={styles.deleteFeature}>حذف المساعد</Text></Pressable></Card>)}
   </ScrollView>;
 }
 
@@ -725,6 +742,8 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { width: "100%", maxWidth: 1000, alignSelf: "center", padding: 20, gap: 12 },
   modelListHeader: { width: "100%", gap: 12 },
+  batchCopy: { flex: 1, gap: 4 },
+  batchSummary: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 12, borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 10 },
   listLoading: { marginVertical: 32 },
   healthProbeHeading: { flexDirection: "row-reverse", alignItems: "flex-start", gap: 11 },
   providerFormHeading: { flexDirection: "row-reverse", alignItems: "center", gap: 11, marginBottom: 8 },

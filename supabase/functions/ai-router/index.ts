@@ -368,19 +368,11 @@ async function handleRequest(req: Request): Promise<Response> {
   if (profile.is_banned) return jsonResponse({ error: "This account is suspended." }, 403);
   const userTier = ["free", "lite", "pro", "max"].includes(profile.subscription_tier) ? profile.subscription_tier : "free";
 
-  const { data: rateLimit, error: rateLimitError } = await supabase.rpc("suly_check_ai_rate_limit", { p_user_id: user.id });
-  if (rateLimitError) {
-    console.error("AI rate limit check failed:", rateLimitError.message);
-    return jsonResponse({ error: "Usage protection is temporarily unavailable." }, 503);
-  }
-  const rateLimitResult = asRecord(rateLimit);
-  if (rateLimitResult.allowed !== true) {
-    const retryAfter = Math.max(1, Number(rateLimitResult.retry_after_seconds) || 1);
-    return new Response(JSON.stringify({ error: "Too many requests. Please try again later.", retry_after_seconds: retryAfter }), {
-      status: 429,
-      headers: { ...corsHeaders, "Content-Type": "application/json; charset=utf-8", "Retry-After": String(retryAfter) },
-    });
-  }
+  // Text chat is credit-gated, not daily-request-gated. The atomic
+  // reserve_credits call below is the single source of truth: users may
+  // continue chatting while they have spendable credits, and receive HTTP
+  // 402 when their balance is insufficient. The daily rate-limit RPC remains
+  // available for future media-generation endpoints.
 
   let body: Record<string, unknown>;
   try { body = asRecord(await req.json()); }
@@ -423,12 +415,40 @@ async function handleRequest(req: Request): Promise<Response> {
   let identityContext = buildSulyIdentityContext(himsActivated);
   let userMetadata = identityContext.userMetadata;
   let systemPrompt = identityContext.systemPrompt;
+  let workspaceId: string | null = null;
+  const updateWorkspace = async (status: "planning" | "executing" | "reviewing" | "completed" | "failed", finalResult?: Record<string, unknown>) => {
+    if (!workspaceId) return;
+    const { error } = await supabase.from("agent_workspaces").update({ status, ...(finalResult ? { final_result: finalResult } : {}), updated_at: new Date().toISOString() }).eq("id", workspaceId);
+    if (error) console.error("Could not update agent workspace:", error.message);
+  };
+  const updateWorkspaceStep = async (stepKey: string, status: "pending" | "running" | "reviewing" | "retrying" | "completed" | "failed", patch: Record<string, unknown> = {}) => {
+    if (!workspaceId) return;
+    const timestamp = new Date().toISOString();
+    const { error } = await supabase.from("agent_workspace_steps").update({ status, ...(status === "running" ? { started_at: timestamp } : {}), ...(status === "completed" || status === "failed" ? { completed_at: timestamp } : {}), ...patch }).eq("workspace_id", workspaceId).eq("step_key", stepKey);
+    if (error) console.error("Could not update agent workspace step:", error.message);
+  };
+  const { data: agentRows, error: agentRowsError } = await supabase.from("agent_registry").select("id,role,name,system_prompt,model_fallback_chain").eq("is_active", true).order("updated_at", { ascending: false }).limit(1000);
+  if (agentRowsError) console.error("Could not load active agents:", agentRowsError.message);
+  const plannerAgent = (agentRows ?? []).find((agent) => agent.role === "planner") ?? null;
+  const workerAgent = (agentRows ?? []).find((agent) => agent.role === "worker") ?? null;
+  const reviewerAgent = (agentRows ?? []).find((agent) => agent.role === "reviewer") ?? null;
+  const { data: workspaceRow, error: workspaceError } = await supabase.from("agent_workspaces").upsert({ request_id: billingTaskId, conversation_id: conversationId, user_id: user.id, status: "planning", plan: [{ step_key: "plan", description: "تحليل الطلب وتقسيمه" }, { step_key: "execute", description: "تنفيذ المهام" }, { step_key: "review", description: "مراجعة وتجميع النتيجة" }] }, { onConflict: "request_id" }).select("id").single();
+  if (workspaceError || !workspaceRow) console.error("Could not create agent workspace:", workspaceError?.message);
+  else {
+    workspaceId = String(workspaceRow.id);
+    const { error: stepsError } = await supabase.from("agent_workspace_steps").upsert([
+      { workspace_id: workspaceId, step_key: "plan", sequence_order: 1, description: "تحليل الطلب وتقسيمه إلى مهام", assigned_agent_id: plannerAgent?.id ?? null },
+      { workspace_id: workspaceId, step_key: "execute", sequence_order: 2, description: "تنفيذ المهمة عبر المساعد والنماذج المحددة", assigned_agent_id: workerAgent?.id ?? null },
+      { workspace_id: workspaceId, step_key: "review", sequence_order: 3, description: "مراجعة النتائج وتجميعها وتنسيقها", assigned_agent_id: reviewerAgent?.id ?? null },
+    ], { onConflict: "workspace_id,step_key" });
+    if (stepsError) console.error("Could not create agent workspace steps:", stepsError.message);
+  }
   if (conversationId) {
     const ledgerRows = [
       ["plan", "تحليل الطلب وتقسيمه إلى مهام", 1],
       ["execute", "تنفيذ المهمة عبر النموذج والمساعد المناسب", 2],
       ["review", "مراجعة الإجابة وترتيبها وتنسيقها", 3],
-    ].map(([task_key, task_description, sequence_order]) => ({ conversation_id: conversationId, request_id: billingTaskId, task_key, task_description, sequence_order, status: "pending" }));
+    ].map(([task_key, task_description, sequence_order]) => ({ conversation_id: conversationId, request_id: billingTaskId, workspace_id: workspaceId, task_key, task_description, sequence_order, status: "pending" }));
     const { error: ledgerError } = await supabase.from("task_ledger").insert(ledgerRows);
     if (ledgerError) console.error("Could not create task ledger:", ledgerError.message);
   }
@@ -1038,10 +1058,14 @@ async function handleRequest(req: Request): Promise<Response> {
         const emit = (value: Record<string, unknown>) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(value)}\n\n`));
         try {
           controller.enqueue(encoder.encode(taskEvent("تحليل الطلب", "running")));
+          await updateWorkspaceStep("plan", "running");
           if (conversationId) await supabase.from("task_ledger").update({ status: "running", started_at: new Date().toISOString() }).match({ conversation_id: conversationId, request_id: billingTaskId, task_key: "plan" });
           emit({ chunk: winner!.firstChunk, done: false, ...responseInfo });
           controller.enqueue(encoder.encode(taskEvent("تحليل الطلب", "completed")));
           controller.enqueue(encoder.encode(taskEvent("تنفيذ المهمة", "running")));
+          await updateWorkspaceStep("plan", "completed");
+          await updateWorkspace("executing");
+          await updateWorkspaceStep("execute", "running");
           if (conversationId) await supabase.from("task_ledger").update({ status: "completed", completed_at: new Date().toISOString() }).match({ conversation_id: conversationId, request_id: billingTaskId, task_key: "plan" });
           if (conversationId) await supabase.from("task_ledger").update({ status: "running", started_at: new Date().toISOString() }).match({ conversation_id: conversationId, request_id: billingTaskId, task_key: "execute" });
           for await (const chunk of winner!.iterator) {
@@ -1064,8 +1088,13 @@ async function handleRequest(req: Request): Promise<Response> {
           const billing = await finalizeBilling(winner!, fullContent, "ai_request", true);
           controller.enqueue(encoder.encode(taskEvent("تنفيذ المهمة", "completed")));
           controller.enqueue(encoder.encode(taskEvent("مراجعة وتنسيق الإجابة", "running")));
+          await updateWorkspaceStep("execute", "completed", { selected_model_id: winner!.model.id, result: { characters: fullContent.length, route: modeUsed } });
+          await updateWorkspace("reviewing");
+          await updateWorkspaceStep("review", "running");
           if (conversationId) await supabase.from("task_ledger").update({ status: "completed", completed_at: new Date().toISOString() }).match({ conversation_id: conversationId, request_id: billingTaskId, task_key: "execute" });
           if (conversationId) await supabase.from("task_ledger").update({ status: "completed", completed_at: new Date().toISOString(), result: { characters: fullContent.length } }).match({ conversation_id: conversationId, request_id: billingTaskId, task_key: "review" });
+          await updateWorkspaceStep("review", "completed", { result: { characters: fullContent.length, reviewer_agent_id: reviewerAgent?.id ?? null } });
+          await updateWorkspace("completed", { characters: fullContent.length, model_id: winner!.model.id, route: modeUsed });
           emit({ done: true, ...responseInfo, billing });
           controller.enqueue(encoder.encode(taskEvent("مراجعة وتنسيق الإجابة", "completed")));
           controller.close();
@@ -1086,6 +1115,8 @@ async function handleRequest(req: Request): Promise<Response> {
             await recordAttempt(winner!, attemptStatus, Date.now() - winner!.startedAtMs, attemptStatus === "timeout" ? "model_timeout" : "stream_error", summary);
             attemptRecorded = true;
           }
+          await updateWorkspaceStep("execute", "failed", { error_message: summary.slice(0, 500) });
+          await updateWorkspace("failed", { error: summary.slice(0, 500) });
           await recordEvent(winner!.model, "error", summary);
           const billing = await finalizeBilling(winner!, fullContent, attemptStatus, true);
           emit({ error: "The selected model stream was interrupted.", billing });
@@ -1111,12 +1142,20 @@ async function handleRequest(req: Request): Promise<Response> {
   }
 
   try {
+    await updateWorkspaceStep("plan", "completed");
+    await updateWorkspace("executing");
+    await updateWorkspaceStep("execute", "running");
     const content = await collectCandidate(winner);
     await persistAssistant(supabase, conversationId, user.id, winner, content);
     await persistLearning(winner, content);
     await recordAttempt(winner, "success", Date.now() - winner.startedAtMs);
     await recordEvent(winner.model, "success");
     const billing = await finalizeBilling(winner, content, "ai_request", true);
+    await updateWorkspaceStep("execute", "completed", { selected_model_id: winner.model.id, result: { characters: content.length } });
+    await updateWorkspace("reviewing");
+    await updateWorkspaceStep("review", "running");
+    await updateWorkspaceStep("review", "completed", { result: { characters: content.length, reviewer_agent_id: reviewerAgent?.id ?? null } });
+    await updateWorkspace("completed", { characters: content.length, model_id: winner.model.id });
     return jsonResponse({ ...responseInfo, billing, response: { choices: [{ message: { role: "assistant", content } }] } }, 200, req);
   } catch (error) {
     const summary = error instanceof Error ? error.message : String(error);
@@ -1124,6 +1163,8 @@ async function handleRequest(req: Request): Promise<Response> {
     await recordAttempt(winner, attemptStatus, Date.now() - winner.startedAtMs, attemptStatus === "timeout" ? "model_timeout" : "stream_error", summary);
     await recordEvent(winner.model, "error", summary);
     const billing = await finalizeBilling(winner, "", attemptStatus, true);
+    await updateWorkspaceStep("execute", "failed", { error_message: summary.slice(0, 500) });
+    await updateWorkspace("failed", { error: summary.slice(0, 500) });
     return jsonResponse({ error: "The selected model stream was interrupted.", billing }, 502);
   }
 }

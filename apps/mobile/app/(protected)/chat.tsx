@@ -9,6 +9,7 @@ import { DrawerActions } from "@react-navigation/native";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { useAuth } from "../../src/features/auth/auth-provider";
 import { chatService, type ChatMessage } from "../../src/features/chat/chat-service";
+import { chatStreamManager } from "../../src/features/chat/chat-stream-manager";
 import { runOnce } from "../../src/features/chat/submission-guard";
 import { ChatComposer, type ChatAttachment, type ChatComposerHandle } from "../../src/features/chat/components/ChatComposer";
 import { MessageBubble, type MessageFeedback } from "../../src/features/chat/components/MessageBubble";
@@ -110,7 +111,6 @@ export default function ChatPage() {
     }
     isNearBottomRef.current = true;
     setShowScrollToBottom(false);
-    abortRef.current?.abort();
     setConversationId(routeConversationId || null);
     setMessages([]);
     setFeedbackByMessage({});
@@ -163,6 +163,26 @@ export default function ChatPage() {
     setMessages(saved);
     try { setFeedbackByMessage(await chatService.getMessageFeedback(saved.map((message) => message.id))); } catch { setFeedbackByMessage({}); }
   }, []);
+
+  useEffect(() => {
+    if (!conversationId) return;
+    return chatStreamManager.subscribe(conversationId, (snapshot) => {
+      streamedTextRef.current = snapshot.text;
+      setIsSending(snapshot.active);
+      setActiveTaskLabel(snapshot.taskLabel);
+      if (snapshot.text) {
+        setMessages((current) => {
+          const existing = current.find((item) => item.id === STREAMING_ID);
+          if (existing) return current.map((item) => item.id === STREAMING_ID ? { ...item, content: snapshot.text, status: snapshot.active ? "streaming" : "sent" } : item);
+          return [...current, { id: STREAMING_ID, conversationId, role: "assistant", content: snapshot.text, createdAt: new Date().toISOString(), modelId: null, status: snapshot.active ? "streaming" : "sent" }];
+        });
+      }
+      if (!snapshot.active) {
+        void reloadMessages(conversationId).catch(() => undefined);
+        if (snapshot.error && !snapshot.error.includes("أُلغي")) setError(snapshot.error);
+      }
+    });
+  }, [conversationId, reloadMessages]);
 
   const sendText = async (content: string, attachment?: ChatAttachment) => {
     await runOnce(lock, async () => {
