@@ -46,6 +46,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
   const ignoreRecognitionResults = useRef(false);
   const timerStartedAt = useRef(0);
   const restartTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const restartDelay = useRef(250);
   const startRecognitionRef = useRef<() => void>(() => {});
   const scheduleRestartRef = useRef<() => void>(() => {});
   const { show } = useToast();
@@ -70,7 +71,12 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
   startRecognitionRef.current = () => {
     if (!voiceIntent.current) return;
     try {
-      ExpoSpeechRecognitionModule.start({ lang: "ar-EG", interimResults: true, continuous: true, maxAlternatives: 1 });
+      ExpoSpeechRecognitionModule.start({
+        lang: "ar-EG",
+        continuous: true,
+        interimResults: true,
+        maxAlternatives: 1,
+      });
     } catch {
       voiceIntent.current = false;
       setVoiceActive(false);
@@ -81,14 +87,17 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
   };
   scheduleRestartRef.current = () => {
     if (!voiceIntent.current || restartTimer.current) return;
+    const delay = restartDelay.current;
+    restartDelay.current = Math.min(restartDelay.current * 2, 4000);
     restartTimer.current = setTimeout(() => {
       restartTimer.current = null;
       if (voiceIntent.current) startRecognitionRef.current();
-    }, 250);
+    }, delay);
   };
 
   useSpeechRecognitionEvent("start", () => {
     clearRestart();
+    restartDelay.current = 250;
     if (voiceIntent.current) setVoiceListening(true);
   });
   useSpeechRecognitionEvent("end", () => {
@@ -98,14 +107,16 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
   });
   useSpeechRecognitionEvent("error", (event) => {
     setVoiceListening(false);
-    if (event.error === "no-speech" || event.error === "aborted") {
-      if (voiceIntent.current) scheduleRestartRef.current();
+    if (event.error === "not-allowed" || event.error === "service-not-allowed" || event.error === "audio-capture") {
+      voiceIntent.current = false;
+      clearRestart();
+      setVoiceActive(false);
+      show(event.message || "تعذّر الوصول إلى الميكروفون. تحقق من الأذونات وحاول مجددًا.", "error");
       return;
     }
-    voiceIntent.current = false;
-    clearRestart();
-    setVoiceActive(false);
-    show(event.message || "تعذّر التعرّف على الصوت. تحقق من إذن الميكروفون.", "error");
+    // Recognition services may end on short silence or transient network errors.
+    // Keep the user's recording intent active and reconnect until they stop it.
+    if (voiceIntent.current) scheduleRestartRef.current();
   });
   useSpeechRecognitionEvent("result", (event) => {
     if (ignoreRecognitionResults.current) return;
