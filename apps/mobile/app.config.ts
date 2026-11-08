@@ -12,7 +12,7 @@ const config: ExpoConfig = {
   runtimeVersion: { policy: "appVersion" },
   android: {
     package: "com.suly.agentai",
-    versionCode: 1,
+    versionCode: 2,
     intentFilters: [
       {
         action: "VIEW",
