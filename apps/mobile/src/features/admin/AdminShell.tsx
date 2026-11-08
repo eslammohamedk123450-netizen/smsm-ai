@@ -55,7 +55,7 @@ export function AdminShell() {
         <View style={styles.rail}>
           <View style={styles.brand}>
             <Text style={styles.brandMark}>✦</Text>
-            <Text style={styles.brandName}>Suly Agent AI</Text>
+            <Text style={styles.brandName}>سولي</Text>
             <Text style={styles.brandSub}>لوحة المشرف</Text>
           </View>
           <View style={styles.nav}>{navItems}</View>

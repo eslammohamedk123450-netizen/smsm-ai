@@ -327,7 +327,8 @@ export default function ChatPage() {
         <View style={styles.appBar}>
           <Pressable onPress={() => navigation.dispatch(DrawerActions.openDrawer())} style={styles.headerButton} accessibilityRole="button" accessibilityLabel="فتح سجل المحادثات"><Text style={styles.headerIcon}>☰</Text></Pressable>
           <View style={styles.brand}>
-            <Text style={styles.title}>Suly Agent AI</Text>
+            <AppLogo size={28} accessibilityLabel="أيقونة سولي" />
+            <Text style={styles.title}>سولي</Text>
             <View style={styles.onlineStatus}><View style={styles.onlineDot} /><Text style={styles.onlineLabel}>متصل</Text></View>
           </View>
           <View style={styles.headerActions}>
@@ -341,7 +342,7 @@ export default function ChatPage() {
         {retryFailure ? <View style={styles.retryWarning} accessibilityRole="alert"><Text style={styles.retryWarningText}>حُفظت رسالتك، لكن تعذّر إكمال الرد.</Text><Pressable onPress={() => void retryResponse()} disabled={isSending} accessibilityRole="button" accessibilityLabel="إعادة محاولة الرد" style={styles.retryButton}><Text style={styles.retryButtonText}>{isSending ? "جارٍ إعادة المحاولة…" : "إعادة المحاولة"}</Text></Pressable></View> : null}
         {isLoading ? <View style={styles.loading}><ActivityIndicator color={colors.primary} /><Text style={styles.loadingText}>جارٍ تحميل المحادثة…</Text></View> : messages.length === 0 ? (
           <View style={styles.empty}>
-            <LinearGradient colors={["#10B981", "#0F624E", "#131C2E"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.logo}><Text style={styles.logoLetter}>S</Text></LinearGradient>
+            <AppLogo size={72} accessibilityLabel="أيقونة سولي" />
             <Text style={styles.emptyTitle}>كيف أقدر أساعدك؟</Text>
             <Text style={styles.emptySubtitle}>اسألني عن أي درس أو واجب</Text>
             <View style={styles.suggestionsGrid}>

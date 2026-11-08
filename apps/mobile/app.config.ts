@@ -2,13 +2,14 @@ import type { ExpoConfig } from "expo/config";
 
 const easProjectId = process.env.EAS_PROJECT_ID;
 
-const config: ExpoConfig = {
+const config: ExpoConfig & { splash?: { image: string; resizeMode: "contain"; backgroundColor: string } } = {
   name: "Suly",
   icon: "./assets/icon.png",
   owner: "suly-sam100",
   slug: "smsm-ai",
   scheme: "suly-agent-ai",
   version: "1.0.0",
+  splash: { image: "./assets/splash.png", resizeMode: "contain", backgroundColor: "#071A4D" },
   runtimeVersion: { policy: "appVersion" },
   android: {
     package: "com.suly.agentai",
