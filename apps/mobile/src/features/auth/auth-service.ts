@@ -34,6 +34,8 @@ export const authService = {
   async verifyEmailOtp(email: string, token: string): Promise<AuthResult> {
     const { data, error } = await supabase.auth.verifyOtp({ email, token, type: "email" });
     if (error) throw error;
+    if (!data.session?.user) throw new Error("Email verification did not return a session.");
+    await this.syncProfile(data.session.user);
     return { user: data.user, session: data.session };
   },
 
@@ -58,7 +60,7 @@ export const authService = {
     return { user: data.user, session: data.session };
   },
 
-  async signInWithGoogle(): Promise<void> {
+  async signInWithGoogle(): Promise<Session> {
     const redirectTo = Platform.OS === "web"
       ? `${window.location.origin}/auth/callback`
       : GOOGLE_AUTH_REDIRECT;
@@ -76,24 +78,32 @@ export const authService = {
       if (result.type === "cancel" || result.type === "dismiss") {
         throw new Error("Authentication session was cancelled.");
       }
-      if (result.type === "success") {
-        const current = await supabase.auth.getSession();
-        if (!current.data.session) {
-          const params = parseAuthCallbackUrl(result.url);
-          if (params.accessToken && params.refreshToken) {
-            const { error: sessionError } = await supabase.auth.setSession({ access_token: params.accessToken, refresh_token: params.refreshToken });
-            if (sessionError) throw sessionError;
-          } else if (params.code) {
-            const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(params.code);
-            if (exchangeError) throw exchangeError;
-          } else {
-            throw new Error("Google authentication did not return a session.");
-          }
+      if (result.type !== "success") {
+        throw new Error("Google authentication did not complete.");
+      }
+
+      const params = parseAuthCallbackUrl(result.url);
+      if (params.errorDescription) throw new Error(params.errorDescription);
+
+      const current = await supabase.auth.getSession();
+      if (!current.data.session) {
+        if (params.accessToken && params.refreshToken) {
+          const { error: sessionError } = await supabase.auth.setSession({ access_token: params.accessToken, refresh_token: params.refreshToken });
+          if (sessionError) throw sessionError;
+        } else if (params.code) {
+          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(params.code);
+          if (exchangeError) throw exchangeError;
+        } else {
+          throw new Error("Google authentication did not return a session.");
         }
-        const session = (await supabase.auth.getSession()).data.session;
-        if (session?.user) await this.syncProfile(session.user);
       }
     }
+
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) throw sessionError;
+    if (!sessionData.session?.user) throw new Error("Google authentication did not return a session.");
+    await this.syncProfile(sessionData.session.user);
+    return sessionData.session;
   },
 
   async syncProfile(user: User): Promise<void> {

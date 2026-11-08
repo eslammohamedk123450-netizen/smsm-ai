@@ -9,6 +9,7 @@ jest.mock("../../lib/supabase/client", () => ({
       verifyOtp: jest.fn(),
       signInWithOAuth: jest.fn(),
     },
+    rpc: jest.fn(),
   },
 }));
 
@@ -20,11 +21,13 @@ const auth = supabase.auth as unknown as {
   verifyOtp: jest.Mock;
   signInWithOAuth: jest.Mock;
 };
+const rpc = (supabase as unknown as { rpc: jest.Mock }).rpc;
 
 describe("email authentication", () => {
   beforeEach(() => {
     auth.signInWithOtp.mockResolvedValue({ error: null });
-    auth.verifyOtp.mockResolvedValue({ data: { user: null, session: null }, error: null });
+    auth.verifyOtp.mockResolvedValue({ data: { user: { id: "user-123", email: "person@example.com" }, session: { user: { id: "user-123", email: "person@example.com" } } }, error: null });
+    rpc.mockResolvedValue({ error: null });
   });
 
   it("requests email OTP without enabling account creation", async () => {

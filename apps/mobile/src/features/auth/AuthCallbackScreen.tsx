@@ -53,9 +53,11 @@ export default function AuthCallbackScreen() {
       }
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
       if (sessionError) throw sessionError;
-      if (sessionData.session?.user) await authService.syncProfile(sessionData.session.user);
-      router.replace("/chat");
+      if (!sessionData.session?.user) throw new Error("Authentication did not return a user session.");
+      await authService.syncProfile(sessionData.session.user);
+      router.replace("/(protected)/chat");
     } catch (cause) {
+      await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
       setError(mapAuthError(cause));
     }
   }, [router]);

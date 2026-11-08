@@ -85,7 +85,8 @@ export default function LoginPage() {
         if (hasSession) router.replace("/chat");
         else setConfirmation("تم إنشاء الحساب. تحقّق من بريدك الإلكتروني لتأكيده قبل تسجيل الدخول.");
       } else if (method === "otp" && codeSent) {
-        await verifyEmailOtp(cleanEmail, code);
+        const session = await verifyEmailOtp(cleanEmail, code);
+        if (!session.user) throw new Error("Email verification did not return a user session.");
         setEmailAttempts(0);
         setCooldownSeconds(0);
         router.replace("/chat");
@@ -114,7 +115,8 @@ export default function LoginPage() {
     setBusy(true);
     resetMessage();
     try {
-      await signInWithGoogle();
+      const session = await signInWithGoogle();
+      if (!session.user) throw new Error("Google authentication did not return a user session.");
       router.replace("/chat");
     } catch (cause) {
       setError(mapAuthError(cause));

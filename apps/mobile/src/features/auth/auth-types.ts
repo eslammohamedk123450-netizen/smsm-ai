@@ -9,9 +9,9 @@ export interface AuthContextValue {
   status: AuthStatus;
   configurationError: string | null;
   sendEmailOtp(email: string): Promise<void>;
-  verifyEmailOtp(email: string, token: string): Promise<void>;
+  verifyEmailOtp(email: string, token: string): Promise<Session>;
   sendEmailLink(email: string): Promise<void>;
-  signInWithGoogle(): Promise<void>;
+  signInWithGoogle(): Promise<Session>;
   register(email: string, password: string, fullName: string): Promise<boolean>;
   logout(): Promise<void>;
 }

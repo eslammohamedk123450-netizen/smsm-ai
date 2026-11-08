@@ -43,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     void authService.getSession().then(applySession).catch(() => {
       if (!active) return;
+      void supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
       applySession(null);
     });
 
@@ -88,13 +89,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await authService.sendEmailOtp(email.trim());
     },
     async verifyEmailOtp(email, token) {
-      await authService.verifyEmailOtp(email.trim(), token.trim());
+      const result = await authService.verifyEmailOtp(email.trim(), token.trim());
+      if (!result.session?.user) throw new Error("Email verification did not return a session.");
+      return result.session;
     },
     async sendEmailLink(email) {
       await authService.sendEmailLink(email.trim());
     },
     async signInWithGoogle() {
-      await authService.signInWithGoogle();
+      return authService.signInWithGoogle();
     },
     async register(email, password, fullName) {
       const result = await authService.signUp(email.trim(), password, fullName.trim());
