@@ -70,8 +70,9 @@ export function ProvidersAdminScreen() {
   const [notice, setNotice] = useState<string | null>(null);
   const selectedPreset = findPreset(selectedType);
 
-  const load = async () => {
-    setLoading(true); setError(null);
+  const load = async (showInitialLoader = false) => {
+    if (showInitialLoader) setLoading(true);
+    setError(null);
     try {
       const [providerRows, modelOverview] = await Promise.all([adminService.getProviders(), adminService.getModelsOverview()]);
       setProviders(providerRows as ProviderRow[]);
@@ -80,7 +81,7 @@ export function ProvidersAdminScreen() {
     catch { setError("تعذر تحميل مزودي الخدمة. تحقق من الصلاحيات وسياسات RLS."); }
     finally { setLoading(false); }
   };
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(true); }, []);
 
   const syncProvider = async (provider: ProviderRow) => {
     setBusyId(provider.id); setError(null); setNotice(null);
@@ -109,8 +110,13 @@ export function ProvidersAdminScreen() {
     const confirmed = await confirmAdminAction("حذف المزود", `سيُحذف ${provider.name} ومفتاحه وكل نماذجه نهائيًا.`, "حذف نهائي");
     if (!confirmed) return;
     setBusyId(provider.id); setError(null); setNotice(null);
-    try { await adminService.deleteProvider(provider.id); setNotice(`تم حذف ${provider.name} ومفتاحه ونماذجه.`); await load(); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر حذف المزود."); }
+    try {
+      await adminService.deleteProvider(provider.id);
+      setProviders((current) => current.filter((item) => item.id !== provider.id));
+      setProviderModels((current) => current.filter((model) => model.provider_id !== provider.id));
+      setNotice(`تم حذف ${provider.name} ومفتاحه ونماذجه.`);
+      void load();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر حذف المزود."); }
     finally { setBusyId(null); }
   };
 
@@ -305,8 +311,9 @@ export function ModelsAdminScreen() {
   const [editThreshold, setEditThreshold] = useState("3");
   const [editWindow, setEditWindow] = useState("15");
 
-  const load = async () => {
-    setLoading(true); setError(null);
+  const load = async (showInitialLoader = false) => {
+    if (showInitialLoader) setLoading(true);
+    setError(null);
     try {
       const result = await adminService.getModelsOverview();
       setModels(result.models as ModelRow[]);
@@ -323,7 +330,7 @@ export function ModelsAdminScreen() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(true); }, []);
 
   const openModelDetails = async (model: ModelRow) => {
     setSelectedModel(model);

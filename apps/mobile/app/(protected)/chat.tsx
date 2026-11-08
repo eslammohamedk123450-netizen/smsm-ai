@@ -19,21 +19,9 @@ import { colors } from "../../src/theme/colors";
 import { ShareConversationSheet } from "../../src/features/chat/components/ShareConversationSheet";
 import { useToast } from "../../src/components/ui/Toast";
 import { supabase } from "../../src/lib/supabase/client";
+import { getRotatingSuggestions, type SuggestionCard } from "../../src/features/chat/suggestions";
 
 const STREAMING_ID = "local-streaming-assistant";
-const suggestionIcons = ["calendar-outline", "book-outline", "create-outline", "bulb-outline"] as const;
-const suggestionSets = {
-  morning: ["خططلي يومي بطريقة بسيطة", "اشرحلي درس صعب بطريقة سهلة", "اعملي ملخص لدرس", "اكتبلي ايميل رسمي"],
-  afternoon: ["ساعدني أرتب أفكاري", "اكتبلي كود لعبة بسيطة", "اقترحلي وجبة سهلة", "لخصلي موضوع مهم"],
-  evening: ["راجع معايا اللي اتعلمته النهارده", "اكتبلي قصة قصيرة", "ساعدني أجهز لبكرة", "اشرحلي فكرة بطريقة بسيطة"],
-};
-
-function getSuggestions(): string[] {
-  const hour = new Date().getHours();
-  if (hour < 12) return suggestionSets.morning;
-  if (hour < 18) return suggestionSets.afternoon;
-  return suggestionSets.evening;
-}
 
 export default function ChatPage() {
   const { user } = useAuth();
@@ -57,10 +45,19 @@ export default function ChatPage() {
   const listRef = useRef<FlatList<ChatMessage>>(null);
   const isNearBottomRef = useRef(true);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [suggestions, setSuggestions] = useState<SuggestionCard[]>(() => getRotatingSuggestions());
   const lock = useRef(false);
   const newConversationLock = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const isAdmin = Boolean(user?.id && adminAccess.userId === user.id && adminAccess.allowed);
+
+  useEffect(() => {
+    // Rotate in the background. The time-bucketed selector returns the same
+    // cards after navigation/remounts within a bucket, so the user does not
+    // lose their place or see cards jump on every render.
+    const timer = setInterval(() => setSuggestions(getRotatingSuggestions()), 15 * 60 * 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -372,7 +369,7 @@ export default function ChatPage() {
             <Text style={styles.emptyTitle}>كيف أقدر أساعدك؟</Text>
             <Text style={styles.emptySubtitle}>اسألني عن أي درس أو واجب</Text>
             <View style={styles.suggestionsGrid}>
-              {getSuggestions().map((suggestion, index) => <TouchableOpacity key={suggestion} activeOpacity={0.7} style={styles.suggestionCard} onPress={() => handleSend(suggestion)} accessibilityRole="button"><Ionicons name={suggestionIcons[index % suggestionIcons.length]} size={19} color={colors.primary} /><Text style={styles.suggestionText}>{suggestion}</Text></TouchableOpacity>)}
+              {suggestions.map((suggestion) => <TouchableOpacity key={suggestion.text} activeOpacity={0.7} style={styles.suggestionCard} onPress={() => handleSend(suggestion.text)} accessibilityRole="button"><Ionicons name={suggestion.icon} size={19} color={colors.primary} /><Text style={styles.suggestionText}>{suggestion.text}</Text></TouchableOpacity>)}
             </View>
           </View>
         ) : (

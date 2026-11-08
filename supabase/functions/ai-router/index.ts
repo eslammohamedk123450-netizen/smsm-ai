@@ -874,28 +874,32 @@ async function handleRequest(req: Request): Promise<Response> {
   if (splitParts.length > 1) {
     const systemMessages = messages.filter((message) => message.role === "system");
     const history = messages.filter((message) => message.role !== "system").slice(0, -1);
-    const partResults: Array<{ index: number; content: string; model: string | null }> = [];
-    let bestCandidate: ReadyCandidate | null = null;
-    for (let index = 0; index < splitParts.length; index += 1) {
+    // Parts do not depend on one another, so run their races concurrently.
+    // Promise.all preserves the input order even when providers finish out of order.
+    const answerPart = async (index: number): Promise<{ index: number; content: string; model: string | null; candidate: ReadyCandidate | null }> => {
       const partMessages: ChatMessage[] = [
         ...systemMessages,
         ...history,
         { role: "user", content: splitParts[index] },
       ];
-      const partCandidates: Candidate[] = raceCandidates.map((candidate) => ({ ...candidate, requestMessages: partMessages }));
-      const partWinner = await firstReady(partCandidates, settings.freeRaceTimeoutMs, recordAttempt);
-      if (!partWinner) {
-        partResults.push({ index, content: "", model: null });
-        continue;
+      let remaining = raceCandidates.map((candidate) => ({ ...candidate, requestMessages: partMessages }));
+      for (let attempt = 0; attempt < Math.min(2, remaining.length); attempt += 1) {
+        const partWinner = await firstReady(remaining, settings.freeRaceTimeoutMs, recordAttempt);
+        if (!partWinner) break;
+        try {
+          const content = await collectCandidate(partWinner);
+          if (content.trim()) return { index, content, model: partWinner.model.model_identifier, candidate: partWinner };
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : String(error);
+          await recordAttempt(partWinner, "error", Date.now() - partWinner.startedAtMs, "stream_error", reason);
+        }
+        remaining = remaining.filter((candidate) => candidate.model.id !== partWinner.model.id);
       }
-      bestCandidate ??= partWinner;
-      try {
-        const content = await collectCandidate(partWinner);
-        partResults.push({ index, content, model: partWinner.model.model_identifier });
-      } catch {
-        partResults.push({ index, content: "", model: null });
-      }
-    }
+      return { index, content: "", model: null, candidate: null };
+    };
+    const partResultsWithCandidates = await Promise.all(splitParts.map((_, index) => answerPart(index)));
+    const partResults = partResultsWithCandidates.map(({ index, content, model }) => ({ index, content, model }));
+    const bestCandidate = partResultsWithCandidates.find((part) => part.candidate)?.candidate ?? null;
     const merged = mergePartAnswers(partResults);
     const mergedModel = bestCandidate;
     const messageId = mergedModel
