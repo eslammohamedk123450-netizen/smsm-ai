@@ -35,12 +35,14 @@ function MessageAction({
   label,
   selected = false,
   copied = false,
+  showLabel = false,
   onPress,
 }: {
   kind: ActionKind;
   label: string;
   selected?: boolean;
   copied?: boolean;
+  showLabel?: boolean;
   onPress(): void;
 }) {
   const scale = useRef(new Animated.Value(1)).current;
@@ -66,7 +68,7 @@ function MessageAction({
         style={styles.action}
       >
         <View style={styles.actionIcon}><ReactionGlyph kind={kind} selected={selected} copied={copied} /></View>
-        {kind === "edit" ? <Text style={styles.actionLabel}>{label}</Text> : null}
+        {kind === "edit" || showLabel ? <Text style={styles.actionLabel}>{label}</Text> : null}
       </TouchableOpacity>
     </Animated.View>
   );
@@ -152,7 +154,10 @@ export function MessageBubble({ role, content, isStreaming = false, feedback = n
         {canShowActions && (
           <View style={styles.actions}>
             {isUser ? (
-              <MessageAction kind="edit" label="تعديل" onPress={() => onEdit?.(content)} />
+              <>
+                <MessageAction kind="copy" label="نسخ" copied={copied} showLabel onPress={() => void copyToClipboard(content, true)} />
+                <MessageAction kind="edit" label="تعديل" onPress={() => onEdit?.(content)} />
+              </>
             ) : (
               <>
                 <MessageAction kind="copy" label="نسخ" copied={copied} onPress={() => void copyToClipboard(content, true)} />

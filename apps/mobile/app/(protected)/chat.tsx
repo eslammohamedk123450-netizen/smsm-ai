@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TouchableOpacity, View, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { PremiumText as Text } from "../../src/components/ui/PremiumText";
 import { AppLogo } from "../../src/components/ui/AppLogo";
 import { Ionicons } from "@expo/vector-icons";
@@ -55,6 +55,8 @@ export default function ChatPage() {
   const closeShareSheet = useCallback(() => setShareVisible(false), []);
   const composerRef = useRef<ChatComposerHandle>(null);
   const listRef = useRef<FlatList<ChatMessage>>(null);
+  const isNearBottomRef = useRef(true);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const lock = useRef(false);
   const newConversationLock = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -80,6 +82,8 @@ export default function ChatPage() {
 
   useEffect(() => {
     let active = true;
+    isNearBottomRef.current = true;
+    setShowScrollToBottom(false);
     abortRef.current?.abort();
     setConversationId(routeConversationId || null);
     setMessages([]);
@@ -104,8 +108,29 @@ export default function ChatPage() {
   }, [routeConversationId]);
 
   useEffect(() => {
-    if (messages.length) requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
+    if (messages.length && isNearBottomRef.current) {
+      requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
+    }
   }, [messages.length]);
+
+  const handleMessageScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    const nearBottom = contentSize.height - (contentOffset.y + layoutMeasurement.height) < 96;
+    isNearBottomRef.current = nearBottom;
+    setShowScrollToBottom(!nearBottom);
+  }, []);
+
+  const scrollToLatestMessage = useCallback(() => {
+    isNearBottomRef.current = true;
+    setShowScrollToBottom(false);
+    listRef.current?.scrollToEnd({ animated: true });
+  }, []);
+
+  const handleMessageContentSizeChange = useCallback(() => {
+    if (isNearBottomRef.current) {
+      requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
+    }
+  }, []);
 
   const reloadMessages = useCallback(async (id: string) => {
     const saved = await chatService.getMessages(id);
@@ -351,7 +376,27 @@ export default function ChatPage() {
             </View>
           </View>
         ) : (
-          <FlatList ref={listRef} style={styles.messages} contentContainerStyle={styles.messageContent} data={messages} renderItem={({item}) => renderMessage({item, onCopy: () => Clipboard.setStringAsync(item.content)})} keyExtractor={(item) => item.id} keyboardShouldPersistTaps="handled" onScroll={(e) => setShowScrollDown(e.nativeEvent.contentOffset.y < e.nativeEvent.contentSize.height - 1000)} />{showScrollDown && (<TouchableOpacity style={styles.scrollDownButton} onPress={() => listRef.current?.scrollToEnd({ animated: true })}><Ionicons name="chevron-down" size={24} color="white" /></TouchableOpacity>)}
+          <View style={styles.messageListContainer}>
+            <FlatList
+              ref={listRef}
+              style={styles.messages}
+              contentContainerStyle={styles.messageContent}
+              data={messages}
+              renderItem={renderMessage}
+              keyExtractor={(item) => item.id}
+              keyboardShouldPersistTaps="handled"
+              onScroll={handleMessageScroll}
+              scrollEventThrottle={16}
+              onContentSizeChange={handleMessageContentSizeChange}
+            />
+            {showScrollToBottom ? <TouchableOpacity
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="الانتقال إلى أحدث رسالة"
+              onPress={scrollToLatestMessage}
+              style={styles.scrollToBottomButton}
+            ><Ionicons name="chevron-down" size={22} color={colors.textPrimary} /></TouchableOpacity> : null}
+          </View>
         )}
         {isUploadingAttachment ? <View style={styles.uploadStatus}><ActivityIndicator size="small" color={colors.primary} /><Text style={styles.loadingText}>جارٍ حفظ المرفق في Cloudinary…</Text></View> : null}
         <StreamingStatus isStreaming={isSending && !isUploadingAttachment} onCancel={() => abortRef.current?.abort()} />
@@ -388,6 +433,8 @@ const styles = StyleSheet.create({
   loadingText: { color: colors.textSecondary },
   uploadStatus: { flexDirection: "row-reverse", justifyContent: "center", alignItems: "center", gap: 8, paddingVertical: 8 },
   messages: { flex: 1 },
+  messageListContainer: { flex: 1, position: "relative" },
+  scrollToBottomButton: { position: "absolute", right: 24, bottom: 12, width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.divider, elevation: 5, zIndex: 2 },
   messageContent: { flexGrow: 1, paddingVertical: 12 },
   empty: { flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 20, gap: 12 },
   logo: { width: 72, height: 72, borderRadius: 36, borderWidth: 1, borderColor: "#1E7B60", alignItems: "center", justifyContent: "center", marginBottom: 8, shadowColor: "#10B981", shadowOpacity: 0.22, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 7 },
