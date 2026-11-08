@@ -3,13 +3,12 @@ import { ActivityIndicator, Appearance, Image, ScrollView, StyleSheet, Switch, T
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
+import { getCreditLedger, type CreditEntry } from "../credits/credit-service";
 import { useAuth } from "../auth/auth-provider";
-import { supabase } from "../../lib/supabase/client";
 import { colors } from "../../theme/colors";
 import { BottomSheet } from "../../components/ui/BottomSheet";
 import { useToast } from "../../components/ui/Toast";
 
-type CreditEntry = { id: string; event_type: string; amount: number; balance_delta: number; balance_after: number; source: string; reason: string | null; created_at: string };
 type Language = "ar" | "en";
 
 function applyColorScheme(dark: boolean): void {
@@ -52,18 +51,14 @@ export default function SettingsScreen() {
   const loadCredits = useCallback(async () => {
     if (!user) return;
     setLoadingCredits(true);
-    const [accountResult, transactionResult] = await Promise.all([
-      supabase.from("suly_credit_accounts").select("balance").eq("user_id", user.id).maybeSingle(),
-      supabase.from("suly_credit_transactions").select("id,event_type,amount,balance_delta,balance_after,source,reason,created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(30),
-    ]);
-    if (accountResult.error || transactionResult.error) {
+    try {
+      const ledger = await getCreditLedger(50);
+      setBalance(ledger.balance);
+      setTransactions(ledger.entries);
+    } catch {
       setBalance(null);
       setTransactions([]);
-    } else {
-      setBalance(Number(accountResult.data?.balance ?? 0));
-      setTransactions((transactionResult.data ?? []) as CreditEntry[]);
-    }
-    setLoadingCredits(false);
+    } finally { setLoadingCredits(false); }
   }, [user]);
   useEffect(() => { void loadCredits(); }, [loadCredits]);
 
@@ -93,6 +88,7 @@ export default function SettingsScreen() {
   const confirmLogout = () => setConfirmLogoutVisible(true);
 
   const transactionTitle = (entry: CreditEntry) => {
+    if (entry.task_title && entry.event_type === "settle") return `${isArabic ? "مهمة" : "Task"}: ${entry.task_title}`;
     if (entry.reason) return entry.reason;
     if (entry.event_type === "settle") return isArabic ? "استخدام رصيد لمهمة" : "Credits used for a task";
     if (entry.event_type === "reserve") return isArabic ? "حجز رصيد لمهمة" : "Credits reserved for a task";
@@ -140,6 +136,9 @@ export default function SettingsScreen() {
           <TouchableOpacity activeOpacity={0.7} onPress={() => { setCreditModal(true); void loadCredits(); }} style={styles.historyButton} accessibilityRole="button"><Text style={styles.linkText}>{isArabic ? "عرض السجل" : "View history"}</Text></TouchableOpacity>
         </View>
 
+        <Text style={styles.sectionTitle}>{isArabic ? "الدعم" : "Support"}</Text>
+        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/support")} accessibilityRole="button"><Text style={styles.rowText}>{isArabic ? "الشكاوى والدعم" : "Support & complaints"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
+
         <Text style={styles.sectionTitle}>{isArabic ? "المعلومات والسياسات" : "Information & policies"}</Text>
         <View style={styles.policyCard}>
           <TouchableOpacity activeOpacity={0.7} onPress={() => setPolicyModal("privacy")} style={styles.policyRow}><Text style={styles.rowText}>{isArabic ? "سياسة الخصوصية" : "Privacy policy"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
@@ -160,7 +159,7 @@ export default function SettingsScreen() {
             {transactions.length === 0 ? <Text style={styles.emptyHistory}>{isArabic ? "لا توجد معاملات مسجلة." : "No transactions yet."}</Text> : transactions.map((entry) => (
               <View key={entry.id} style={styles.transaction}>
                 <View style={styles.transactionCopy}><Text style={styles.transactionTitle}>{transactionTitle(entry)}</Text><Text style={styles.transactionDate}>{new Date(entry.created_at).toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text></View>
-                <View style={styles.transactionAmount}><Text style={[styles.delta, entry.balance_delta >= 0 ? styles.positive : styles.negative]}>{entry.balance_delta > 0 ? "+" : ""}{entry.balance_delta}</Text><Text style={styles.balanceAfter}>{isArabic ? "الرصيد" : "Balance"}: {entry.balance_after}</Text></View>
+                <View style={styles.transactionAmount}><Text style={[styles.delta, entry.balance_delta >= 0 ? styles.positive : styles.negative]}>{entry.balance_delta > 0 ? "+" : ""}{entry.balance_delta}</Text><Text style={styles.balanceAfter}>{entry.task_title ? `${isArabic ? "المهمة" : "Task"}: ${entry.task_title}` : `${isArabic ? "الرصيد" : "Balance"}: ${entry.balance_after}`}</Text></View>
               </View>
             ))}
           </ScrollView>}

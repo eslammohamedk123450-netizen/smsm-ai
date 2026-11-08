@@ -18,6 +18,14 @@ export interface PricingPlan {
   enabled: boolean;
   updated_at?: string;
 }
+export interface PricingFeature {
+  id: number;
+  plan_id: number;
+  title: string;
+  value: string;
+  sort_order: number;
+  is_active: boolean;
+}
 
 export interface HimsActivationCode {
   id: string;
@@ -334,9 +342,34 @@ export const adminService = {
       enabled: plan.is_active !== false,
     })) as PricingPlan[];
   },
+  async getPricingFeatures(): Promise<PricingFeature[]> {
+    await requireAdmin();
+    const { data, error } = await supabase.from("subscription_plan_features")
+      .select("id,plan_id,title,value,sort_order,is_active")
+      .order("plan_id", { ascending: true }).order("sort_order", { ascending: true }).limit(500);
+    if (error) throw error;
+    return (data ?? []) as PricingFeature[];
+  },
+  async createPricingFeature(input: { planId: number; title: string; value: string; sortOrder?: number }) {
+    await requireAdmin();
+    if (!input.title.trim() || !input.value.trim()) throw new Error("اكتب عنوان المزية وقيمتها.");
+    const { error } = await supabase.from("subscription_plan_features").insert({ plan_id: input.planId, title: input.title.trim(), value: input.value.trim(), sort_order: input.sortOrder ?? 0, is_active: true });
+    if (error) throw error;
+  },
+  async updatePricingFeature(id: number, input: { title: string; value: string }) {
+    await requireAdmin();
+    if (!input.title.trim() || !input.value.trim()) throw new Error("اكتب عنوان المزية وقيمتها.");
+    const { error } = await supabase.from("subscription_plan_features").update({ title: input.title.trim(), value: input.value.trim(), updated_at: new Date().toISOString() }).eq("id", id);
+    if (error) throw error;
+  },
+  async deletePricingFeature(id: number) {
+    await requireAdmin();
+    const { error } = await supabase.from("subscription_plan_features").delete().eq("id", id);
+    if (error) throw error;
+  },
   async updatePricingPlan(planId: number, data: { price: number; max_requests: number; daily_credits: number }) {
     await requireAdmin();
-    if (![1, 2, 3, 4].includes(planId)) throw new Error("الباقة غير معروفة.");
+    if (![1, 2, 3, 4, 5].includes(planId)) throw new Error("الباقة غير معروفة.");
     if (!Number.isFinite(data.price) || data.price < 0 || data.price > 1_000_000 || !Number.isInteger(data.max_requests) || data.max_requests < 0 || data.max_requests > 1_000_000_000 || !Number.isInteger(data.daily_credits) || data.daily_credits < 0 || data.daily_credits > 1_000_000_000) {
       throw new Error("أدخل سعرًا وحدودًا صحيحة غير سالبة.");
     }

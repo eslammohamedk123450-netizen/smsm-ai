@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "expo-router";
 import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, StyleSheet, Switch, TextInput, TouchableOpacity, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
-import { adminService, type PricingPlan } from "./admin-service";
+import { adminService, type PricingPlan, type PricingFeature } from "./admin-service";
 import { providerPresets, findPreset, type ProviderPreset } from "./provider-presets";
 import { confirmAdminAction } from "./admin-confirm";
 import { colors } from "../../theme/colors";
@@ -594,7 +594,9 @@ export function CreditManagementAdminScreen() {
 
 export function PricingAdminScreen() {
   const [plans, setPlans] = useState<PricingPlan[]>([]);
+  const [features, setFeatures] = useState<PricingFeature[]>([]);
   const [drafts, setDrafts] = useState<Record<string, { price: string; max_requests: string; daily_credits: string }>>({});
+  const [featureDrafts, setFeatureDrafts] = useState<Record<string, { title: string; value: string }>>({});
   const [adMobSettings, setAdMobSettings] = useState({ appId: "", rewardedUnitId: "", bannerUnitId: "" });
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -603,8 +605,10 @@ export function PricingAdminScreen() {
   const load = async () => {
     setLoading(true); setError(null);
     try {
-      const [loadedPlans, loadedAdMobSettings] = await Promise.all([adminService.getPricingPlans(), adminService.getAdMobSettings()]);
+      const [loadedPlans, loadedFeatures, loadedAdMobSettings] = await Promise.all([adminService.getPricingPlans(), adminService.getPricingFeatures(), adminService.getAdMobSettings()]);
       setPlans(loadedPlans);
+      setFeatures(loadedFeatures);
+      setFeatureDrafts(Object.fromEntries(loadedFeatures.map((feature) => [feature.id, { title: feature.title, value: feature.value }])));
       setDrafts(Object.fromEntries(loadedPlans.map((plan) => [plan.id, { price: String(plan.price), max_requests: String(plan.max_requests), daily_credits: String(plan.daily_credits) }])));
       setAdMobSettings(loadedAdMobSettings);
     } catch { setError("تعذر تحميل الباقات أو إعداد AdMob. تحقق من migration والصلاحية."); }
@@ -626,6 +630,10 @@ export function PricingAdminScreen() {
     setBusy(true); setError(null); setNotice(null);
     try {
       await Promise.all(values.map(({ plan, price, max_requests, daily_credits }) => adminService.updatePricingPlan(plan.id, { price, max_requests, daily_credits })));
+      await Promise.all(features.map((feature) => {
+        const draft = featureDrafts[feature.id];
+        return adminService.updatePricingFeature(feature.id, { title: draft?.title ?? feature.title, value: draft?.value ?? feature.value });
+      }));
       await adminService.updateAdMobSettings(adMobSettings);
       setNotice("تم حفظ الباقات وإعداد AdMob بنجاح.");
       await load();
@@ -645,6 +653,13 @@ export function PricingAdminScreen() {
           <NumberField label="السعر" value={draft?.price ?? ""} onChange={(value) => updateDraft(plan.id, "price", value)} />
           <NumberField label="الحد الأقصى للطلبات" value={draft?.max_requests ?? ""} onChange={(value) => updateDraft(plan.id, "max_requests", value)} />
           <NumberField label="الرصيد اليومي" value={draft?.daily_credits ?? ""} onChange={(value) => updateDraft(plan.id, "daily_credits", value)} />
+          <Text style={styles.label}>مزايا الباقة</Text>
+          {features.filter((feature) => feature.plan_id === plan.id).map((feature) => <View key={feature.id} style={styles.featureEditor}>
+            <TextInput style={styles.input} value={featureDrafts[feature.id]?.title ?? feature.title} onChangeText={(value) => setFeatureDrafts((current) => ({ ...current, [feature.id]: { ...(current[feature.id] ?? { value: feature.value }), title: value } }))} placeholder="عنوان المزية" placeholderTextColor={colors.textMuted} />
+            <TextInput style={styles.input} value={featureDrafts[feature.id]?.value ?? feature.value} onChangeText={(value) => setFeatureDrafts((current) => ({ ...current, [feature.id]: { ...(current[feature.id] ?? { title: feature.title }), value } }))} placeholder="قيمة المزية" placeholderTextColor={colors.textMuted} />
+            <Pressable onPress={() => { void adminService.deletePricingFeature(feature.id).then(() => load()).catch((cause) => setError(cause instanceof Error ? cause.message : "تعذر حذف المزية.")); }}><Text style={styles.deleteFeature}>حذف المزية</Text></Pressable>
+          </View>)}
+          <Pressable onPress={() => { void adminService.createPricingFeature({ planId: plan.id, title: "مزية جديدة", value: "اكتب قيمة المزية" }).then(() => load()).catch((cause) => setError(cause instanceof Error ? cause.message : "تعذر إضافة المزية.")); }} style={styles.addFeature}><Text style={styles.addFeatureText}>＋ إضافة مزية</Text></Pressable>
         </Card>;
       })}
       <Card>
@@ -741,6 +756,10 @@ const styles = StyleSheet.create({
   label: { color: colors.textSecondary, textAlign: "right", flex: 1 },
   input: { minHeight: 46, borderRadius: 10, borderWidth: 1, borderColor: colors.inputBorder, backgroundColor: colors.inputBackground, paddingHorizontal: 12, color: colors.textPrimary, textAlign: "auto", marginVertical: 4 },
   field: { marginTop: 5 },
+  featureEditor: { gap: 2, borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 8 },
+  addFeature: { minHeight: 40, borderRadius: 10, borderWidth: 1, borderColor: colors.primary, alignItems: "center", justifyContent: "center" },
+  addFeatureText: { color: colors.primary, fontWeight: "700" },
+  deleteFeature: { color: colors.error, textAlign: "right", paddingVertical: 5 },
   toggle: { minHeight: 46, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   rowWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, alignItems: "center" },
   preset: { borderRadius: 12, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.inputBackground, paddingVertical: 10, paddingHorizontal: 14, marginRight: 8, marginBottom: 8 },

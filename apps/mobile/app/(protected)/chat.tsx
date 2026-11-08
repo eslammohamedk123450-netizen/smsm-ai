@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TouchableOpacity, View, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
+import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, TouchableOpacity, View, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { PremiumText as Text } from "../../src/components/ui/PremiumText";
 import { AppLogo } from "../../src/components/ui/AppLogo";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,6 +17,8 @@ import { uploadMediaFile } from "../../src/features/media/media-service";
 import { logFrictionEvent } from "../../src/features/telemetry/friction";
 import { colors } from "../../src/theme/colors";
 import { ShareConversationSheet } from "../../src/features/chat/components/ShareConversationSheet";
+import { BottomSheet } from "../../src/components/ui/BottomSheet";
+import { getTaskRating, getTaskUsage, saveTaskRating, type TaskRating, type TaskUsage } from "../../src/features/credits/credit-service";
 import { useToast } from "../../src/components/ui/Toast";
 import { supabase } from "../../src/lib/supabase/client";
 import { getRotatingSuggestions, type SuggestionCard } from "../../src/features/chat/suggestions";
@@ -40,6 +42,14 @@ export default function ChatPage() {
   const [adminAccess, setAdminAccess] = useState<{ userId: string | null; allowed: boolean }>({ userId: null, allowed: false });
   const [feedbackByMessage, setFeedbackByMessage] = useState<Record<string, MessageFeedback>>({});
   const [shareVisible, setShareVisible] = useState(false);
+  const [usageVisible, setUsageVisible] = useState(false);
+  const [taskUsage, setTaskUsage] = useState<TaskUsage | null>(null);
+  const [usageLoading, setUsageLoading] = useState(false);
+  const [taskRating, setTaskRating] = useState<TaskRating | null>(null);
+  const [ratingStars, setRatingStars] = useState(0);
+  const [ratingNote, setRatingNote] = useState("");
+  const [ratingVisible, setRatingVisible] = useState(false);
+  const [ratingSaving, setRatingSaving] = useState(false);
   const closeShareSheet = useCallback(() => setShareVisible(false), []);
   const composerRef = useRef<ChatComposerHandle>(null);
   const listRef = useRef<FlatList<ChatMessage>>(null);
@@ -50,6 +60,19 @@ export default function ChatPage() {
   const newConversationLock = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const isAdmin = Boolean(user?.id && adminAccess.userId === user.id && adminAccess.allowed);
+
+  const loadTaskUsage = useCallback(async () => {
+    if (!conversationId) { setTaskUsage(null); return; }
+    setUsageLoading(true);
+    try { setTaskUsage(await getTaskUsage(conversationId)); } catch { setTaskUsage(null); }
+    finally { setUsageLoading(false); }
+  }, [conversationId]);
+
+  useEffect(() => { void loadTaskUsage(); }, [loadTaskUsage, messages.length]);
+  useEffect(() => {
+    if (!conversationId) { setTaskRating(null); return; }
+    void getTaskRating(conversationId).then((value) => { setTaskRating(value); if (value) { setRatingStars(value.stars); setRatingNote(value.note ?? ""); } }).catch(() => undefined);
+  }, [conversationId, messages.length]);
 
   useEffect(() => {
     // Rotate in the background. The time-bucketed selector returns the same
@@ -356,6 +379,8 @@ export default function ChatPage() {
           </View>
           <View style={styles.headerActions}>
             {isAdmin ? <Pressable onPress={() => router.push("/(protected)/admin")} style={styles.adminShortcut} accessibilityRole="button" accessibilityLabel="لوحة التحكم"><Text style={styles.adminShortcutText}>إدارة</Text></Pressable> : null}
+            <Pressable onPress={() => router.push("/(protected)/upgrade")} style={styles.upgradeShortcut} accessibilityRole="button" accessibilityLabel="ترقية الحساب"><Text style={styles.upgradeShortcutText}>ترقية</Text></Pressable>
+            <TouchableOpacity onPress={() => { setUsageVisible(true); void loadTaskUsage(); }} style={styles.headerButton} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="إحصائيات استخدام المهمة"><Ionicons name="analytics-outline" size={20} color="#94A3B8" /></TouchableOpacity>
             <TouchableOpacity onPress={() => setShareVisible(true)} style={styles.headerButton} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="مشاركة المحادثة"><Ionicons name="share-social-outline" size={18} color="#94A3B8" /></TouchableOpacity>
             <Pressable onPress={() => void startNewChat()} style={[styles.headerButton, styles.newChatButton]} accessibilityRole="button" accessibilityLabel="إنشاء محادثة جديدة"><Text style={styles.newChatIcon}>＋</Text></Pressable>
           </View>
@@ -396,10 +421,21 @@ export default function ChatPage() {
           </View>
         )}
         {isUploadingAttachment ? <View style={styles.uploadStatus}><ActivityIndicator size="small" color={colors.primary} /><Text style={styles.loadingText}>جارٍ حفظ المرفق في Cloudinary…</Text></View> : null}
+        {conversationId && messages.some((message) => message.role === "assistant" && message.status !== "streaming") && !isSending ? <View style={styles.ratingBar}><Text style={styles.ratingLabel}>{taskRating ? "تقييمك لهذه المهمة" : "قيّم هذه المهمة"}</Text><View style={styles.starsRow}>{[1, 2, 3, 4, 5].map((star) => <Pressable key={star} onPress={() => { setRatingStars(star); setRatingVisible(true); }} accessibilityRole="button" accessibilityLabel={`تقييم ${star} نجوم`}><Text style={[styles.star, star <= (taskRating?.stars ?? ratingStars) && styles.starSelected]}>★</Text></Pressable>)}</View></View> : null}
         <StreamingStatus isStreaming={isSending && !isUploadingAttachment} onCancel={() => abortRef.current?.abort()} />
         <ChatComposer ref={composerRef} onSend={handleSend} disabled={isSending} isStreaming={isSending} onCancel={() => abortRef.current?.abort()} />
       </KeyboardAvoidingView>
       <ShareConversationSheet visible={shareVisible} conversationId={conversationId} title={shareTitle} plainText={shareText} onClose={closeShareSheet} />
+      <BottomSheet visible={ratingVisible} title="قيّم هذه المهمة" onClose={() => setRatingVisible(false)}>
+        <View style={styles.ratingSheet}><Text style={styles.ratingPrompt}>اختر تقييمك من نجمة إلى خمس نجوم</Text><View style={styles.starsRow}>{[1, 2, 3, 4, 5].map((star) => <Pressable key={star} onPress={() => setRatingStars(star)}><Text style={[styles.star, star <= ratingStars && styles.starSelected]}>★</Text></Pressable>)}</View><TextInput value={ratingNote} onChangeText={setRatingNote} placeholder="يمكنك تقديم ملاحظاتك للحصول على أفضل خدمة" placeholderTextColor={colors.textMuted} style={styles.ratingInput} multiline maxLength={2000} /><Pressable disabled={ratingSaving || ratingStars === 0} style={[styles.ratingSubmit, (ratingSaving || ratingStars === 0) && styles.disabled]} onPress={() => { if (!conversationId) return; setRatingSaving(true); void saveTaskRating({ conversationId, taskId: taskUsage?.taskId, stars: ratingStars, note: ratingNote }).then(() => { setTaskRating({ stars: ratingStars, note: ratingNote.trim() || null }); setRatingVisible(false); show("تم إرسال تقييم المهمة.", "success"); }).catch((cause) => show(cause instanceof Error ? cause.message : "تعذر إرسال التقييم.", "error")).finally(() => setRatingSaving(false)); }}><Text style={styles.ratingSubmitText}>{ratingSaving ? "جارٍ الإرسال…" : "إرسال"}</Text></Pressable></View>
+      </BottomSheet>
+      <BottomSheet visible={usageVisible} title="إحصائيات المهمة الحالية" onClose={() => setUsageVisible(false)}>
+        {usageLoading ? <ActivityIndicator color={colors.primary} /> : taskUsage ? <View style={styles.usageSheet}>
+          <Text style={styles.usageTaskTitle}>{taskUsage.taskTitle}</Text>
+          <View style={styles.usageMetric}><Text style={styles.usageMetricLabel}>الرصيد المستخدم في هذه المهمة</Text><Text style={styles.usageMetricValue}>{taskUsage.charged.toLocaleString("ar-EG")}</Text></View>
+          <Text style={styles.usageStatus}>الحالة: {taskUsage.status === "settled" ? "مكتملة" : taskUsage.status === "held" ? "قيد التنفيذ" : taskUsage.status}</Text>
+        </View> : <Text style={styles.loadingText}>لا يوجد استهلاك مسجل لهذه المحادثة بعد.</Text>}
+      </BottomSheet>
     </SafeAreaView>
   );
 }
@@ -420,6 +456,8 @@ const styles = StyleSheet.create({
   newChatIcon: { color: colors.primary, fontSize: 25, fontWeight: "600", lineHeight: 28 },
   adminShortcut: { minWidth: 42, height: 36, paddingHorizontal: 7, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceElevated },
   adminShortcutText: { color: colors.primary, fontSize: 11, fontWeight: "700" },
+  upgradeShortcut: { minHeight: 32, borderRadius: 9, paddingHorizontal: 9, justifyContent: "center", backgroundColor: colors.primary },
+  upgradeShortcutText: { color: colors.background, fontSize: 11, fontWeight: "800" },
   errorBox: { marginHorizontal: 14, marginTop: 8, padding: 10, borderRadius: 10, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.error },
   errorText: { color: colors.error, textAlign: "right", fontSize: 12 },
   retryWarning: { marginHorizontal: 14, marginTop: 8, padding: 12, borderRadius: 10, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", gap: 12 },
@@ -441,4 +479,21 @@ const styles = StyleSheet.create({
   suggestionsGrid: { width: "100%", maxWidth: 520, flexDirection: "row", flexWrap: "wrap", gap: 12, justifyContent: "center" },
   suggestionCard: { width: "47%", height: 92, padding: 12, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, alignItems: "center", justifyContent: "center", gap: 8 },
   suggestionText: { color: colors.textPrimary, fontSize: 14, textAlign: "center", lineHeight: 20 },
+  ratingBar: { minHeight: 54, flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 18, borderTopWidth: 1, borderTopColor: colors.divider },
+  ratingLabel: { color: colors.textSecondary, fontSize: 12 },
+  starsRow: { flexDirection: "row", alignItems: "center", gap: 2 },
+  star: { color: colors.textMuted, fontSize: 25 },
+  starSelected: { color: "#FBBF24" },
+  ratingSheet: { gap: 14 },
+  ratingPrompt: { color: colors.textSecondary, textAlign: "right" },
+  ratingInput: { minHeight: 90, borderWidth: 1, borderColor: colors.inputBorder, borderRadius: 10, backgroundColor: colors.inputBackground, color: colors.textPrimary, padding: 12, textAlign: "right" },
+  ratingSubmit: { minHeight: 44, borderRadius: 10, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
+  disabled: { opacity: 0.5 },
+  ratingSubmitText: { color: colors.background, fontWeight: "800" },
+  usageSheet: { gap: 12 },
+  usageTaskTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: "700", textAlign: "right" },
+  usageMetric: { padding: 18, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, alignItems: "center", gap: 5 },
+  usageMetricLabel: { color: colors.textSecondary, textAlign: "center" },
+  usageMetricValue: { color: colors.primary, fontSize: 32, fontWeight: "800" },
+  usageStatus: { color: colors.textMuted, textAlign: "right" },
 });
