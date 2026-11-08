@@ -106,7 +106,7 @@ function renderBlock(block: MarkdownBlock, index: number, onCopyCode?: (code: st
   }
   if (block.type === "table") {
     return (
-      <ScrollView key={`table-${index}`} horizontal nestedScrollEnabled showsHorizontalScrollIndicator style={styles.tableScroll} contentContainerStyle={styles.tableContent}>
+      <ScrollView key={`table-${index}`} horizontal nestedScrollEnabled showsHorizontalScrollIndicator={false} directionalLockEnabled bounces={false} style={styles.tableScroll} contentContainerStyle={styles.tableContent}>
         <View>
           <View style={[styles.tableRow, styles.tableHeader]}>
             {block.headers.map((cell, cellIndex) => <View key={`head-${cellIndex}`} style={styles.tableCell}><InlineText text={cell} baseStyle={styles.tableHeaderText} /></View>)}
@@ -128,7 +128,7 @@ function renderBlock(block: MarkdownBlock, index: number, onCopyCode?: (code: st
           <Text style={styles.copyText}>نسخ</Text>
         </Pressable>
       </View>
-      <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator style={styles.codeScroll} contentContainerStyle={styles.codeContent}>
+      <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator={false} directionalLockEnabled style={styles.codeScroll} contentContainerStyle={styles.codeContent}>
         <Text selectable style={styles.codeText}>{block.code}</Text>
       </ScrollView>
     </View>
@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
   tableContent: { minWidth: "100%" },
   tableRow: { flexDirection: "row-reverse", borderBottomWidth: 1, borderBottomColor: colors.divider },
   tableHeader: { backgroundColor: colors.surfaceElevated },
-  tableCell: { minWidth: 110, flex: 1, paddingHorizontal: 10, paddingVertical: 8, borderLeftWidth: 1, borderLeftColor: colors.divider },
+  tableCell: { minWidth: 130, flex: 1, paddingHorizontal: 12, paddingVertical: 9, borderLeftWidth: 1, borderLeftColor: colors.divider },
   tableHeaderText: { fontWeight: "700" },
   tableText: { fontSize: 14, lineHeight: 24 },
   codeContainer: { width: "100%", maxWidth: webMaxWidth, backgroundColor: colors.background, borderRadius: 12, padding: 12, marginBottom: 12, overflow: "hidden" },

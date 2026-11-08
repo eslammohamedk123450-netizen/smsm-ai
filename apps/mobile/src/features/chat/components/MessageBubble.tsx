@@ -15,7 +15,6 @@ export interface MessageBubbleProps {
   feedback?: Feedback;
   onFeedback?(value: Feedback): void | Promise<void>;
   onEdit?(content: string): void;
-  onRegenerate?(): void;
 }
 
 export type Feedback = "like" | "dislike" | null;
@@ -74,7 +73,7 @@ function MessageAction({
   );
 }
 
-export function MessageBubble({ role, content, isStreaming = false, feedback = null, onFeedback, onEdit, onRegenerate }: MessageBubbleProps) {
+export function MessageBubble({ role, content, isStreaming = false, feedback = null, onFeedback, onEdit }: MessageBubbleProps) {
   const isUser = role === "user";
   const { show } = useToast();
   const [copied, setCopied] = useState(false);
@@ -132,17 +131,16 @@ export function MessageBubble({ role, content, isStreaming = false, feedback = n
   });
 
   const canShowActions = !isStreaming && content.length > 0;
-  const canRegenerate = !isUser && canShowActions && Boolean(onRegenerate);
 
   return (
     <View style={[styles.row, isUser ? styles.userRow : styles.assistantRow]}>
       {!isUser && <View style={styles.avatar}><Text style={styles.avatarLetter}>S</Text></View>}
       <View style={[styles.messageColumn, isUser && styles.userColumn]}>
         <Pressable
-          onLongPress={canRegenerate ? onRegenerate : undefined}
+          onLongPress={() => void copyToClipboard(content, true)}
           delayLongPress={500}
           style={[styles.bubble, isUser ? styles.userBubble : styles.assistantBubble]}
-          accessibilityHint={canRegenerate ? "اضغط مطولًا لإعادة إنشاء الرد" : undefined}
+          accessibilityHint="اضغط مطولاً لنسخ نص الرسالة"
         >
           {!isUser && !isStreaming
             ? <MarkdownView content={content} onCopyCode={(code) => void copyToClipboard(code)} />

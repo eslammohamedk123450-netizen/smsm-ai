@@ -273,7 +273,6 @@ export const adminService = {
         const result = await this.testModel(modelId);
         const item = { modelId, status: result.status, durationMs: Number(result.duration_ms ?? 0), errorCode: result.error_code ?? null };
         results.push(item); onResult?.(item);
-        if (result.status === "success") await this.updateModel(modelId, { enabled: true, routing_group: "free_race" });
       } catch (cause) {
         const item = { modelId, status: "error" as const, durationMs: 0, errorCode: cause instanceof Error ? cause.message : "test_failed" };
         results.push(item); onResult?.(item);
@@ -450,7 +449,7 @@ export const adminService = {
   },
   async updateAgent(id: string, input: { name: string; systemPrompt: string; modelFallbackChain: string[]; isActive: boolean }) {
     await requireAdmin();
-    const { error } = await supabase.from("agent_registry").update({ name: input.name.trim().slice(0, 120), system_prompt: input.systemPrompt.trim().slice(0, 12000), model_fallback_chain: input.modelFallbackChain.slice(0, 20), is_active: input.isActive, updated_at: new Date().toISOString() }).eq("id", id);
+    const { error } = await supabase.from("agent_registry").update({ name: input.name.trim().slice(0, 120), system_prompt: input.systemPrompt.trim().slice(0, 12000), model_fallback_chain: input.modelFallbackChain, is_active: input.isActive, updated_at: new Date().toISOString() }).eq("id", id);
     if (error) throw error;
   },
   async deleteAgent(id: string) {

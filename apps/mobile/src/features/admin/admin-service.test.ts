@@ -59,4 +59,18 @@ describe("adminService tests", () => {
       body: { action: "test_model", model_id: 42 },
     });
   });
+
+  test("testModelsBatch tests specified models and does not call updateModel", async () => {
+    (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "admin-1" } }, error: null });
+    (supabase.rpc as jest.Mock).mockResolvedValue({ data: true, error: null });
+    (supabase.functions.invoke as jest.Mock).mockResolvedValue({
+      data: { model_id: 10, status: "success", duration_ms: 120, error_code: null },
+      error: null,
+    });
+    const fromSpy = supabase.from as jest.Mock;
+
+    const results = await adminService.testModelsBatch([10]);
+    expect(results).toEqual([{ modelId: 10, status: "success", durationMs: 120, errorCode: null }]);
+    expect(fromSpy).not.toHaveBeenCalledWith("ai_models");
+  });
 });

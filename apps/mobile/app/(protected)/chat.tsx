@@ -433,7 +433,6 @@ export default function ChatPage() {
       feedback={feedbackByMessage[item.id] ?? null}
       onEdit={item.role === "user" ? (content) => composerRef.current?.editMessage(content) : undefined}
       onFeedback={item.role === "assistant" && item.status !== "streaming" ? (value) => updateFeedback(item.id, value) : undefined}
-      onRegenerate={item.role === "assistant" ? () => void regenerate(item.id) : undefined}
     />
   );
 
