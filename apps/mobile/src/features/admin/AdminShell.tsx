@@ -3,16 +3,16 @@ import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } fr
 import { colors } from "../../theme/colors";
 
 const NAV = [
-  { path: "/admin", label: "نظرة عامة" },
-  { path: "/admin/models", label: "النماذج والتوجيه" },
-  { path: "/admin/api-keys", label: "مزودو الخدمة" },
-  { path: "/admin/users", label: "المستخدمون" },
-  { path: "/admin/credit-management", label: "الرصيد والتسعير" },
-  { path: "/admin/pricing", label: "الباقات والإعلانات" },
-  { path: "/admin/hims", label: "نظام HIMS" },
-  { path: "/admin/support", label: "الدعم والشكاوى" },
-  { path: "/admin/friction", label: "التقييم والتعثر" },
-  { path: "/admin/circuit-breaker", label: "قاطع الدائرة" },
+  { path: "/admin", label: "نظرة عامة", icon: "⌂" },
+  { path: "/admin/models", label: "النماذج والتوجيه", icon: "◈" },
+  { path: "/admin/api-keys", label: "مزودو الخدمة", icon: "⌘" },
+  { path: "/admin/users", label: "المستخدمون", icon: "♙" },
+  { path: "/admin/credit-management", label: "الرصيد والتسعير", icon: "◉" },
+  { path: "/admin/pricing", label: "الباقات والإعلانات", icon: "▤" },
+  { path: "/admin/hims", label: "نظام HIMS", icon: "✚" },
+  { path: "/admin/support", label: "الدعم والشكاوى", icon: "?" },
+  { path: "/admin/friction", label: "التقييم والتعثر", icon: "⌁" },
+  { path: "/admin/circuit-breaker", label: "قاطع الدائرة", icon: "ϟ" },
 ] as const;
 
 const WIDE_BREAKPOINT = 900;
@@ -40,7 +40,10 @@ export function AdminShell() {
         onPress={() => router.push(item.path)}
         style={StyleSheet.flatten([wide ? styles.navItem : styles.tabItem, active && styles.navItemActive])}
       >
-        <Text style={StyleSheet.flatten([wide ? styles.navLabel : styles.tabLabel, active && styles.navLabelActive])}>{item.label}</Text>
+        <View style={wide ? styles.navContent : styles.tabContent}>
+          <Text style={StyleSheet.flatten([wide ? styles.navIcon : styles.tabIcon, active && styles.navIconActive])}>{item.icon}</Text>
+          <Text style={StyleSheet.flatten([wide ? styles.navLabel : styles.tabLabel, active && styles.navLabelActive])}>{item.label}</Text>
+        </View>
       </Pressable>
     );
   });
@@ -50,6 +53,7 @@ export function AdminShell() {
       {wide ? (
         <View style={styles.rail}>
           <View style={styles.brand}>
+            <Text style={styles.brandMark}>✦</Text>
             <Text style={styles.brandName}>Suly Agent AI</Text>
             <Text style={styles.brandSub}>لوحة المشرف</Text>
           </View>
@@ -66,7 +70,7 @@ export function AdminShell() {
         {!wide ? (
           <>
             <View style={styles.mobileHeader}>
-              <Text style={styles.mobileTitle}>لوحة المشرف</Text>
+              <View style={styles.mobileHeading}><Text style={styles.brandMark}>✦</Text><Text style={styles.mobileTitle}>لوحة المشرف</Text></View>
               <Pressable accessibilityRole="button" onPress={() => router.push("/chat")} style={styles.backToAppSmall}>
                 <Text style={styles.backToAppSmallText}>التطبيق</Text>
               </Pressable>
@@ -84,13 +88,17 @@ export function AdminShell() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, flexDirection: "row-reverse", backgroundColor: colors.background },
-  rail: { width: 248, borderLeftWidth: 1, borderLeftColor: colors.divider, backgroundColor: colors.surface, paddingVertical: 16, paddingHorizontal: 12, gap: 16 },
-  brand: { paddingHorizontal: 4, gap: 2 },
+  rail: { width: 260, borderLeftWidth: 1, borderLeftColor: colors.divider, backgroundColor: colors.surface, paddingVertical: 20, paddingHorizontal: 14, gap: 20 },
+  brand: { paddingHorizontal: 8, gap: 3, alignItems: "flex-end" },
+  brandMark: { color: colors.primary, fontSize: 18, fontWeight: "800" },
   brandName: { color: colors.textPrimary, fontSize: 16, fontWeight: "800", textAlign: "right" },
   brandSub: { color: colors.textMuted, fontSize: 11, textAlign: "right" },
-  nav: { flex: 1, gap: 4 },
-  navItem: { minHeight: 40, borderRadius: 9, paddingHorizontal: 12, justifyContent: "center" },
-  navItemActive: { backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.divider },
+  nav: { flex: 1, gap: 6 },
+  navItem: { minHeight: 44, borderRadius: 11, paddingHorizontal: 12, justifyContent: "center" },
+  navItemActive: { backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.primary },
+  navContent: { flexDirection: "row-reverse", alignItems: "center", gap: 11 },
+  navIcon: { minWidth: 20, color: colors.textMuted, fontSize: 17, textAlign: "center" },
+  navIconActive: { color: colors.primary },
   navLabel: { color: colors.textSecondary, fontSize: 13, textAlign: "right" },
   navLabelActive: { color: colors.textPrimary, fontWeight: "700" },
   railFooter: { borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 12 },
@@ -98,11 +106,14 @@ const styles = StyleSheet.create({
   backToAppText: { color: colors.textPrimary, fontWeight: "700", fontSize: 13 },
   main: { flex: 1, minWidth: 0 },
   mobileHeader: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8 },
+  mobileHeading: { flexDirection: "row-reverse", alignItems: "center", gap: 8 },
   mobileTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: "800" },
   backToAppSmall: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, backgroundColor: colors.primary },
   backToAppSmallText: { color: colors.textPrimary, fontSize: 12, fontWeight: "700" },
-  tabs: { flexGrow: 0, borderBottomWidth: 1, borderBottomColor: colors.divider },
-  tabsContent: { gap: 6, paddingHorizontal: 12, paddingVertical: 10 },
-  tabItem: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: colors.surface },
+  tabs: { flexGrow: 0, borderBottomWidth: 1, borderBottomColor: colors.divider, backgroundColor: colors.surface },
+  tabsContent: { gap: 7, paddingHorizontal: 12, paddingVertical: 10 },
+  tabItem: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9, backgroundColor: colors.surfaceElevated },
+  tabContent: { flexDirection: "row-reverse", alignItems: "center", gap: 6 },
+  tabIcon: { color: colors.textMuted, fontSize: 13 },
   tabLabel: { color: colors.textSecondary, fontSize: 12 },
 });

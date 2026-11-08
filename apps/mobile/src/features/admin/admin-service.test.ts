@@ -40,4 +40,23 @@ describe("adminService tests", () => {
     await expect(adminService.adjustCredits("user-1", 0, "test")).rejects.toThrow("أدخل مبلغًا صحيحًا غير صفري وسببًا من 1 إلى 500 حرف.");
     await expect(adminService.adjustCredits("user-1", 100, "")).rejects.toThrow("أدخل مبلغًا صحيحًا غير صفري وسببًا من 1 إلى 500 حرف.");
   });
+
+  test("testModel verifies admin access and invokes the probe for the selected model", async () => {
+    (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "admin-1" } }, error: null });
+    (supabase.rpc as jest.Mock).mockResolvedValue({ data: true, error: null });
+    (supabase.functions.invoke as jest.Mock).mockResolvedValue({
+      data: { model_id: 42, status: "success", duration_ms: 240, error_code: null },
+      error: null,
+    });
+
+    await expect(adminService.testModel(42)).resolves.toEqual({
+      model_id: 42,
+      status: "success",
+      duration_ms: 240,
+      error_code: null,
+    });
+    expect(supabase.functions.invoke).toHaveBeenCalledWith("model-health-check", {
+      body: { action: "test_model", model_id: 42 },
+    });
+  });
 });

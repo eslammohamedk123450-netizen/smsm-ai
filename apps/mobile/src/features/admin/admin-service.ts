@@ -161,12 +161,15 @@ export const adminService = {
 
   async getModelsOverview() {
     await requireAdmin();
-    const [modelsResult, healthResult, settingsResult, providers] = await Promise.all([
+    const [modelsResult, healthResult, probeResult, settingsResult, providers] = await Promise.all([
       supabase.from("ai_models")
         .select("id,name,provider_id,model_identifier,enabled,priority,context_window,routing_group,allowed_tiers,capabilities_json,response_timeout_ms,restriction_failure_threshold,restriction_window_minutes")
         .order("priority", { ascending: false }).order("name").limit(500),
       supabase.from("ai_model_health")
         .select("model_id,total_attempts,successful_attempts,failed_attempts,consecutive_failures,last_attempt_at,last_success_at,last_failure_at,last_status,last_error_code,last_error_reason,average_latency_ms,auto_restricted,restriction_reason,restricted_at")
+        .limit(1000),
+      supabase.from("ai_model_probe_state")
+        .select("model_id,consecutive_scheduled_failures,consecutive_scheduled_successes,last_scheduled_status,last_scheduled_at,last_error_code")
         .limit(1000),
       supabase.from("ai_router_settings")
         .select("id,free_race_timeout_ms,paid_fallback_enabled,paid_fallback_timeout_ms,max_parallel_free_models,health_auto_restrict_enabled")
@@ -175,11 +178,14 @@ export const adminService = {
     ]);
     if (modelsResult.error) throw modelsResult.error;
     if (healthResult.error) throw healthResult.error;
+    if (probeResult.error) throw probeResult.error;
     if (settingsResult.error) throw settingsResult.error;
     const providerNames = new Map<number, string>(providers.map((item: { id: number; name?: string | null; provider_type?: string | null }) => [Number(item.id), String(item.name ?? item.provider_type ?? "—")]));
+    const providerEnabled = new Map<number, boolean>(providers.map((item: { id: number; enabled?: boolean }) => [Number(item.id), item.enabled === true]));
     const health = new Map<number, Record<string, unknown>>((healthResult.data ?? []).map((row) => [Number(row.model_id), row]));
+    const probe = new Map<number, Record<string, unknown>>((probeResult.data ?? []).map((row) => [Number(row.model_id), row]));
     return {
-      models: (modelsResult.data ?? []).map((row) => ({ ...row, provider_name: providerNames.get(Number(row.provider_id)) ?? "—", health: health.get(Number(row.id)) ?? null })),
+      models: (modelsResult.data ?? []).map((row) => ({ ...row, provider_name: providerNames.get(Number(row.provider_id)) ?? "—", provider_enabled: providerEnabled.get(Number(row.provider_id)) ?? false, health: health.get(Number(row.id)) ?? null, probe: probe.get(Number(row.id)) ?? null })),
       settings: settingsResult.data,
     };
   },
@@ -219,6 +225,27 @@ export const adminService = {
       .eq("model_id", modelId).order("created_at", { ascending: false }).limit(30);
     if (error) throw error;
     return data ?? [];
+  },
+
+  async getModelProbeLogs(modelId: number) {
+    await requireAdmin();
+    const { data, error } = await supabase.from("ai_model_probe_logs")
+      .select("run_type,status,duration_ms,error_code,checked_at,model_name,provider_name")
+      .eq("model_id", modelId).order("checked_at", { ascending: false }).limit(20);
+    if (error) throw error;
+    return data ?? [];
+  },
+
+  async testModel(modelId: number) {
+    await requireAdmin();
+    const { data, error } = await supabase.functions.invoke("model-health-check", {
+      body: { action: "test_model", model_id: modelId },
+    });
+    if (error) throw new Error(describeFunctionFailure(error, "model-health-check"));
+    if (!data || typeof data !== "object" || !["success", "error"].includes(String(data.status))) {
+      throw new Error("لم تُرجع وظيفة فحص النموذج نتيجة صالحة.");
+    }
+    return data as { model_id: number; status: "success" | "error"; duration_ms: number; error_code: string | null };
   },
 
   async getUsers() {

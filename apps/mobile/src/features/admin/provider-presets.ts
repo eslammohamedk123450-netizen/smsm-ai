@@ -19,7 +19,7 @@ export interface ProviderPreset {
 export const providerPresets: ProviderPreset[] = [
   { type: "openai", name: "OpenAI", baseUrl: "https://api.openai.com/v1", keyHint: "يبدأ عادةً بـ sk-" },
   { type: "anthropic", name: "Anthropic Claude", baseUrl: "https://api.anthropic.com/v1", keyHint: "يبدأ عادةً بـ sk-ant-" },
-  { type: "google_ai", name: "Google Gemini", baseUrl: "https://generativelanguage.googleapis.com/v1beta", keyHint: "مفتاح من Google AI Studio" },
+  { type: "google_ai", name: "Google Gemini", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", keyHint: "مفتاح من Google AI Studio" },
   { type: "deepseek", name: "DeepSeek", baseUrl: "https://api.deepseek.com/v1", keyHint: "من لوحة DeepSeek" },
   { type: "openrouter", name: "OpenRouter", baseUrl: "https://openrouter.ai/api/v1", keyHint: "يبدأ عادةً بـ sk-or-" },
   { type: "groq", name: "Groq", baseUrl: "https://api.groq.com/openai/v1", keyHint: "يبدأ عادةً بـ gsk_" },

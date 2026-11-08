@@ -19,6 +19,7 @@ const darkColors = {
   cardBackground: "#1E293B",
   inputBackground: "#1E293B",
   inputBorder: "#334155",
+  modalOverlay: "#00000099",
 } as const;
 
 const lightColors = {
@@ -42,6 +43,7 @@ const lightColors = {
   cardBackground: "#FFFFFF",
   inputBackground: "#F1F5F9",
   inputBorder: "#CBD5E1",
+  modalOverlay: "#0F172A99",
 } as const;
 
 export const colors = darkColors;

@@ -81,7 +81,8 @@ async function discoverModels(providerType: string, baseUrl: string, apiKey: str
     let endpoint: string;
     const headers: Record<string, string> = { Accept: "application/json" };
     if (providerType === "google_ai") {
-      endpoint = `${baseUrl}/models`;
+      const discoveryBase = baseUrl.replace(/\/openai$/i, "");
+      endpoint = `${discoveryBase}/models`;
       headers["x-goog-api-key"] = apiKey;
     } else if (providerType === "anthropic") {
       endpoint = `${baseUrl}/models`;
