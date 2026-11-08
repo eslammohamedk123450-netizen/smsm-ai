@@ -324,7 +324,7 @@ export default function ChatPage() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right", "bottom"]}>
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : "height"} keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}>
         <View style={styles.appBar}>
           <Pressable onPress={() => navigation.dispatch(DrawerActions.openDrawer())} style={styles.headerButton} accessibilityRole="button" accessibilityLabel="فتح سجل المحادثات"><Text style={styles.headerIcon}>☰</Text></Pressable>
           <View style={styles.brand}>
@@ -351,7 +351,7 @@ export default function ChatPage() {
             </View>
           </View>
         ) : (
-          <FlatList ref={listRef} style={styles.messages} contentContainerStyle={styles.messageContent} data={messages} renderItem={renderMessage} keyExtractor={(item) => item.id} keyboardShouldPersistTaps="handled" />
+          <FlatList ref={listRef} style={styles.messages} contentContainerStyle={styles.messageContent} data={messages} renderItem={({item}) => renderMessage({item, onCopy: () => Clipboard.setStringAsync(item.content)})} keyExtractor={(item) => item.id} keyboardShouldPersistTaps="handled" onScroll={(e) => setShowScrollDown(e.nativeEvent.contentOffset.y < e.nativeEvent.contentSize.height - 1000)} />{showScrollDown && (<TouchableOpacity style={styles.scrollDownButton} onPress={() => listRef.current?.scrollToEnd({ animated: true })}><Ionicons name="chevron-down" size={24} color="white" /></TouchableOpacity>)}
         )}
         {isUploadingAttachment ? <View style={styles.uploadStatus}><ActivityIndicator size="small" color={colors.primary} /><Text style={styles.loadingText}>جارٍ حفظ المرفق في Cloudinary…</Text></View> : null}
         <StreamingStatus isStreaming={isSending && !isUploadingAttachment} onCancel={() => abortRef.current?.abort()} />
