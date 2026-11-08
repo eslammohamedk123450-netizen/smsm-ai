@@ -13,7 +13,7 @@ const config: ExpoConfig & { splash?: { image: string; resizeMode: "contain"; ba
   runtimeVersion: { policy: "appVersion" },
   android: {
     package: "com.suly.agentai",
-    versionCode: 2,
+    versionCode: 3,
     intentFilters: [
       {
         action: "VIEW",
