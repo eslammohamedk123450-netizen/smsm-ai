@@ -58,6 +58,7 @@ export default function ChatPage() {
   const [suggestions, setSuggestions] = useState<SuggestionCard[]>(() => getRotatingSuggestions());
   const lock = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
+  const internalConversationTransitionRef = useRef<string | null>(null);
   const streamedTextRef = useRef("");
   const isAdmin = Boolean(user?.id && adminAccess.userId === user.id && adminAccess.allowed);
 
@@ -102,6 +103,11 @@ export default function ChatPage() {
 
   useEffect(() => {
     let active = true;
+    if (routeConversationId && internalConversationTransitionRef.current === routeConversationId) {
+      internalConversationTransitionRef.current = null;
+      setConversationId(routeConversationId);
+      return () => { active = false; };
+    }
     isNearBottomRef.current = true;
     setShowScrollToBottom(false);
     abortRef.current?.abort();
@@ -177,6 +183,7 @@ export default function ChatPage() {
           const conversation = await chatService.createConversation();
           id = conversation.id;
           setConversationId(id);
+          internalConversationTransitionRef.current = id;
           router.replace({ pathname: "/(protected)/chat", params: { conversationId: id } });
         }
         const conversationKey = id;
