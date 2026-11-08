@@ -88,6 +88,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async sendEmailOtp(email) {
       await authService.sendEmailOtp(email.trim());
     },
+    async signInWithPassword(email, password) {
+      const result = await authService.signInWithPassword(email.trim(), password);
+      if (!result.session?.user) throw new Error("Password authentication did not return a session.");
+      return result.session;
+    },
     async verifyEmailOtp(email, token) {
       const result = await authService.verifyEmailOtp(email.trim(), token.trim());
       if (!result.session?.user) throw new Error("Email verification did not return a session.");

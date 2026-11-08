@@ -9,6 +9,7 @@ export interface AuthContextValue {
   status: AuthStatus;
   configurationError: string | null;
   sendEmailOtp(email: string): Promise<void>;
+  signInWithPassword(email: string, password: string): Promise<Session>;
   verifyEmailOtp(email: string, token: string): Promise<Session>;
   sendEmailLink(email: string): Promise<void>;
   signInWithGoogle(): Promise<Session>;

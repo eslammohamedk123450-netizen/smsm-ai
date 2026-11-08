@@ -6,6 +6,7 @@ jest.mock("../../lib/supabase/client", () => ({
   supabase: {
     auth: {
       signInWithOtp: jest.fn(),
+      signInWithPassword: jest.fn(),
       verifyOtp: jest.fn(),
       signInWithOAuth: jest.fn(),
     },
@@ -18,6 +19,7 @@ import { authService, EMAIL_LINK_REDIRECT } from "./auth-service";
 
 const auth = supabase.auth as unknown as {
   signInWithOtp: jest.Mock;
+  signInWithPassword: jest.Mock;
   verifyOtp: jest.Mock;
   signInWithOAuth: jest.Mock;
 };
@@ -26,6 +28,7 @@ const rpc = (supabase as unknown as { rpc: jest.Mock }).rpc;
 describe("email authentication", () => {
   beforeEach(() => {
     auth.signInWithOtp.mockResolvedValue({ error: null });
+    auth.signInWithPassword.mockResolvedValue({ data: { user: { id: "user-123", email: "person@example.com" }, session: { user: { id: "user-123", email: "person@example.com" } } }, error: null });
     auth.verifyOtp.mockResolvedValue({ data: { user: { id: "user-123", email: "person@example.com" }, session: { user: { id: "user-123", email: "person@example.com" } } }, error: null });
     rpc.mockResolvedValue({ error: null });
   });
@@ -36,6 +39,11 @@ describe("email authentication", () => {
       email: "person@example.com",
       options: { shouldCreateUser: false },
     });
+  });
+
+  it("signs in existing users with email and password", async () => {
+    await authService.signInWithPassword("person@example.com", "secret123");
+    expect(auth.signInWithPassword).toHaveBeenCalledWith({ email: "person@example.com", password: "secret123" });
   });
 
   it("uses the configured native callback for email-link sign-in", async () => {

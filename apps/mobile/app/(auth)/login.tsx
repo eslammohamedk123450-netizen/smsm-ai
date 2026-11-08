@@ -7,15 +7,15 @@ import { useAuth } from "../../src/features/auth/auth-provider";
 import { mapAuthError } from "../../src/features/auth/auth-errors";
 import { colors } from "../../src/theme/colors";
 
-type LoginMethod = "otp" | "link";
+type LoginMethod = "password" | "otp" | "link";
 const MAX_EMAIL_ATTEMPTS = 3;
 const EMAIL_COOLDOWN_SECONDS = 60;
 
 export default function LoginPage() {
   const router = useRouter();
-  const { sendEmailOtp, verifyEmailOtp, sendEmailLink, signInWithGoogle, register, status, user } = useAuth();
+  const { sendEmailOtp, verifyEmailOtp, sendEmailLink, signInWithPassword, signInWithGoogle, register, status, user } = useAuth();
   const [mode, setMode] = useState<"login" | "register">("login");
-  const [method, setMethod] = useState<LoginMethod>("otp");
+  const [method, setMethod] = useState<LoginMethod>("password");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -72,6 +72,7 @@ export default function LoginPage() {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) return setError("أدخل بريدًا إلكترونيًا صحيحًا.");
     if (mode === "register" && password.length < 6) return setError("كلمة المرور يجب ألا تقل عن 6 أحرف.");
     if (mode === "register" && !fullName.trim()) return setError("أدخل الاسم الكامل.");
+    if (mode === "login" && method === "password" && password.length === 0) return setError("أدخل كلمة المرور.");
     if (mode === "login" && method === "otp" && codeSent && !/^\d{6}$/.test(code.trim())) {
       return setError("أدخل رمز التحقق المكوّن من 6 أرقام.");
     }
@@ -84,6 +85,10 @@ export default function LoginPage() {
         if (!hasSession) recordEmailAttempt();
         if (hasSession) router.replace("/chat");
         else setConfirmation("تم إنشاء الحساب. تحقّق من بريدك الإلكتروني لتأكيده قبل تسجيل الدخول.");
+      } else if (method === "password") {
+        const session = await signInWithPassword(cleanEmail, password);
+        if (!session.user) throw new Error("Password authentication did not return a user session.");
+        router.replace("/chat");
       } else if (method === "otp" && codeSent) {
         const session = await verifyEmailOtp(cleanEmail, code);
         if (!session.user) throw new Error("Email verification did not return a user session.");
@@ -181,6 +186,8 @@ export default function LoginPage() {
 
             {isRegister ? (
               <TextInput value={password} onChangeText={setPassword} placeholder="كلمة المرور" placeholderTextColor={colors.textMuted} style={styles.input} secureTextEntry autoComplete="new-password" returnKeyType="go" onSubmitEditing={() => void submit()} />
+            ) : method === "password" ? (
+              <TextInput value={password} onChangeText={setPassword} placeholder="كلمة المرور" placeholderTextColor={colors.textMuted} style={styles.input} secureTextEntry autoComplete="current-password" textContentType="password" returnKeyType="go" onSubmitEditing={() => void submit()} />
             ) : isVerifyingCode ? (
               <>
                 <Text style={styles.helpText}>أدخل الرمز المكوّن من 6 أرقام الذي أرسلناه إلى بريدك.</Text>
@@ -192,9 +199,9 @@ export default function LoginPage() {
             {linkSent && !isRegister && <Pressable style={styles.secondaryAction} disabled={busy} onPress={() => void submit()}><Text style={styles.link}>إعادة إرسال رابط الدخول</Text></Pressable>}
             {error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
             {confirmation && <Text accessibilityRole="status" style={styles.success}>{confirmation}</Text>}
-            {!isVerifyingCode && <Text style={styles.attempts}>المحاولات المتاحة لإرسال البريد: {attemptsRemaining} من {MAX_EMAIL_ATTEMPTS}{cooldownSeconds > 0 ? ` — متاح بعد ${cooldownSeconds} ثانية` : ""}</Text>}
+            {!isVerifyingCode && method !== "password" && <Text style={styles.attempts}>المحاولات المتاحة لإرسال البريد: {attemptsRemaining} من {MAX_EMAIL_ATTEMPTS}{cooldownSeconds > 0 ? ` — متاح بعد ${cooldownSeconds} ثانية` : ""}</Text>}
             <Pressable style={[styles.button, busy && styles.buttonDisabled]} onPress={() => void submit()} disabled={busy} accessibilityRole="button">
-              {busy ? <ActivityIndicator color={colors.textPrimary} /> : <Text style={styles.buttonText}>{isRegister ? "إنشاء الحساب" : isVerifyingCode ? "تأكيد الرمز والدخول" : method === "otp" ? "إرسال رمز التحقق" : "إرسال رابط تسجيل الدخول"}</Text>}
+              {busy ? <ActivityIndicator color={colors.textPrimary} /> : <Text style={styles.buttonText}>{isRegister ? "إنشاء الحساب" : isVerifyingCode ? "تأكيد الرمز والدخول" : method === "password" ? "دخول" : method === "otp" ? "إرسال رمز التحقق" : "إرسال رابط تسجيل الدخول"}</Text>}
             </Pressable>
 
             <View style={styles.dividerRow}>
@@ -214,7 +221,7 @@ export default function LoginPage() {
 
             {!isRegister && (
               <Pressable style={styles.modeToggle} disabled={busy} onPress={changeLoginMethod}>
-                <Text style={styles.link}>{method === "otp" ? "استخدم رابطًا بالبريد بدل الرمز" : "استخدم رمز تحقق من 6 أرقام بدل الرابط"}</Text>
+                <Text style={styles.link}>{method === "password" ? "استخدم رمز تحقق بالبريد بدل كلمة المرور" : method === "otp" ? "استخدم كلمة المرور بدل رمز البريد" : "استخدم كلمة المرور بدل رابط البريد"}</Text>
               </Pressable>
             )}
             <Pressable style={styles.modeToggle} disabled={busy} onPress={changeMode}>

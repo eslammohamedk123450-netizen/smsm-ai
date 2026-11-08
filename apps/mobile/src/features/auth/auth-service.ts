@@ -31,6 +31,14 @@ export const authService = {
     if (error) throw error;
   },
 
+  async signInWithPassword(email: string, password: string): Promise<AuthResult> {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    if (!data.session?.user) throw new Error("Password authentication did not return a session.");
+    await this.syncProfile(data.session.user);
+    return { user: data.user, session: data.session };
+  },
+
   async verifyEmailOtp(email: string, token: string): Promise<AuthResult> {
     const { data, error } = await supabase.auth.verifyOtp({ email, token, type: "email" });
     if (error) throw error;
