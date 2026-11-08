@@ -138,7 +138,7 @@ function renderBlock(block: MarkdownBlock, index: number, onCopyCode?: (code: st
 const webMaxWidth = Platform.OS === "web" ? 680 : undefined;
 const styles = StyleSheet.create({
   container: { width: "100%", maxWidth: webMaxWidth, alignSelf: "stretch" },
-  body: { color: colors.textPrimary, fontSize: 15, lineHeight: 26, textAlign: "right", writingDirection: "rtl" },
+  body: { color: colors.textPrimary, fontSize: 16, lineHeight: 26, textAlign: "right", writingDirection: "rtl" },
   heading1: { fontSize: 22, lineHeight: 32, fontWeight: "700", marginTop: 4, marginBottom: 8 },
   heading2: { fontSize: 20, lineHeight: 30, fontWeight: "700", marginTop: 4, marginBottom: 8 },
   heading3: { fontSize: 18, lineHeight: 28, fontWeight: "700", marginTop: 4, marginBottom: 8 },

@@ -56,7 +56,7 @@ export function AdminShell() {
         <View style={styles.rail}>
           <View style={styles.brand}>
             <Text style={styles.brandMark}>✦</Text>
-            <Text style={styles.brandName}>سولي</Text>
+            <Text style={styles.brandName}>Suly</Text>
             <Text style={styles.brandSub}>لوحة المشرف</Text>
           </View>
           <View style={styles.nav}>{navItems}</View>
@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
   brandName: { color: colors.textPrimary, fontSize: 16, fontWeight: "800", textAlign: "right" },
   brandSub: { color: colors.textMuted, fontSize: 11, textAlign: "right" },
   nav: { flex: 1, gap: 6 },
-  navItem: { minHeight: 44, borderRadius: 11, paddingHorizontal: 12, justifyContent: "center" },
+  navItem: { minHeight: 44, borderRadius: 14, paddingHorizontal: 12, justifyContent: "center" },
   navItemActive: { backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.primary },
   navContent: { flexDirection: "row-reverse", alignItems: "center", gap: 11 },
   navIcon: { minWidth: 20, color: colors.textMuted, fontSize: 17, textAlign: "center" },
@@ -104,13 +104,13 @@ const styles = StyleSheet.create({
   navLabel: { color: colors.textSecondary, fontSize: 13, textAlign: "right" },
   navLabelActive: { color: colors.textPrimary, fontWeight: "700" },
   railFooter: { borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 12 },
-  backToApp: { minHeight: 40, borderRadius: 9, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
+  backToApp: { minHeight: 44, borderRadius: 14, paddingHorizontal: 20, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
   backToAppText: { color: colors.textPrimary, fontWeight: "700", fontSize: 13 },
   main: { flex: 1, minWidth: 0 },
   mobileHeader: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8 },
   mobileHeading: { flexDirection: "row-reverse", alignItems: "center", gap: 8 },
   mobileTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: "800" },
-  backToAppSmall: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, backgroundColor: colors.primary },
+  backToAppSmall: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 14, backgroundColor: colors.primary },
   backToAppSmallText: { color: colors.textPrimary, fontSize: 12, fontWeight: "700" },
   tabs: { flexGrow: 0, borderBottomWidth: 1, borderBottomColor: colors.divider, backgroundColor: colors.surface },
   tabsContent: { gap: 7, paddingHorizontal: 12, paddingVertical: 10 },

@@ -19,7 +19,7 @@ import { logFrictionEvent } from "../../src/features/telemetry/friction";
 import { colors } from "../../src/theme/colors";
 import { ShareConversationSheet } from "../../src/features/chat/components/ShareConversationSheet";
 import { BottomSheet } from "../../src/components/ui/BottomSheet";
-import { getTaskRating, getTaskUsage, saveTaskRating, type TaskRating, type TaskUsage } from "../../src/features/credits/credit-service";
+import { getCreditLedger, getTaskRating, getTaskUsage, saveTaskRating, type TaskRating, type TaskUsage } from "../../src/features/credits/credit-service";
 import { useToast } from "../../src/components/ui/Toast";
 import { supabase } from "../../src/lib/supabase/client";
 import { getRotatingSuggestions, type SuggestionCard } from "../../src/features/chat/suggestions";
@@ -51,6 +51,7 @@ export default function ChatPage() {
   const [ratingStars, setRatingStars] = useState(0);
   const [ratingNote, setRatingNote] = useState("");
   const [ratingSaving, setRatingSaving] = useState(false);
+  const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const closeShareSheet = useCallback(() => setShareVisible(false), []);
   const composerRef = useRef<ChatComposerHandle>(null);
   const listRef = useRef<FlatList<ChatMessage>>(null);
@@ -75,6 +76,12 @@ export default function ChatPage() {
     if (!conversationId) { setTaskRating(null); return; }
     void getTaskRating(conversationId).then((value) => { setTaskRating(value); if (value) { setRatingStars(value.stars); setRatingNote(value.note ?? ""); } }).catch(() => undefined);
   }, [conversationId, messages.length]);
+  useEffect(() => {
+    let active = true;
+    if (!user) { setCreditBalance(null); return () => { active = false; }; }
+    void getCreditLedger(1).then((res) => { if (active) setCreditBalance(res.balance); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [user?.id, messages.length]);
 
   useEffect(() => {
     // Rotate in the background. The time-bucketed selector returns the same
@@ -446,6 +453,12 @@ export default function ChatPage() {
           <Pressable onPress={() => navigation.dispatch(DrawerActions.openDrawer())} style={styles.headerButton} accessibilityRole="button" accessibilityLabel="فتح سجل المحادثات"><Text style={styles.headerIcon}>☰</Text></Pressable>
           <View style={styles.headerSpacer} />
           <View style={styles.headerActions}>
+            {creditBalance !== null ? (
+              <TouchableOpacity onPress={() => router.push("/(protected)/upgrade")} style={styles.creditPill} accessibilityRole="button" accessibilityLabel="رصيد Suly">
+                <Ionicons name="sparkles" size={13} color={colors.primary} />
+                <Text style={styles.creditPillText}>{creditBalance.toLocaleString("ar-EG")}</Text>
+              </TouchableOpacity>
+            ) : null}
             {isAdmin ? <Pressable onPress={() => router.push("/(protected)/admin")} style={styles.adminShortcut} accessibilityRole="button" accessibilityLabel="لوحة التحكم"><Text style={styles.adminShortcutText}>إدارة</Text></Pressable> : null}
             <Pressable onPress={() => router.push("/(protected)/upgrade")} style={styles.upgradeShortcut} accessibilityRole="button" accessibilityLabel="ترقية الحساب"><Text style={styles.upgradeShortcutText}>ترقية</Text></Pressable>
             <TouchableOpacity onPress={() => { setUsageVisible(true); void loadTaskUsage(); }} style={styles.headerButton} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="إحصائيات استخدام المهمة"><Ionicons name="analytics-outline" size={20} color="#94A3B8" /></TouchableOpacity>
@@ -457,7 +470,7 @@ export default function ChatPage() {
         {retryFailure ? <View style={styles.retryWarning} accessibilityRole="alert"><Text style={styles.retryWarningText}>حُفظت رسالتك، لكن تعذّر إكمال الرد.</Text><Pressable onPress={() => void retryResponse()} disabled={isSending} accessibilityRole="button" accessibilityLabel="إعادة محاولة الرد" style={styles.retryButton}><Text style={styles.retryButtonText}>{isSending ? "جارٍ إعادة المحاولة…" : "إعادة المحاولة"}</Text></Pressable></View> : null}
         {isLoading ? <View style={styles.loading}><ActivityIndicator color={colors.primary} /><Text style={styles.loadingText}>جارٍ تحميل المحادثة…</Text></View> : messages.length === 0 ? (
           <View style={styles.empty}>
-            <AppLogo size={72} accessibilityLabel="أيقونة سولي" />
+            <AppLogo size={76} accessibilityLabel="أيقونة Suly" />
             <Text style={styles.emptyTitle}>كيف أقدر أساعدك؟</Text>
             <Text style={styles.emptySubtitle}>اسألني عن أي درس أو واجب</Text>
             <View style={styles.suggestionsGrid}>
@@ -513,7 +526,9 @@ const styles = StyleSheet.create({
   appBar: { height: 58, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: colors.divider },
   headerButton: { width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 21 },
   headerSpacer: { width: 42, height: 42 },
-  headerActions: { flexDirection: "row", alignItems: "center", gap: 2 },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 6 },
+  creditPill: { flexDirection: "row-reverse", alignItems: "center", gap: 4, backgroundColor: colors.surfaceElevated, borderColor: colors.divider, borderWidth: 1, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 5 },
+  creditPillText: { color: colors.primary, fontSize: 12, fontWeight: "700" },
   headerIcon: { color: colors.textPrimary, fontSize: 25 },
   adminShortcut: { minWidth: 42, height: 36, paddingHorizontal: 7, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceElevated },
   adminShortcutText: { color: colors.primary, fontSize: 11, fontWeight: "700" },
@@ -533,7 +548,7 @@ const styles = StyleSheet.create({
   scrollToBottomButton: { position: "absolute", right: 24, bottom: 12, width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.divider, elevation: 5, zIndex: 2 },
   messageContent: { flexGrow: 1, paddingVertical: 12 },
   empty: { flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 20, gap: 12 },
-  logo: { width: 72, height: 72, borderRadius: 36, borderWidth: 1, borderColor: "#1E7B60", alignItems: "center", justifyContent: "center", marginBottom: 8, shadowColor: "#10B981", shadowOpacity: 0.22, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 7 },
+  logo: { width: 76, height: 76, borderRadius: 16, borderWidth: 0, alignItems: "center", justifyContent: "center", marginBottom: 8, shadowColor: "#0EA5E9", shadowOpacity: 0.22, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 7 },
   logoLetter: { color: "#F8FAFC", fontSize: 40, fontWeight: "800" },
   emptyTitle: { color: colors.textPrimary, fontSize: 22, fontWeight: "700" },
   emptySubtitle: { color: colors.textSecondary, fontSize: 13, marginBottom: 8 },
@@ -546,7 +561,7 @@ const styles = StyleSheet.create({
   ratingSheet: { gap: 14 },
   ratingPrompt: { color: colors.textSecondary, textAlign: "right" },
   ratingInput: { minHeight: 90, borderWidth: 1, borderColor: colors.inputBorder, borderRadius: 10, backgroundColor: colors.inputBackground, color: colors.textPrimary, padding: 12, textAlign: "right" },
-  ratingSubmit: { minHeight: 44, borderRadius: 10, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
+  ratingSubmit: { minHeight: 44, borderRadius: 14, paddingHorizontal: 20, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
   disabled: { opacity: 0.5 },
   ratingSubmitText: { color: colors.background, fontWeight: "800" },
   usageSheet: { gap: 12 },

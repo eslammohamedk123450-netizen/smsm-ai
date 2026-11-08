@@ -26,7 +26,7 @@ type ActionKind = "edit" | "copy" | "like" | "dislike";
 function ReactionGlyph({ kind, selected, copied }: { kind: ActionKind; selected?: boolean; copied?: boolean }) {
   if (kind === "edit") return <Text style={styles.glyphText}>✎</Text>;
   const iconName = kind === "copy" ? (copied ? "checkmark-outline" : "copy-outline") : kind === "like" ? "thumbs-up-outline" : "thumbs-down-outline";
-  return <Ionicons name={iconName} size={18} color={selected || copied ? "#10B981" : "#94A3B8"} />;
+  return <Ionicons name={iconName} size={18} color={selected || copied ? "#0EA5E9" : "#94A3B8"} />;
 }
 
 function MessageAction({
