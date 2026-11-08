@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Redirect, useRouter } from "expo-router";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { PremiumText as Text } from "../../src/components/ui/PremiumText";
@@ -8,6 +8,8 @@ import { mapAuthError } from "../../src/features/auth/auth-errors";
 import { colors } from "../../src/theme/colors";
 
 type LoginMethod = "otp" | "link";
+const MAX_EMAIL_ATTEMPTS = 3;
+const EMAIL_COOLDOWN_SECONDS = 60;
 
 export default function LoginPage() {
   const router = useRouter();
@@ -23,12 +25,45 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<string | null>(null);
+  const [emailAttempts, setEmailAttempts] = useState(0);
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
+
+  useEffect(() => {
+    if (cooldownSeconds <= 0) return;
+    const timer = setInterval(() => {
+      setCooldownSeconds((current) => {
+        if (current <= 1) {
+          setEmailAttempts(0);
+          return 0;
+        }
+        return current - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [cooldownSeconds]);
 
   if (status === "authenticated" && user) return <Redirect href="/chat" />;
 
   const resetMessage = () => {
     setError(null);
     setConfirmation(null);
+  };
+  const canSendEmail = () => {
+    if (cooldownSeconds > 0) {
+      setError(`استنفدت محاولات إرسال البريد. انتظر ${cooldownSeconds} ثانية قبل المحاولة مجددًا.`);
+      return false;
+    }
+    if (emailAttempts >= MAX_EMAIL_ATTEMPTS) {
+      setCooldownSeconds(EMAIL_COOLDOWN_SECONDS);
+      setError(`استنفدت المحاولات الثلاث. انتظر ${EMAIL_COOLDOWN_SECONDS} ثانية قبل المحاولة مجددًا.`);
+      return false;
+    }
+    return true;
+  };
+  const recordEmailAttempt = () => {
+    const next = emailAttempts + 1;
+    setEmailAttempts(next);
+    if (next >= MAX_EMAIL_ATTEMPTS) setCooldownSeconds(EMAIL_COOLDOWN_SECONDS);
   };
   const submit = async () => {
     const cleanEmail = email.trim();
@@ -44,18 +79,26 @@ export default function LoginPage() {
     setBusy(true);
     try {
       if (mode === "register") {
+        if (!canSendEmail()) return;
         const hasSession = await register(cleanEmail, password, fullName);
+        if (!hasSession) recordEmailAttempt();
         if (hasSession) router.replace("/chat");
         else setConfirmation("تم إنشاء الحساب. تحقّق من بريدك الإلكتروني لتأكيده قبل تسجيل الدخول.");
       } else if (method === "otp" && codeSent) {
         await verifyEmailOtp(cleanEmail, code);
+        setEmailAttempts(0);
+        setCooldownSeconds(0);
         router.replace("/chat");
       } else if (method === "otp") {
+        if (!canSendEmail()) return;
         await sendEmailOtp(cleanEmail);
+        recordEmailAttempt();
         setCodeSent(true);
         setConfirmation("أرسلنا رمز تحقق من 6 أرقام إلى بريدك الإلكتروني.");
       } else {
+        if (!canSendEmail()) return;
         await sendEmailLink(cleanEmail);
+        recordEmailAttempt();
         setLinkSent(true);
         setConfirmation("أرسلنا رابط تسجيل الدخول إلى بريدك الإلكتروني. افتحه على هذا الجهاز للمتابعة.");
       }
@@ -85,7 +128,9 @@ export default function LoginPage() {
     setBusy(true);
     resetMessage();
     try {
+      if (!canSendEmail()) return;
       await sendEmailOtp(cleanEmail);
+      recordEmailAttempt();
       setCode("");
       setConfirmation("أرسلنا رمز تحقق جديدًا إلى بريدك الإلكتروني.");
     } catch (cause) {
@@ -119,6 +164,7 @@ export default function LoginPage() {
 
   const isRegister = mode === "register";
   const isVerifyingCode = !isRegister && method === "otp" && codeSent;
+  const attemptsRemaining = Math.max(0, MAX_EMAIL_ATTEMPTS - emailAttempts);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -144,6 +190,7 @@ export default function LoginPage() {
             {linkSent && !isRegister && <Pressable style={styles.secondaryAction} disabled={busy} onPress={() => void submit()}><Text style={styles.link}>إعادة إرسال رابط الدخول</Text></Pressable>}
             {error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
             {confirmation && <Text accessibilityRole="status" style={styles.success}>{confirmation}</Text>}
+            {!isVerifyingCode && <Text style={styles.attempts}>المحاولات المتاحة لإرسال البريد: {attemptsRemaining} من {MAX_EMAIL_ATTEMPTS}{cooldownSeconds > 0 ? ` — متاح بعد ${cooldownSeconds} ثانية` : ""}</Text>}
             <Pressable style={[styles.button, busy && styles.buttonDisabled]} onPress={() => void submit()} disabled={busy} accessibilityRole="button">
               {busy ? <ActivityIndicator color={colors.textPrimary} /> : <Text style={styles.buttonText}>{isRegister ? "إنشاء الحساب" : isVerifyingCode ? "تأكيد الرمز والدخول" : method === "otp" ? "إرسال رمز التحقق" : "إرسال رابط تسجيل الدخول"}</Text>}
             </Pressable>
@@ -192,6 +239,7 @@ const styles = StyleSheet.create({
   secondaryAction: { alignSelf: "flex-start", paddingVertical: 6, paddingHorizontal: 4 },
   error: { color: colors.error, marginBottom: 12, textAlign: "right" },
   success: { color: colors.success, marginBottom: 12, textAlign: "right", lineHeight: 22 },
+  attempts: { color: colors.textMuted, marginBottom: 8, textAlign: "right", fontSize: 12 },
   button: { minHeight: 50, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.primary, marginTop: 8 },
   buttonDisabled: { opacity: 0.65 },
   buttonText: { color: colors.textPrimary, fontWeight: "700", fontSize: 16, textAlign: "center", paddingHorizontal: 8 },

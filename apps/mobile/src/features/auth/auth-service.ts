@@ -7,6 +7,10 @@ import { parseAuthCallbackUrl } from "./auth-callback";
 export const EMAIL_LINK_REDIRECT = "suly-agent-ai://auth/callback";
 export const GOOGLE_AUTH_REDIRECT = EMAIL_LINK_REDIRECT;
 
+function getAuthRedirect(): string {
+  return Platform.OS === "web" ? `${window.location.origin}/auth/callback` : EMAIL_LINK_REDIRECT;
+}
+
 export interface AuthResult {
   user: User | null;
   session: Session | null;
@@ -38,7 +42,7 @@ export const authService = {
       email,
       options: {
         shouldCreateUser: false,
-        emailRedirectTo: EMAIL_LINK_REDIRECT,
+        emailRedirectTo: getAuthRedirect(),
       },
     });
     if (error) throw error;
@@ -48,7 +52,7 @@ export const authService = {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: fullName } },
+      options: { data: { full_name: fullName }, emailRedirectTo: getAuthRedirect() },
     });
     if (error) throw error;
     return { user: data.user, session: data.session };

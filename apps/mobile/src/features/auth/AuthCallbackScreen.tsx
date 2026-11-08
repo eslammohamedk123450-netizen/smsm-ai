@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, View } from "react-native";
+import * as WebBrowser from "expo-web-browser";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { Redirect, useRouter } from "expo-router";
 import { supabase } from "../../lib/supabase/client";
@@ -8,6 +9,8 @@ import { parseAuthCallbackUrl } from "./auth-callback";
 import { useAuth } from "./auth-provider";
 import { authService } from "./auth-service";
 import { colors } from "../../theme/colors";
+
+WebBrowser.maybeCompleteAuthSession();
 
 export default function AuthCallbackScreen() {
   const router = useRouter();
