@@ -1,6 +1,7 @@
 export type RouterSseEvent =
   | { type: "chunk"; text: string }
   | { type: "done" }
+  | { type: "task"; task: string; status: "pending" | "running" | "completed" | "failed" }
   | { type: "error"; message: string };
 
 function parseBlock(block: string): RouterSseEvent | null {
@@ -30,6 +31,9 @@ function parseBlock(block: string): RouterSseEvent | null {
   const value = parsed as Record<string, unknown>;
   if (typeof value.error === "string" && value.error.length > 0) {
     return { type: "error", message: value.error };
+  }
+  if (typeof value.task === "string" && ["pending", "running", "completed", "failed"].includes(String(value.status))) {
+    return { type: "task", task: value.task, status: value.status as "pending" | "running" | "completed" | "failed" };
   }
   if (typeof value.chunk === "string") return { type: "chunk", text: value.chunk };
   if (value.done === true) return { type: "done" };

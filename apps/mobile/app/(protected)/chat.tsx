@@ -35,6 +35,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(routeConversationId || null);
   const [isSending, setIsSending] = useState(false);
+  const [activeTaskLabel, setActiveTaskLabel] = useState<string | null>(null);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
   const [isLoading, setIsLoading] = useState(Boolean(routeConversationId));
   const [error, setError] = useState<string | null>(null);
@@ -163,6 +164,7 @@ export default function ChatPage() {
       setError(null);
       setRetryFailure(null);
       setIsSending(true);
+      setActiveTaskLabel("جاري تجهيز المهمة…");
       void logFrictionEvent({ eventKind: "task_start", screenKey: "chat", featureKey: "chat", stepKey: "send_message", conversationId });
       const controller = new AbortController();
       abortRef.current = controller;
@@ -211,6 +213,11 @@ export default function ChatPage() {
               const assistant: ChatMessage = { id: STREAMING_ID, conversationId: conversationKey, role: "assistant", content: text, createdAt: new Date().toISOString(), modelId: null, status: "streaming" };
               return [...current, assistant];
             });
+          },
+          onTaskUpdate(task) {
+            if (task.status === "running") setActiveTaskLabel(`جاري ${task.task}…`);
+            else if (task.status === "completed") setActiveTaskLabel(`تم ${task.task}`);
+            else if (task.status === "failed") setActiveTaskLabel(`تعذر ${task.task}`);
           },
         });
         streamCompleted = true;
@@ -268,6 +275,7 @@ export default function ChatPage() {
       } finally {
         if (abortRef.current === controller) abortRef.current = null;
         setIsSending(false);
+        setActiveTaskLabel(null);
       }
     });
   };
@@ -279,6 +287,7 @@ export default function ChatPage() {
       setError(null);
       setRetryFailure(null);
       setIsSending(true);
+      setActiveTaskLabel("جاري إعادة تنفيذ المهمة…");
       const controller = new AbortController();
       abortRef.current = controller;
       streamedTextRef.current = "";
@@ -294,6 +303,10 @@ export default function ChatPage() {
               if (existing) return current.map((item) => item.id === STREAMING_ID ? { ...item, content: item.content + text } : item);
               return [...current, { id: STREAMING_ID, conversationId: failed.conversationId, role: "assistant", content: text, createdAt: new Date().toISOString(), modelId: null, status: "streaming" }];
             });
+          },
+          onTaskUpdate(task) {
+            if (task.status === "running") setActiveTaskLabel(`جاري ${task.task}…`);
+            else if (task.status === "completed") setActiveTaskLabel(`تم ${task.task}`);
           },
         });
         streamCompleted = true;
@@ -325,6 +338,7 @@ export default function ChatPage() {
       } finally {
         if (abortRef.current === controller) abortRef.current = null;
         setIsSending(false);
+        setActiveTaskLabel(null);
       }
     });
   };
@@ -448,7 +462,7 @@ export default function ChatPage() {
           </View>
         )}
         {isUploadingAttachment ? <View style={styles.uploadStatus}><ActivityIndicator size="small" color={colors.primary} /><Text style={styles.loadingText}>جارٍ حفظ المرفق في Cloudinary…</Text></View> : null}
-        <StreamingStatus isStreaming={isSending && !isUploadingAttachment} onCancel={() => abortRef.current?.abort()} />
+        <StreamingStatus isStreaming={isSending && !isUploadingAttachment} taskLabel={activeTaskLabel} onCancel={() => abortRef.current?.abort()} />
         <ChatComposer ref={composerRef} onSend={handleSend} disabled={isSending} isStreaming={isSending} onCancel={() => abortRef.current?.abort()} />
       </KeyboardAvoidingView>
       <ShareConversationSheet visible={shareVisible} conversationId={conversationId} title={shareTitle} plainText={shareText} onClose={closeShareSheet} />

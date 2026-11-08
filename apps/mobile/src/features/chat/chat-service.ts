@@ -191,6 +191,7 @@ export const chatService = {
     signal: AbortSignal;
     onUserSaved(message: ChatMessage): void | Promise<void>;
     onChunk(text: string): void;
+    onTaskUpdate?(task: { task: string; status: "pending" | "running" | "completed" | "failed" }): void;
   }): Promise<void> {
     const content = options.content.trim();
     if (!content) return;
@@ -230,7 +231,7 @@ export const chatService = {
       routing_mode: "auto",
       stream: true,
     };
-    await streamChatPlatform(requestBody, options.signal, { onChunk: options.onChunk, onDone() {} });
+    await streamChatPlatform(requestBody, options.signal, { onChunk: options.onChunk, onTaskUpdate: options.onTaskUpdate, onDone() {} });
   },
 
   async regenerateAssistant(options: {
@@ -238,6 +239,7 @@ export const chatService = {
     history: ChatMessage[];
     signal: AbortSignal;
     onChunk(text: string): void;
+    onTaskUpdate?(task: { task: string; status: "pending" | "running" | "completed" | "failed" }): void;
   }): Promise<void> {
     const messages: ChatRequestBody["messages"] = options.history
       .filter((entry): entry is ChatMessage & { role: "user" | "assistant" } => entry.role === "user" || entry.role === "assistant")
@@ -252,7 +254,7 @@ export const chatService = {
       messages,
       routing_mode: "auto",
       stream: true,
-    }, options.signal, { onChunk: options.onChunk, onDone() {} });
+    }, options.signal, { onChunk: options.onChunk, onTaskUpdate: options.onTaskUpdate, onDone() {} });
   },
 
   async retryAssistant(options: {
@@ -260,6 +262,7 @@ export const chatService = {
     userMessageId: string;
     signal: AbortSignal;
     onChunk(text: string): void;
+    onTaskUpdate?(task: { task: string; status: "pending" | "running" | "completed" | "failed" }): void;
   }): Promise<void> {
     const savedMessages = await this.getMessages(options.conversationId);
     const history = buildRetryHistory(savedMessages, options.userMessageId);
@@ -268,6 +271,7 @@ export const chatService = {
       history,
       signal: options.signal,
       onChunk: options.onChunk,
+      onTaskUpdate: options.onTaskUpdate,
     });
   },
 

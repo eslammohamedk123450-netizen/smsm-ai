@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "expo-router";
 import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, StyleSheet, Switch, TextInput, TouchableOpacity, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
-import { adminService, type PricingPlan, type PricingFeature } from "./admin-service";
+import { adminService, type AgentConfig, type PricingPlan, type PricingFeature } from "./admin-service";
 import { providerPresets, findPreset, type ProviderPreset } from "./provider-presets";
 import { confirmAdminAction } from "./admin-confirm";
 import { colors } from "../../theme/colors";
@@ -678,6 +678,40 @@ export function PricingAdminScreen() {
 
 export function CircuitBreakerAdminScreen() {
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}><PageHeader title="قاطع الدائرة" /><Card><Text style={styles.sectionTitle}>غير مكتمل في تطبيق Flutter الحالي</Text><Text style={styles.detail}>المكوّن الحالي في Flutter يعرض ثلاثة تنبيهات ثابتة مع أزرار بلا تنفيذ. لذلك لم تُنقل بيانات تجريبية ولم تُعرض إجراءات إعادة تفعيل أو حذف غير مدعومة هنا.</Text><Text style={styles.detail}>لرؤية صحة النماذج الفعلية واستخدام إجراء إعادة الضبط المدعوم، افتح شاشة «النماذج والتوجيه».</Text><Link href="/admin/models" asChild><Pressable><Text style={styles.link}>الانتقال إلى النماذج والتوجيه</Text></Pressable></Link></Card></ScrollView>;
+}
+
+export function AgentsAdminScreen() {
+  const [agents, setAgents] = useState<AgentConfig[]>([]);
+  const [models, setModels] = useState<ModelRow[]>([]);
+  const [name, setName] = useState("");
+  const [prompt, setPrompt] = useState("");
+  const [chain, setChain] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const load = async () => {
+    setLoading(true); setError(null);
+    try { const [nextAgents, overview] = await Promise.all([adminService.getAgents(), adminService.getModelsOverview()]); setAgents(nextAgents); setModels(overview.models as ModelRow[]); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر تحميل المساعدين."); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { void load(); }, []);
+  const addAgent = async () => {
+    setBusy(true); setError(null); setNotice(null);
+    try { await adminService.createAgent({ name, systemPrompt: prompt, modelFallbackChain: chain }); setName(""); setPrompt(""); setChain([]); setNotice("تمت إضافة المساعد."); await load(); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "تعذرت إضافة المساعد."); }
+    finally { setBusy(false); }
+  };
+  const toggleModel = (id: string) => setChain((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <PageHeader title="إدارة المساعدين" />
+    <Text style={styles.explainer}>أضف مساعدين متخصصين وحدد تعليماتهم وسلسلة النماذج حسب الأولوية.</Text>
+    <ErrorText>{error}</ErrorText>{notice && <Text style={styles.success}>{notice}</Text>}
+    <Card><Text style={styles.sectionTitle}>إضافة مساعد</Text><TextInput style={styles.input} value={name} onChangeText={setName} placeholder="اسم المساعد" placeholderTextColor={colors.textMuted} /><TextInput style={[styles.input, { minHeight: 130 }]} value={prompt} onChangeText={setPrompt} placeholder="وظيفة المساعد وتعليماته" placeholderTextColor={colors.textMuted} multiline textAlignVertical="top" /><Text style={styles.label}>النماذج حسب الأولوية (اضغط بالترتيب)</Text><View style={styles.filterRow}>{models.filter((model) => model.enabled).map((model) => <Pressable key={String(model.id)} onPress={() => toggleModel(String(model.id))} style={[styles.filterChip, chain.includes(String(model.id)) && styles.filterChipSelected]}><Text style={[styles.filterText, chain.includes(String(model.id)) && styles.filterTextSelected]}>{chain.includes(String(model.id)) ? `${chain.indexOf(String(model.id)) + 1}. ` : ""}{model.name}</Text></Pressable>)}</View><PrimaryButton label={busy ? "جارٍ الحفظ…" : "إضافة المساعد"} onPress={() => void addAgent()} disabled={busy} /></Card>
+    <Text style={styles.sectionTitle}>المساعدون الحاليون</Text>
+    {loading ? <ActivityIndicator color={colors.primary} /> : agents.map((agent) => <Card key={agent.id}><Text style={styles.cardTitle}>{agent.name}</Text><Text style={styles.detail}>{agent.system_prompt}</Text><Text style={styles.detail}>النماذج: {agent.model_fallback_chain.join(" → ") || "لم تحدد نماذج"}</Text><Pressable onPress={() => { void adminService.deleteAgent(agent.id).then(() => load()).catch((cause) => setError(cause instanceof Error ? cause.message : "تعذر حذف المساعد.")); }}><Text style={styles.deleteFeature}>حذف المساعد</Text></Pressable></Card>)}
+  </ScrollView>;
 }
 
 function NumberField({ label, value, onChange }: { label: string; value: string; onChange(value: string): void }) {

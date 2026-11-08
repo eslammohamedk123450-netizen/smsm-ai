@@ -27,6 +27,16 @@ export interface PricingFeature {
   is_active: boolean;
 }
 
+export interface AgentConfig {
+  id: string;
+  name: string;
+  system_prompt: string;
+  model_fallback_chain: string[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface HimsActivationCode {
   id: string;
   feature_key: string;
@@ -404,6 +414,32 @@ export const adminService = {
       { key: "admob_banner_unit_id", value: settings.bannerUnitId.trim() },
     ];
     const { error } = await supabase.from("system_settings").upsert(toUpdate, { onConflict: "key" });
+    if (error) throw error;
+  },
+  async getAgents(): Promise<AgentConfig[]> {
+    await requireAdmin();
+    const { data, error } = await supabase.from("agent_registry")
+      .select("id,name,system_prompt,model_fallback_chain,is_active,created_at,updated_at")
+      .order("updated_at", { ascending: false }).limit(200);
+    if (error) throw error;
+    return (data ?? []).map((row) => ({ ...row, model_fallback_chain: Array.isArray(row.model_fallback_chain) ? row.model_fallback_chain.map(String) : [] })) as AgentConfig[];
+  },
+  async createAgent(input: { name: string; systemPrompt: string; modelFallbackChain: string[] }) {
+    await requireAdmin();
+    const name = input.name.trim().slice(0, 120);
+    const systemPrompt = input.systemPrompt.trim().slice(0, 12000);
+    if (name.length < 2 || systemPrompt.length < 10) throw new Error("اكتب اسم المساعد وتعليماته بشكل صحيح.");
+    const { error } = await supabase.from("agent_registry").insert({ name, system_prompt: systemPrompt, model_fallback_chain: input.modelFallbackChain.slice(0, 20), is_active: true });
+    if (error) throw error;
+  },
+  async updateAgent(id: string, input: { name: string; systemPrompt: string; modelFallbackChain: string[]; isActive: boolean }) {
+    await requireAdmin();
+    const { error } = await supabase.from("agent_registry").update({ name: input.name.trim().slice(0, 120), system_prompt: input.systemPrompt.trim().slice(0, 12000), model_fallback_chain: input.modelFallbackChain.slice(0, 20), is_active: input.isActive, updated_at: new Date().toISOString() }).eq("id", id);
+    if (error) throw error;
+  },
+  async deleteAgent(id: string) {
+    await requireAdmin();
+    const { error } = await supabase.from("agent_registry").delete().eq("id", id);
     if (error) throw error;
   },
 };

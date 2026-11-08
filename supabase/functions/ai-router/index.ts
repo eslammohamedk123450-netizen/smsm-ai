@@ -110,6 +110,10 @@ function sseTextResponse(text: string, info: Record<string, unknown> = {}, req?:
   });
 }
 
+function taskEvent(task: string, status: "pending" | "running" | "completed" | "failed") {
+  return `data: ${JSON.stringify({ task, status })}\n\n`;
+}
+
 function estimateTokens(text: string): number {
   return Math.max(0, Math.ceil(text.length / 3));
 }
@@ -419,6 +423,15 @@ async function handleRequest(req: Request): Promise<Response> {
   let identityContext = buildSulyIdentityContext(himsActivated);
   let userMetadata = identityContext.userMetadata;
   let systemPrompt = identityContext.systemPrompt;
+  if (conversationId) {
+    const ledgerRows = [
+      ["plan", "تحليل الطلب وتقسيمه إلى مهام", 1],
+      ["execute", "تنفيذ المهمة عبر النموذج والمساعد المناسب", 2],
+      ["review", "مراجعة الإجابة وترتيبها وتنسيقها", 3],
+    ].map(([task_key, task_description, sequence_order]) => ({ conversation_id: conversationId, request_id: billingTaskId, task_key, task_description, sequence_order, status: "pending" }));
+    const { error: ledgerError } = await supabase.from("task_ledger").insert(ledgerRows);
+    if (ledgerError) console.error("Could not create task ledger:", ledgerError.message);
+  }
   const startedAt = Date.now();
   const recordEvent = async (model: ModelRow | null, status: "success" | "error", errorSummary: string | null = null) => {
     const { error } = await supabase.from("suly_ai_request_events").insert({
@@ -1024,7 +1037,13 @@ async function handleRequest(req: Request): Promise<Response> {
         let fullContent = winner!.firstChunk;
         const emit = (value: Record<string, unknown>) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(value)}\n\n`));
         try {
+          controller.enqueue(encoder.encode(taskEvent("تحليل الطلب", "running")));
+          if (conversationId) await supabase.from("task_ledger").update({ status: "running", started_at: new Date().toISOString() }).match({ conversation_id: conversationId, request_id: billingTaskId, task_key: "plan" });
           emit({ chunk: winner!.firstChunk, done: false, ...responseInfo });
+          controller.enqueue(encoder.encode(taskEvent("تحليل الطلب", "completed")));
+          controller.enqueue(encoder.encode(taskEvent("تنفيذ المهمة", "running")));
+          if (conversationId) await supabase.from("task_ledger").update({ status: "completed", completed_at: new Date().toISOString() }).match({ conversation_id: conversationId, request_id: billingTaskId, task_key: "plan" });
+          if (conversationId) await supabase.from("task_ledger").update({ status: "running", started_at: new Date().toISOString() }).match({ conversation_id: conversationId, request_id: billingTaskId, task_key: "execute" });
           for await (const chunk of winner!.iterator) {
             fullContent += chunk;
             emit({ chunk, done: false });
@@ -1043,7 +1062,12 @@ async function handleRequest(req: Request): Promise<Response> {
           attemptRecorded = true;
           await recordEvent(winner!.model, "success");
           const billing = await finalizeBilling(winner!, fullContent, "ai_request", true);
+          controller.enqueue(encoder.encode(taskEvent("تنفيذ المهمة", "completed")));
+          controller.enqueue(encoder.encode(taskEvent("مراجعة وتنسيق الإجابة", "running")));
+          if (conversationId) await supabase.from("task_ledger").update({ status: "completed", completed_at: new Date().toISOString() }).match({ conversation_id: conversationId, request_id: billingTaskId, task_key: "execute" });
+          if (conversationId) await supabase.from("task_ledger").update({ status: "completed", completed_at: new Date().toISOString(), result: { characters: fullContent.length } }).match({ conversation_id: conversationId, request_id: billingTaskId, task_key: "review" });
           emit({ done: true, ...responseInfo, billing });
+          controller.enqueue(encoder.encode(taskEvent("مراجعة وتنسيق الإجابة", "completed")));
           controller.close();
         } catch (error) {
           const summary = error instanceof Error ? error.message : String(error);

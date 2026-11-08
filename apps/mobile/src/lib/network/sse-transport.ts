@@ -6,6 +6,7 @@ import { Utf8Decoder } from "./utf8-decoder";
 export interface StreamCallbacks {
   onChunk(text: string): void;
   onDone(): void;
+  onTaskUpdate?(task: { task: string; status: "pending" | "running" | "completed" | "failed" }): void;
 }
 
 export interface ChatRequestBody {
@@ -32,6 +33,7 @@ function dispatch(event: RouterSseEvent, callbacks: StreamCallbacks): boolean {
     return false;
   }
   if (event.type === "error") throw new Error(event.message);
+  if (event.type === "task") { callbacks.onTaskUpdate?.({ task: event.task, status: event.status }); return false; }
   callbacks.onDone();
   return true;
 }

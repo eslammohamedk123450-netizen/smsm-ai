@@ -6,9 +6,10 @@ import { colors } from "../../../theme/colors";
 export interface StreamingStatusProps {
   isStreaming: boolean;
   onCancel?(): void;
+  taskLabel?: string | null;
 }
 
-export function StreamingStatus({ isStreaming, onCancel }: StreamingStatusProps) {
+export function StreamingStatus({ isStreaming, onCancel, taskLabel }: StreamingStatusProps) {
   const spin = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     if (!isStreaming) {
@@ -31,7 +32,7 @@ export function StreamingStatus({ isStreaming, onCancel }: StreamingStatusProps)
   return (
     <View style={styles.container}>
       <Animated.View style={[styles.logo, { transform: [{ rotate }] }]}><Text style={styles.logoText}>S</Text></Animated.View>
-      <Text style={styles.text}>Suly يفكر…</Text>
+      <Text style={styles.text}>{taskLabel || "جاري العمل…"}</Text>
       <Pressable onPress={onCancel} accessibilityRole="button" accessibilityLabel="إيقاف الرد" style={styles.stop}>
         <Text style={styles.cancel}>إيقاف</Text>
       </Pressable>

@@ -6,6 +6,7 @@ import { colors } from "../../theme/colors";
 const NAV = [
   { path: "/admin", label: "نظرة عامة", icon: "⌂" },
   { path: "/admin/models", label: "النماذج والتوجيه", icon: "◈" },
+  { path: "/admin/agents", label: "المساعدون والمهام", icon: "✦" },
   { path: "/admin/api-keys", label: "مزودو الخدمة", icon: "⌘" },
   { path: "/admin/users", label: "المستخدمون", icon: "♙" },
   { path: "/admin/credit-management", label: "الرصيد والتسعير", icon: "◉" },
