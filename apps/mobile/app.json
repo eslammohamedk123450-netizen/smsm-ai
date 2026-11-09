@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "Suly",
+    "slug": "smsm-ai",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/suly-icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#000000"
+    },
+    "android": {
+      "package": "com.suly.agentai",
+      "versionCode": 5
+    }
+  }
+}

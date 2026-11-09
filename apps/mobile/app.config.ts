@@ -9,7 +9,7 @@ const config: ExpoConfig & { splash?: { image: string; resizeMode: "contain"; ba
   slug: "smsm-ai",
   scheme: "suly-agent-ai",
   version: "1.0.0",
-  splash: { image: "./assets/splash.png", resizeMode: "contain", backgroundColor: "#071A4D" },
+  splash: { image: "./assets/splash.png", resizeMode: "contain", backgroundColor: "#000000" },
   runtimeVersion: { policy: "appVersion" },
   android: {
     package: "com.suly.agentai",

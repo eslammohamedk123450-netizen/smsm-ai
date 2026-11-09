@@ -32,6 +32,7 @@
     "expo-linking": "~58.0.16",
     "expo-router": "~58.0.30",
     "expo-speech-recognition": "^58.0.1",
+    "expo-splash-screen": "^58.0.13",
     "expo-status-bar": "~58.0.4",
     "expo-updates": "~58.0.21",
     "expo-web-browser": "~58.0.7",
