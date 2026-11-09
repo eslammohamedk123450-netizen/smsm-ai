@@ -1,5 +1,6 @@
 import { randomUUID } from "expo-crypto";
 import { supabase } from "../../lib/supabase/client";
+import { getQuickReply } from "../../lib/infra/quick-replies-cache";
 import type { ChatRequestBody } from "../../lib/network/sse-transport";
 import { summarizeContent } from "./conversation-title";
 import { buildRetryHistory } from "./chat-retry";
@@ -245,6 +246,21 @@ export const chatService = {
         role: "assistant",
         content: identityReply,
         tokens_used: Math.ceil(identityReply.length / 4),
+      });
+      return;
+    }
+
+    // quick-replies-cache: repeated chit-chat answers instantly from the
+    // local cache with zero network calls and zero token spend.
+    const quickReply = getQuickReply(content);
+    if (quickReply) {
+      options.onChunk(quickReply);
+      await supabase.from("suly_messages").insert({
+        conversation_id: options.conversationId,
+        user_id: user.id,
+        role: "assistant",
+        content: quickReply,
+        tokens_used: Math.ceil(quickReply.length / 4),
       });
       return;
     }

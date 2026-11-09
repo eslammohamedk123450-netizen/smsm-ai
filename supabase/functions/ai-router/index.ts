@@ -6,6 +6,14 @@ import { buildSulyIdentityContext, containsHimsReference, getIdentityAnswer, INA
 import { normalizeFeatureKey } from "../_shared/prompt_keys.ts";
 import { lookupSemanticCache, recordCacheHit, storeSemanticCache } from "../_shared/semantic_cache.ts";
 import { buildMemoryContext, searchTaskMemories, storeTaskMemory } from "../_shared/task_memory.ts";
+import { buildMindPolicy, classifyIntent } from "../_shared/intent_classifier.ts";
+import { lookupQuickReply, storeQuickReply } from "../_shared/quick_replies_cache.ts";
+import {
+  buildWorkerBrief,
+  clearSharedTaskMemory,
+  updateSharedTaskMemory,
+  upsertSharedTaskMemory,
+} from "../_shared/shared_task_memory.ts";
 import { CircuitBreaker } from "./circuit_breaker.ts";
 import { mergePartAnswers, probeCandidates, splitTask } from "./resilience.ts";
 
@@ -410,6 +418,9 @@ async function handleRequest(req: Request): Promise<Response> {
   if (messages[messages.length - 1].role !== "user") return jsonResponse({ error: "The final message must be from the user." }, 400);
   if (messages.reduce((sum, item) => sum + item.content.length, 0) > 50000) return jsonResponse({ error: "Conversation context is too long." }, 413);
   let latestUserMessage = [...messages].reverse().find((message) => message.role === "user")?.content ?? "";
+  // "The mind thinks first": a zero-token internal decision made before any
+  // response or orchestration. It is never surfaced to the user.
+  const mind = classifyIntent(latestUserMessage);
   const streamRequested = body.stream === true;
   let himsActivated = profile.hims_activated === true;
   let identityContext = buildSulyIdentityContext(himsActivated);
@@ -432,25 +443,39 @@ async function handleRequest(req: Request): Promise<Response> {
   const plannerAgent = (agentRows ?? []).find((agent) => agent.role === "planner") ?? null;
   const workerAgent = (agentRows ?? []).find((agent) => agent.role === "worker") ?? null;
   const reviewerAgent = (agentRows ?? []).find((agent) => agent.role === "reviewer") ?? null;
-  const { data: workspaceRow, error: workspaceError } = await supabase.from("agent_workspaces").upsert({ request_id: billingTaskId, conversation_id: conversationId, user_id: user.id, status: "planning", plan: [{ step_key: "plan", description: "تحليل الطلب وتقسيمه" }, { step_key: "execute", description: "تنفيذ المهام" }, { step_key: "review", description: "مراجعة وتجميع النتيجة" }] }, { onConflict: "request_id" }).select("id").single();
-  if (workspaceError || !workspaceRow) console.error("Could not create agent workspace:", workspaceError?.message);
-  else {
-    workspaceId = String(workspaceRow.id);
-    const { error: stepsError } = await supabase.from("agent_workspace_steps").upsert([
-      { workspace_id: workspaceId, step_key: "plan", sequence_order: 1, description: "تحليل الطلب وتقسيمه إلى مهام", assigned_agent_id: plannerAgent?.id ?? null },
-      { workspace_id: workspaceId, step_key: "execute", sequence_order: 2, description: "تنفيذ المهمة عبر المساعد والنماذج المحددة", assigned_agent_id: workerAgent?.id ?? null },
-      { workspace_id: workspaceId, step_key: "review", sequence_order: 3, description: "مراجعة النتائج وتجميعها وتنسيقها", assigned_agent_id: reviewerAgent?.id ?? null },
-    ], { onConflict: "workspace_id,step_key" });
-    if (stepsError) console.error("Could not create agent workspace steps:", stepsError.message);
-  }
-  if (conversationId) {
-    const ledgerRows = [
-      ["plan", "تحليل الطلب وتقسيمه إلى مهام", 1],
-      ["execute", "تنفيذ المهمة عبر النموذج والمساعد المناسب", 2],
-      ["review", "مراجعة الإجابة وترتيبها وتنسيقها", 3],
-    ].map(([task_key, task_description, sequence_order]) => ({ conversation_id: conversationId, request_id: billingTaskId, workspace_id: workspaceId, task_key, task_description, sequence_order, status: "pending" }));
-    const { error: ledgerError } = await supabase.from("task_ledger").insert(ledgerRows);
-    if (ledgerError) console.error("Could not create task ledger:", ledgerError.message);
+  // Chit-chat never pays for orchestration bookkeeping: no workspace, no
+  // steps, and no ledger rows are created for plain conversation turns.
+  if (mind.intent !== "chat") {
+    const { data: workspaceRow, error: workspaceError } = await supabase.from("agent_workspaces").upsert({ request_id: billingTaskId, conversation_id: conversationId, user_id: user.id, status: "planning", plan: [{ step_key: "plan", description: "تحليل الطلب وتقسيمه" }, { step_key: "execute", description: "تنفيذ المهام" }, { step_key: "review", description: "مراجعة وتجميع النتيجة" }] }, { onConflict: "request_id" }).select("id").single();
+    if (workspaceError || !workspaceRow) console.error("Could not create agent workspace:", workspaceError?.message);
+    else {
+      workspaceId = String(workspaceRow.id);
+      const { error: stepsError } = await supabase.from("agent_workspace_steps").upsert([
+        { workspace_id: workspaceId, step_key: "plan", sequence_order: 1, description: "تحليل الطلب وتقسيمه إلى مهام", assigned_agent_id: plannerAgent?.id ?? null },
+        { workspace_id: workspaceId, step_key: "execute", sequence_order: 2, description: "تنفيذ المهمة عبر المساعد والنماذج المحددة", assigned_agent_id: workerAgent?.id ?? null },
+        { workspace_id: workspaceId, step_key: "review", sequence_order: 3, description: "مراجعة النتائج وتجميعها وتنسيقها", assigned_agent_id: reviewerAgent?.id ?? null },
+      ], { onConflict: "workspace_id,step_key" });
+      if (stepsError) console.error("Could not create agent workspace steps:", stepsError.message);
+    }
+    if (conversationId) {
+      const ledgerRows = [
+        ["plan", "تحليل الطلب وتقسيمه إلى مهام", 1],
+        ["execute", "تنفيذ المهمة عبر النموذج والمساعد المناسب", 2],
+        ["review", "مراجعة الإجابة وترتيبها وتنسيقها", 3],
+      ].map(([task_key, task_description, sequence_order]) => ({ conversation_id: conversationId, request_id: billingTaskId, workspace_id: workspaceId, task_key, task_description, sequence_order, status: "pending" }));
+      const { error: ledgerError } = await supabase.from("task_ledger").insert(ledgerRows);
+      if (ledgerError) console.error("Could not create task ledger:", ledgerError.message);
+    }
+    // Compound tasks get the one shared scratchpad that the mind, the workers,
+    // and the coordinator read from instead of re-reading the whole chat.
+    if (mind.intent === "complex_task") {
+      await upsertSharedTaskMemory(supabase, {
+        requestId: billingTaskId,
+        userId: user.id,
+        conversationId,
+        objective: latestUserMessage,
+      });
+    }
   }
   const startedAt = Date.now();
   const recordEvent = async (model: ModelRow | null, status: "success" | "error", errorSummary: string | null = null) => {
@@ -518,9 +543,22 @@ async function handleRequest(req: Request): Promise<Response> {
     return respondDeterministically(identityAnswer, { billing: null }, "identity_question");
   }
 
+  // quick-replies-cache: repeated chit-chat and previously answered exact
+  // questions are served with zero model calls and zero credit spend.
+  const quickReply = await lookupQuickReply(supabase, user.id, latestUserMessage);
+  if (quickReply.reply) {
+    return respondDeterministically(quickReply.reply, {
+      route: "quick_reply",
+      cache_source: quickReply.source,
+      billing: null,
+    }, "quick_reply_cache");
+  }
+
   for (const message of messages) message.content = sanitizeContextText(message.content, himsActivated);
   latestUserMessage = [...messages].reverse().find((message) => message.role === "user")?.content ?? "";
-  messages.unshift({ role: "system", content: systemPrompt });
+  // The mind's internal policy rides along with the system prompt; the user
+  // never sees it in the conversation bubbles.
+  messages.unshift({ role: "system", content: `${systemPrompt}\n\n${buildMindPolicy(mind)}` });
 
   // Every feature namespaces its cache and memory through this key. Unknown or
   // malformed values fall back to `general`, so no caller can escape its scope.
@@ -902,18 +940,30 @@ async function handleRequest(req: Request): Promise<Response> {
   // Long or multi-question prompts are decomposed: each part is answered by the
   // fastest healthy model, failed parts fall back to other models, and the
   // answers are merged so a single provider hiccup never fails the request.
-  const splitParts = settings.taskSplitEnabled
+  // Only compound tasks pay the decomposition cost; chat and simple tasks are
+  // always answered in a single response.
+  const splitParts = settings.taskSplitEnabled && mind.intent === "complex_task"
     ? splitTask(latestUserMessage, settings.taskSplitMaxParts)
     : [latestUserMessage];
   if (splitParts.length > 1) {
     const systemMessages = messages.filter((message) => message.role === "system");
-    const history = messages.filter((message) => message.role !== "system").slice(0, -1);
+    // Workers read the shared-task-memory brief instead of the full chat
+    // transcript, which is the main token saving of the orchestration.
+    const taskMemoryRecord = await upsertSharedTaskMemory(supabase, {
+      requestId: billingTaskId,
+      userId: user.id,
+      conversationId,
+      objective: latestUserMessage,
+      remaining: splitParts.slice(1),
+    });
+    const workerBrief = buildWorkerBrief(taskMemoryRecord);
+    const pendingParts = new Set(splitParts.map((_, index) => index));
     // Parts do not depend on one another, so run their races concurrently.
     // Promise.all preserves the input order even when providers finish out of order.
     const answerPart = async (index: number): Promise<{ index: number; content: string; model: string | null; candidate: ReadyCandidate | null }> => {
       const partMessages: ChatMessage[] = [
         ...systemMessages,
-        ...history,
+        { role: "system", content: workerBrief },
         { role: "user", content: splitParts[index] },
       ];
       let remaining = raceCandidates.map((candidate) => ({ ...candidate, requestMessages: partMessages }));
@@ -922,7 +972,17 @@ async function handleRequest(req: Request): Promise<Response> {
         if (!partWinner) break;
         try {
           const content = await collectCandidate(partWinner);
-          if (content.trim()) return { index, content, model: partWinner.model.model_identifier, candidate: partWinner };
+          if (content.trim()) {
+            const trimmedPart = content.trim();
+            pendingParts.delete(index);
+            const partSources = trimmedPart.match(/https?:\/\/[^\s)"]+/g) ?? [];
+            await updateSharedTaskMemory(supabase, billingTaskId, {
+              done: [`الجزء ${index + 1} من ${splitParts.length}: ${trimmedPart.slice(0, 150)}`],
+              remaining: [...pendingParts].map((pendingIndex) => splitParts[pendingIndex]),
+              ...(partSources.length > 0 ? { sources: partSources.slice(0, 3) } : {}),
+            });
+            return { index, content, model: partWinner.model.model_identifier, candidate: partWinner };
+          }
         } catch (error) {
           const reason = error instanceof Error ? error.message : String(error);
           await recordAttempt(partWinner, "error", Date.now() - partWinner.startedAtMs, "stream_error", reason);
@@ -961,6 +1021,8 @@ async function handleRequest(req: Request): Promise<Response> {
     });
     await recordEvent(mergedModel?.model ?? null, "success", `task_split:${splitParts.length}_parts`);
     const billing = await finalizeBilling(mergedModel, merged, "ai_request", Boolean(mergedModel));
+    // The task is done, so the shared scratchpad is wiped immediately.
+    await clearSharedTaskMemory(supabase, billingTaskId);
     const info = {
       model_id: mergedModel?.model.id ?? null,
       model: mergedModel?.model.model_identifier ?? "task-split",
@@ -1021,6 +1083,11 @@ async function handleRequest(req: Request): Promise<Response> {
     await saveAgentMemory(supabase, user.id, latestUserMessage, memoryState.embedding);
     const answer = content.trim();
     if (answer.length === 0) return;
+    // Chat turns answered by the mind join quick-replies-cache, so the next
+    // identical ask is served with zero model calls.
+    if (mind.intent === "chat") {
+      await storeQuickReply(supabase, user.id, latestUserMessage, answer);
+    }
     await storeTaskMemory({
       supabase,
       userId: user.id,
