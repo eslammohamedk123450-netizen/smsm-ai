@@ -2,6 +2,7 @@ import { Platform } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import { supabase } from "../../lib/supabase/client";
+import { env } from "../../config/env";
 import { compressImageForUpload } from "./image-compression";
 import { pickFile } from "./web-file-input";
 import {
@@ -105,7 +106,12 @@ function gatewayMessage(error: unknown, data: unknown, fallback: string): string
   return typeof fromData === "string" ? fromData : fallback;
 }
 export async function getMediaDeliveryUrl(mediaId: string): Promise<string> {
-  const { data, error } = await supabase.functions.invoke("media-gateway", { body: { action: "get_url", media_id: mediaId } });
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData?.session?.access_token || env.supabaseAnonKey;
+  const { data, error } = await supabase.functions.invoke("media-gateway", { 
+    body: { action: "get_url", media_id: mediaId },
+    headers: { Authorization: `Bearer ${token}`, apikey: env.supabaseAnonKey }
+  });
   if (error || !data || typeof data.url !== "string") throw new MediaUploadError("media_access_denied", gatewayMessage(error, data, "تعذر استرجاع الملف أو لا تملك صلاحية الوصول إليه."));
   return data.url;
 }
@@ -121,6 +127,7 @@ export async function uploadMediaFile(input: UploadMediaInput): Promise<MediaAss
   if (uploadSize > 100 * 1024 * 1024) throw new MediaUploadError("too_large", "حجم الملف أكبر من الحد المسموح (100 ميجابايت). ");
   const { data: signedData, error: signError } = await supabase.functions.invoke("media-gateway", {
     body: { action: "sign_upload", feature_key: featureKey, resource_type: picked.kind, mime_type: part.type, size_bytes: uploadSize, conversation_id: input.conversationId ?? null, message_id: input.messageId ?? null, support_ticket_id: input.supportTicketId ?? null },
+    headers: { Authorization: `Bearer ${sessionData.session.access_token}`, apikey: env.supabaseAnonKey }
   });
   if (signError || !signedData?.signed_fields) throw new MediaUploadError("sign_failed", gatewayMessage(signError, signedData, "تعذر توقيع طلب الرفع الآمن."));
   let uploaded;
@@ -131,6 +138,7 @@ export async function uploadMediaFile(input: UploadMediaInput): Promise<MediaAss
   }
   const { data: registered, error: registerError } = await supabase.functions.invoke("media-gateway", {
     body: { action: "register", feature_key: featureKey, resource_type: picked.kind, public_id: uploaded.publicId, mime_type: part.type, original_filename: part.name, conversation_id: input.conversationId ?? null, message_id: input.messageId ?? null, support_ticket_id: input.supportTicketId ?? null },
+    headers: { Authorization: `Bearer ${sessionData.session.access_token}`, apikey: env.supabaseAnonKey }
   });
   if (registerError || !registered?.success || typeof registered.id !== "string") {
     throw new MediaUploadError("register_failed", gatewayMessage(registerError, registered, "تم رفع الملف لكن تعذر ربطه بقاعدة البيانات."));
@@ -156,7 +164,12 @@ export async function listMyMedia(limit = 60): Promise<MediaAsset[]> {
   if (error) throw new MediaUploadError("list_failed", "تعذر تحميل مكتبة الوسائط.");
   const rows = Array.isArray(data) ? data as Record<string, unknown>[] : [];
   if (!rows.length) return [];
-  const { data: resolved, error: resolveError } = await supabase.functions.invoke("media-gateway", { body: { action: "get_urls", media_ids: rows.map((row) => String(row.id)).filter(Boolean) } });
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData?.session?.access_token || env.supabaseAnonKey;
+  const { data: resolved, error: resolveError } = await supabase.functions.invoke("media-gateway", { 
+    body: { action: "get_urls", media_ids: rows.map((row) => String(row.id)).filter(Boolean) },
+    headers: { Authorization: `Bearer ${token}`, apikey: env.supabaseAnonKey }
+  });
   if (resolveError) throw new MediaUploadError("resolve_failed", gatewayMessage(resolveError, resolved, "تعذر التحقق من صلاحية عرض الملفات."));
   const urlById = new Map<string, string>((resolved?.assets ?? []).map((item: { id: string; url: string }) => [String(item.id), String(item.url)]));
   return rows.map((row) => {
