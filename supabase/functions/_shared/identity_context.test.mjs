@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import {
   buildSulyIdentityContext,
   containsHimsReference,
+  COMPANY_ANSWER_TEXT,
+  CREATOR_ANSWER_TEXT,
+  getIdentityAnswer,
   IDENTITY_ANSWER_TEXT,
   INACTIVE_UNKNOWN_ANSWER,
   isIdentityQuestion,
@@ -17,7 +20,7 @@ test("inactive identity context never mentions HIMS and has no badge", () => {
 
 test("active identity context includes the HIMS instructions and verified badge metadata", () => {
   const context = buildSulyIdentityContext(true);
-  assert.ok(context.systemPrompt.includes("Suly Agent"));
+  assert.ok(context.systemPrompt.includes("أنت Suly، مساعد ذكي."));
   assert.ok(context.systemPrompt.includes("نظام HIMS"));
   assert.ok(context.systemPrompt.includes(JSON.stringify({ badges: ["HIMS"] })));
   assert.deepEqual(context.userMetadata, { badges: ["HIMS"] });
@@ -34,6 +37,9 @@ test("identity query and unknown-feature response are deterministic", () => {
   assert.equal(isIdentityQuestion("من أنت؟"), true);
   assert.equal(isIdentityQuestion("من انت"), true);
   assert.equal(isIdentityQuestion("من تكون؟"), false);
-  assert.ok(IDENTITY_ANSWER_TEXT.includes("Suly Agent"));
+  assert.equal(getIdentityAnswer("من أنت؟"), IDENTITY_ANSWER_TEXT);
+  assert.equal(getIdentityAnswer("مين طورك؟"), CREATOR_ANSWER_TEXT);
+  assert.equal(getIdentityAnswer("شركة Suly-Technologies دي بتاعة مين؟"), COMPANY_ANSWER_TEXT);
+  assert.ok(IDENTITY_ANSWER_TEXT.includes("أنا Suly"));
   assert.equal(INACTIVE_UNKNOWN_ANSWER, "لا أملك معلومات حول ذلك.");
 });

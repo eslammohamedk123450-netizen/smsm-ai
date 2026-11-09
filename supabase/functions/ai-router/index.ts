@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { prepareAgentMemory, saveAgentMemory } from "./agent/memory.ts";
 import { activationOutcomeMessage, parseActivationCommand, shouldReportActivationFailure } from "../_shared/activation_command.ts";
 import { activateFeatureByCode, buildFeatureSystemContext, getFeatureContext } from "../_shared/feature_flags.ts";
-import { buildSulyIdentityContext, containsHimsReference, IDENTITY_ANSWER_TEXT, INACTIVE_UNKNOWN_ANSWER, isIdentityQuestion, sanitizeContextText } from "../_shared/identity_context.ts";
+import { buildSulyIdentityContext, containsHimsReference, getIdentityAnswer, INACTIVE_UNKNOWN_ANSWER, sanitizeContextText } from "../_shared/identity_context.ts";
 import { normalizeFeatureKey } from "../_shared/prompt_keys.ts";
 import { lookupSemanticCache, recordCacheHit, storeSemanticCache } from "../_shared/semantic_cache.ts";
 import { buildMemoryContext, searchTaskMemories, storeTaskMemory } from "../_shared/task_memory.ts";
@@ -513,8 +513,9 @@ async function handleRequest(req: Request): Promise<Response> {
   if (!himsActivated && containsHimsReference(latestUserMessage)) {
     return respondDeterministically(INACTIVE_UNKNOWN_ANSWER, { billing: null }, "restricted_feature_query");
   }
-  if (isIdentityQuestion(latestUserMessage)) {
-    return respondDeterministically(IDENTITY_ANSWER_TEXT, { billing: null }, "identity_question");
+  const identityAnswer = getIdentityAnswer(latestUserMessage);
+  if (identityAnswer) {
+    return respondDeterministically(identityAnswer, { billing: null }, "identity_question");
   }
 
   for (const message of messages) message.content = sanitizeContextText(message.content, himsActivated);

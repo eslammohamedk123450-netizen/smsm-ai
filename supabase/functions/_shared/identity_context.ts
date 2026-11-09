@@ -44,12 +44,18 @@ export function buildSulyIdentityContext(himsActivated: boolean): SulyIdentityCo
   return { systemPrompt: instructions.join("\n\n"), userMetadata };
 }
 
-export function isIdentityQuestion(text: string): boolean {
+export function getIdentityAnswer(text: string): string | null {
   const normalized = text.normalize("NFKC").trim().replace(/[؟?!.,،؛;:]+$/u, "").replace(/\s+/gu, " ");
-  if (/^(?:من\s+أنت|من\s+انت|انت\s+مين|عرف\s+بنفسك)$/u.test(normalized)) return true;
-  return /^(?:شركة\s+suly[-\s]?technologies|suly[-\s]?technologies)\s+(دي|هي|ده)?\s*(بتاع|بتاعة|لمين|تابعة|مملوكة|لمن|لدى)/u.test(normalized)
-    || /(?:شركة|suly[-\s]?technologies).{0,40}(بتاع|بتاعة|مملوك|مملوكة|لمين|لمن)\s*(مين)?/u.test(normalized)
-    || /^(?:مين\s+اللي\s+عملك|مين\s+طورك|مين\s+عملك)$/u.test(normalized);
+  const comparable = normalized.toLocaleLowerCase("en");
+  if (/^(?:من\s+أنت|من\s+انت|انت\s+مين|عرف\s+بنفسك)$/u.test(normalized)) return IDENTITY_ANSWER;
+  if (/^(?:مين\s+اللي\s+عملك|مين\s+طورك|مين\s+عملك)$/u.test(normalized)) return CREATOR_ANSWER;
+  if (/^(?:شركة\s+suly[-\s]?technologies|suly[-\s]?technologies)\s+(دي|هي|ده)?\s*(بتاع|بتاعة|لمين|تابعة|مملوكة|لمن|لدى)/u.test(comparable)
+    || /(?:شركة|suly[-\s]?technologies).{0,40}(بتاع|بتاعة|مملوك|مملوكة|لمين|لمن)\s*(مين)?/u.test(comparable)) return COMPANY_ANSWER;
+  return null;
+}
+
+export function isIdentityQuestion(text: string): boolean {
+  return getIdentityAnswer(text) !== null;
 }
 
 export const IDENTITY_ANSWER_TEXT = IDENTITY_ANSWER;
