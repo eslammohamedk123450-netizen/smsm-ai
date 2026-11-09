@@ -13,7 +13,7 @@ import { runOnce } from "../../src/features/chat/submission-guard";
 import { ChatComposer, type ChatAttachment, type ChatComposerHandle } from "../../src/features/chat/components/ChatComposer";
 import { MessageBubble, type MessageFeedback } from "../../src/features/chat/components/MessageBubble";
 import { StreamingStatus } from "../../src/features/chat/components/StreamingStatus";
-import { uploadMediaFile } from "../../src/features/media/media-service";
+import { uploadMedia } from "../../src/lib/media/upload-service";
 import { logFrictionEvent } from "../../src/features/telemetry/friction";
 import { colors } from "../../src/theme/colors";
 import { ShareConversationSheet } from "../../src/features/chat/components/ShareConversationSheet";
@@ -276,28 +276,31 @@ export default function ChatPage() {
         const conversationKey = id;
         streamedTextRef.current = "";
         let mediaAssetId: string | null = null;
+        let attachmentUrl: string | undefined;
         if (attachment) {
           setIsUploadingAttachment(true);
           try {
-            const asset = await uploadMediaFile({ picked: attachment, featureKey: "chat", conversationId: conversationKey });
-            mediaAssetId = asset.id;
+            const mimeType = attachment.part.type;
+            const kind = mimeType.startsWith("video") ? "video" : "image";
+            attachmentUrl = await uploadMedia(attachment.part.uri || attachment.part.name, mimeType, kind);
           } catch (cause) {
-            void logFrictionEvent({ eventKind: "upload_failed", screenKey: "chat", featureKey: "chat", stepKey: "chat_attachment", errorCode: "upload_failed", conversationId: conversationKey });
+            setIsUploadingAttachment(false);
             throw cause;
           } finally { setIsUploadingAttachment(false); }
         }
+        
+        const fullContent = attachmentUrl 
+          ? `${content}\n\n![مرفق](${attachmentUrl})` 
+          : content;
+
         await chatService.sendMessage({
           conversationId: conversationKey,
-          content,
+          content: fullContent,
           signal: controller.signal,
           async onUserSaved(message) {
             savedUserMessage = true;
             savedUserMessageId = message.id;
             setMessages((current) => [...current.filter((item) => item.id !== STREAMING_ID), message]);
-            if (mediaAssetId) {
-              try { await chatService.attachMediaToMessage(mediaAssetId, message.id); }
-              catch { void logFrictionEvent({ eventKind: "action_failed", screenKey: "chat", featureKey: "chat", stepKey: "link_attachment", errorCode: "media_link_failed", conversationId: conversationKey }); }
-            }
           },
           onChunk(text) {
             streamedTextRef.current += text;

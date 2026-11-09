@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Animated, Image, Platform, Pressable, StyleSheet, TouchableOpacity, View } from "react-native";
+import { Animated, Image, Platform, Pressable, StyleSheet, TouchableOpacity, View, Modal } from "react-native";
 import { PremiumText as Text } from "../../../components/ui/PremiumText";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
@@ -103,18 +103,29 @@ export function MessageBubble({
     }
   };
 
-  const renderUserText = (part: string, key: string) => {
+  const [viewedImage, setViewedImage] = useState<string | null>(null);
+  
+  const renderContent = (content: string) => {
     const nodes: React.ReactNode[] = [];
     let cursor = 0;
     imagePattern.lastIndex = 0;
     let match: RegExpExecArray | null;
-    while ((match = imagePattern.exec(part)) !== null) {
-      if (match.index > cursor) nodes.push(<Text key={`${key}-text-${cursor}`} style={styles.userText}>{part.slice(cursor, match.index)}</Text>);
+    while ((match = imagePattern.exec(content)) !== null) {
+      if (match.index > cursor) {
+        const textPart = content.slice(cursor, match.index);
+        nodes.push(<Text key={`${cursor}`} style={isUser ? styles.userText : styles.assistantText}>{textPart}</Text>);
+      }
       const uri = match[1] || match[2];
-      nodes.push(<Image key={`${key}-image-${match.index}`} source={{ uri }} style={styles.image} resizeMode="contain" accessibilityLabel="صورة في الرسالة" />);
+      nodes.push(
+        <TouchableOpacity key={`${match.index}`} onPress={() => setViewedImage(uri)}>
+          <Image source={{ uri }} style={styles.image} resizeMode="contain" />
+        </TouchableOpacity>
+      );
       cursor = match.index + match[0].length;
     }
-    if (cursor < part.length || nodes.length === 0) nodes.push(<Text key={`${key}-tail`} style={styles.userText}>{part.slice(cursor)}</Text>);
+    if (cursor < content.length) {
+      nodes.push(<Text key="tail" style={isUser ? styles.userText : styles.assistantText}>{content.slice(cursor)}</Text>);
+    }
     return nodes;
   };
 
@@ -123,15 +134,9 @@ export function MessageBubble({
   return (
     <View style={[styles.row, isUser ? styles.userRow : styles.assistantRow]}>
       <View style={[styles.messageColumn, isUser ? styles.userColumn : styles.assistantColumn]}>
-        {/* Main Bubble */}
-        <Pressable
-          onLongPress={() => void copyToClipboard(content, true)}
-          delayLongPress={500}
-          style={[styles.bubble, isUser ? styles.userBubble : styles.assistantBubble]}
-          accessibilityHint="اضغط مطولاً لنسخ نص الرسالة"
-        >
+        <View style={[styles.bubble, isUser ? styles.userBubble : styles.assistantBubble]}>
           {isUser ? (
-            <View style={styles.paragraph}>{renderUserText(content, "user-msg")}</View>
+            <View style={styles.paragraph}>{renderContent(content)}</View>
           ) : (
             <>
               {/* Header inside assistant bubble matching web */}
@@ -146,7 +151,7 @@ export function MessageBubble({
               </View>
 
               {!isStreaming ? (
-                <MarkdownView content={content} onCopyCode={(code) => void copyToClipboard(code)} />
+                <View style={styles.markdown}>{renderContent(content)}</View>
               ) : (
                 <Text style={styles.assistantText}>{content}</Text>
               )}
@@ -154,7 +159,13 @@ export function MessageBubble({
           )}
 
           {isStreaming && <View style={styles.pulse} />}
-        </Pressable>
+        </View>
+
+        <Modal visible={!!viewedImage} transparent={true} animationType="fade" onRequestClose={() => setViewedImage(null)}>
+          <Pressable style={styles.modalOverlay} onPress={() => setViewedImage(null)}>
+             <Image source={{ uri: viewedImage || "" }} style={styles.fullImage} resizeMode="contain" />
+          </Pressable>
+        </Modal>
 
         {/* Action icons */}
         {canShowActions && (
@@ -230,4 +241,7 @@ const styles = StyleSheet.create({
   actionIcon: { alignItems: "center", justifyContent: "center" },
   actionLabel: { color: "#A1A1AA", fontSize: 11, marginRight: 4 },
   glyphText: { color: "#A1A1AA", fontSize: 14, textAlign: "center" },
+  markdown: { width: "100%" },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0, 0, 0, 0.9)", justifyContent: "center", alignItems: "center" },
+  fullImage: { width: "100%", height: "100%" },
 });
