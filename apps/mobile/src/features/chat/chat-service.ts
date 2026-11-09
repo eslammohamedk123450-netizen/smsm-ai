@@ -58,6 +58,23 @@ function mapMessage(row: MessageRow): ChatMessage {
   };
 }
 
+function checkStrictIdentity(query: string): string | null {
+  const q = query.replace(/[؟?.,!]/g, "").trim().toLowerCase();
+  const whoAreYouPattern = /^(انت مين|من انت|من أنت|عرف بنفسك|عرف عن نفسك|عرفنا بنفسك|ما هو سولي|ما هو suly|مين سولي|مين suly|انت ايه)$/i;
+  if (whoAreYouPattern.test(q)) {
+    return "أنا Suly، مساعد ذكي تم تطويري بواسطة شركة Suly-Technologies.";
+  }
+  const whoMadeYouPattern = /^(مين اللي عملك|مين عملك|مين طورك|مين اللي طورك|من طورك|من صنعك|مين صنعك|مين برمجك|من برمجك|من انشاك|مين انشاك)$/i;
+  if (whoMadeYouPattern.test(q)) {
+    return "تم تطويري بواسطة شركة Suly-Technologies.";
+  }
+  const whoIsCompanyPattern = /^(ايه هي suly-technologies|ايه هي شركة suly-technologies|ما هي suly-technologies|ما هي شركة suly-technologies|كلمني عن الشركة|كلمني عن suly-technologies|معلومات عن الشركة|من هو مؤسس suly-technologies|مين صاحب الشركة)$/i;
+  if (whoIsCompanyPattern.test(q)) {
+    return "شركة Suly-Technologies هي شركة مصرية تدعم الابتكار والخدمات الإلكترونية والبرمجة، تم تأسيسها على يد المهندس: إسلام محمد البدوي.";
+  }
+  return null;
+}
+
 const TITLE_LIMIT = 48;
 
 export const chatService = {
@@ -218,6 +235,19 @@ export const chatService = {
       .update(conversationUpdate)
       .eq("id", options.conversationId).eq("user_id", user.id);
     if (updateError) throw new Error("حُفظت رسالتك، لكن تعذر تحديث ترتيب المحادثة.");
+
+    const identityReply = checkStrictIdentity(content);
+    if (identityReply) {
+      options.onChunk(identityReply);
+      await supabase.from("suly_messages").insert({
+        conversation_id: options.conversationId,
+        user_id: user.id,
+        role: "assistant",
+        content: identityReply,
+        tokens_used: Math.ceil(identityReply.length / 4),
+      });
+      return;
+    }
 
     const history: ChatRequestBody["messages"] = priorMessages
       .filter((entry): entry is ChatMessage & { role: "user" | "assistant" } => entry.role === "user" || entry.role === "assistant")

@@ -46,8 +46,7 @@ function InlineText({ text, baseStyle }: { text: string; baseStyle?: object }) {
           : token.type === "italic" ? styles.italic
             : token.type === "code" ? styles.inlineCode
               : token.type === "link" ? styles.ltrText : null;
-        const value = token.type === "image" ? token.text : token.text;
-        return <Text key={`${token.type}-${index}`} style={tokenStyle}>{value}</Text>;
+        return <Text key={`${token.type}-${index}`} style={tokenStyle}>{token.text}</Text>;
       })}
     </Text>
   );
@@ -85,7 +84,7 @@ export function MarkdownView({ content, onCopyCode }: MarkdownViewProps) {
 
 function renderBlock(block: MarkdownBlock, index: number, onCopyCode?: (code: string) => void) {
   if (block.type === "heading") {
-    const headingStyle = block.level === 1 ? styles.heading1 : block.level === 2 ? styles.heading2 : styles.heading3;
+    const headingStyle = block.level === 1 ? styles.heading2 : block.level === 2 ? styles.heading2 : styles.heading3;
     return <InlineText key={`heading-${index}`} text={block.text} baseStyle={headingStyle} />;
   }
   if (block.type === "paragraph") return <InlineFlow key={`paragraph-${index}`} text={block.text} />;
@@ -97,7 +96,11 @@ function renderBlock(block: MarkdownBlock, index: number, onCopyCode?: (code: st
       <View key={`list-${index}`} style={styles.list}>
         {block.items.map((item, itemIndex) => (
           <View key={`item-${itemIndex}`} style={styles.listItem}>
-            <Text style={[styles.marker, block.ordered && styles.ltrText]}>{block.ordered ? `${itemIndex + 1}.` : "•"}</Text>
+            {block.ordered ? (
+              <Text style={styles.orderedMarker}>{`${itemIndex + 1}.`}</Text>
+            ) : (
+              <View style={styles.bulletDot} />
+            )}
             <View style={styles.listText}><InlineFlow text={item} /></View>
           </View>
         ))}
@@ -106,18 +109,31 @@ function renderBlock(block: MarkdownBlock, index: number, onCopyCode?: (code: st
   }
   if (block.type === "table") {
     return (
-      <ScrollView key={`table-${index}`} horizontal nestedScrollEnabled showsHorizontalScrollIndicator={false} directionalLockEnabled bounces={false} style={styles.tableScroll} contentContainerStyle={styles.tableContent}>
-        <View>
-          <View style={[styles.tableRow, styles.tableHeader]}>
-            {block.headers.map((cell, cellIndex) => <View key={`head-${cellIndex}`} style={styles.tableCell}><InlineText text={cell} baseStyle={styles.tableHeaderText} /></View>)}
-          </View>
-          {block.rows.map((row, rowIndex) => (
-            <View key={`row-${rowIndex}`} style={styles.tableRow}>
-              {row.map((cell, cellIndex) => <View key={`cell-${cellIndex}`} style={styles.tableCell}><InlineText text={cell} baseStyle={styles.tableText} /></View>)}
+      <View key={`table-${index}`} style={styles.tableCard}>
+        <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator={false} directionalLockEnabled bounces={false} style={styles.tableScroll} contentContainerStyle={styles.tableContent}>
+          <View>
+            <View style={[styles.tableRow, styles.tableHeader]}>
+              {block.headers.map((cell, cellIndex) => (
+                <View key={`head-${cellIndex}`} style={styles.tableCell}>
+                  <InlineText text={cell} baseStyle={styles.tableHeaderText} />
+                </View>
+              ))}
             </View>
-          ))}
-        </View>
-      </ScrollView>
+            {block.rows.map((row, rowIndex) => {
+              const isEven = rowIndex % 2 === 0;
+              return (
+                <View key={`row-${rowIndex}`} style={[styles.tableRow, isEven ? styles.rowEven : styles.rowOdd]}>
+                  {row.map((cell, cellIndex) => (
+                    <View key={`cell-${cellIndex}`} style={styles.tableCell}>
+                      <InlineText text={cell} baseStyle={styles.tableText} />
+                    </View>
+                  ))}
+                </View>
+              );
+            })}
+          </View>
+        </ScrollView>
+      </View>
     );
   }
   return (
@@ -135,38 +151,47 @@ function renderBlock(block: MarkdownBlock, index: number, onCopyCode?: (code: st
   );
 }
 
-const webMaxWidth = Platform.OS === "web" ? 680 : undefined;
 const styles = StyleSheet.create({
-  container: { width: "100%", maxWidth: webMaxWidth, alignSelf: "stretch" },
-  body: { color: colors.textPrimary, fontSize: 16, lineHeight: 26, textAlign: "right", writingDirection: "rtl" },
-  heading1: { fontSize: 22, lineHeight: 32, fontWeight: "700", marginTop: 4, marginBottom: 8 },
-  heading2: { fontSize: 20, lineHeight: 30, fontWeight: "700", marginTop: 4, marginBottom: 8 },
-  heading3: { fontSize: 18, lineHeight: 28, fontWeight: "700", marginTop: 4, marginBottom: 8 },
-  bold: { fontWeight: "700" },
+  container: { width: "100%", alignSelf: "stretch" },
+  body: { color: "#F5F5F5", fontSize: 16, lineHeight: 26, textAlign: "right", writingDirection: "rtl" },
+  heading2: { fontSize: 17, lineHeight: 24, fontWeight: "700", marginTop: 12, marginBottom: 6, color: "#F5F5F5" },
+  heading3: { fontSize: 16, lineHeight: 24, fontWeight: "700", marginTop: 10, marginBottom: 4, color: "#F5F5F5" },
+  bold: { fontWeight: "700", color: "#FFFFFF" },
   italic: { fontStyle: "italic" },
-  inlineCode: { color: colors.primary, backgroundColor: colors.background, fontFamily: "monospace", writingDirection: "ltr", textAlign: "left" },
+  inlineCode: { color: "#F5F5F5", backgroundColor: "#262626", borderRadius: 6, paddingHorizontal: 5, paddingVertical: 2, fontFamily: "monospace", fontSize: 14, writingDirection: "ltr", textAlign: "left" },
   ltrText: { writingDirection: "ltr", textAlign: "left" },
-  inlineFlow: { flexDirection: "row-reverse", flexWrap: "wrap", alignItems: "center", width: "100%", maxWidth: webMaxWidth, marginBottom: 12 },
-  image: { width: 250, height: 210, borderRadius: 10, marginVertical: 8, backgroundColor: colors.surfaceElevated },
-  list: { marginBottom: 12, gap: 4 },
-  listItem: { flexDirection: "row-reverse", alignItems: "flex-start", gap: 8 },
-  marker: { color: colors.primary, fontSize: 15, lineHeight: 26, minWidth: 16, textAlign: "right", writingDirection: "rtl" },
+  inlineFlow: { flexDirection: "row-reverse", flexWrap: "wrap", alignItems: "center", width: "100%", marginBottom: 8 },
+  image: { width: "100%", height: 200, borderRadius: 12, marginVertical: 8, backgroundColor: "#111111" },
+  list: { marginVertical: 6, gap: 6 },
+  listItem: { flexDirection: "row-reverse", alignItems: "baseline", gap: 8 },
+  bulletDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#0EA5E9", marginTop: 8 },
+  orderedMarker: { color: "#F5F5F5", fontSize: 16, lineHeight: 26, fontWeight: "700", minWidth: 20, textAlign: "right", writingDirection: "rtl" },
   listText: { flex: 1, minWidth: 0 },
-  quote: { borderRightWidth: 3, borderRightColor: colors.primary, paddingRight: 12, marginBottom: 12, backgroundColor: colors.surfaceElevated, borderRadius: 6 },
-  quoteText: { color: colors.textSecondary, paddingVertical: 8 },
-  tableScroll: { width: "100%", maxWidth: webMaxWidth, marginBottom: 12 },
+  quote: { borderRightWidth: 3, borderRightColor: "#0EA5E9", paddingRight: 12, marginBottom: 10, backgroundColor: "#111111", borderRadius: 8 },
+  quoteText: { color: "#A1A1AA", paddingVertical: 8 },
+  tableCard: {
+    marginVertical: 12,
+    borderRadius: 12,
+    backgroundColor: "#1A1A1A",
+    borderWidth: 1,
+    borderColor: "#262626",
+    overflow: "hidden",
+  },
+  tableScroll: { width: "100%" },
   tableContent: { minWidth: "100%" },
-  tableRow: { flexDirection: "row-reverse", borderBottomWidth: 1, borderBottomColor: colors.divider },
-  tableHeader: { backgroundColor: colors.surfaceElevated },
-  tableCell: { minWidth: 130, flex: 1, paddingHorizontal: 12, paddingVertical: 9, borderLeftWidth: 1, borderLeftColor: colors.divider },
-  tableHeaderText: { fontWeight: "700" },
-  tableText: { fontSize: 14, lineHeight: 24 },
-  codeContainer: { width: "100%", maxWidth: webMaxWidth, backgroundColor: colors.background, borderRadius: 12, padding: 12, marginBottom: 12, overflow: "hidden" },
+  tableRow: { flexDirection: "row-reverse", borderBottomWidth: 1, borderBottomColor: "#262626" },
+  tableHeader: { backgroundColor: "#262626" },
+  rowEven: { backgroundColor: "#1A1A1A" },
+  rowOdd: { backgroundColor: "#141414" },
+  tableCell: { minWidth: 120, paddingHorizontal: 12, paddingVertical: 12, borderLeftWidth: 1, borderLeftColor: "#262626" },
+  tableHeaderText: { color: "#F5F5F5", fontSize: 13, fontWeight: "700", textAlign: "right" },
+  tableText: { color: "#D1D5DB", fontSize: 14, lineHeight: 22, textAlign: "right" },
+  codeContainer: { width: "100%", backgroundColor: "#1A1A1A", borderRadius: 12, borderWidth: 1, borderColor: "#262626", padding: 12, marginVertical: 10, overflow: "hidden" },
   codeHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
-  codeLanguage: { color: colors.textMuted, fontSize: 12, writingDirection: "ltr", textAlign: "left" },
-  copyButton: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 7, backgroundColor: colors.surfaceElevated },
-  copyText: { color: colors.primary, fontSize: 12, fontWeight: "700" },
+  codeLanguage: { color: "#A1A1AA", fontSize: 12, writingDirection: "ltr", textAlign: "left" },
+  copyButton: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, backgroundColor: "#262626" },
+  copyText: { color: "#0EA5E9", fontSize: 12, fontWeight: "700" },
   codeScroll: { maxHeight: 280, width: "100%" },
   codeContent: { minWidth: "100%" },
-  codeText: { color: colors.textPrimary, fontFamily: "monospace", fontSize: 13, lineHeight: 20, writingDirection: "ltr", textAlign: "left" },
+  codeText: { color: "#F5F5F5", fontFamily: "monospace", fontSize: 14, lineHeight: 22, writingDirection: "ltr", textAlign: "left" },
 });

@@ -1,14 +1,19 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { ElementRef } from "react";
-import { ActivityIndicator, Animated, Platform, Pressable, StyleSheet, TextInput, TouchableOpacity, View, useColorScheme } from "react-native";
+import {
+  ActivityIndicator,
+  Animated,
+  Platform,
+  Pressable,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { PremiumText as Text } from "../../../components/ui/PremiumText";
 import { Ionicons } from "@expo/vector-icons";
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition";
-import { colors, getThemeColors } from "../../../theme/colors";
-import { theme } from "../../../theme/theme";
 import { useToast } from "../../../components/ui/Toast";
-import { IconButton } from "../../../components/ui/IconButton";
-import { BottomSheet } from "../../../components/ui/BottomSheet";
 import { AttachSheet } from "./AttachSheet";
 import type { PickedMedia } from "../../media/media-service";
 
@@ -21,6 +26,9 @@ export interface ChatComposerProps {
   disabled?: boolean;
   isStreaming?: boolean;
   onCancel?(): void;
+  creditBalance?: number | null;
+  onOpenRecharge?(): void;
+  onOpenTaskSheet?(): void;
 }
 
 function formatDictationDuration(totalSeconds: number) {
@@ -29,7 +37,18 @@ function formatDictationDuration(totalSeconds: number) {
   return `${minutes}:${seconds}`;
 }
 
-export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(function ChatComposer({ onSend, disabled = false, isStreaming = false, onCancel }, ref) {
+export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(function ChatComposer(
+  {
+    onSend,
+    disabled = false,
+    isStreaming = false,
+    onCancel,
+    creditBalance = null,
+    onOpenRecharge,
+    onOpenTaskSheet,
+  },
+  ref
+) {
   const [text, setText] = useState("");
   const [selection, setSelection] = useState<{ start: number; end: number } | undefined>();
   const [attachment, setAttachment] = useState<ChatAttachment | null>(null);
@@ -48,7 +67,6 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
   const startRecognitionRef = useRef<() => void>(() => {});
   const scheduleRestartRef = useRef<() => void>(() => {});
   const { show } = useToast();
-  const palette = getThemeColors(useColorScheme() === "light" ? "light" : "dark");
   const voiceSupported = Platform.OS !== "web" || ExpoSpeechRecognitionModule.isRecognitionAvailable();
 
   const clearRestart = () => {
@@ -83,6 +101,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
       show("التعرّف الصوتي غير متاح على هذا الجهاز.", "error");
     }
   };
+
   scheduleRestartRef.current = () => {
     if (!voiceIntent.current || restartTimer.current) return;
     const delay = restartDelay.current;
@@ -100,7 +119,6 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
   });
   useSpeechRecognitionEvent("end", () => {
     setVoiceListening(false);
-    // Some speech services end after a silence timeout even with continuous mode enabled.
     if (voiceIntent.current) scheduleRestartRef.current();
   });
   useSpeechRecognitionEvent("error", (event) => {
@@ -112,8 +130,6 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
       show(event.message || "تعذّر الوصول إلى الميكروفون. تحقق من الأذونات وحاول مجددًا.", "error");
       return;
     }
-    // Recognition services may end on short silence or transient network errors.
-    // Keep the user's recording intent active and reconnect until they stop it.
     if (voiceIntent.current) scheduleRestartRef.current();
   });
   useSpeechRecognitionEvent("result", (event) => {
@@ -149,7 +165,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
   useEffect(() => () => {
     voiceIntent.current = false;
     clearRestart();
-    try { ExpoSpeechRecognitionModule.abort(); } catch { /* Recognition may already be unavailable. */ }
+    try { ExpoSpeechRecognitionModule.abort(); } catch { /* Ignore */ }
   }, []);
 
   const stopVoice = () => {
@@ -157,7 +173,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
     clearRestart();
     setVoiceActive(false);
     setVoiceListening(false);
-    try { ExpoSpeechRecognitionModule.stop(); } catch { /* Ignore a stop after the service has ended. */ }
+    try { ExpoSpeechRecognitionModule.stop(); } catch { /* Ignore */ }
   };
 
   const submit = () => {
@@ -201,71 +217,213 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
     setText(""); setSelection(undefined); setAttachment(null); speechBase.current = "";
   };
 
+  const hasLowBalance = creditBalance !== null && creditBalance < 500;
+
   return (
     <View style={styles.wrapper}>
-      {attachment ? <View style={styles.attachmentChip}>
-        <Text numberOfLines={1} style={styles.attachmentText}>مرفق: {attachment.part.name}</Text>
-        <Pressable onPress={() => setAttachment(null)} accessibilityRole="button" accessibilityLabel="إزالة المرفق"><Text style={styles.removeAttachment}>×</Text></Pressable>
-      </View> : null}
-      {voiceActive ? <View style={[styles.voiceToolbar, { borderColor: palette.divider, backgroundColor: palette.surface }]}>
-        <View style={styles.voiceStatus} accessibilityLiveRegion="polite">
-          <View style={[styles.recordingDot, { backgroundColor: palette.error }]} />
-          <Text style={[styles.voiceTimer, { color: palette.textPrimary }]}>{formatDictationDuration(elapsedSeconds)}</Text>
-          {!voiceListening ? <Text style={[styles.reconnecting, { color: palette.textMuted }]}>جارٍ إعادة الاتصال…</Text> : null}
+      {/* Low Balance Warning Banner */}
+      {hasLowBalance && (
+        <View style={styles.lowBalanceBanner}>
+          <View style={styles.bannerTextRow}>
+            <Ionicons name="alert-circle" size={16} color="#F87171" />
+            <Text style={styles.bannerText}>
+              رصيدك أوشك على النفاد (المتبقي: {creditBalance?.toLocaleString("en-US")} نقطة)
+            </Text>
+          </View>
+          <TouchableOpacity onPress={onOpenRecharge} style={styles.bannerRechargeBtn} activeOpacity={0.8}>
+            <Text style={styles.bannerRechargeText}>اشحن الآن</Text>
+          </TouchableOpacity>
         </View>
-        <Pressable onPress={sendDictation} disabled={disabled || !text.trim()} accessibilityRole="button" accessibilityLabel="إرسال الصوت" style={({ pressed }) => [styles.voiceSendButton, { backgroundColor: palette.primary, opacity: disabled || !text.trim() ? 0.45 : pressed ? 0.8 : 1 }]}>
-          <Text style={[styles.voiceSendText, { color: palette.background }]}>إرسال الصوت</Text>
-        </Pressable>
-        <Pressable onPress={stopVoice} accessibilityRole="button" accessibilityLabel="إلغاء الإملاء الصوتي" style={({ pressed }) => [styles.cancelVoiceButton, { borderColor: palette.divider, opacity: pressed ? 0.65 : 1 }]}>
-          <Text style={[styles.cancelVoiceText, { color: palette.error }]}>×</Text>
-        </Pressable>
-      </View> : null}
+      )}
+
+      {attachment ? (
+        <View style={styles.attachmentChip}>
+          <Text numberOfLines={1} style={styles.attachmentText}>مرفق: {attachment.part.name}</Text>
+          <Pressable onPress={() => setAttachment(null)} accessibilityRole="button" accessibilityLabel="إزالة المرفق">
+            <Text style={styles.removeAttachment}>×</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {voiceActive ? (
+        <View style={styles.voiceToolbar}>
+          <View style={styles.voiceStatus} accessibilityLiveRegion="polite">
+            <View style={styles.recordingDot} />
+            <Text style={styles.voiceTimer}>{formatDictationDuration(elapsedSeconds)}</Text>
+            {!voiceListening ? <Text style={styles.reconnecting}>جارٍ إعادة الاتصال…</Text> : null}
+          </View>
+          <Pressable onPress={sendDictation} disabled={disabled || !text.trim()} style={[styles.voiceSendButton, (!text.trim() || disabled) && { opacity: 0.5 }]}>
+            <Text style={styles.voiceSendText}>إرسال الصوت</Text>
+          </Pressable>
+          <Pressable onPress={stopVoice} style={styles.cancelVoiceButton}>
+            <Text style={styles.cancelVoiceText}>×</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {/* Main Bar: Height 56, #1F1F1F, r: 999 */}
       <View style={styles.container}>
-        <IconButton icon="＋" label="إضافة صورة أو فيديو أو ملف" onPress={() => setAttachVisible(true)} disabled={disabled || isStreaming} />
-        <TextInput ref={inputRef} value={text} onChangeText={setText} selection={selection} onSelectionChange={(event) => setSelection(event.nativeEvent.selection)} editable={!disabled && !isStreaming} placeholder="اكتب رسالة إلى Suly…" placeholderTextColor={colors.textMuted} style={styles.input} multiline maxLength={16000} textAlign="right" accessibilityLabel="نص الرسالة" />
-        <TouchableOpacity onPress={() => voiceActive ? stopVoice() : void requestVoicePermission()} disabled={disabled || isStreaming || !voiceSupported} activeOpacity={0.7} style={[styles.iconButton, !voiceSupported && styles.voiceUnavailable]} accessibilityRole="button" accessibilityLabel="إملاء صوتي" accessibilityState={{ disabled: disabled || isStreaming || !voiceSupported }}>
-          <Ionicons name={voiceActive ? "mic" : "mic-outline"} size={20} color={voiceActive ? "#EF4444" : colors.textSecondary} />
-          {voiceActive ? <Animated.View style={[styles.recordingPulse, { opacity: recordingPulse.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] }), transform: [{ scale: recordingPulse.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1.3] }) }] }]} /> : null}
+        {/* Right side (RTL start): + Button */}
+        <TouchableOpacity
+          onPress={() => (onOpenTaskSheet ? onOpenTaskSheet() : setAttachVisible(true))}
+          disabled={disabled || isStreaming}
+          activeOpacity={0.7}
+          style={styles.plusButton}
+          accessibilityLabel="إضافة مهمة أو ملف"
+        >
+          <Ionicons name="add" size={22} color="#A1A1AA" />
         </TouchableOpacity>
-        {isStreaming ? <Pressable style={[styles.sendButton, styles.stopButton]} onPress={onCancel} accessibilityRole="button" accessibilityLabel="إيقاف الرد"><ActivityIndicator size="small" color={colors.background} /></Pressable> : voiceActive ? null :
-          <Pressable style={[styles.sendButton, (!text.trim() || disabled) && styles.sendDisabled]} onPress={submit} disabled={disabled || !text.trim()} accessibilityRole="button" accessibilityLabel="إرسال الرسالة"><Text style={styles.sendText}>↑</Text></Pressable>}
+
+        {/* Center: TextInput with placeholder "اسأل Suly" */}
+        <TextInput
+          ref={inputRef}
+          value={text}
+          onChangeText={setText}
+          selection={selection}
+          onSelectionChange={(event) => setSelection(event.nativeEvent.selection)}
+          editable={!disabled && !isStreaming}
+          placeholder="اسأل Suly"
+          placeholderTextColor="#A1A1AA"
+          style={styles.input}
+          multiline={false}
+          maxLength={16000}
+          textAlign="right"
+          accessibilityLabel="اسأل Suly"
+        />
+
+        {/* Left side (RTL end): Mic icon + Blue circular button with sound waves */}
+        <View style={styles.leftControls}>
+          <TouchableOpacity
+            onPress={() => (voiceActive ? stopVoice() : void requestVoicePermission())}
+            disabled={disabled || isStreaming || !voiceSupported}
+            activeOpacity={0.7}
+            style={styles.micButton}
+            accessibilityLabel="تسجيل صوتي"
+          >
+            <Ionicons name={voiceActive ? "mic" : "mic-outline"} size={20} color={voiceActive ? "#F87171" : "#A1A1AA"} />
+            {voiceActive ? <Animated.View style={styles.recordingPulse} /> : null}
+          </TouchableOpacity>
+
+          {isStreaming ? (
+            <Pressable style={styles.blueButton} onPress={onCancel} accessibilityLabel="إيقاف الرد">
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            </Pressable>
+          ) : (
+            <Pressable
+              style={[styles.blueButton, (!text.trim() && !voiceActive) && styles.blueButtonIdle]}
+              onPress={submit}
+              disabled={disabled || !text.trim()}
+              accessibilityLabel="إرسال"
+            >
+              {text.trim() ? (
+                <Ionicons name="arrow-up" size={18} color="#FFFFFF" />
+              ) : (
+                <Ionicons name="radio-outline" size={18} color="#FFFFFF" />
+              )}
+            </Pressable>
+          )}
+        </View>
       </View>
-      {!voiceSupported ? <Text style={[styles.voiceHint, { color: palette.textMuted }]}>الإملاء الصوتي غير مدعوم في هذا المتصفح.</Text> : null}
-      {attachment ? <Text style={styles.attachmentNotice}>سيُحفظ الملف في سجل المحادثة. قد لا تتمكن النماذج الحالية من تحليل محتواه.</Text> : null}
+
       <AttachSheet visible={attachVisible} onClose={() => setAttachVisible(false)} onPicked={setAttachment} />
     </View>
   );
 });
 
 const styles = StyleSheet.create({
-  wrapper: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8, backgroundColor: colors.background },
-  container: { minHeight: 58, flexDirection: "row-reverse", alignItems: "flex-end", gap: 7, padding: 7, borderRadius: 28, borderWidth: 1, borderColor: colors.inputBorder, backgroundColor: colors.inputBackground },
-  input: { flex: 1, minHeight: 42, maxHeight: 130, color: colors.textPrimary, paddingHorizontal: 7, paddingVertical: 10, textAlignVertical: "center", writingDirection: "rtl" },
-  iconButton: { width: 38, height: 38, alignItems: "center", justifyContent: "center", borderRadius: 19 },
-  voiceUnavailable: { opacity: 0.4 },
-  recordingPulse: { position: "absolute", top: 4, right: 5, width: 7, height: 7, borderRadius: 4, backgroundColor: "#EF4444" },
-  sendButton: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: colors.primary },
-  sendDisabled: { opacity: 0.42 },
-  stopButton: { backgroundColor: colors.error },
-  sendText: { color: colors.background, fontSize: 22, fontWeight: "800" },
-  attachmentChip: { alignSelf: "flex-start", maxWidth: "90%", flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.surface, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 14, marginBottom: 6 },
-  attachmentText: { color: colors.textPrimary, maxWidth: 240, fontSize: 12 },
-  removeAttachment: { color: colors.textSecondary, fontSize: 19 },
-  attachmentNotice: { color: colors.warning, fontSize: 11, lineHeight: 16, paddingHorizontal: 6, paddingTop: 3, textAlign: "right" },
-  voiceToolbar: { minHeight: 48, flexDirection: "row-reverse", alignItems: "center", gap: theme.spacing.sm, borderWidth: 1, borderRadius: theme.borderRadius.lg, paddingHorizontal: theme.spacing.sm, paddingVertical: theme.spacing.xs, marginBottom: theme.spacing.xs },
-  voiceStatus: { flex: 1, minWidth: 66, flexDirection: "row-reverse", alignItems: "center", gap: theme.spacing.xs },
-  recordingDot: { width: 9, height: 9, borderRadius: theme.borderRadius.full },
-  voiceTimer: { fontVariant: ["tabular-nums"], fontSize: theme.typography.body.fontSize, fontWeight: "700" },
-  reconnecting: { fontSize: theme.typography.caption.fontSize },
-  voiceSendButton: { minHeight: 38, justifyContent: "center", alignItems: "center", borderRadius: theme.borderRadius.md, paddingHorizontal: theme.spacing.md },
-  voiceSendText: { fontSize: theme.typography.caption.fontSize, fontWeight: "700" },
-  cancelVoiceButton: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderWidth: 1, borderRadius: theme.borderRadius.full },
-  cancelVoiceText: { fontSize: 26, lineHeight: 29, fontWeight: "400" },
-  voiceHint: { textAlign: "right", fontSize: theme.typography.caption.fontSize, paddingHorizontal: theme.spacing.sm, paddingTop: theme.spacing.xs },
-  permissionCopy: { textAlign: "right", fontSize: theme.typography.body.fontSize, lineHeight: 23, marginBottom: theme.spacing.md },
-  permissionActions: { flexDirection: "row-reverse", gap: theme.spacing.sm },
-  permissionPrimary: { flex: 1, minHeight: 46, alignItems: "center", justifyContent: "center", borderRadius: theme.borderRadius.md },
-  permissionPrimaryText: { fontSize: theme.typography.body.fontSize, fontWeight: "700" },
-  permissionSecondary: { minWidth: 92, minHeight: 46, alignItems: "center", justifyContent: "center", borderWidth: 1, borderRadius: theme.borderRadius.md, paddingHorizontal: theme.spacing.md },
-  permissionSecondaryText: { fontSize: theme.typography.caption.fontSize, fontWeight: "600" },
+  wrapper: {
+    paddingHorizontal: 16,
+    paddingTop: 6,
+    paddingBottom: 10,
+    backgroundColor: "#000000",
+  },
+  lowBalanceBanner: {
+    flexDirection: "row-reverse",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#1F1F1F",
+    borderWidth: 1,
+    borderColor: "#262626",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    marginBottom: 8,
+  },
+  bannerTextRow: { flexDirection: "row-reverse", alignItems: "center", gap: 6, flex: 1 },
+  bannerText: { color: "#F5F5F5", fontSize: 13, fontWeight: "400", textAlign: "right" },
+  bannerRechargeBtn: { backgroundColor: "#FFFFFF", paddingHorizontal: 12, paddingVertical: 5, borderRadius: 999 },
+  bannerRechargeText: { color: "#000000", fontSize: 11, fontWeight: "700" },
+  container: {
+    height: 56,
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    borderRadius: 9999,
+    borderWidth: 1,
+    borderColor: "#262626",
+    backgroundColor: "#1F1F1F",
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  plusButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 20 },
+  input: {
+    flex: 1,
+    height: 48,
+    color: "#F5F5F5",
+    fontSize: 15,
+    paddingHorizontal: 10,
+    textAlign: "right",
+    writingDirection: "rtl",
+  },
+  leftControls: { flexDirection: "row", alignItems: "center", gap: 4 },
+  micButton: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 18 },
+  recordingPulse: { position: "absolute", top: 4, right: 4, width: 6, height: 6, borderRadius: 3, backgroundColor: "#F87171" },
+  blueButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#2563EB",
+  },
+  blueButtonIdle: { backgroundColor: "#2563EB", opacity: 0.9 },
+  attachmentChip: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#111111",
+    borderWidth: 1,
+    borderColor: "#262626",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    marginBottom: 6,
+  },
+  attachmentText: { color: "#F5F5F5", fontSize: 12 },
+  removeAttachment: { color: "#A1A1AA", fontSize: 18 },
+  voiceToolbar: {
+    minHeight: 46,
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderColor: "#262626",
+    backgroundColor: "#111111",
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    marginBottom: 6,
+  },
+  voiceStatus: { flex: 1, flexDirection: "row-reverse", alignItems: "center", gap: 8 },
+  recordingDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#F87171" },
+  voiceTimer: { color: "#F5F5F5", fontSize: 14, fontWeight: "700" },
+  reconnecting: { color: "#A1A1AA", fontSize: 12 },
+  voiceSendButton: { minHeight: 34, justifyContent: "center", alignItems: "center", borderRadius: 8, paddingHorizontal: 12, backgroundColor: "#0EA5E9" },
+  voiceSendText: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
+  cancelVoiceButton: { width: 32, height: 32, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#262626", borderRadius: 16 },
+  cancelVoiceText: { color: "#F87171", fontSize: 20 },
 });

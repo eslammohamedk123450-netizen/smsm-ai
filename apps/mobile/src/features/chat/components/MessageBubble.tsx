@@ -12,6 +12,8 @@ export interface MessageBubbleProps {
   content: string;
   messageId: string;
   isStreaming?: boolean;
+  cost?: number;
+  remaining?: number;
   feedback?: Feedback;
   onFeedback?(value: Feedback): void | Promise<void>;
   onEdit?(content: string): void;
@@ -26,7 +28,7 @@ type ActionKind = "edit" | "copy" | "like" | "dislike";
 function ReactionGlyph({ kind, selected, copied }: { kind: ActionKind; selected?: boolean; copied?: boolean }) {
   if (kind === "edit") return <Text style={styles.glyphText}>✎</Text>;
   const iconName = kind === "copy" ? (copied ? "checkmark-outline" : "copy-outline") : kind === "like" ? "thumbs-up-outline" : "thumbs-down-outline";
-  return <Ionicons name={iconName} size={18} color={selected || copied ? "#0EA5E9" : "#94A3B8"} />;
+  return <Ionicons name={iconName} size={16} color={selected || copied ? "#0EA5E9" : "#A1A1AA"} />;
 }
 
 function MessageAction({
@@ -73,7 +75,16 @@ function MessageAction({
   );
 }
 
-export function MessageBubble({ role, content, isStreaming = false, feedback = null, onFeedback, onEdit }: MessageBubbleProps) {
+export function MessageBubble({
+  role,
+  content,
+  isStreaming = false,
+  cost = 12,
+  remaining = 9850,
+  feedback = null,
+  onFeedback,
+  onEdit,
+}: MessageBubbleProps) {
   const isUser = role === "user";
   const { show } = useToast();
   const [copied, setCopied] = useState(false);
@@ -89,68 +100,76 @@ export function MessageBubble({ role, content, isStreaming = false, feedback = n
       show("تم النسخ", "success");
       if (showCheck) {
         setCopied(true);
-        if (copiedTimer.current) clearTimeout(copiedTimer.current);
-        copiedTimer.current = setTimeout(() => setCopied(false), 1000);
+        copiedTimer.current = setTimeout(() => setCopied(false), 1500);
       }
     } catch {
-      show("تعذّر النسخ إلى الحافظة.", "error");
+      show("تعذّر النسخ", "error");
     }
   };
 
-  const renderText = (part: string, key: string) => {
+  const renderUserText = (part: string, key: string) => {
     const nodes: React.ReactNode[] = [];
     let cursor = 0;
     imagePattern.lastIndex = 0;
     let match: RegExpExecArray | null;
     while ((match = imagePattern.exec(part)) !== null) {
-      if (match.index > cursor) nodes.push(<Text key={`${key}-text-${cursor}`} style={styles.text}>{part.slice(cursor, match.index)}</Text>);
+      if (match.index > cursor) nodes.push(<Text key={`${key}-text-${cursor}`} style={styles.userText}>{part.slice(cursor, match.index)}</Text>);
       const uri = match[1] || match[2];
       nodes.push(<Image key={`${key}-image-${match.index}`} source={{ uri }} style={styles.image} resizeMode="contain" accessibilityLabel="صورة في الرسالة" />);
       cursor = match.index + match[0].length;
     }
-    if (cursor < part.length || nodes.length === 0) nodes.push(<Text key={`${key}-tail`} style={styles.text}>{part.slice(cursor)}</Text>);
+    if (cursor < part.length || nodes.length === 0) nodes.push(<Text key={`${key}-tail`} style={styles.userText}>{part.slice(cursor)}</Text>);
     return nodes;
   };
-
-  const renderContent = () => content.split(/(```[\s\S]*?```)/g).map((part, index) => {
-    if (part.startsWith("```")) {
-      const code = part.replace(/^```[^\n]*\n?/, "").replace(/```$/, "").trimEnd();
-      return (
-        <View key={`code-${index}`} style={styles.codeContainer}>
-          <View style={styles.codeHeader}>
-            <Text style={styles.codeHeaderText}>كود</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel="نسخ الكود" onPress={() => void copyToClipboard(code)} style={styles.copyButton}>
-              <Text style={styles.copyText}>نسخ</Text>
-            </Pressable>
-          </View>
-          <Text selectable style={styles.codeText}>{code}</Text>
-        </View>
-      );
-    }
-    return <View key={`text-${index}`} style={styles.paragraph}>{renderText(part, `part-${index}`)}</View>;
-  });
 
   const canShowActions = !isStreaming && content.length > 0;
 
   return (
     <View style={[styles.row, isUser ? styles.userRow : styles.assistantRow]}>
-      {!isUser && <View style={styles.avatar}><Text style={styles.avatarLetter}>S</Text></View>}
-      <View style={[styles.messageColumn, isUser && styles.userColumn]}>
+      <View style={[styles.messageColumn, isUser ? styles.userColumn : styles.assistantColumn]}>
+        {/* Main Bubble */}
         <Pressable
           onLongPress={() => void copyToClipboard(content, true)}
           delayLongPress={500}
           style={[styles.bubble, isUser ? styles.userBubble : styles.assistantBubble]}
           accessibilityHint="اضغط مطولاً لنسخ نص الرسالة"
         >
-          {!isUser && !isStreaming
-            ? <MarkdownView content={content} onCopyCode={(code) => void copyToClipboard(code)} />
-            : isStreaming
-              ? <Text style={styles.text}>{content}</Text>
-              : renderContent()}
+          {isUser ? (
+            <View style={styles.paragraph}>{renderUserText(content, "user-msg")}</View>
+          ) : (
+            <>
+              {/* Header inside assistant bubble matching web */}
+              <View style={styles.assistantHeader}>
+                <View style={styles.assistantBrand}>
+                  <Image source={require("../../../../assets/suly-icon.png")} style={styles.sulySmallIcon} resizeMode="cover" />
+                  <Text style={styles.assistantTitle}>Suly</Text>
+                </View>
+                <TouchableOpacity onPress={() => void copyToClipboard(content, true)} style={styles.headerCopyBtn} accessibilityLabel="نسخ الرد">
+                  <Ionicons name={copied ? "checkmark" : "copy-outline"} size={14} color={copied ? "#0EA5E9" : "#A1A1AA"} />
+                </TouchableOpacity>
+              </View>
+
+              {!isStreaming ? (
+                <MarkdownView content={content} onCopyCode={(code) => void copyToClipboard(code)} />
+              ) : (
+                <Text style={styles.assistantText}>{content}</Text>
+              )}
+            </>
+          )}
+
           {isStreaming && <View style={styles.pulse} />}
         </Pressable>
+
+        {/* Sub-line under every assistant response matching web */}
+        {!isUser && !isStreaming && (
+          <Text style={styles.costMeta}>
+            التكلفة: {cost} نقطة • المتبقي: {remaining.toLocaleString("en-US")}
+          </Text>
+        )}
+
+        {/* Action icons */}
         {canShowActions && (
-          <View style={styles.actions}>
+          <View style={[styles.actions, isUser ? styles.userActions : styles.assistantActions]}>
             {isUser ? (
               <>
                 <MessageAction kind="copy" label="نسخ" copied={copied} showLabel onPress={() => void copyToClipboard(content, true)} />
@@ -171,29 +190,56 @@ export function MessageBubble({ role, content, isStreaming = false, feedback = n
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: "row", width: "100%", marginVertical: 8, paddingHorizontal: 20, alignItems: "flex-start" },
+  row: { flexDirection: "row", width: "100%", marginVertical: 6, paddingHorizontal: 16 },
   userRow: { justifyContent: "flex-end" },
   assistantRow: { justifyContent: "flex-start" },
-  avatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.primary, marginRight: 8, marginTop: 3, alignItems: "center", justifyContent: "center" },
-  avatarLetter: { color: colors.background, fontWeight: "800", fontSize: 15 },
-  messageColumn: { maxWidth: "86%", minWidth: 0 },
+  messageColumn: { maxWidth: "90%", minWidth: 0 },
   userColumn: { alignItems: "flex-end" },
-  bubble: { borderRadius: 16, paddingHorizontal: 16, paddingVertical: 16, maxWidth: "100%" },
-  userBubble: { backgroundColor: colors.primary },
-  assistantBubble: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider },
+  assistantColumn: { alignItems: "flex-start", width: "100%", maxWidth: "94%" },
+  bubble: { borderRadius: 16, padding: 16, width: "100%" },
+  userBubble: {
+    backgroundColor: "#FFFFFF",
+    maxWidth: "85%",
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 2,
+  },
+  assistantBubble: {
+    backgroundColor: "#111111",
+    borderWidth: 1,
+    borderColor: "#262626",
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  assistantHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingBottom: 8,
+    marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#262626",
+  },
+  assistantBrand: { flexDirection: "row", alignItems: "center", gap: 6 },
+  sulySmallIcon: { width: 18, height: 18, borderRadius: 4 },
+  assistantTitle: { color: "#F5F5F5", fontSize: 13, fontWeight: "700" },
+  headerCopyBtn: { padding: 4, borderRadius: 6 },
   paragraph: { flexDirection: "row", flexWrap: "wrap", alignItems: "center" },
-  text: { fontSize: 16, lineHeight: 26, color: colors.textPrimary, textAlign: "right", writingDirection: "rtl" },
-  codeContainer: { backgroundColor: colors.background, borderRadius: 12, padding: 12, marginVertical: 8, width: "100%", alignSelf: "stretch" },
-  codeHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
-  codeHeaderText: { color: colors.textMuted, fontSize: 12 },
-  copyButton: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 7, backgroundColor: colors.surfaceElevated },
-  copyText: { color: colors.primary, fontSize: 12, fontWeight: "700" },
-  codeText: { color: colors.textPrimary, fontFamily: "monospace", fontSize: 13, lineHeight: 20, textAlign: "left", writingDirection: "ltr" },
-  image: { width: 250, height: 230, borderRadius: 10, marginVertical: 8, backgroundColor: colors.surfaceElevated },
-  pulse: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary, marginTop: 8 },
-  actions: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 16, marginTop: 7 },
-  action: { flexDirection: "row", alignItems: "center", justifyContent: "center", minWidth: 28, minHeight: 34 },
+  userText: { fontSize: 16, lineHeight: 26, color: "#000000", fontWeight: "400", textAlign: "right", writingDirection: "rtl" },
+  assistantText: { fontSize: 16, lineHeight: 26, color: "#F5F5F5", fontWeight: "400", textAlign: "right", writingDirection: "rtl" },
+  costMeta: { fontSize: 11, color: "#A1A1AA", marginTop: 6, marginHorizontal: 4, textAlign: "right" },
+  image: { width: "100%", height: 200, borderRadius: 12, marginVertical: 6 },
+  pulse: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#0EA5E9", alignSelf: "flex-end", marginTop: 4 },
+  actions: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 4, marginHorizontal: 4 },
+  userActions: { justifyContent: "flex-end" },
+  assistantActions: { justifyContent: "flex-start" },
+  action: { flexDirection: "row", alignItems: "center", minHeight: 28 },
   actionIcon: { alignItems: "center", justifyContent: "center" },
-  actionLabel: { color: colors.textMuted, fontSize: 11 },
-  glyphText: { color: colors.textSecondary, fontSize: 19, lineHeight: 22, textAlign: "center" },
+  actionLabel: { color: "#A1A1AA", fontSize: 11, marginRight: 4 },
+  glyphText: { color: "#A1A1AA", fontSize: 14, textAlign: "center" },
 });

@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, TouchableOpacity, View, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
+import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, TouchableOpacity, View, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { PremiumText as Text } from "../../src/components/ui/PremiumText";
 import { AppLogo } from "../../src/components/ui/AppLogo";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { DrawerActions } from "@react-navigation/native";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
@@ -22,7 +21,67 @@ import { BottomSheet } from "../../src/components/ui/BottomSheet";
 import { getCreditLedger, getTaskRating, getTaskUsage, saveTaskRating, type TaskRating, type TaskUsage } from "../../src/features/credits/credit-service";
 import { useToast } from "../../src/components/ui/Toast";
 import { supabase } from "../../src/lib/supabase/client";
-import { getRotatingSuggestions, type SuggestionCard } from "../../src/features/chat/suggestions";
+
+const ROW_1_PILLS = [
+  { emoji: "🎵", text: "ابحث عن حفلات موسيقية", prompt: "ابحث لي عن حفلات موسيقية وفعاليات ثقافية قادمة لهذا الشهر مع جدول مواعيدها وأماكنها." },
+  { emoji: "📍", text: "خطط لي لعطلة نهاية الأسبوع", prompt: "خطط لي برنامجاً متوازناً لعطلة نهاية الأسبوع يجمع بين الاسترخاء والترتيب للأسبوع القادم." },
+  { emoji: "📰", text: "تحديثات الأخبار", prompt: "أريد ملخصاً لأبرز التحديثات والأخبار الاقتصادية والتجارية المؤثرة على قطاع الأعمال اليوم." },
+  { emoji: "📊", text: "إعداد ملخص مالي تنفيذي", prompt: "قم بإعداد نموذج ملخص مالي تنفيذي يعرض الإيرادات، التكاليف، وهوامش الربح المتوقعة في جدول منظم." },
+  { emoji: "✍️", text: "صياغة بريد إلكتروني رسمي", prompt: "اكتب لي مسودة بريد إلكتروني رسمي للتنسيق مع شريك تجاري جديد بشأن توقيع مذكرة تفاهم." },
+];
+
+const ROW_2_PILLS = [
+  { emoji: "🔍", text: "تدقيق العقود والاتفاقيات", prompt: "ما هي أهم البنود التعاقدية التي يجب التركيز عليها عند صياغة عقد تقديم خدمات استشارية للشركات؟" },
+  { emoji: "💡", text: "استراتيجية تسويق ربع سنوية", prompt: "قدم لي إطار عمل لاستراتيجية تسويق رقمي للربع القادم مع مؤشرات قياس الأداء وجدول تنفيذي." },
+  { emoji: "📈", text: "تحليل مؤشرات الأداء", prompt: "كيف يمكن تصميم لوحة مؤشرات أداء رئيسية (KPIs) لفريق المبيعات والعمليات في المؤسسة؟" },
+  { emoji: "📋", text: "جدولة مهام الأسبوع", prompt: "رتب لي خطة أسبوعية لإدارة المشاريع وتوزيع أولويات العمل بين أعضاء الفريق." },
+  { emoji: "🌐", text: "تقرير أبحاث السوق", prompt: "أريد ملخصاً لأهم اتجاهات السوق في قطاع التحول الرقمي للشركات لهذا العام." },
+];
+
+const CORPORATE_TASKS = [
+  {
+    id: "1",
+    emoji: "📊",
+    title: "تحليل المؤشرات المالية والتقارير",
+    category: "المالية والاستثمار",
+    prompt: "قم بإعداد تحليل تنفيذي موجز لمؤشرات الأداء المالي للربع السنوي مع جدول مقارنة التكاليف والإيرادات والتوصيات الرئيسية.",
+  },
+  {
+    id: "2",
+    emoji: "⚖️",
+    title: "مراجعة وتدقيق بنود العقود التجارية",
+    category: "الشؤون القانونية",
+    prompt: "أحتاج إلى مراجعة نموذج عقد توريد وتحديد الالتزامات والضمانات وشروط إنهاء التعاقد وجدول زمني للتسليم.",
+  },
+  {
+    id: "3",
+    emoji: "✍️",
+    title: "صياغة بريد إلكتروني ومراسلات رسمية",
+    category: "التواصل والاتصال",
+    prompt: "اكتب خطاب شراكة رسمي موجهاً إلى إدارة شركة استثمارية لطلب عقد اجتماع لبحث أوجه التعاون المشترك.",
+  },
+  {
+    id: "4",
+    emoji: "🔍",
+    title: "بحث وتحليل المنافسين والأسواق",
+    category: "استراتيجيات الأعمال",
+    prompt: "قدم دراسة مقارنة حول استراتيجيات التسعير وحصة السوق لأبرز ثلاث شركات في قطاع التجارة الرقمية مع جدول تحليلي.",
+  },
+  {
+    id: "5",
+    emoji: "📍",
+    title: "خطة جدول أعمال وفعاليات المؤسسة",
+    category: "إدارة العمليات",
+    prompt: "خطط لي جدولاً تنظيمياً لملتقى سنوي للشركاء مدته يومان متضمناً الجلسات ومواعيد الاستراحات والمتحدثين.",
+  },
+  {
+    id: "6",
+    emoji: "📋",
+    title: "إعداد خطة عمل تنفيذية للمشاريع",
+    category: "إدارة المشاريع",
+    prompt: "صمم خطة عمل تنفيذية لمشروع إطلاق خدمة جديدة تشمل المراحل، المسؤوليات، والجدول الزمني للإنجاز.",
+  },
+];
 
 const STREAMING_ID = "local-streaming-assistant";
 
@@ -57,7 +116,7 @@ export default function ChatPage() {
   const listRef = useRef<FlatList<ChatMessage>>(null);
   const isNearBottomRef = useRef(true);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
-  const [suggestions, setSuggestions] = useState<SuggestionCard[]>(() => getRotatingSuggestions());
+  const [taskSheetVisible, setTaskSheetVisible] = useState(false);
   const lock = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const internalConversationTransitionRef = useRef<string | null>(null);
@@ -83,13 +142,7 @@ export default function ChatPage() {
     return () => { active = false; };
   }, [user?.id, messages.length]);
 
-  useEffect(() => {
-    // Rotate in the background. The time-bucketed selector returns the same
-    // cards after navigation/remounts within a bucket, so the user does not
-    // lose their place or see cards jump on every render.
-    const timer = setInterval(() => setSuggestions(getRotatingSuggestions()), 15 * 60 * 1000);
-    return () => clearInterval(timer);
-  }, []);
+
 
   useEffect(() => {
     let active = true;
@@ -450,19 +503,26 @@ export default function ChatPage() {
     <SafeAreaView style={styles.safe} edges={["top", "left", "right", "bottom"]}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : "height"} keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}>
         <View style={styles.appBar}>
-          <Pressable onPress={() => navigation.dispatch(DrawerActions.openDrawer())} style={styles.headerButton} accessibilityRole="button" accessibilityLabel="فتح سجل المحادثات"><Text style={styles.headerIcon}>☰</Text></Pressable>
-          <View style={styles.headerSpacer} />
+          <Pressable onPress={() => navigation.dispatch(DrawerActions.openDrawer())} style={styles.headerButton} accessibilityRole="button" accessibilityLabel="فتح سجل المحادثات">
+            <Text style={styles.headerIcon}>☰</Text>
+          </Pressable>
+          <View style={styles.brandCenter}>
+            <AppLogo size={22} />
+            <Text style={styles.brandTitle}>Suly</Text>
+          </View>
           <View style={styles.headerActions}>
             {creditBalance !== null ? (
-              <TouchableOpacity onPress={() => router.push("/(protected)/upgrade")} style={styles.creditPill} accessibilityRole="button" accessibilityLabel="رصيد Suly">
-                <Ionicons name="sparkles" size={13} color={colors.primary} />
-                <Text style={styles.creditPillText}>{creditBalance.toLocaleString("ar-EG")}</Text>
+              <TouchableOpacity onPress={() => router.push("/(protected)/balance")} style={styles.creditPill} accessibilityRole="button" accessibilityLabel="رصيد Suly">
+                <Ionicons name="star" size={14} color="#FACC15" />
+                <Text style={styles.creditPillText}>{creditBalance.toLocaleString("en-US")}</Text>
               </TouchableOpacity>
             ) : null}
-            {isAdmin ? <Pressable onPress={() => router.push("/(protected)/admin")} style={styles.adminShortcut} accessibilityRole="button" accessibilityLabel="لوحة التحكم"><Text style={styles.adminShortcutText}>إدارة</Text></Pressable> : null}
-            <Pressable onPress={() => router.push("/(protected)/upgrade")} style={styles.upgradeShortcut} accessibilityRole="button" accessibilityLabel="ترقية الحساب"><Text style={styles.upgradeShortcutText}>ترقية</Text></Pressable>
-            <TouchableOpacity onPress={() => { setUsageVisible(true); void loadTaskUsage(); }} style={styles.headerButton} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="إحصائيات استخدام المهمة"><Ionicons name="analytics-outline" size={20} color="#94A3B8" /></TouchableOpacity>
-            <TouchableOpacity onPress={() => setShareVisible(true)} style={styles.headerButton} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="مشاركة المحادثة"><Ionicons name="share-social-outline" size={18} color="#94A3B8" /></TouchableOpacity>
+            <TouchableOpacity onPress={() => { setUsageVisible(true); void loadTaskUsage(); }} style={styles.headerButton} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="إحصائيات استخدام المهمة">
+              <Ionicons name="analytics-outline" size={20} color="#94A3B8" />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShareVisible(true)} style={styles.headerButton} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="مشاركة المحادثة">
+              <Ionicons name="share-social-outline" size={18} color="#94A3B8" />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -470,12 +530,54 @@ export default function ChatPage() {
         {retryFailure ? <View style={styles.retryWarning} accessibilityRole="alert"><Text style={styles.retryWarningText}>حُفظت رسالتك، لكن تعذّر إكمال الرد.</Text><Pressable onPress={() => void retryResponse()} disabled={isSending} accessibilityRole="button" accessibilityLabel="إعادة محاولة الرد" style={styles.retryButton}><Text style={styles.retryButtonText}>{isSending ? "جارٍ إعادة المحاولة…" : "إعادة المحاولة"}</Text></Pressable></View> : null}
         {isLoading ? <View style={styles.loading}><ActivityIndicator color={colors.primary} /><Text style={styles.loadingText}>جارٍ تحميل المحادثة…</Text></View> : messages.length === 0 ? (
           <View style={styles.empty}>
-            <AppLogo size={76} accessibilityLabel="أيقونة Suly" />
-            <Text style={styles.emptyTitle}>كيف أقدر أساعدك؟</Text>
-            <Text style={styles.emptySubtitle}>اسألني عن أي درس أو واجب</Text>
-            <View style={styles.suggestionsGrid}>
-              {suggestions.map((suggestion) => <TouchableOpacity key={suggestion.text} activeOpacity={0.7} style={styles.suggestionCard} onPress={() => handleSend(suggestion.text)} accessibilityRole="button"><Ionicons name={suggestion.icon} size={19} color={colors.primary} /><Text style={styles.suggestionText}>{suggestion.text}</Text></TouchableOpacity>)}
+            <View style={styles.emptySpacerTop} />
+            <Text style={styles.emptyTitle}>دع Suly يعمل من أجلك</Text>
+            <View style={styles.emptySpacerCenter} />
+
+            {/* Two rows of horizontal scrollable pills */}
+            <View style={styles.pillsContainer}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillsRow}>
+                {ROW_1_PILLS.map((pill, idx) => (
+                  <TouchableOpacity
+                    key={`r1-${idx}`}
+                    activeOpacity={0.8}
+                    style={styles.pillCard}
+                    onPress={() => handleSend(pill.prompt)}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.pillEmoji}>{pill.emoji}</Text>
+                    <Text style={styles.pillText}>{pill.text}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillsRow}>
+                {ROW_2_PILLS.map((pill, idx) => (
+                  <TouchableOpacity
+                    key={`r2-${idx}`}
+                    activeOpacity={0.8}
+                    style={styles.pillCard}
+                    onPress={() => handleSend(pill.prompt)}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.pillEmoji}>{pill.emoji}</Text>
+                    <Text style={styles.pillText}>{pill.text}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
             </View>
+
+            {/* Single button in center */}
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={styles.chooseTaskBtn}
+              onPress={() => setTaskSheetVisible(true)}
+              accessibilityRole="button"
+            >
+              <Text style={styles.chooseTaskBtnText}>اختر مهمة</Text>
+            </TouchableOpacity>
+
+            <View style={styles.emptySpacerBottom} />
           </View>
         ) : (
           <View style={styles.messageListContainer}>
@@ -516,6 +618,37 @@ export default function ChatPage() {
           <Pressable disabled={ratingSaving || ratingStars === 0} style={[styles.ratingSubmit, (ratingSaving || ratingStars === 0) && styles.disabled]} onPress={() => { if (!conversationId) return; setRatingSaving(true); void saveTaskRating({ conversationId, taskId: taskUsage.taskId, stars: ratingStars, note: ratingNote }).then(() => { setTaskRating({ stars: ratingStars, note: ratingNote.trim() || null }); show("تم إرسال تقييم المهمة.", "success"); }).catch((cause) => show(cause instanceof Error ? cause.message : "تعذر إرسال التقييم.", "error")).finally(() => setRatingSaving(false)); }}><Text style={styles.ratingSubmitText}>{ratingSaving ? "جارٍ الإرسال…" : "حفظ التقييم"}</Text></Pressable>
         </View> : <Text style={styles.loadingText}>لا يوجد استهلاك مسجل لهذه المحادثة بعد.</Text>}
       </BottomSheet>
+      <BottomSheet visible={taskSheetVisible} title="اختر مهمة لـ Suly" onClose={() => setTaskSheetVisible(false)}>
+        <View style={styles.taskSheetContainer}>
+          <Text style={styles.taskSheetSubtitle}>نماذج مهام ذكية جاهزة للتشغيل المؤسسي الفوري</Text>
+          <ScrollView style={styles.tasksList} showsVerticalScrollIndicator={false}>
+            {CORPORATE_TASKS.map((task) => (
+              <TouchableOpacity
+                key={task.id}
+                activeOpacity={0.8}
+                style={styles.taskCard}
+                onPress={() => {
+                  setTaskSheetVisible(false);
+                  handleSend(task.prompt);
+                }}
+              >
+                <View style={styles.taskCardRight}>
+                  <View style={styles.taskEmojiBox}>
+                    <Text style={styles.taskEmojiText}>{task.emoji}</Text>
+                  </View>
+                  <View style={styles.taskCardInfo}>
+                    <Text style={styles.taskCardTitle}>{task.title}</Text>
+                    <Text style={styles.taskCardCategory}>{task.category}</Text>
+                  </View>
+                </View>
+                <View style={styles.taskRunBadge}>
+                  <Text style={styles.taskRunBadgeText}>تشغيل</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </BottomSheet>
     </SafeAreaView>
   );
 }
@@ -527,8 +660,10 @@ const styles = StyleSheet.create({
   headerButton: { width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 21 },
   headerSpacer: { width: 42, height: 42 },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 6 },
-  creditPill: { flexDirection: "row-reverse", alignItems: "center", gap: 4, backgroundColor: colors.surfaceElevated, borderColor: colors.divider, borderWidth: 1, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 5 },
-  creditPillText: { color: colors.primary, fontSize: 12, fontWeight: "700" },
+  brandCenter: { flexDirection: "row-reverse", alignItems: "center", gap: 8 },
+  brandTitle: { color: "#F5F5F5", fontSize: 20, fontWeight: "700", letterSpacing: -0.5 },
+  creditPill: { flexDirection: "row-reverse", alignItems: "center", gap: 5, backgroundColor: "#1F1F1F", borderColor: "#262626", borderWidth: 1, borderRadius: 9999, paddingHorizontal: 10, paddingVertical: 5 },
+  creditPillText: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
   headerIcon: { color: colors.textPrimary, fontSize: 25 },
   adminShortcut: { minWidth: 42, height: 36, paddingHorizontal: 7, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceElevated },
   adminShortcutText: { color: colors.primary, fontSize: 11, fontWeight: "700" },
@@ -547,14 +682,30 @@ const styles = StyleSheet.create({
   messageListContainer: { flex: 1, position: "relative" },
   scrollToBottomButton: { position: "absolute", right: 24, bottom: 12, width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.divider, elevation: 5, zIndex: 2 },
   messageContent: { flexGrow: 1, paddingVertical: 12 },
-  empty: { flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 20, gap: 12 },
-  logo: { width: 76, height: 76, borderRadius: 16, borderWidth: 0, alignItems: "center", justifyContent: "center", marginBottom: 8, shadowColor: "#0EA5E9", shadowOpacity: 0.22, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 7 },
-  logoLetter: { color: "#F8FAFC", fontSize: 40, fontWeight: "800" },
-  emptyTitle: { color: colors.textPrimary, fontSize: 22, fontWeight: "700" },
-  emptySubtitle: { color: colors.textSecondary, fontSize: 13, marginBottom: 8 },
-  suggestionsGrid: { width: "100%", maxWidth: 520, flexDirection: "row", flexWrap: "wrap", gap: 12, justifyContent: "center" },
-  suggestionCard: { width: "47%", height: 92, padding: 12, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, alignItems: "center", justifyContent: "center", gap: 8 },
-  suggestionText: { color: colors.textPrimary, fontSize: 14, textAlign: "center", lineHeight: 20 },
+  empty: { flex: 1, justifyContent: "space-between", alignItems: "center", paddingHorizontal: 12, paddingVertical: 20 },
+  emptySpacerTop: { flex: 1, minHeight: 30 },
+  emptySpacerCenter: { height: 40 },
+  emptySpacerBottom: { flex: 1, minHeight: 30 },
+  emptyTitle: { color: "#FFFFFF", fontSize: 22, fontWeight: "700", textAlign: "center" },
+  pillsContainer: { width: "100%", gap: 10 },
+  pillsRow: { flexDirection: "row-reverse", alignItems: "center", gap: 10, paddingHorizontal: 8 },
+  pillCard: { flexDirection: "row-reverse", alignItems: "center", gap: 8, backgroundColor: "#1F1F1F", borderWidth: 1, borderColor: "#262626", borderRadius: 9999, paddingHorizontal: 14, paddingVertical: 10 },
+  pillEmoji: { fontSize: 15 },
+  pillText: { color: "#D1D5DB", fontSize: 13, fontWeight: "500" },
+  chooseTaskBtn: { marginTop: 24, backgroundColor: "#FFFFFF", borderRadius: 9999, paddingHorizontal: 28, paddingVertical: 12 },
+  chooseTaskBtnText: { color: "#000000", fontSize: 14, fontWeight: "700" },
+  taskSheetContainer: { gap: 12 },
+  taskSheetSubtitle: { color: "#A1A1AA", fontSize: 11, textAlign: "right", marginBottom: 6 },
+  tasksList: { maxHeight: 360 },
+  taskCard: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", backgroundColor: "#111111", borderWidth: 1, borderColor: "#262626", borderRadius: 14, padding: 12, marginBottom: 8 },
+  taskCardRight: { flexDirection: "row-reverse", alignItems: "center", gap: 10, flex: 1 },
+  taskEmojiBox: { width: 36, height: 36, borderRadius: 10, backgroundColor: "#1F1F1F", borderWidth: 1, borderColor: "#262626", alignItems: "center", justifyContent: "center" },
+  taskEmojiText: { fontSize: 18 },
+  taskCardInfo: { flex: 1, alignItems: "flex-end" },
+  taskCardTitle: { color: "#F5F5F5", fontSize: 13, fontWeight: "700", textAlign: "right" },
+  taskCardCategory: { color: "#A1A1AA", fontSize: 10, marginTop: 2, textAlign: "right" },
+  taskRunBadge: { backgroundColor: "rgba(14, 165, 233, 0.15)", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
+  taskRunBadgeText: { color: "#0EA5E9", fontSize: 11, fontWeight: "700" },
   starsRow: { flexDirection: "row", alignItems: "center", gap: 2 },
   star: { color: colors.textMuted, fontSize: 25 },
   starSelected: { color: "#FBBF24" },

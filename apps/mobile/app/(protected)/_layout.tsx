@@ -2,6 +2,7 @@ import { Redirect, useFocusEffect, useRouter } from "expo-router";
 import { Drawer, DrawerContentScrollView, type DrawerContentComponentProps } from "expo-router/drawer";
 import { ActivityIndicator, FlatList, StyleSheet, TextInput, TouchableOpacity, View } from "react-native";
 import { PremiumText as Text } from "../../src/components/ui/PremiumText";
+import { AppLogo } from "../../src/components/ui/AppLogo";
 import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "../../src/features/auth/auth-provider";
@@ -10,6 +11,7 @@ import { supabase } from "../../src/lib/supabase/client";
 import { colors } from "../../src/theme/colors";
 import { BottomSheet } from "../../src/components/ui/BottomSheet";
 import { useToast } from "../../src/components/ui/Toast";
+import { getCreditLedger } from "../../src/features/credits/credit-service";
 
 function formatConversationDate(value?: string) {
   const timestamp = Date.parse(value ?? "");
@@ -23,21 +25,34 @@ function CustomDrawerContent({ isAdmin, ...props }: DrawerContentComponentProps 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const [balance, setBalance] = useState<number | null>(null);
   const [renameTarget, setRenameTarget] = useState<Conversation | null>(null);
   const [actionTarget, setActionTarget] = useState<Conversation | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Conversation | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
   const refresh = useCallback(async () => {
-    try { setConversations(await chatService.listConversations(100)); }
-    catch (cause) { show(cause instanceof Error ? cause.message : "تعذّر تحميل المحادثات.", "error"); }
-    finally { setLoading(false); }
+    try {
+      setConversations(await chatService.listConversations(100));
+      const ledger = await getCreditLedger(1);
+      if (typeof ledger.balance === "number") setBalance(ledger.balance);
+    } catch (cause) {
+      show(cause instanceof Error ? cause.message : "تعذّر تحميل المحادثات.", "error");
+    } finally {
+      setLoading(false);
+    }
   }, [show]);
+
   useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
 
   const goToChat = (conversationId?: string) => {
     if (conversationId) router.push({ pathname: "/(protected)/chat", params: { conversationId } });
     else router.replace("/(protected)/chat");
+    props.navigation.closeDrawer();
+  };
+
+  const goToBalance = () => {
+    router.push("/(protected)/balance");
     props.navigation.closeDrawer();
   };
 
@@ -82,8 +97,42 @@ function CustomDrawerContent({ isAdmin, ...props }: DrawerContentComponentProps 
   return (
     <View style={styles.drawerRoot}>
       <DrawerContentScrollView {...props} contentContainerStyle={styles.drawerContent}>
-        <TouchableOpacity activeOpacity={0.7} style={styles.newChatButton} onPress={() => goToChat()} accessibilityRole="button"><Text style={styles.newChatText}>＋  محادثة جديدة</Text></TouchableOpacity>
+        {/* Brand Header */}
+        <View style={styles.drawerBrand}>
+          <AppLogo size={28} />
+          <View style={styles.drawerBrandInfo}>
+            <Text style={styles.drawerBrandTitle}>Suly</Text>
+            <Text style={styles.drawerBrandSubtitle}>منظومة الأعمال الذكية</Text>
+          </View>
+        </View>
+
+        {/* New Chat Button: White background, black text, borderRadius 9999 */}
+        <TouchableOpacity activeOpacity={0.8} style={styles.newChatButton} onPress={() => goToChat()} accessibilityRole="button">
+          <Ionicons name="add" size={18} color="#000000" />
+          <Text style={styles.newChatText}>محادثة جديدة</Text>
+        </TouchableOpacity>
+
+        {/* Quick navigation */}
+        <View style={styles.navSection}>
+          <TouchableOpacity activeOpacity={0.7} style={styles.navItem} onPress={() => goToChat()}>
+            <Ionicons name="chatbubbles-outline" size={18} color="#0EA5E9" />
+            <Text style={styles.navItemText}>المحادثة والمهام</Text>
+          </TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.7} style={styles.navItem} onPress={goToBalance}>
+            <View style={styles.navItemRight}>
+              <Ionicons name="card-outline" size={18} color="#0EA5E9" />
+              <Text style={styles.navItemText}>الرصيد والاستهلاك</Text>
+            </View>
+            {balance !== null ? (
+              <View style={styles.balanceBadge}>
+                <Text style={styles.balanceBadgeText}>{balance.toLocaleString("en-US")}</Text>
+              </View>
+            ) : null}
+          </TouchableOpacity>
+        </View>
+
         {isAdmin ? <TouchableOpacity activeOpacity={0.7} style={styles.adminButton} onPress={() => { router.push("/(protected)/admin"); props.navigation.closeDrawer(); }} accessibilityRole="button" accessibilityLabel="لوحة التحكم"><Text style={styles.adminButtonText}>لوحة التحكم</Text></TouchableOpacity> : null}
+
         <TextInput value={query} onChangeText={setQuery} placeholder="بحث في المحادثات" placeholderTextColor={colors.textMuted} style={styles.searchInput} accessibilityLabel="بحث في سجل المحادثات" />
         <Text style={styles.sectionTitle}>سجل المحادثات</Text>
         {loading ? <ActivityIndicator color={colors.primary} style={styles.loader} /> : filtered.length ? (
@@ -100,13 +149,28 @@ function CustomDrawerContent({ isAdmin, ...props }: DrawerContentComponentProps 
           />
         ) : <Text style={styles.emptyHistory}>{query ? "لا توجد نتائج مطابقة." : "لا توجد محادثات سابقة."}</Text>}
       </DrawerContentScrollView>
+
+      {/* Drawer Footer with Corporate Plan Card & Settings */}
       <View style={styles.drawerFooter}>
-        <TouchableOpacity activeOpacity={0.7} style={styles.settingsRow} onPress={() => { router.push("/(protected)/settings"); props.navigation.closeDrawer(); }} accessibilityRole="button"><Text style={styles.footerText}>الإعدادات</Text><Ionicons name="settings-outline" size={19} color={colors.textSecondary} /></TouchableOpacity>
-        <View style={styles.profileRow}>
-          <View style={styles.avatar}><Text style={styles.avatarText}>{displayName.slice(0, 1).toUpperCase()}</Text></View>
-          <View style={styles.profileCopy}><Text style={styles.userName} numberOfLines={1}>{displayName}</Text><Text style={styles.email} numberOfLines={1}>{user?.email || ""}</Text></View>
+        <View style={styles.planCard}>
+          <View style={styles.planCardInfo}>
+            <Ionicons name="shield-checkmark" size={18} color="#0EA5E9" />
+            <View>
+              <Text style={styles.planCardTitle}>حساب الشركات</Text>
+              <Text style={styles.planCardSubtitle}>الخطة الحالية: Free</Text>
+            </View>
+          </View>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => { router.push("/(protected)/upgrade"); props.navigation.closeDrawer(); }}>
+            <Text style={styles.planCardUpgrade}>ترقية</Text>
+          </TouchableOpacity>
         </View>
+
+        <TouchableOpacity activeOpacity={0.7} style={styles.settingsRow} onPress={() => { router.push("/(protected)/settings"); props.navigation.closeDrawer(); }} accessibilityRole="button">
+          <Text style={styles.footerText}>الإعدادات</Text>
+          <Ionicons name="settings-outline" size={19} color={colors.textSecondary} />
+        </TouchableOpacity>
       </View>
+
       <BottomSheet visible={Boolean(actionTarget)} title={actionTarget?.title ?? "إجراءات المحادثة"} onClose={() => setActionTarget(null)}>
         <View style={styles.sheetActions}>
           <TouchableOpacity activeOpacity={0.7} onPress={() => void togglePinned()} style={styles.sheetAction}><Text style={styles.sheetActionText}>{actionTarget?.isPinned ? "إلغاء تثبيت المحادثة" : "تثبيت المحادثة"}</Text></TouchableOpacity>
@@ -162,6 +226,7 @@ export default function ProtectedLayout() {
   return (
     <Drawer drawerContent={(props) => <CustomDrawerContent {...props} isAdmin={isAdmin} />} screenOptions={{ headerShown: false, drawerPosition: "right", drawerStyle: { backgroundColor: colors.background, width: 320 }, swipeEdgeWidth: 36 }}>
       <Drawer.Screen name="chat" options={{ title: "المحادثة" }} />
+      <Drawer.Screen name="balance" options={{ title: "الرصيد والاستهلاك", drawerItemStyle: { display: "none" } }} />
       <Drawer.Screen name="media" options={{ title: "المكتبة" }} />
       <Drawer.Screen name="upgrade" options={{ title: "الباقات والترقية", drawerItemStyle: { display: "none" } }} />
       <Drawer.Screen name="admin" options={{ title: "لوحة التحكم", drawerItemStyle: isAdmin ? undefined : { display: "none" } }} />
@@ -172,30 +237,38 @@ export default function ProtectedLayout() {
 
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background },
-  drawerRoot: { flex: 1, backgroundColor: colors.background },
-  drawerContent: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 22 },
-  newChatButton: { paddingVertical: 14, paddingHorizontal: 20, borderRadius: 14, backgroundColor: colors.primary, marginBottom: 18 },
-  newChatText: { color: colors.background, fontWeight: "700", textAlign: "center" },
-  adminButton: { paddingVertical: 12, paddingHorizontal: 20, borderRadius: 14, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.primary, marginBottom: 16 },
-  adminButtonText: { color: colors.primary, fontWeight: "700", textAlign: "right" },
-  searchInput: { paddingHorizontal: 14, paddingVertical: 11, borderRadius: 11, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, color: colors.textPrimary, marginBottom: 18, textAlign: "right" },
-  sectionTitle: { color: colors.textMuted, fontSize: 12, marginBottom: 8, textAlign: "right" },
+  drawerRoot: { flex: 1, backgroundColor: "#111111" },
+  drawerContent: { flexGrow: 1, paddingHorizontal: 16, paddingTop: 16 },
+  drawerBrand: { flexDirection: "row-reverse", alignItems: "center", gap: 10, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: "#262626", marginBottom: 16 },
+  drawerBrandInfo: { alignItems: "flex-end" },
+  drawerBrandTitle: { color: "#F5F5F5", fontSize: 17, fontWeight: "700" },
+  drawerBrandSubtitle: { color: "#A1A1AA", fontSize: 11, marginTop: 2 },
+  newChatButton: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12, paddingHorizontal: 20, borderRadius: 9999, backgroundColor: "#FFFFFF", marginBottom: 16 },
+  newChatText: { color: "#000000", fontWeight: "700", fontSize: 14, textAlign: "center" },
+  navSection: { gap: 4, marginBottom: 16 },
+  navItem: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: "transparent" },
+  navItemRight: { flexDirection: "row-reverse", alignItems: "center", gap: 10 },
+  navItemText: { color: "#F5F5F5", fontSize: 14, fontWeight: "500" },
+  balanceBadge: { backgroundColor: "#1F1F1F", borderWidth: 1, borderColor: "#262626", borderRadius: 9999, paddingHorizontal: 8, paddingVertical: 2 },
+  balanceBadgeText: { color: "#FFFFFF", fontSize: 11, fontWeight: "700" },
+  adminButton: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, backgroundColor: "#1F1F1F", borderWidth: 1, borderColor: "#0EA5E9", marginBottom: 12 },
+  adminButtonText: { color: "#0EA5E9", fontWeight: "700", textAlign: "right", fontSize: 13 },
+  searchInput: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, backgroundColor: "#1F1F1F", borderWidth: 1, borderColor: "#262626", color: "#F5F5F5", marginBottom: 16, textAlign: "right", fontSize: 13 },
+  sectionTitle: { color: "#A1A1AA", fontSize: 11, marginBottom: 8, textAlign: "right" },
   loader: { marginTop: 22 },
-  chatItem: { minHeight: 62, flexDirection: "row-reverse", alignItems: "center", gap: 12, paddingVertical: 9, paddingHorizontal: 11, marginBottom: 8, borderRadius: 16, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
-  chatItemCopy: { flex: 1, alignItems: "flex-end", gap: 3 },
-  chatItemText: { width: "100%", color: colors.textPrimary, textAlign: "right", fontSize: 14 },
-  chatItemDate: { color: colors.textSecondary, fontSize: 11, textAlign: "right" },
-  emptyHistory: { color: colors.textMuted, textAlign: "right", padding: 10, fontSize: 13 },
-  drawerFooter: { borderTopWidth: 1, borderTopColor: colors.divider, paddingHorizontal: 15, paddingVertical: 15, gap: 12 },
-  settingsRow: { minHeight: 42, flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", paddingVertical: 5 },
-  footerText: { color: colors.textPrimary, fontSize: 14 },
-  footerIcon: { color: colors.textSecondary, fontSize: 18 },
-  profileRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  avatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.surfaceElevated, alignItems: "center", justifyContent: "center" },
-  avatarText: { color: colors.textPrimary, fontSize: 17, fontWeight: "700" },
-  profileCopy: { flex: 1 },
-  userName: { color: colors.textPrimary, fontSize: 13, fontWeight: "700", textAlign: "right" },
-  email: { color: colors.textMuted, fontSize: 11, textAlign: "right", marginTop: 2 },
+  chatItem: { minHeight: 56, flexDirection: "row-reverse", alignItems: "center", gap: 10, paddingVertical: 8, paddingHorizontal: 10, marginBottom: 6, borderRadius: 12, borderWidth: 1, borderColor: "#262626", backgroundColor: "#111111" },
+  chatItemCopy: { flex: 1, alignItems: "flex-end", gap: 2 },
+  chatItemText: { width: "100%", color: "#F5F5F5", textAlign: "right", fontSize: 13 },
+  chatItemDate: { color: "#A1A1AA", fontSize: 10, textAlign: "right" },
+  emptyHistory: { color: "#A1A1AA", textAlign: "right", padding: 10, fontSize: 13 },
+  drawerFooter: { borderTopWidth: 1, borderTopColor: "#262626", paddingHorizontal: 16, paddingVertical: 14, gap: 10, backgroundColor: "#111111" },
+  planCard: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", backgroundColor: "#1F1F1F", borderWidth: 1, borderColor: "#262626", borderRadius: 12, padding: 10 },
+  planCardInfo: { flexDirection: "row-reverse", alignItems: "center", gap: 8 },
+  planCardTitle: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
+  planCardSubtitle: { color: "#A1A1AA", fontSize: 10, marginTop: 1 },
+  planCardUpgrade: { color: "#0EA5E9", fontSize: 11, fontWeight: "700" },
+  settingsRow: { minHeight: 38, flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", paddingVertical: 4 },
+  footerText: { color: "#F5F5F5", fontSize: 13 },
   renameInput: { color: colors.textPrimary, padding: 12, borderWidth: 1, borderColor: colors.divider, borderRadius: 10, textAlign: "right" },
   modalActions: { flexDirection: "row", justifyContent: "flex-start", gap: 10, marginTop: 18 },
   modalButton: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 14, backgroundColor: colors.surfaceElevated },
