@@ -28,7 +28,6 @@ export interface ChatComposerProps {
   onCancel?(): void;
   creditBalance?: number | null;
   onOpenRecharge?(): void;
-  onOpenTaskSheet?(): void;
 }
 
 function formatDictationDuration(totalSeconds: number) {
@@ -45,7 +44,6 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
     onCancel,
     creditBalance = null,
     onOpenRecharge,
-    onOpenTaskSheet,
   },
   ref
 ) {
@@ -54,6 +52,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
   const [attachment, setAttachment] = useState<ChatAttachment | null>(null);
   const [voiceActive, setVoiceActive] = useState(false);
   const [voiceListening, setVoiceListening] = useState(false);
+  const [speechDetected, setSpeechDetected] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [attachVisible, setAttachVisible] = useState(false);
   const speechBase = useRef("");
@@ -63,15 +62,23 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
   const ignoreRecognitionResults = useRef(false);
   const timerStartedAt = useRef(0);
   const restartTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const speechWaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const restartDelay = useRef(250);
   const startRecognitionRef = useRef<() => void>(() => {});
   const scheduleRestartRef = useRef<() => void>(() => {});
+  const waveBars = useRef<Animated.Value[]>([]);
+  if (waveBars.current.length === 0) waveBars.current = Array.from({ length: 5 }, () => new Animated.Value(0));
   const { show } = useToast();
   const voiceSupported = Platform.OS !== "web" || ExpoSpeechRecognitionModule.isRecognitionAvailable();
 
   const clearRestart = () => {
     if (restartTimer.current) clearTimeout(restartTimer.current);
     restartTimer.current = null;
+  };
+
+  const clearSpeechWaveTimer = () => {
+    if (speechWaveTimer.current) clearTimeout(speechWaveTimer.current);
+    speechWaveTimer.current = null;
   };
 
   useImperativeHandle(ref, () => ({
@@ -119,10 +126,14 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
   });
   useSpeechRecognitionEvent("end", () => {
     setVoiceListening(false);
+    setSpeechDetected(false);
+    clearSpeechWaveTimer();
     if (voiceIntent.current) scheduleRestartRef.current();
   });
   useSpeechRecognitionEvent("error", (event) => {
     setVoiceListening(false);
+    setSpeechDetected(false);
+    clearSpeechWaveTimer();
     if (event.error === "not-allowed" || event.error === "service-not-allowed" || event.error === "audio-capture") {
       voiceIntent.current = false;
       clearRestart();
@@ -136,6 +147,12 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
     if (ignoreRecognitionResults.current) return;
     const transcript = event.results?.[0]?.transcript?.trim();
     if (!transcript) return;
+    setSpeechDetected(true);
+    clearSpeechWaveTimer();
+    speechWaveTimer.current = setTimeout(() => {
+      speechWaveTimer.current = null;
+      setSpeechDetected(false);
+    }, 650);
     const next = [speechBase.current, transcript].filter(Boolean).join(" ");
     setText(next);
     if (event.isFinal) speechBase.current = next;
@@ -162,17 +179,36 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
     return () => pulse.stop();
   }, [recordingPulse, voiceActive]);
 
+  useEffect(() => {
+    if (!voiceActive || !speechDetected) {
+      waveBars.current.forEach((value) => {
+        value.stopAnimation();
+        value.setValue(0);
+      });
+      return;
+    }
+    const animations = waveBars.current.map((value, index) => Animated.loop(Animated.sequence([
+      Animated.timing(value, { toValue: 1, duration: 170 + index * 37, useNativeDriver: true }),
+      Animated.timing(value, { toValue: 0, duration: 210 + (4 - index) * 29, useNativeDriver: true }),
+    ])));
+    animations.forEach((animation) => animation.start());
+    return () => animations.forEach((animation) => animation.stop());
+  }, [speechDetected, voiceActive]);
+
   useEffect(() => () => {
     voiceIntent.current = false;
     clearRestart();
+    clearSpeechWaveTimer();
     try { ExpoSpeechRecognitionModule.abort(); } catch { /* Ignore */ }
   }, []);
 
   const stopVoice = () => {
     voiceIntent.current = false;
     clearRestart();
+    clearSpeechWaveTimer();
     setVoiceActive(false);
     setVoiceListening(false);
+    setSpeechDetected(false);
     try { ExpoSpeechRecognitionModule.stop(); } catch { /* Ignore */ }
   };
 
@@ -191,6 +227,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
     voiceIntent.current = true;
     timerStartedAt.current = Date.now();
     setElapsedSeconds(0);
+    setSpeechDetected(false);
     setVoiceActive(true);
     startRecognitionRef.current();
   };
@@ -206,15 +243,6 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
     } catch {
       show("تعذّر طلب إذن الميكروفون على هذا الجهاز.", "error");
     }
-  };
-
-  const sendDictation = () => {
-    const content = text.trim();
-    if (!content || disabled) return;
-    stopVoice();
-    ignoreRecognitionResults.current = true;
-    onSend(content, attachment ?? undefined);
-    setText(""); setSelection(undefined); setAttachment(null); speechBase.current = "";
   };
 
   const hasLowBalance = creditBalance !== null && creditBalance < 500;
@@ -248,13 +276,17 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
       {voiceActive ? (
         <View style={styles.voiceToolbar}>
           <View style={styles.voiceStatus} accessibilityLiveRegion="polite">
-            <View style={styles.recordingDot} />
+            <View style={styles.voiceWaveform} accessibilityLabel="موجات الصوت">
+              {waveBars.current.map((bar, index) => (
+                <Animated.View
+                  key={index}
+                  style={[styles.voiceWaveBar, { transform: [{ scaleY: bar.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }] }]}
+                />
+              ))}
+            </View>
             <Text style={styles.voiceTimer}>{formatDictationDuration(elapsedSeconds)}</Text>
             {!voiceListening ? <Text style={styles.reconnecting}>جارٍ إعادة الاتصال…</Text> : null}
           </View>
-          <Pressable onPress={sendDictation} disabled={disabled || !text.trim()} style={[styles.voiceSendButton, (!text.trim() || disabled) && { opacity: 0.5 }]}>
-            <Text style={styles.voiceSendText}>إرسال الصوت</Text>
-          </Pressable>
           <Pressable onPress={stopVoice} style={styles.cancelVoiceButton}>
             <Text style={styles.cancelVoiceText}>×</Text>
           </Pressable>
@@ -265,11 +297,11 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
       <View style={styles.container}>
         {/* Right side (RTL start): + Button */}
         <TouchableOpacity
-          onPress={() => (onOpenTaskSheet ? onOpenTaskSheet() : setAttachVisible(true))}
+          onPress={() => setAttachVisible(true)}
           disabled={disabled || isStreaming}
           activeOpacity={0.7}
           style={styles.plusButton}
-          accessibilityLabel="إضافة مهمة أو ملف"
+          accessibilityLabel="إضافة ملف"
         >
           <Ionicons name="add" size={22} color="#A1A1AA" />
         </TouchableOpacity>
@@ -419,11 +451,10 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   voiceStatus: { flex: 1, flexDirection: "row-reverse", alignItems: "center", gap: 8 },
-  recordingDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#F87171" },
+  voiceWaveform: { height: 24, flexDirection: "row", alignItems: "center", gap: 3, marginHorizontal: 2 },
+  voiceWaveBar: { width: 3, height: 18, borderRadius: 2, backgroundColor: "#0EA5E9" },
   voiceTimer: { color: "#F5F5F5", fontSize: 14, fontWeight: "700" },
   reconnecting: { color: "#A1A1AA", fontSize: 12 },
-  voiceSendButton: { minHeight: 34, justifyContent: "center", alignItems: "center", borderRadius: 8, paddingHorizontal: 12, backgroundColor: "#0EA5E9" },
-  voiceSendText: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
   cancelVoiceButton: { width: 32, height: 32, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#262626", borderRadius: 16 },
   cancelVoiceText: { color: "#F87171", fontSize: 20 },
 });

@@ -5,7 +5,7 @@ import { AppLogo } from "../../src/components/ui/AppLogo";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { DrawerActions } from "@react-navigation/native";
-import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { useAuth } from "../../src/features/auth/auth-provider";
 import { chatService, type ChatMessage } from "../../src/features/chat/chat-service";
 import { chatStreamManager } from "../../src/features/chat/chat-stream-manager";
@@ -18,7 +18,7 @@ import { logFrictionEvent } from "../../src/features/telemetry/friction";
 import { colors } from "../../src/theme/colors";
 import { ShareConversationSheet } from "../../src/features/chat/components/ShareConversationSheet";
 import { BottomSheet } from "../../src/components/ui/BottomSheet";
-import { getCreditLedger, getTaskRating, getTaskUsage, saveTaskRating, type TaskRating, type TaskUsage } from "../../src/features/credits/credit-service";
+import { getCurrentCreditBalance, getTaskRating, getTaskUsage, saveTaskRating, type TaskRating, type TaskUsage } from "../../src/features/credits/credit-service";
 import { useToast } from "../../src/components/ui/Toast";
 import { supabase } from "../../src/lib/supabase/client";
 
@@ -116,12 +116,20 @@ export default function ChatPage() {
   const listRef = useRef<FlatList<ChatMessage>>(null);
   const isNearBottomRef = useRef(true);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
-  const [taskSheetVisible, setTaskSheetVisible] = useState(false);
   const lock = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const internalConversationTransitionRef = useRef<string | null>(null);
   const streamedTextRef = useRef("");
   const isAdmin = Boolean(user?.id && adminAccess.userId === user.id && adminAccess.allowed);
+
+  const refreshCreditBalance = useCallback(async () => {
+    if (!user?.id) {
+      setCreditBalance(null);
+      return;
+    }
+    try { setCreditBalance(await getCurrentCreditBalance()); }
+    catch { setCreditBalance(null); }
+  }, [user?.id]);
 
   const loadTaskUsage = useCallback(async () => {
     if (!conversationId) { setTaskUsage(null); return; }
@@ -135,12 +143,10 @@ export default function ChatPage() {
     if (!conversationId) { setTaskRating(null); return; }
     void getTaskRating(conversationId).then((value) => { setTaskRating(value); if (value) { setRatingStars(value.stars); setRatingNote(value.note ?? ""); } }).catch(() => undefined);
   }, [conversationId, messages.length]);
-  useEffect(() => {
-    let active = true;
-    if (!user) { setCreditBalance(null); return () => { active = false; }; }
-    void getCreditLedger(1).then((res) => { if (active) setCreditBalance(res.balance); }).catch(() => undefined);
-    return () => { active = false; };
-  }, [user?.id, messages.length]);
+  useFocusEffect(useCallback(() => {
+    void refreshCreditBalance();
+    return undefined;
+  }, [refreshCreditBalance]));
 
 
 
@@ -239,10 +245,11 @@ export default function ChatPage() {
       }
       if (!snapshot.active) {
         void reloadMessages(conversationId).catch(() => undefined);
+        void refreshCreditBalance();
         if (snapshot.error && !snapshot.error.includes("أُلغي")) setError(snapshot.error);
       }
     });
-  }, [conversationId, reloadMessages]);
+  }, [conversationId, reloadMessages, refreshCreditBalance]);
 
   const sendText = async (content: string, attachment?: ChatAttachment) => {
     await runOnce(lock, async () => {
@@ -361,6 +368,7 @@ export default function ChatPage() {
         }
       } finally {
         if (abortRef.current === controller) abortRef.current = null;
+        void refreshCreditBalance();
         setIsSending(false);
         setActiveTaskLabel(null);
       }
@@ -424,6 +432,7 @@ export default function ChatPage() {
         }
       } finally {
         if (abortRef.current === controller) abortRef.current = null;
+        void refreshCreditBalance();
         setIsSending(false);
         setActiveTaskLabel(null);
       }
@@ -480,6 +489,7 @@ export default function ChatPage() {
       setError(cause instanceof Error ? cause.message : "تعذرت إعادة توليد الرد.");
     } finally {
       abortRef.current = null;
+      void refreshCreditBalance();
       setIsSending(false);
     }
   };
@@ -513,7 +523,7 @@ export default function ChatPage() {
           <View style={styles.headerActions}>
             {creditBalance !== null ? (
               <TouchableOpacity onPress={() => router.push("/(protected)/balance")} style={styles.creditPill} accessibilityRole="button" accessibilityLabel="رصيد Suly">
-                <Ionicons name="star" size={14} color="#FACC15" />
+                <Ionicons name="diamond-outline" size={14} color="#FACC15" />
                 <Text style={styles.creditPillText}>{creditBalance.toLocaleString("en-US")}</Text>
               </TouchableOpacity>
             ) : null}
@@ -530,9 +540,7 @@ export default function ChatPage() {
         {retryFailure ? <View style={styles.retryWarning} accessibilityRole="alert"><Text style={styles.retryWarningText}>حُفظت رسالتك، لكن تعذّر إكمال الرد.</Text><Pressable onPress={() => void retryResponse()} disabled={isSending} accessibilityRole="button" accessibilityLabel="إعادة محاولة الرد" style={styles.retryButton}><Text style={styles.retryButtonText}>{isSending ? "جارٍ إعادة المحاولة…" : "إعادة المحاولة"}</Text></Pressable></View> : null}
         {isLoading ? <View style={styles.loading}><ActivityIndicator color={colors.primary} /><Text style={styles.loadingText}>جارٍ تحميل المحادثة…</Text></View> : messages.length === 0 ? (
           <View style={styles.empty}>
-            <View style={styles.emptySpacerTop} />
             <Text style={styles.emptyTitle}>دع Suly يعمل من أجلك</Text>
-            <View style={styles.emptySpacerCenter} />
 
             {/* Two rows of horizontal scrollable pills */}
             <View style={styles.pillsContainer}>
@@ -567,17 +575,28 @@ export default function ChatPage() {
               </ScrollView>
             </View>
 
-            {/* Single button in center */}
-            <TouchableOpacity
-              activeOpacity={0.8}
-              style={styles.chooseTaskBtn}
-              onPress={() => setTaskSheetVisible(true)}
-              accessibilityRole="button"
-            >
-              <Text style={styles.chooseTaskBtnText}>اختر مهمة</Text>
-            </TouchableOpacity>
-
-            <View style={styles.emptySpacerBottom} />
+            <Text style={styles.chooseTaskTitle}>اختيار مهمة</Text>
+            <ScrollView style={styles.tasksList} contentContainerStyle={styles.tasksGrid} showsVerticalScrollIndicator={false} nestedScrollEnabled>
+              {CORPORATE_TASKS.map((task) => (
+                <TouchableOpacity
+                  key={task.id}
+                  activeOpacity={0.8}
+                  style={styles.taskCard}
+                  onPress={() => handleSend(task.prompt)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`تشغيل المهمة: ${task.title}`}
+                >
+                  <View style={styles.taskCardRight}>
+                    <View style={styles.taskEmojiBox}><Text style={styles.taskEmojiText}>{task.emoji}</Text></View>
+                    <View style={styles.taskCardInfo}>
+                      <Text style={styles.taskCardTitle}>{task.title}</Text>
+                      <Text style={styles.taskCardCategory}>{task.category}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.taskRunBadge}><Text style={styles.taskRunBadgeText}>تشغيل</Text></View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           </View>
         ) : (
           <View style={styles.messageListContainer}>
@@ -604,7 +623,7 @@ export default function ChatPage() {
         )}
         {isUploadingAttachment ? <View style={styles.uploadStatus}><ActivityIndicator size="small" color={colors.primary} /><Text style={styles.loadingText}>جارٍ حفظ المرفق في Cloudinary…</Text></View> : null}
         <StreamingStatus isStreaming={isSending && !isUploadingAttachment} taskLabel={activeTaskLabel} onCancel={() => abortRef.current?.abort()} />
-        <ChatComposer ref={composerRef} onSend={handleSend} disabled={isSending} isStreaming={isSending} onCancel={() => abortRef.current?.abort()} />
+        <ChatComposer ref={composerRef} onSend={handleSend} disabled={isSending} isStreaming={isSending} onCancel={() => abortRef.current?.abort()} creditBalance={creditBalance} onOpenRecharge={() => router.push("/(protected)/balance")} />
       </KeyboardAvoidingView>
       <ShareConversationSheet visible={shareVisible} conversationId={conversationId} title={shareTitle} plainText={shareText} onClose={closeShareSheet} />
       <BottomSheet visible={usageVisible} title="إحصائيات المهمة الحالية" onClose={() => setUsageVisible(false)}>
@@ -617,37 +636,6 @@ export default function ChatPage() {
           <TextInput value={ratingNote} onChangeText={setRatingNote} placeholder="يمكنك تقديم ملاحظاتك للحصول على أفضل خدمة" placeholderTextColor={colors.textMuted} style={styles.ratingInput} multiline maxLength={2000} />
           <Pressable disabled={ratingSaving || ratingStars === 0} style={[styles.ratingSubmit, (ratingSaving || ratingStars === 0) && styles.disabled]} onPress={() => { if (!conversationId) return; setRatingSaving(true); void saveTaskRating({ conversationId, taskId: taskUsage.taskId, stars: ratingStars, note: ratingNote }).then(() => { setTaskRating({ stars: ratingStars, note: ratingNote.trim() || null }); show("تم إرسال تقييم المهمة.", "success"); }).catch((cause) => show(cause instanceof Error ? cause.message : "تعذر إرسال التقييم.", "error")).finally(() => setRatingSaving(false)); }}><Text style={styles.ratingSubmitText}>{ratingSaving ? "جارٍ الإرسال…" : "حفظ التقييم"}</Text></Pressable>
         </View> : <Text style={styles.loadingText}>لا يوجد استهلاك مسجل لهذه المحادثة بعد.</Text>}
-      </BottomSheet>
-      <BottomSheet visible={taskSheetVisible} title="اختر مهمة لـ Suly" onClose={() => setTaskSheetVisible(false)}>
-        <View style={styles.taskSheetContainer}>
-          <Text style={styles.taskSheetSubtitle}>نماذج مهام ذكية جاهزة للتشغيل المؤسسي الفوري</Text>
-          <ScrollView style={styles.tasksList} showsVerticalScrollIndicator={false}>
-            {CORPORATE_TASKS.map((task) => (
-              <TouchableOpacity
-                key={task.id}
-                activeOpacity={0.8}
-                style={styles.taskCard}
-                onPress={() => {
-                  setTaskSheetVisible(false);
-                  handleSend(task.prompt);
-                }}
-              >
-                <View style={styles.taskCardRight}>
-                  <View style={styles.taskEmojiBox}>
-                    <Text style={styles.taskEmojiText}>{task.emoji}</Text>
-                  </View>
-                  <View style={styles.taskCardInfo}>
-                    <Text style={styles.taskCardTitle}>{task.title}</Text>
-                    <Text style={styles.taskCardCategory}>{task.category}</Text>
-                  </View>
-                </View>
-                <View style={styles.taskRunBadge}>
-                  <Text style={styles.taskRunBadgeText}>تشغيل</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
       </BottomSheet>
     </SafeAreaView>
   );
@@ -682,21 +670,16 @@ const styles = StyleSheet.create({
   messageListContainer: { flex: 1, position: "relative" },
   scrollToBottomButton: { position: "absolute", right: 24, bottom: 12, width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.divider, elevation: 5, zIndex: 2 },
   messageContent: { flexGrow: 1, paddingVertical: 12 },
-  empty: { flex: 1, justifyContent: "space-between", alignItems: "center", paddingHorizontal: 12, paddingVertical: 20 },
-  emptySpacerTop: { flex: 1, minHeight: 30 },
-  emptySpacerCenter: { height: 40 },
-  emptySpacerBottom: { flex: 1, minHeight: 30 },
+  empty: { flex: 1, alignItems: "center", paddingHorizontal: 12, paddingVertical: 14, gap: 14 },
   emptyTitle: { color: "#FFFFFF", fontSize: 22, fontWeight: "700", textAlign: "center" },
   pillsContainer: { width: "100%", gap: 10 },
   pillsRow: { flexDirection: "row-reverse", alignItems: "center", gap: 10, paddingHorizontal: 8 },
   pillCard: { flexDirection: "row-reverse", alignItems: "center", gap: 8, backgroundColor: "#1F1F1F", borderWidth: 1, borderColor: "#262626", borderRadius: 9999, paddingHorizontal: 14, paddingVertical: 10 },
   pillEmoji: { fontSize: 15 },
   pillText: { color: "#D1D5DB", fontSize: 13, fontWeight: "500" },
-  chooseTaskBtn: { marginTop: 24, backgroundColor: "#FFFFFF", borderRadius: 9999, paddingHorizontal: 28, paddingVertical: 12 },
-  chooseTaskBtnText: { color: "#000000", fontSize: 14, fontWeight: "700" },
-  taskSheetContainer: { gap: 12 },
-  taskSheetSubtitle: { color: "#A1A1AA", fontSize: 11, textAlign: "right", marginBottom: 6 },
-  tasksList: { maxHeight: 360 },
+  chooseTaskTitle: { width: "100%", color: "#F5F5F5", fontSize: 16, fontWeight: "700", textAlign: "right", paddingHorizontal: 8 },
+  tasksList: { width: "100%", maxHeight: 250, flexGrow: 0 },
+  tasksGrid: { paddingBottom: 8 },
   taskCard: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", backgroundColor: "#111111", borderWidth: 1, borderColor: "#262626", borderRadius: 14, padding: 12, marginBottom: 8 },
   taskCardRight: { flexDirection: "row-reverse", alignItems: "center", gap: 10, flex: 1 },
   taskEmojiBox: { width: 36, height: 36, borderRadius: 10, backgroundColor: "#1F1F1F", borderWidth: 1, borderColor: "#262626", alignItems: "center", justifyContent: "center" },

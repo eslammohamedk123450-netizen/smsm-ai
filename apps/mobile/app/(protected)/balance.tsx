@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import {
   View,
   ScrollView,
@@ -9,18 +9,18 @@ import {
   Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { PremiumText as Text } from "../../src/components/ui/PremiumText";
 import { colors } from "../../src/theme/colors";
-import { getCreditLedger } from "../../src/features/credits/credit-service";
+import { getCreditLedger, getMonthlyCreditUsage, type CreditEntry } from "../../src/features/credits/credit-service";
 import { useAuth } from "../../src/features/auth/auth-provider";
-import { useToast } from "../../src/components/ui/Toast";
+import { supabase } from "../../src/lib/supabase/client";
 
 interface TransactionItem {
   id: string;
   title: string;
-  type: "chat" | "document" | "recharge" | "image";
+  type: "chat" | "recharge" | "other";
   typeLabel: string;
   points: number;
   isCredit: boolean;
@@ -28,104 +28,89 @@ interface TransactionItem {
   date: string;
 }
 
-const INITIAL_TRANSACTIONS: TransactionItem[] = [
-  {
-    id: "tx-1",
-    title: "استفسار مالي تنفيذي",
-    type: "chat",
-    typeLabel: "محادثة",
-    points: 131,
-    isCredit: false,
-    time: "14:25",
-    date: "9 نوفمبر 2026",
-  },
-  {
-    id: "tx-2",
-    title: "صياغة عقد تجاري",
-    type: "document",
-    typeLabel: "مستند",
-    points: 280,
-    isCredit: false,
-    time: "11:40",
-    date: "9 نوفمبر 2026",
-  },
-  {
-    id: "tx-3",
-    title: "شحن رصيد نقاط",
-    type: "recharge",
-    typeLabel: "شحن رصيد",
-    points: 5000,
-    isCredit: true,
-    time: "09:15",
-    date: "9 نوفمبر 2026",
-  },
-  {
-    id: "tx-4",
-    title: "تحليل موازنة سنوية",
-    type: "chat",
-    typeLabel: "محادثة",
-    points: 420,
-    isCredit: false,
-    time: "18:10",
-    date: "8 نوفمبر 2026",
-  },
-  {
-    id: "tx-5",
-    title: "توليد رسم بياني",
-    type: "image",
-    typeLabel: "صورة",
-    points: 350,
-    isCredit: false,
-    time: "15:30",
-    date: "8 نوفمبر 2026",
-  },
-  {
-    id: "tx-6",
-    title: "تدقيق شروط الخدمة",
-    type: "document",
-    typeLabel: "مستند",
-    points: 195,
-    isCredit: false,
-    time: "10:05",
-    date: "8 نوفمبر 2026",
-  },
-];
+function mapCreditEntries(entries: CreditEntry[]): TransactionItem[] {
+  return entries
+    .filter((entry) => entry.event_type === "settle" || entry.event_type === "admin_adjust" || entry.event_type === "expire")
+    .map((entry) => {
+      const isCredit = entry.balance_delta > 0;
+      const isSettlement = entry.event_type === "settle";
+      const isReward = entry.source === "rewarded_ad";
+      const date = new Date(entry.created_at);
+      const points = isSettlement ? Math.max(0, entry.amount) : Math.abs(entry.balance_delta || entry.amount);
+      const title = isSettlement
+        ? entry.task_title ? `مهمة: ${entry.task_title}` : "استخدام رصيد لمهمة"
+        : isReward ? "مكافأة إعلان مكتملة"
+          : entry.event_type === "expire" ? "إعادة الرصيد غير المستخدم"
+            : entry.reason || "تعديل رصيد";
+      return {
+        id: entry.id,
+        title,
+        type: isSettlement ? "chat" : isCredit ? "recharge" : "other",
+        typeLabel: isSettlement ? "استهلاك" : isReward ? "مكافأة" : isCredit ? "إضافة رصيد" : "تعديل",
+        points,
+        isCredit,
+        time: Number.isNaN(date.getTime()) ? "—" : date.toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
+        date: Number.isNaN(date.getTime()) ? "تاريخ غير متاح" : date.toLocaleDateString("ar-EG"),
+      };
+    });
+}
 
 export default function BalanceScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { show } = useToast();
   const scrollRef = useRef<any>(null);
   const historyYRef = useRef<number>(0);
 
-  const [balance, setBalance] = useState<number>(9850);
-  const [loading, setLoading] = useState(false);
-  const [transactions, setTransactions] = useState<TransactionItem[]>(INITIAL_TRANSACTIONS);
+  const [balance, setBalance] = useState<number | null>(null);
+  const [monthlyConsumed, setMonthlyConsumed] = useState<number | null>(null);
+  const [planTier, setPlanTier] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [transactions, setTransactions] = useState<TransactionItem[]>([]);
   const [rechargeModalVisible, setRechargeModalVisible] = useState(false);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     let active = true;
-    if (!user) return;
+    if (!user) {
+      setBalance(null);
+      setMonthlyConsumed(null);
+      setPlanTier(null);
+      setTransactions([]);
+      setLoading(false);
+      return () => { active = false; };
+    }
     setLoading(true);
-    void getCreditLedger(50)
-      .then((ledger) => {
+    setMonthlyConsumed(null);
+    void Promise.all([
+      getCreditLedger(100),
+      supabase.from("suly_profiles").select("subscription_tier").eq("id", user.id).maybeSingle(),
+    ])
+      .then(([ledger, profileResult]) => {
         if (!active) return;
-        if (typeof ledger.balance === "number") {
-          setBalance(ledger.balance);
-        }
+        setBalance(ledger.balance);
+        setTransactions(mapCreditEntries(ledger.entries));
+        setPlanTier(String(profileResult.data?.subscription_tier ?? user.user_metadata?.subscription_tier ?? "").toLowerCase() || null);
       })
-      .catch(() => undefined)
+      .catch(() => {
+        if (!active) return;
+        setBalance(null);
+        setTransactions([]);
+        setPlanTier(null);
+      })
       .finally(() => {
         if (active) setLoading(false);
       });
+    void getMonthlyCreditUsage()
+      .then((amount) => { if (active) setMonthlyConsumed(amount); })
+      .catch(() => { if (active) setMonthlyConsumed(null); });
     return () => {
       active = false;
     };
-  }, [user]);
+  }, [user]));
 
-  const monthlyConsumed = 2340;
-  const monthlyTotal = 10100;
-  const percentage = Math.min(100, Math.round((monthlyConsumed / monthlyTotal) * 100));
+  const monthlySpent = monthlyConsumed ?? 0;
+  const monthlyTotal = monthlySpent + (balance ?? 0);
+  const percentage = monthlyTotal > 0 ? Math.min(100, Math.round((monthlySpent / monthlyTotal) * 100)) : 0;
+  const planName = planTier ? planTier.charAt(0).toUpperCase() + planTier.slice(1) : "—";
 
   // Group transactions by date
   const grouped = transactions.reduce<Record<string, TransactionItem[]>>((acc, item) => {
@@ -138,35 +123,12 @@ export default function BalanceScreen() {
     scrollRef.current?.scrollTo({ y: historyYRef.current, animated: true });
   };
 
-  const handleRechargePack = (points: number) => {
-    const newBal = balance + points;
-    setBalance(newBal);
-    const now = new Date();
-    const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-    const newTx: TransactionItem = {
-      id: `tx-rec-${Date.now()}`,
-      title: "شحن رصيد نقاط",
-      type: "recharge",
-      typeLabel: "شحن رصيد",
-      points,
-      isCredit: true,
-      time: timeStr,
-      date: "9 نوفمبر 2026",
-    };
-    setTransactions((prev) => [newTx, ...prev]);
-    setRechargeModalVisible(false);
-    show(`تم شحن ${points.toLocaleString("ar-EG")} نقطة بنجاح`, "success");
-  };
-
   const renderIcon = (type: TransactionItem["type"]) => {
     switch (type) {
       case "recharge":
         return <Ionicons name="flash" size={16} color="#4ADE80" />;
-      case "image":
-        return <Ionicons name="image" size={16} color="#0EA5E9" />;
-      case "document":
-        return <Ionicons name="document-text" size={16} color="#0EA5E9" />;
       case "chat":
+      case "other":
       default:
         return <Ionicons name="chatbubble-ellipses" size={16} color="#0EA5E9" />;
     }
@@ -197,7 +159,7 @@ export default function BalanceScreen() {
         {/* 1. الكارت العلوي: خلفية #111111 و borderRadius 16 و padding 16 */}
         <View style={styles.topCard}>
           <View style={styles.cardHeaderRow}>
-            <Text style={styles.planName}>Free</Text>
+            <Text style={styles.planName}>{planName}</Text>
             <TouchableOpacity
               onPress={() => router.push("/(protected)/upgrade")}
               style={styles.upgradeBtn}
@@ -219,11 +181,11 @@ export default function BalanceScreen() {
               <ActivityIndicator color="#0EA5E9" style={{ marginVertical: 8 }} />
             ) : (
               <Text style={styles.balanceNumber}>
-                {balance.toLocaleString("en-US")}
+                {balance === null ? "—" : balance.toLocaleString("en-US")}
               </Text>
             )}
             <Text style={styles.balanceNotice}>
-              يتم تحديث الرصيد يوميا في 23:00 إلى 3:00
+              يتم تحديث الرصيد يوميًا · 30
             </Text>
           </View>
 
@@ -254,7 +216,7 @@ export default function BalanceScreen() {
         <View style={styles.consumptionCard}>
           <View style={styles.consumptionHeaderRow}>
             <Text style={styles.consumptionTitle}>استهلاك هذا الشهر</Text>
-            <Text style={styles.consumptionPercent}>{percentage}%</Text>
+            <Text style={styles.consumptionPercent}>{monthlyConsumed === null || balance === null ? "—" : `${percentage}%`}</Text>
           </View>
 
           {/* Progress bar: background #262626, filled part #0EA5E9 */}
@@ -263,7 +225,9 @@ export default function BalanceScreen() {
           </View>
 
           <Text style={styles.consumptionSubtitle}>
-            استخدمت {monthlyConsumed.toLocaleString("en-US")} من {monthlyTotal.toLocaleString("en-US")} نقطة
+            {monthlyConsumed === null || balance === null
+              ? "تعذر تحميل بيانات الرصيد والاستهلاك الفعلية."
+              : `استخدمت ${monthlySpent.toLocaleString("en-US")} نقطة هذا الشهر من إجمالي ${monthlyTotal.toLocaleString("en-US")} نقطة (الاستهلاك الفعلي + الرصيد الحالي).`}
           </Text>
         </View>
 
@@ -332,37 +296,15 @@ export default function BalanceScreen() {
         >
           <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
             <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>شحن رصيد نقاط Suly</Text>
-            <Text style={styles.modalSub}>اختر باقة النقاط المناسبة لمؤسستك</Text>
-
-            <View style={styles.packsContainer}>
-              {[
-                { points: 1000, price: "50 ج.م" },
-                { points: 5000, price: "200 ج.م", popular: true },
-                { points: 10000, price: "350 ج.م" },
-                { points: 25000, price: "750 ج.م" },
-              ].map((pack) => (
-                <TouchableOpacity
-                  key={pack.points}
-                  onPress={() => handleRechargePack(pack.points)}
-                  style={[styles.packItem, pack.popular && styles.packItemPopular]}
-                  activeOpacity={0.8}
-                >
-                  <View style={styles.packInfo}>
-                    <Text style={styles.packPoints}>+{pack.points.toLocaleString("ar-EG")} نقطة</Text>
-                    {pack.popular ? <Text style={styles.popularBadge}>الأكثر طلباً</Text> : null}
-                  </View>
-                  <Text style={styles.packPrice}>{pack.price}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            <Text style={styles.modalTitle}>الشحن غير مفعّل حاليًا</Text>
+            <Text style={styles.modalSub}>لن يُضاف رصيد أو يتغير المبلغ إلا بعد تأكيد عملية شحن فعلية. لا تتوفر عملية دفع مرتبطة بهذه الشاشة الآن.</Text>
 
             <TouchableOpacity
               onPress={() => setRechargeModalVisible(false)}
               style={styles.modalCloseBtn}
               activeOpacity={0.8}
             >
-              <Text style={styles.modalCloseText}>إلغاء</Text>
+              <Text style={styles.modalCloseText}>إغلاق</Text>
             </TouchableOpacity>
           </Pressable>
         </Pressable>

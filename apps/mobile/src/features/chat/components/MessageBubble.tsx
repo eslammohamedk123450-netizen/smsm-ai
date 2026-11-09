@@ -12,8 +12,6 @@ export interface MessageBubbleProps {
   content: string;
   messageId: string;
   isStreaming?: boolean;
-  cost?: number;
-  remaining?: number;
   feedback?: Feedback;
   onFeedback?(value: Feedback): void | Promise<void>;
   onEdit?(content: string): void;
@@ -79,8 +77,6 @@ export function MessageBubble({
   role,
   content,
   isStreaming = false,
-  cost = 12,
-  remaining = 9850,
   feedback = null,
   onFeedback,
   onEdit,
@@ -160,13 +156,6 @@ export function MessageBubble({
           {isStreaming && <View style={styles.pulse} />}
         </Pressable>
 
-        {/* Sub-line under every assistant response matching web */}
-        {!isUser && !isStreaming && (
-          <Text style={styles.costMeta}>
-            التكلفة: {cost} نقطة • المتبقي: {remaining.toLocaleString("en-US")}
-          </Text>
-        )}
-
         {/* Action icons */}
         {canShowActions && (
           <View style={[styles.actions, isUser ? styles.userActions : styles.assistantActions]}>
@@ -232,7 +221,6 @@ const styles = StyleSheet.create({
   paragraph: { flexDirection: "row", flexWrap: "wrap", alignItems: "center" },
   userText: { fontSize: 16, lineHeight: 26, color: "#000000", fontWeight: "400", textAlign: "right", writingDirection: "rtl" },
   assistantText: { fontSize: 16, lineHeight: 26, color: "#F5F5F5", fontWeight: "400", textAlign: "right", writingDirection: "rtl" },
-  costMeta: { fontSize: 11, color: "#A1A1AA", marginTop: 6, marginHorizontal: 4, textAlign: "right" },
   image: { width: "100%", height: 200, borderRadius: 12, marginVertical: 6 },
   pulse: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#0EA5E9", alignSelf: "flex-end", marginTop: 4 },
   actions: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 4, marginHorizontal: 4 },

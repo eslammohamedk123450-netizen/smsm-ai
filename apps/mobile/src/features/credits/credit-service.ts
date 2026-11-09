@@ -27,17 +27,58 @@ export type TaskUsage = {
 
 export type TaskRating = { stars: number; note: string | null };
 
+async function getCurrentUserId(): Promise<string> {
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user) throw new Error("انتهت الجلسة. سجّل الدخول مجددًا.");
+  return data.user.id;
+}
+
+export async function getCurrentCreditBalance(): Promise<number> {
+  const userId = await getCurrentUserId();
+  const { data, error } = await supabase.from("suly_credit_accounts")
+    .select("balance").eq("user_id", userId).maybeSingle();
+  if (error) throw new Error("تعذر تحميل رصيدك الحالي.");
+  return Number(data?.balance ?? 0);
+}
+
+export async function getMonthlyCreditUsage(): Promise<number> {
+  const userId = await getCurrentUserId();
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const pageSize = 500;
+  let offset = 0;
+  let total = 0;
+
+  while (true) {
+    const { data, error } = await supabase.from("suly_credit_transactions")
+      .select("amount")
+      .eq("user_id", userId)
+      .eq("event_type", "settle")
+      .gte("created_at", monthStart)
+      .order("created_at", { ascending: true })
+      .range(offset, offset + pageSize - 1);
+    if (error) throw new Error("تعذر تحميل استهلاك هذا الشهر.");
+    const rows = data ?? [];
+    total += rows.reduce((sum, row) => sum + Math.max(0, Number(row.amount) || 0), 0);
+    if (rows.length < pageSize) break;
+    offset += pageSize;
+  }
+
+  return total;
+}
+
 export async function getCreditLedger(limit = 50): Promise<{ balance: number; entries: CreditEntry[] }> {
+  const userId = await getCurrentUserId();
   const [{ data: account, error: accountError }, { data: transactions, error: transactionError }] = await Promise.all([
-    supabase.from("suly_credit_accounts").select("balance").maybeSingle(),
+    supabase.from("suly_credit_accounts").select("balance").eq("user_id", userId).maybeSingle(),
     supabase.from("suly_credit_transactions")
       .select("id,event_type,amount,balance_delta,balance_after,source,reason,created_at,hold_id")
-      .order("created_at", { ascending: false }).limit(Math.min(Math.max(limit, 1), 100)),
+      .eq("user_id", userId).order("created_at", { ascending: false }).limit(Math.min(Math.max(limit, 1), 100)),
   ]);
   if (accountError || transactionError) throw new Error("تعذر تحميل رصيدك وسجل الاستهلاك.");
   const holdIds = [...new Set((transactions ?? []).map((row) => row.hold_id).filter((id): id is string => typeof id === "string"))];
   const holds = holdIds.length
-    ? await supabase.from("suly_credit_holds").select("task_id,conversation_id,charged_amount,reserved_amount,status").in("task_id", holdIds).limit(100)
+    ? await supabase.from("suly_credit_holds").select("task_id,conversation_id,charged_amount,reserved_amount,status").eq("user_id", userId).in("task_id", holdIds).limit(100)
     : { data: [], error: null };
   if (holds.error) throw new Error("تعذر ربط سجل الرصيد بمهامه.");
   const holdById = new Map((holds.data ?? []).map((hold) => [String(hold.task_id), hold]));
