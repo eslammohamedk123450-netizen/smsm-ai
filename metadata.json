@@ -1,0 +1,6 @@
+{
+  "name": "Suly - مساعد الشركات الذكي",
+  "description": "تطبيق Suly للمؤسسات والشركات بنظام ألوان أسود وأبيض وإدارة رصيد واستهلاك متقدمة ومساعد ذكي للأعمال.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
