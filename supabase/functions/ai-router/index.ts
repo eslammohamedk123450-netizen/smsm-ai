@@ -10,6 +10,7 @@ import { cloudinaryAuthenticatedDeliveryUrl } from "../_shared/cloudinary_delive
 import { lookupSemanticCache, recordCacheHit, storeSemanticCache } from "../_shared/semantic_cache.ts";
 import { buildMemoryContext, searchTaskMemories, storeTaskMemory } from "../_shared/task_memory.ts";
 import { buildMindPolicy, classifyIntent } from "../_shared/intent_classifier.ts";
+import { OutputGuard } from "../_shared/output_guard.ts";
 import { lookupQuickReply, storeQuickReply } from "../_shared/quick_replies_cache.ts";
 import {
   buildWorkerBrief,
@@ -338,9 +339,19 @@ async function firstReady(candidates: Candidate[], waitMs: number, recordAttempt
 }
 
 async function collectCandidate(candidate: ReadyCandidate): Promise<string> {
-  let content = candidate.firstChunk;
+  const guard = new OutputGuard({ maxChars: 50000 });
+  let content = guard.push(candidate.firstChunk).text;
   try {
-    for await (const chunk of candidate.iterator) content += chunk;
+    if (!guard.reason) {
+      for await (const chunk of candidate.iterator) {
+        const result = guard.push(chunk);
+        content += result.text;
+        if (result.stopped) {
+          candidate.controller.abort();
+          break;
+        }
+      }
+    }
     return content;
   } finally {
     candidate.cleanup();
@@ -551,14 +562,16 @@ async function handleRequest(req: Request): Promise<Response> {
     const { error } = await supabase.from("agent_workspace_steps").update({ status, ...(status === "running" ? { started_at: timestamp } : {}), ...(status === "completed" || status === "failed" ? { completed_at: timestamp } : {}), ...patch }).eq("workspace_id", workspaceId).eq("step_key", stepKey);
     if (error) console.error("Could not update agent workspace step:", error.message);
   };
-  const { data: agentRows, error: agentRowsError } = await supabase.from("agent_registry").select("id,role,name,system_prompt,model_fallback_chain").eq("is_active", true).order("updated_at", { ascending: false }).limit(1000);
+  const { data: agentRows, error: agentRowsError } = mind.intent === "complex_task"
+    ? await supabase.from("agent_registry").select("id,role,name,system_prompt,model_fallback_chain").eq("is_active", true).order("updated_at", { ascending: false }).limit(1000)
+    : { data: [], error: null };
   if (agentRowsError) console.error("Could not load active agents:", agentRowsError.message);
   const plannerAgent = (agentRows ?? []).find((agent) => agent.role === "planner") ?? null;
   const workerAgent = (agentRows ?? []).find((agent) => agent.role === "worker") ?? null;
   const reviewerAgent = (agentRows ?? []).find((agent) => agent.role === "reviewer") ?? null;
   // Chit-chat never pays for orchestration bookkeeping: no workspace, no
   // steps, and no ledger rows are created for plain conversation turns.
-  if (mind.intent !== "chat") {
+  if (mind.intent === "complex_task") {
     const { data: workspaceRow, error: workspaceError } = await supabase.from("agent_workspaces").upsert({ request_id: billingTaskId, conversation_id: conversationId, user_id: user.id, status: "planning", plan: [{ step_key: "plan", description: "تحليل الطلب وتقسيمه" }, { step_key: "execute", description: "تنفيذ المهام" }, { step_key: "review", description: "مراجعة وتجميع النتيجة" }] }, { onConflict: "request_id" }).select("id").single();
     if (workspaceError || !workspaceRow) console.error("Could not create agent workspace:", workspaceError?.message);
     else {
@@ -1245,23 +1258,39 @@ async function handleRequest(req: Request): Promise<Response> {
     let attemptRecorded = false;
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
-        let fullContent = winner!.firstChunk;
+        const outputGuard = new OutputGuard({ maxChars: Math.max(4000, Math.min(50000, maxTokens * 8)) });
+        const firstOutput = outputGuard.push(winner!.firstChunk);
+        let fullContent = firstOutput.text;
         const emit = (value: Record<string, unknown>) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(value)}\n\n`));
         try {
-          controller.enqueue(encoder.encode(taskEvent("تحليل الطلب", "running")));
-          await updateWorkspaceStep("plan", "running");
-          if (conversationId) await supabase.from("task_ledger").update({ status: "running", started_at: new Date().toISOString() }).match({ conversation_id: conversationId, request_id: billingTaskId, task_key: "plan" });
-          emit({ chunk: winner!.firstChunk, done: false, ...responseInfo });
-          controller.enqueue(encoder.encode(taskEvent("تحليل الطلب", "completed")));
-          controller.enqueue(encoder.encode(taskEvent("تنفيذ المهمة", "running")));
-          await updateWorkspaceStep("plan", "completed");
-          await updateWorkspace("executing");
-          await updateWorkspaceStep("execute", "running");
-          if (conversationId) await supabase.from("task_ledger").update({ status: "completed", completed_at: new Date().toISOString() }).match({ conversation_id: conversationId, request_id: billingTaskId, task_key: "plan" });
-          if (conversationId) await supabase.from("task_ledger").update({ status: "running", started_at: new Date().toISOString() }).match({ conversation_id: conversationId, request_id: billingTaskId, task_key: "execute" });
+          if (workspaceId) {
+            controller.enqueue(encoder.encode(taskEvent("تحليل الطلب", "running")));
+            await updateWorkspaceStep("plan", "running");
+            if (conversationId) await supabase.from("task_ledger").update({ status: "running", started_at: new Date().toISOString() }).match({ conversation_id: conversationId, request_id: billingTaskId, task_key: "plan" });
+            controller.enqueue(encoder.encode(taskEvent("تحليل الطلب", "completed")));
+            controller.enqueue(encoder.encode(taskEvent("تنفيذ المهمة", "running")));
+            await updateWorkspaceStep("plan", "completed");
+            await updateWorkspace("executing");
+            await updateWorkspaceStep("execute", "running");
+            if (conversationId) await supabase.from("task_ledger").update({ status: "completed", completed_at: new Date().toISOString() }).match({ conversation_id: conversationId, request_id: billingTaskId, task_key: "plan" });
+            if (conversationId) await supabase.from("task_ledger").update({ status: "running", started_at: new Date().toISOString() }).match({ conversation_id: conversationId, request_id: billingTaskId, task_key: "execute" });
+          }
+          if (firstOutput.text) emit({ chunk: firstOutput.text, done: false, ...responseInfo });
           for await (const chunk of winner!.iterator) {
-            fullContent += chunk;
-            emit({ chunk, done: false });
+            const guarded = outputGuard.push(chunk);
+            fullContent += guarded.text;
+            if (guarded.text) emit({ chunk: guarded.text, done: false });
+            if (guarded.stopped) {
+              winner!.controller.abort();
+              break;
+            }
+          }
+          if (outputGuard.reason) {
+            const notice = outputGuard.reason === "repetition"
+              ? "\n\n[تم إيقاف التكرار تلقائيًا.]"
+              : "\n\n[تم إنهاء الرد عند بلوغ الحد الآمن.]";
+            fullContent += notice;
+            emit({ chunk: notice, done: false });
           }
           const messageId = await persistAssistant(supabase, conversationId, user.id, winner!, fullContent);
           await logMessageModel({
@@ -1277,17 +1306,19 @@ async function handleRequest(req: Request): Promise<Response> {
           attemptRecorded = true;
           await recordEvent(winner!.model, "success");
           const billing = await finalizeBilling(winner!, fullContent, "ai_request", true);
-          controller.enqueue(encoder.encode(taskEvent("تنفيذ المهمة", "completed")));
-          controller.enqueue(encoder.encode(taskEvent("مراجعة وتنسيق الإجابة", "running")));
-          await updateWorkspaceStep("execute", "completed", { selected_model_id: winner!.model.id, result: { characters: fullContent.length, route: modeUsed } });
-          await updateWorkspace("reviewing");
-          await updateWorkspaceStep("review", "running");
-          if (conversationId) await supabase.from("task_ledger").update({ status: "completed", completed_at: new Date().toISOString() }).match({ conversation_id: conversationId, request_id: billingTaskId, task_key: "execute" });
-          if (conversationId) await supabase.from("task_ledger").update({ status: "completed", completed_at: new Date().toISOString(), result: { characters: fullContent.length } }).match({ conversation_id: conversationId, request_id: billingTaskId, task_key: "review" });
-          await updateWorkspaceStep("review", "completed", { result: { characters: fullContent.length, reviewer_agent_id: reviewerAgent?.id ?? null } });
-          await updateWorkspace("completed", { characters: fullContent.length, model_id: winner!.model.id, route: modeUsed });
-          emit({ done: true, ...responseInfo, billing });
-          controller.enqueue(encoder.encode(taskEvent("مراجعة وتنسيق الإجابة", "completed")));
+          if (workspaceId) {
+            controller.enqueue(encoder.encode(taskEvent("تنفيذ المهمة", "completed")));
+            controller.enqueue(encoder.encode(taskEvent("جمع الإجابة", "running")));
+            await updateWorkspaceStep("execute", "completed", { selected_model_id: winner!.model.id, result: { characters: fullContent.length, route: modeUsed } });
+            await updateWorkspace("reviewing");
+            await updateWorkspaceStep("review", "running");
+            if (conversationId) await supabase.from("task_ledger").update({ status: "completed", completed_at: new Date().toISOString() }).match({ conversation_id: conversationId, request_id: billingTaskId, task_key: "execute" });
+            if (conversationId) await supabase.from("task_ledger").update({ status: "completed", completed_at: new Date().toISOString(), result: { characters: fullContent.length } }).match({ conversation_id: conversationId, request_id: billingTaskId, task_key: "review" });
+            await updateWorkspaceStep("review", "completed", { result: { characters: fullContent.length, coordinator: true } });
+            await updateWorkspace("completed", { characters: fullContent.length, model_id: winner!.model.id, route: modeUsed });
+          }
+          emit({ done: true, ...responseInfo, billing, output_guard: outputGuard.reason });
+          if (workspaceId) controller.enqueue(encoder.encode(taskEvent("جمع الإجابة", "completed")));
           controller.close();
         } catch (error) {
           const summary = error instanceof Error ? error.message : String(error);
