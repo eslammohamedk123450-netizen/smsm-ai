@@ -12,7 +12,7 @@ import { runOnce } from "../../src/features/chat/submission-guard";
 import { ChatComposer, type ChatAttachment, type ChatComposerHandle } from "../../src/features/chat/components/ChatComposer";
 import { MessageBubble, type MessageFeedback } from "../../src/features/chat/components/MessageBubble";
 import { StreamingStatus } from "../../src/features/chat/components/StreamingStatus";
-import { uploadMedia } from "../../src/lib/media/upload-service";
+import { uploadMediaFile } from "../../src/features/media/media-service";
 import { logFrictionEvent } from "../../src/features/telemetry/friction";
 import { colors } from "../../src/theme/colors";
 import { ShareConversationSheet } from "../../src/features/chat/components/ShareConversationSheet";
@@ -279,9 +279,8 @@ export default function ChatPage() {
         if (attachment) {
           setIsUploadingAttachment(true);
           try {
-            const mimeType = attachment.part.type;
-            const kind = mimeType.startsWith("video") ? "video" : "image";
-            attachmentUrl = await uploadMedia(attachment.part.uri || attachment.part.name, mimeType, kind, conversationKey);
+            const uploadedAsset = await uploadMediaFile({ picked: attachment, featureKey: "chat", conversationId: conversationKey });
+            attachmentUrl = uploadedAsset.url;
           } catch (cause) {
             setIsUploadingAttachment(false);
             throw cause;
