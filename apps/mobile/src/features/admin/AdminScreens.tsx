@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "expo-router";
+import { Link, useLocalSearchParams } from "expo-router";
 import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, StyleSheet, Switch, TextInput, TouchableOpacity, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { adminService, type AgentConfig, type PricingPlan, type PricingFeature } from "./admin-service";
@@ -23,7 +23,7 @@ type ModelRow = {
   response_timeout_ms: number;
   restriction_failure_threshold: number;
   restriction_window_minutes: number;
-  health: { auto_restricted?: boolean; consecutive_failures?: number; restriction_reason?: string | null; last_status?: string | null } | null;
+  health: { auto_restricted?: boolean; consecutive_failures?: number; restriction_reason?: string | null; last_status?: string | null; total_attempts?: number; successful_attempts?: number; average_latency_ms?: number | null } | null;
   probe: { consecutive_scheduled_failures?: number; consecutive_scheduled_successes?: number; last_scheduled_status?: string | null; last_scheduled_at?: string | null; last_error_code?: string | null } | null;
 };
 type AttemptRow = { attempt_status: string; duration_ms: number | null; error_code: string | null; error_reason: string | null; created_at: string };
@@ -275,8 +275,9 @@ export function ProvidersAdminScreen() {
 }
 
 export function ModelsAdminScreen() {
+  const { q } = useLocalSearchParams<{ q?: string }>();
   const [models, setModels] = useState<ModelRow[]>([]);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(typeof q === "string" ? q : "");
   const [modelFilter, setModelFilter] = useState<"all" | "enabled" | "disabled" | "restricted">("all");
   const [settings, setSettings] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -287,6 +288,8 @@ export function ModelsAdminScreen() {
   const [batchTesting, setBatchTesting] = useState(false);
   const [batchResults, setBatchResults] = useState<Record<number, { status: "success" | "error"; durationMs: number; errorCode: string | null }>>({});
   const [batchFilter, setBatchFilter] = useState<"all" | "success" | "error">("all");
+
+  useEffect(() => { if (typeof q === "string") setSearch(q); }, [q]);
 
   const [freeTimeout, setFreeTimeout] = useState("5000");
   const [fallbackTimeout, setFallbackTimeout] = useState("30000");
@@ -467,6 +470,7 @@ export function ModelsAdminScreen() {
               ] as const).map(([filter, label]) => <Pressable key={filter} accessibilityRole="button" accessibilityState={{ selected: modelFilter === filter }} onPress={() => setModelFilter(filter)} style={[styles.filterChip, modelFilter === filter && styles.filterChipSelected]}><Text style={[styles.filterText, modelFilter === filter && styles.filterTextSelected]}>{label}</Text></Pressable>)}
             </ScrollView>
             <Text style={styles.resultsCount}>عرض {filteredModels.length} من {models.length}</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator style={styles.modelTableScroller}><View style={styles.modelsTableHeader}><Text style={styles.modelsTableName}>النموذج / المزود</Text><Text style={styles.modelsTableMetric}>الحالة</Text><Text style={styles.modelsTableMetric}>الاستجابة</Text><Text style={styles.modelsTableMetric}>النجاح</Text><Text style={styles.modelsTableActions}>إجراءات</Text></View></ScrollView>
             <Card><View style={styles.sectionRow}><View style={styles.batchCopy}><Text style={styles.sectionTitle}>اختبار شامل للنماذج</Text><Text style={styles.detail}>يختبر النماذج الظاهرة بالتوازي حتى 5 نماذج، باستخدام طلب قصير قليل التوكنز.</Text></View><PrimaryButton label={batchTesting ? "جارٍ الاختبار…" : `اختبار ${filteredModels.length} نموذج`} onPress={() => void testFilteredModels()} disabled={batchTesting || testingModelId !== null || filteredModels.length === 0} /></View>{Object.keys(batchResults).length > 0 ? <View style={styles.batchSummary}><Pressable onPress={() => setBatchFilter("success")}><Text style={styles.success}>الناجح: {Object.values(batchResults).filter((result) => result.status === "success").length}</Text></Pressable><Pressable onPress={() => setBatchFilter("error")}><Text style={styles.warning}>الفاشل: {Object.values(batchResults).filter((result) => result.status === "error").length}</Text></Pressable><Pressable onPress={() => setBatchFilter("all")}><Text style={styles.detail}>الكل</Text></Pressable><Text style={styles.detail}>تم اختبار: {Object.keys(batchResults).length}</Text></View> : null}</Card>
 
             <Card><View style={styles.healthProbeHeading}><View style={styles.sectionIcon}><Text style={styles.sectionIconText}>ϟ</Text></View><View style={styles.settingsHeadingText}><Text style={styles.sectionTitle}>مراقبة صحة النماذج</Text><Text style={styles.detail}>فحص تلقائي يوميًا الساعة 02:00 UTC لكل نموذج مفعّل ولكل مفتاح مرتبط به. يستخدم طلبًا قصيرًا بحد أقصى 16 token، ولا يخصم رصيد المستخدم؛ قد يستهلك استخدامًا لدى مزود الخدمة.</Text></View></View><Text style={styles.detail}>بعد 3 إخفاقات فحص متتالية يُستبعد النموذج آليًا من التوجيه، ويعود بعد نجاح فحصين متتاليين. الإيقاف اليدوي لا يُلغى بالفحص.</Text></Card>
@@ -478,25 +482,20 @@ export function ModelsAdminScreen() {
           const providerIsOff = model.provider_enabled === false;
           const isManuallyOff = !model.enabled || model.routing_group === "disabled";
           const status = model.health?.auto_restricted ? "مقيّد آليًا" : providerIsOff ? "المفتاح متوقف" : isManuallyOff ? "معطّل يدويًا" : "جاهز للتوجيه";
-          const statusStyle = model.health?.auto_restricted ? styles.statusRestricted : providerIsOff || isManuallyOff ? styles.statusDisabled : styles.statusEnabled;
           const statusTextStyle = model.health?.auto_restricted ? styles.statusRestrictedText : providerIsOff || isManuallyOff ? styles.statusDisabledText : styles.statusEnabledText;
-          const scheduledStatus = model.probe?.last_scheduled_status === "success" ? "ناجح" : model.probe?.last_scheduled_status === "error" ? "فاشل" : "لم يُفحص بعد";
-          return <Card>
-            <View style={styles.modelCardHeader}>
-              <View style={styles.scoreSquare}><Text style={styles.scoreText}>{batchResults[model.id] ? (batchResults[model.id].status === "success" ? "100%" : "0%") : model.probe?.last_scheduled_status === "success" ? "✓" : "—"}</Text></View>
-              <View style={[styles.statusBadge, statusStyle]}><Text style={[styles.statusBadgeText, statusTextStyle]}>{status}</Text></View>
-              <View style={styles.modelNameBlock}><Text style={styles.cardTitle}>{model.name}</Text><Text style={styles.detail}>{model.provider_name} · {model.model_identifier}</Text></View>
-            </View>
-            <View style={styles.modelMetaRow}><View style={styles.metaBadge}><Text style={styles.metaBadgeText}>{providerIsOff ? "⏸ المفتاح متوقف" : isManuallyOff ? "⏸ خارج التوجيه" : `⇢ ${model.routing_group === "free_race" ? "سباق مجاني" : model.routing_group === "paid_fallback" ? "بديل مدفوع" : model.routing_group}`}</Text></View><View style={styles.metaBadge}><Text style={styles.metaBadgeText}>أولوية {model.priority}</Text></View></View>
-            <View style={styles.modelDetailsBox}><Text style={styles.detail}>الشرائح المسموحة: {(model.allowed_tiers ?? ["free", "lite", "pro", "max"]).join(" · ")}</Text><Text style={styles.detail}>مهلة الاستجابة: {model.response_timeout_ms ?? 30000}ms</Text><Text style={styles.detail}>صحة طلبات المستخدمين: {model.health?.last_status ?? "غير مسجلة"} · إخفاقات: {model.health?.consecutive_failures ?? 0}</Text><Text style={styles.detail}>آخر فحص دوري: {scheduledStatus} · إخفاقات الفحص المتتالية: {model.probe?.consecutive_scheduled_failures ?? 0}</Text></View>
-            {testResults[model.id] ? <View style={styles.probeFeedback}><Text style={testResults[model.id].startsWith("نجح") ? styles.success : styles.warning}>{testResults[model.id]}</Text></View> : null}
-            {model.health?.restriction_reason ? <View style={styles.warningBox}><Text style={styles.warning}>⚠  {model.health.restriction_reason}</Text></View> : null}
-            <View style={styles.rowWrap}>
+          const attempts = Number(model.health?.total_attempts ?? 0);
+          const successRate = attempts ? `${Math.round(Number(model.health?.successful_attempts ?? 0) / attempts * 100)}%` : "—";
+          return <ScrollView horizontal showsHorizontalScrollIndicator nestedScrollEnabled style={styles.modelTableScroller}><View style={styles.modelTableRow}>
+            <View style={styles.modelsTableName}><Text style={styles.cardTitle} numberOfLines={1}>{model.name}</Text><Text style={styles.modelTableSub} numberOfLines={1}>{model.provider_name} · {model.model_identifier}</Text><Text style={styles.modelTableSub}>مسار: {model.routing_group} · أولوية {model.priority}</Text></View>
+            <View style={styles.modelsTableMetric}><Text style={[styles.statusBadgeText, statusTextStyle]}>{status}</Text></View>
+            <View style={styles.modelsTableMetric}><Text style={styles.modelMetricValue}>{model.health?.average_latency_ms == null ? "—" : `${Math.round(model.health.average_latency_ms)}ms`}</Text></View>
+            <View style={styles.modelsTableMetric}><Text style={styles.modelMetricValue}>{batchResults[model.id] ? (batchResults[model.id].status === "success" ? "100%" : "0%") : successRate}</Text><Text style={styles.modelTableSub}>{attempts ? `${attempts} طلب` : "لا بيانات"}</Text></View>
+            <View style={styles.modelsTableActions}>
               <Pressable accessibilityRole="button" onPress={() => void openModelDetails(model)} style={styles.detailsAction}><Text style={styles.link}>⚙  القيود وسجل الفحوص</Text></Pressable>
-              <PrimaryButton label={testingModelId === model.id ? "جارٍ الفحص…" : "اختبار بهذا المفتاح"} onPress={() => void testModel(model)} disabled={busy || testingModelId !== null} />
+              <PrimaryButton label={testingModelId === model.id ? "جارٍ الفحص…" : "اختبار فوري"} onPress={() => void testModel(model)} disabled={busy || testingModelId !== null} />
               {model.health?.auto_restricted ? <PrimaryButton label="مراجعة وإعادة تفعيل" onPress={() => void resetHealth(model)} disabled={busy || testingModelId !== null} /> : providerIsOff ? <Link href="/admin/api-keys" asChild><Pressable style={styles.detailsAction}><Text style={styles.link}>اذهب لتفعيل المفتاح</Text></Pressable></Link> : isManuallyOff ? <><PrimaryButton label="تفعيل ضمن سباق مجاني" onPress={() => void assignRoute(model, "free_race")} disabled={busy || testingModelId !== null} /><PrimaryButton label="تفعيل كبديل مدفوع" onPress={() => void assignRoute(model, "paid_fallback")} disabled={busy || testingModelId !== null} /></> : <PrimaryButton label="تعطيل" onPress={() => void disable(model)} disabled={busy || testingModelId !== null} />}
             </View>
-          </Card>;
+          </View></ScrollView>;
         }}
       />
     </View>
@@ -738,8 +737,8 @@ export function AgentsAdminScreen() {
     <Text style={styles.explainer}>أضف العقل والمراجع والمساعدين المتخصصين وحدد تعليماتهم وسلسلة نماذج غير محدودة عملياً حسب الأولوية.</Text>
     <ErrorText>{error}</ErrorText>{notice && <Text style={styles.success}>{notice}</Text>}
     <Card><Text style={styles.sectionTitle}>إضافة مكوّن</Text><View style={styles.filterRow}>{([['planner','العقل المخطط'],['thinker','العقل المفكر'],['reviewer','المراجع'],['coordinator','المنسق'],['worker','عامل متخصص']] as const).map(([value, label]) => <Pressable key={value} onPress={() => setRole(value)} style={[styles.filterChip, role === value && styles.filterChipSelected]}><Text style={[styles.filterText, role === value && styles.filterTextSelected]}>{label}</Text></Pressable>)}</View><TextInput style={styles.input} value={name} onChangeText={setName} placeholder={role === "planner" ? "العقل المفكر" : role === "reviewer" ? "المراجع والمنسق" : "اسم المساعد"} placeholderTextColor={colors.textMuted} /><TextInput style={[styles.input, { minHeight: 130 }]} value={prompt} onChangeText={setPrompt} placeholder="وظيفة المساعد وتعليماته" placeholderTextColor={colors.textMuted} multiline textAlignVertical="top" /><Text style={styles.label}>النماذج حسب الأولوية (اضغط بالترتيب)</Text><TextInput style={styles.input} placeholder="ابحث عن نموذج بالاسم" placeholderTextColor={colors.textMuted} onChangeText={setModelSearch} value={modelSearch} /><View style={styles.filterRow}>{models.filter((model) => model.enabled && `${model.name} ${model.model_identifier}`.toLowerCase().includes(modelSearch.trim().toLowerCase())).map((model) => <Pressable key={String(model.id)} onPress={() => toggleModel(String(model.id))} style={[styles.filterChip, chain.includes(String(model.id)) && styles.filterChipSelected]}><Text style={[styles.filterText, chain.includes(String(model.id)) && styles.filterTextSelected]}>{chain.includes(String(model.id)) ? `${chain.indexOf(String(model.id)) + 1}. ` : ""}{model.name}</Text></Pressable>)}</View><PrimaryButton label={busy ? "جارٍ الحفظ…" : "إضافة المكوّن"} onPress={() => void addAgent()} disabled={busy} /></Card>
-    <Text style={styles.sectionTitle}>المساعدون الحاليون</Text>
-    {loading ? <ActivityIndicator color={colors.primary} /> : agents.map((agent) => <Card key={agent.id}><View style={styles.providerCardHeader}><Text style={styles.metaBadgeText}>{agent.role === "planner" ? "العقل" : agent.role === "reviewer" ? "المراجع" : "مساعد"}</Text><Text style={styles.cardTitle}>{agent.name}</Text></View><Text style={styles.detail}>{agent.system_prompt}</Text><Text style={styles.detail}>النماذج بالترتيب: {agent.model_fallback_chain.join(" → ") || "سيستخدم التوجيه العام"}</Text><Pressable onPress={() => { void adminService.deleteAgent(agent.id).then(() => load()).catch((cause) => setError(cause instanceof Error ? cause.message : "تعذر حذف المساعد.")); }}><Text style={styles.deleteFeature}>حذف المساعد</Text></Pressable></Card>)}
+    <Text style={styles.sectionTitle}>المساعدون الحاليون · {agents.length}</Text>
+    {loading ? <ActivityIndicator color={colors.primary} /> : <ScrollView horizontal style={styles.agentsTable}><View><View style={styles.agentsTableHeader}><Text style={styles.agentNameCell}>الاسم / التعليمات</Text><Text style={styles.agentRoleCell}>الدور</Text><Text style={styles.agentModelsCell}>النماذج الاحتياطية</Text><Text style={styles.agentActionCell}>إجراء</Text></View>{agents.map((agent) => <View key={agent.id} style={styles.agentRow}><View style={styles.agentNameCell}><Text style={styles.cardTitle} numberOfLines={1}>{agent.name}</Text><Text style={styles.modelTableSub} numberOfLines={2}>{agent.system_prompt}</Text></View><Text style={[styles.agentRoleCell, styles.detail]}>{agent.role}</Text><Text style={[styles.agentModelsCell, styles.detail]} numberOfLines={2}>{agent.model_fallback_chain.join(" → ") || "التوجيه العام"}</Text><View style={styles.agentActionCell}><Pressable onPress={async () => { if (!await confirmAdminAction("حذف المساعد؟", `سيُحذف ${agent.name} نهائيًا.`, "حذف")) return; void adminService.deleteAgent(agent.id).then(() => load()).catch((cause) => setError(cause instanceof Error ? cause.message : "تعذر حذف المساعد.")); }}><Text style={styles.deleteFeature}>حذف</Text></Pressable></View></View>)}</View></ScrollView>}
   </ScrollView>;
 }
 
@@ -789,6 +788,21 @@ const styles = StyleSheet.create({
   settingsFields: { gap: 2, paddingVertical: 6 },
   settingsToggles: { borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 6 },
   modelsSectionHeader: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", marginTop: 8, gap: 10 },
+  modelsTableHeader: { minWidth: 780, flexDirection: "row-reverse", alignItems: "center", backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.divider, borderRadius: 7, paddingVertical: 7, marginTop: 5 },
+  modelTableScroller: { flexGrow: 0 },
+  modelTableRow: { minWidth: 780, flexDirection: "row-reverse", alignItems: "center", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.divider, backgroundColor: colors.surface },
+  modelsTableName: { width: 220, paddingHorizontal: 8, alignItems: "flex-end" },
+  modelsTableMetric: { width: 95, alignItems: "center", justifyContent: "center", paddingHorizontal: 5 },
+  modelsTableActions: { width: 275, flexDirection: "row-reverse", flexWrap: "wrap", gap: 4, alignItems: "center", paddingHorizontal: 5 },
+  modelTableSub: { color: colors.textMuted, fontSize: 8, textAlign: "right", maxWidth: 205 },
+  modelMetricValue: { color: colors.textPrimary, fontSize: 10, fontWeight: "800" },
+  agentsTable: { maxHeight: 420, borderWidth: 1, borderColor: colors.divider, borderRadius: 8, backgroundColor: colors.surface },
+  agentsTableHeader: { minWidth: 720, flexDirection: "row-reverse", backgroundColor: colors.surfaceElevated, borderBottomWidth: 1, borderBottomColor: colors.divider },
+  agentRow: { minWidth: 720, minHeight: 58, flexDirection: "row-reverse", alignItems: "center", borderBottomWidth: 1, borderBottomColor: colors.divider },
+  agentNameCell: { width: 300, paddingHorizontal: 9, paddingVertical: 7, alignItems: "flex-end" },
+  agentRoleCell: { width: 110, paddingHorizontal: 9, paddingVertical: 7, textAlign: "right" },
+  agentModelsCell: { width: 230, paddingHorizontal: 9, paddingVertical: 7, textAlign: "right" },
+  agentActionCell: { width: 80, paddingHorizontal: 9, paddingVertical: 7, alignItems: "center" },
   modelsHeadingCopy: { flex: 1, gap: 3 },
   totalBadge: { borderRadius: 20, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.divider, paddingHorizontal: 10, paddingVertical: 5 },
   totalBadgeText: { color: colors.textSecondary, fontSize: 11, fontWeight: "700" },

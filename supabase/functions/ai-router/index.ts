@@ -363,6 +363,17 @@ async function handleRequest(req: Request): Promise<Response> {
   const { data: authData, error: authError } = await supabase.auth.getUser(userJwt);
   if (authError || !authData.user) return jsonResponse({ error: "Invalid or expired user access token." }, 401);
   const user = authData.user;
+  const [maintenanceResult, adminResult] = await Promise.all([
+    supabase.from("system_settings").select("value").eq("key", "maintenance_mode").maybeSingle(),
+    supabase.from("suly_admins").select("user_id").eq("user_id", user.id).maybeSingle(),
+  ]);
+  if (maintenanceResult.error || adminResult.error) {
+    console.error("Maintenance mode lookup failed:", maintenanceResult.error?.message ?? adminResult.error?.message);
+    return jsonResponse({ error: "Could not validate service availability." }, 503, req);
+  }
+  if (maintenanceResult.data?.value === "true" && !adminResult.data) {
+    return jsonResponse({ error: "الخدمة تحت الصيانة حاليًا. حاول مرة أخرى لاحقًا." }, 503, req);
+  }
   const { data: profile, error: profileError } = await supabase
     .from("suly_profiles")
     .select("is_banned, subscription_tier, hims_activated, hims_activated_at")
