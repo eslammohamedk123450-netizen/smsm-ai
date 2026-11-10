@@ -1,5 +1,6 @@
 import { Redirect, useFocusEffect, useRouter } from "expo-router";
 import { Drawer, DrawerContentScrollView, type DrawerContentComponentProps } from "expo-router/drawer";
+import { useDrawerStatus } from "@react-navigation/drawer";
 import { ActivityIndicator, FlatList, StyleSheet, TextInput, TouchableOpacity, View } from "react-native";
 import { PremiumText as Text } from "../../src/components/ui/PremiumText";
 import { Ionicons } from "@expo/vector-icons";
@@ -21,6 +22,7 @@ function CustomDrawerContent({ isAdmin, ...props }: DrawerContentComponentProps 
   const { user, profileFullName } = useAuth();
   const { show } = useToast();
   const router = useRouter();
+  const drawerStatus = useDrawerStatus();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -46,6 +48,9 @@ function CustomDrawerContent({ isAdmin, ...props }: DrawerContentComponentProps 
   }, [show]);
 
   useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
+  useEffect(() => {
+    if (drawerStatus === "open") void refresh();
+  }, [drawerStatus, refresh]);
 
   const goToChat = (conversationId?: string) => {
     if (conversationId) router.push({ pathname: "/(protected)/chat", params: { conversationId } });

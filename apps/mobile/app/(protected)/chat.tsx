@@ -22,67 +22,6 @@ import { getCurrentCreditBalance, getTaskRating, getTaskUsage, saveTaskRating, t
 import { useToast } from "../../src/components/ui/Toast";
 import { supabase } from "../../src/lib/supabase/client";
 
-const ROW_1_PILLS = [
-  { emoji: "🎵", text: "ابحث عن حفلات موسيقية", prompt: "ابحث لي عن حفلات موسيقية وفعاليات ثقافية قادمة لهذا الشهر مع جدول مواعيدها وأماكنها." },
-  { emoji: "📍", text: "خطط لي لعطلة نهاية الأسبوع", prompt: "خطط لي برنامجاً متوازناً لعطلة نهاية الأسبوع يجمع بين الاسترخاء والترتيب للأسبوع القادم." },
-  { emoji: "📰", text: "تحديثات الأخبار", prompt: "أريد ملخصاً لأبرز التحديثات والأخبار الاقتصادية والتجارية المؤثرة على قطاع الأعمال اليوم." },
-  { emoji: "📊", text: "إعداد ملخص مالي تنفيذي", prompt: "قم بإعداد نموذج ملخص مالي تنفيذي يعرض الإيرادات، التكاليف، وهوامش الربح المتوقعة في جدول منظم." },
-  { emoji: "✍️", text: "صياغة بريد إلكتروني رسمي", prompt: "اكتب لي مسودة بريد إلكتروني رسمي للتنسيق مع شريك تجاري جديد بشأن توقيع مذكرة تفاهم." },
-];
-
-const ROW_2_PILLS = [
-  { emoji: "🔍", text: "تدقيق العقود والاتفاقيات", prompt: "ما هي أهم البنود التعاقدية التي يجب التركيز عليها عند صياغة عقد تقديم خدمات استشارية للشركات؟" },
-  { emoji: "💡", text: "استراتيجية تسويق ربع سنوية", prompt: "قدم لي إطار عمل لاستراتيجية تسويق رقمي للربع القادم مع مؤشرات قياس الأداء وجدول تنفيذي." },
-  { emoji: "📈", text: "تحليل مؤشرات الأداء", prompt: "كيف يمكن تصميم لوحة مؤشرات أداء رئيسية (KPIs) لفريق المبيعات والعمليات في المؤسسة؟" },
-  { emoji: "📋", text: "جدولة مهام الأسبوع", prompt: "رتب لي خطة أسبوعية لإدارة المشاريع وتوزيع أولويات العمل بين أعضاء الفريق." },
-  { emoji: "🌐", text: "تقرير أبحاث السوق", prompt: "أريد ملخصاً لأهم اتجاهات السوق في قطاع التحول الرقمي للشركات لهذا العام." },
-];
-
-const CORPORATE_TASKS = [
-  {
-    id: "1",
-    emoji: "📊",
-    title: "تحليل المؤشرات المالية والتقارير",
-    category: "المالية والاستثمار",
-    prompt: "قم بإعداد تحليل تنفيذي موجز لمؤشرات الأداء المالي للربع السنوي مع جدول مقارنة التكاليف والإيرادات والتوصيات الرئيسية.",
-  },
-  {
-    id: "2",
-    emoji: "⚖️",
-    title: "مراجعة وتدقيق بنود العقود التجارية",
-    category: "الشؤون القانونية",
-    prompt: "أحتاج إلى مراجعة نموذج عقد توريد وتحديد الالتزامات والضمانات وشروط إنهاء التعاقد وجدول زمني للتسليم.",
-  },
-  {
-    id: "3",
-    emoji: "✍️",
-    title: "صياغة بريد إلكتروني ومراسلات رسمية",
-    category: "التواصل والاتصال",
-    prompt: "اكتب خطاب شراكة رسمي موجهاً إلى إدارة شركة استثمارية لطلب عقد اجتماع لبحث أوجه التعاون المشترك.",
-  },
-  {
-    id: "4",
-    emoji: "🔍",
-    title: "بحث وتحليل المنافسين والأسواق",
-    category: "استراتيجيات الأعمال",
-    prompt: "قدم دراسة مقارنة حول استراتيجيات التسعير وحصة السوق لأبرز ثلاث شركات في قطاع التجارة الرقمية مع جدول تحليلي.",
-  },
-  {
-    id: "5",
-    emoji: "📍",
-    title: "خطة جدول أعمال وفعاليات المؤسسة",
-    category: "إدارة العمليات",
-    prompt: "خطط لي جدولاً تنظيمياً لملتقى سنوي للشركاء مدته يومان متضمناً الجلسات ومواعيد الاستراحات والمتحدثين.",
-  },
-  {
-    id: "6",
-    emoji: "📋",
-    title: "إعداد خطة عمل تنفيذية للمشاريع",
-    category: "إدارة المشاريع",
-    prompt: "صمم خطة عمل تنفيذية لمشروع إطلاق خدمة جديدة تشمل المراحل، المسؤوليات، والجدول الزمني للإنجاز.",
-  },
-];
-
 const STREAMING_ID = "local-streaming-assistant";
 
 export default function ChatPage() {
@@ -119,6 +58,7 @@ export default function ChatPage() {
   const lock = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const internalConversationTransitionRef = useRef<string | null>(null);
+  const optimisticMessageIdRef = useRef<string | null>(null);
   const streamedTextRef = useRef("");
   const isAdmin = Boolean(user?.id && adminAccess.userId === user.id && adminAccess.allowed);
 
@@ -255,6 +195,17 @@ export default function ChatPage() {
     await runOnce(lock, async () => {
       if (!user || (!content.trim() && !attachment)) return;
       const imageGeneration = !attachment && getImageGenerationPrompt(content) !== null;
+      const optimisticMessageId = `optimistic-${Date.now()}`;
+      optimisticMessageIdRef.current = optimisticMessageId;
+      setMessages((current) => [...current, {
+        id: optimisticMessageId,
+        conversationId: conversationId ?? "pending",
+        role: "user",
+        content: content.trim() || (attachment?.kind === "image" ? "حلّل الصورة المرفقة من فضلك." : "اقرأ المرفق وأجب عنه من فضلك."),
+        createdAt: new Date().toISOString(),
+        modelId: null,
+        status: "sent",
+      }]);
       setError(null);
       setRetryFailure(null);
       setIsSending(true);
@@ -296,7 +247,7 @@ export default function ChatPage() {
             savedUserMessage = true;
             savedUserMessageId = message.id;
             if (imageGeneration) imagePlaceholderId = `image-generation-${message.id}`;
-            setMessages((current) => [...current.filter((item) => item.id !== STREAMING_ID), message, ...(imageGeneration ? [{
+            setMessages((current) => [...current.filter((item) => item.id !== STREAMING_ID && item.id !== optimisticMessageId), message, ...(imageGeneration ? [{
               id: `image-generation-${message.id}`,
               conversationId: conversationKey,
               role: "assistant" as const,
@@ -325,6 +276,7 @@ export default function ChatPage() {
         streamCompleted = true;
         await reloadMessages(conversationKey);
       } catch (cause) {
+        if (!savedUserMessage) setMessages((current) => current.filter((item) => item.id !== optimisticMessageId));
         const partialContent = streamedTextRef.current.trim();
         if (controller.signal.aborted) {
           if (imageGeneration && imagePlaceholderId) {
@@ -388,6 +340,7 @@ export default function ChatPage() {
           void logFrictionEvent({ eventKind: "action_failed", screenKey: "chat", featureKey: "chat", stepKey: "send_message", errorCode: "send_failed", conversationId });
         }
       } finally {
+        if (optimisticMessageIdRef.current === optimisticMessageId) optimisticMessageIdRef.current = null;
         if (abortRef.current === controller) abortRef.current = null;
         void refreshCreditBalance();
         setIsSending(false);
@@ -562,61 +515,10 @@ export default function ChatPage() {
           <View style={styles.empty}>
             <Text style={styles.emptyTitle}>دع Suly يعمل من أجلك</Text>
 
-            {/* Two rows of horizontal scrollable pills */}
-            <View style={styles.pillsContainer}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillsRow}>
-                {ROW_1_PILLS.map((pill, idx) => (
-                  <TouchableOpacity
-                    key={`r1-${idx}`}
-                    activeOpacity={0.8}
-                    style={styles.pillCard}
-                    onPress={() => handleSend(pill.prompt)}
-                    accessibilityRole="button"
-                  >
-                    <Text style={styles.pillEmoji}>{pill.emoji}</Text>
-                    <Text style={styles.pillText}>{pill.text}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillsRow}>
-                {ROW_2_PILLS.map((pill, idx) => (
-                  <TouchableOpacity
-                    key={`r2-${idx}`}
-                    activeOpacity={0.8}
-                    style={styles.pillCard}
-                    onPress={() => handleSend(pill.prompt)}
-                    accessibilityRole="button"
-                  >
-                    <Text style={styles.pillEmoji}>{pill.emoji}</Text>
-                    <Text style={styles.pillText}>{pill.text}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
+            <View style={styles.chooseTaskTitle} accessibilityRole="text">
+              <Ionicons name="sparkles-outline" size={18} color={colors.primary} />
+              <Text style={styles.chooseTaskText}>اختيار مهمة</Text>
             </View>
-
-            <Text style={styles.chooseTaskTitle}>اختيار مهمة</Text>
-            <ScrollView style={styles.tasksList} contentContainerStyle={styles.tasksGrid} showsVerticalScrollIndicator={false} nestedScrollEnabled>
-              {CORPORATE_TASKS.map((task) => (
-                <TouchableOpacity
-                  key={task.id}
-                  activeOpacity={0.8}
-                  style={styles.taskCard}
-                  onPress={() => handleSend(task.prompt)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`تشغيل المهمة: ${task.title}`}
-                >
-                  <View style={styles.taskCardRight}>
-                    <View style={styles.taskEmojiBox}><Text style={styles.taskEmojiText}>{task.emoji}</Text></View>
-                    <View style={styles.taskCardInfo}>
-                      <Text style={styles.taskCardTitle}>{task.title}</Text>
-                      <Text style={styles.taskCardCategory}>{task.category}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.taskRunBadge}><Text style={styles.taskRunBadgeText}>تشغيل</Text></View>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
           </View>
         ) : (
           <View style={styles.messageListContainer}>
@@ -692,23 +594,8 @@ const styles = StyleSheet.create({
   messageContent: { flexGrow: 1, paddingVertical: 12 },
   empty: { flex: 1, alignItems: "center", paddingHorizontal: 12, paddingVertical: 14, gap: 14 },
   emptyTitle: { color: "#FFFFFF", fontSize: 22, fontWeight: "700", textAlign: "center" },
-  pillsContainer: { width: "100%", gap: 10 },
-  pillsRow: { flexDirection: "row-reverse", alignItems: "center", gap: 10, paddingHorizontal: 8 },
-  pillCard: { flexDirection: "row-reverse", alignItems: "center", gap: 8, backgroundColor: "#1F1F1F", borderWidth: 1, borderColor: "#262626", borderRadius: 9999, paddingHorizontal: 14, paddingVertical: 10 },
-  pillEmoji: { fontSize: 15 },
-  pillText: { color: "#D1D5DB", fontSize: 13, fontWeight: "500" },
-  chooseTaskTitle: { width: "100%", color: "#F5F5F5", fontSize: 16, fontWeight: "700", textAlign: "right", paddingHorizontal: 8 },
-  tasksList: { width: "100%", maxHeight: 250, flexGrow: 0 },
-  tasksGrid: { paddingBottom: 8 },
-  taskCard: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", backgroundColor: "#111111", borderWidth: 1, borderColor: "#262626", borderRadius: 14, padding: 12, marginBottom: 8 },
-  taskCardRight: { flexDirection: "row-reverse", alignItems: "center", gap: 10, flex: 1 },
-  taskEmojiBox: { width: 36, height: 36, borderRadius: 10, backgroundColor: "#1F1F1F", borderWidth: 1, borderColor: "#262626", alignItems: "center", justifyContent: "center" },
-  taskEmojiText: { fontSize: 18 },
-  taskCardInfo: { flex: 1, alignItems: "flex-end" },
-  taskCardTitle: { color: "#F5F5F5", fontSize: 13, fontWeight: "700", textAlign: "right" },
-  taskCardCategory: { color: "#A1A1AA", fontSize: 10, marginTop: 2, textAlign: "right" },
-  taskRunBadge: { backgroundColor: "rgba(14, 165, 233, 0.15)", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
-  taskRunBadgeText: { color: "#0EA5E9", fontSize: 11, fontWeight: "700" },
+  chooseTaskTitle: { width: "100%", flexDirection: "row-reverse", alignItems: "center", justifyContent: "flex-start", gap: 8, paddingHorizontal: 8 },
+  chooseTaskText: { color: "#F5F5F5", fontSize: 16, fontWeight: "700", textAlign: "right" },
   starsRow: { flexDirection: "row", alignItems: "center", gap: 2 },
   star: { color: colors.textMuted, fontSize: 25 },
   starSelected: { color: "#FBBF24" },
