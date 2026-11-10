@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { getCloudinaryConfig, type CloudinaryConfig } from "../_shared/cloudinary_config.ts";
 
 const corsOrigin = Deno.env.get("WEB_CORS_ORIGIN")?.trim();
 const corsHeaders = {
@@ -12,17 +13,10 @@ const encoder = new TextEncoder();
 
 type FeatureKey = "chat" | "support" | "hims" | "general";
 type ResourceType = "image" | "video" | "raw";
-interface CloudinaryConfig { cloudName: string; apiKey: string; apiSecret: string; }
 interface AuthContext { userId: string; service: SupabaseClient; user: SupabaseClient; isAdmin: boolean; }
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
-}
-function getCloudinaryConfig(): CloudinaryConfig | null {
-  const cloudName = Deno.env.get("CLOUDINARY_CLOUD_NAME")?.trim() ?? "";
-  const apiKey = Deno.env.get("CLOUDINARY_API_KEY")?.trim() ?? "";
-  const apiSecret = Deno.env.get("CLOUDINARY_API_SECRET")?.trim() ?? "";
-  return cloudName && apiKey && apiSecret ? { cloudName, apiKey, apiSecret } : null;
 }
 function safeString(value: unknown, max = 300): string { return typeof value === "string" ? value.trim().slice(0, max) : ""; }
 function validUuid(value: unknown): value is string { return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value); }

@@ -1,13 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-
-const CLOUD_NAME = Deno.env.get("CLOUDINARY_CLOUD_NAME");
-const API_KEY = Deno.env.get("CLOUDINARY_API_KEY");
-const API_SECRET = Deno.env.get("CLOUDINARY_API_SECRET");
+import { getCloudinaryConfig } from "../_shared/cloudinary_config.ts";
 
 serve(async (req) => {
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
 
   try {
+    const config = getCloudinaryConfig();
+    if (!config) return new Response(JSON.stringify({ error: "Cloudinary is not configured." }), { status: 503, headers: { "Content-Type": "application/json" } });
     const formData = await req.formData();
     const file = formData.get("file");
     const resourceType = formData.get("resource_type") || "image";
@@ -15,15 +14,15 @@ serve(async (req) => {
     if (!(file instanceof File)) return new Response("No file provided", { status: 400 });
 
     const timestamp = Math.round(new Date().getTime() / 1000);
-    const signature = await generateSignature(timestamp, API_SECRET!);
+    const signature = await generateSignature(timestamp, config.apiSecret);
 
     const cloudinaryFormData = new FormData();
     cloudinaryFormData.append("file", file);
-    cloudinaryFormData.append("api_key", API_KEY!);
+    cloudinaryFormData.append("api_key", config.apiKey);
     cloudinaryFormData.append("timestamp", timestamp.toString());
     cloudinaryFormData.append("signature", signature);
 
-    const url = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`;
+    const url = `https://api.cloudinary.com/v1_1/${encodeURIComponent(config.cloudName)}/${resourceType}/upload`;
     const response = await fetch(url, { method: "POST", body: cloudinaryFormData });
     const result = await response.json();
 
