@@ -9,6 +9,7 @@ export interface ProviderInput {
   description: string;
   api_key: string;
 }
+export interface ComposioStatus { configured: boolean; updated_at: string | null; }
 export interface PricingPlan {
   id: number;
   name: string;
@@ -81,6 +82,20 @@ function describeFunctionFailure(error: unknown, functionName: string): string {
 }
 
 export const adminService = {
+  async getComposioStatus(): Promise<ComposioStatus> {
+    await requireAdmin();
+    const { data, error } = await supabase.rpc("suly_admin_composio_status");
+    if (error) throw error;
+    const row = Array.isArray(data) ? data[0] : data;
+    return { configured: row?.configured === true, updated_at: row?.updated_at ?? null };
+  },
+  async saveComposioApiKey(apiKey: string): Promise<void> {
+    await requireAdmin();
+    const value = apiKey.trim();
+    if (!value || value.length > 16384) throw new Error("مفتاح Composio غير صالح.");
+    const { error } = await supabase.rpc("suly_admin_set_composio_api_key", { p_api_key: value });
+    if (error) throw error;
+  },
   async getHimsActivationCodes(): Promise<HimsActivationCode[]> {
     await requireAdmin();
     const { data, error } = await supabase.rpc("suly_admin_list_activation_codes", { p_feature_key: "hims" });

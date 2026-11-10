@@ -8,12 +8,12 @@ const config: ExpoConfig & { splash?: { image: string; resizeMode: "contain"; ba
   owner: "suly-sam100",
   slug: "smsm-ai",
   scheme: "suly-agent-ai",
-  version: "1.0.2",
+  version: "1.0.3",
   splash: { image: "./assets/splash.png", resizeMode: "contain", backgroundColor: "#000000" },
   runtimeVersion: { policy: "appVersion" },
   android: {
     package: "com.suly.agentai",
-    versionCode: 9,
+    versionCode: 10,
     intentFilters: [
       {
         action: "VIEW",
