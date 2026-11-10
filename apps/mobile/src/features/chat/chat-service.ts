@@ -52,6 +52,14 @@ interface MessageRow {
   model_id: number | null;
 }
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function retryRequestId(messageId: string): string {
+  // Persisted message IDs are UUIDs. Reusing one for a retry makes the server's
+  // escrow and workspace upserts idempotent across reconnects and app restarts.
+  return UUID_PATTERN.test(messageId) ? messageId : randomUUID();
+}
+
 function mapMessage(row: MessageRow): ChatMessage {
   return {
     id: row.id,
@@ -351,7 +359,7 @@ export const chatService = {
       conversation_id: options.conversationId,
       user_message_id: String(inserted.id),
       media_asset_ids: options.mediaAsset ? [options.mediaAsset.id] : undefined,
-      request_id: randomUUID(),
+      request_id: retryRequestId(String(inserted.id)),
       messages: history,
       routing_mode: "auto",
       stream: true,
@@ -362,6 +370,7 @@ export const chatService = {
   async regenerateAssistant(options: {
     conversationId: string;
     history: ChatMessage[];
+    requestId?: string;
     signal: AbortSignal;
     onChunk(text: string): void;
     onTaskUpdate?(task: { task: string; status: "pending" | "running" | "completed" | "failed" }): void;
@@ -378,7 +387,7 @@ export const chatService = {
       conversation_id: options.conversationId,
       user_message_id: latestUser?.id,
       media_asset_ids: latestUser?.attachments?.map((asset) => asset.id),
-      request_id: randomUUID(),
+      request_id: options.requestId ?? randomUUID(),
       messages,
       routing_mode: "auto",
       stream: true,
@@ -397,6 +406,7 @@ export const chatService = {
     await this.regenerateAssistant({
       conversationId: options.conversationId,
       history,
+      requestId: retryRequestId(options.userMessageId),
       signal: options.signal,
       onChunk: options.onChunk,
       onTaskUpdate: options.onTaskUpdate,
