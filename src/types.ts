@@ -1,4 +1,4 @@
-export type ScreenType = 'home' | 'chat' | 'balance';
+export type ScreenType = 'home' | 'chat' | 'balance' | 'admin';
 
 export interface ChatMessage {
   id: string;

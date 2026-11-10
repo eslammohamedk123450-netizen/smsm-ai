@@ -9,6 +9,7 @@ import { BottomInputBar } from './components/BottomInputBar';
 import { TaskSheet } from './components/TaskSheet';
 import { RechargeModal } from './components/RechargeModal';
 import { UpgradeModal } from './components/UpgradeModal';
+import { AdminSettingsView } from './components/AdminSettingsView';
 
 const INITIAL_TRANSACTIONS: TransactionRecord[] = [
   { id: 'tx-1', title: 'استفسار مالي تنفيذي', type: 'chat', typeLabel: 'محادثة', points: 131, isCredit: false, time: '14:25', date: '9 نوفمبر 2026' },
@@ -136,11 +137,12 @@ export default function App() {
     <div className="min-h-screen bg-[#000000] text-[#F5F5F5] flex flex-col justify-between selection:bg-[#0EA5E9] selection:text-white">
       <Header currentScreen={currentScreen} onNavigate={setCurrentScreen} onOpenMenu={() => setIsSidebarOpen(true)} balance={balance} />
       <main className="flex-1 flex flex-col justify-between w-full overflow-hidden">
+        {currentScreen === 'admin' && <AdminSettingsView onBack={() => setCurrentScreen('home')} />}
         {currentScreen === 'home' && <HomeView onSelectPrompt={handleSendMessage} onOpenTaskSheet={() => setIsTaskSheetOpen(true)} />}
         {currentScreen === 'chat' && <ChatView messages={messages} isLoading={isLoading} balance={balance} />}
         {currentScreen === 'balance' && <BalanceView balance={balance} transactions={transactions} onOpenRecharge={() => setIsRechargeOpen(true)} onOpenUpgrade={() => setIsUpgradeOpen(true)} planName={currentPlan} />}
       </main>
-      {currentScreen !== 'balance' && <BottomInputBar onSendMessage={handleSendMessage} onOpenTaskSheet={() => setIsTaskSheetOpen(true)} onOpenRecharge={() => setIsRechargeOpen(true)} balance={balance} isLoading={isLoading} />}
+      {currentScreen !== 'balance' && currentScreen !== 'admin' && <BottomInputBar onSendMessage={handleSendMessage} onOpenTaskSheet={() => setIsTaskSheetOpen(true)} onOpenRecharge={() => setIsRechargeOpen(true)} balance={balance} isLoading={isLoading} />}
       <Sidebar
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
