@@ -1,13 +1,18 @@
 begin;
 
--- Keep the original legacy columns while adding the current audit vocabulary
--- used by the operational migrations and admin UI.
+-- The production project already has target_table/target_id/old_value/new_value.
+-- Keep this idempotent for environments that may be missing an audit column.
 alter table public.admin_audit_logs add column if not exists target_table text;
 alter table public.admin_audit_logs add column if not exists old_value jsonb;
 alter table public.admin_audit_logs add column if not exists new_value jsonb;
-alter table public.admin_audit_logs add column if not exists target_type text not null default 'admin_action';
-alter table public.admin_audit_logs add column if not exists details jsonb not null default '{}'::jsonb;
-alter table public.admin_audit_logs alter column target_id type text using target_id::text;
+
+drop policy if exists "Admins can view logs" on public.admin_audit_logs;
+create policy "Admins can view logs" on public.admin_audit_logs
+  for select to authenticated using (public.suly_is_admin());
+
+drop policy if exists "suly_conversations_admin_read" on public.suly_conversations;
+create policy "suly_conversations_admin_read" on public.suly_conversations
+  for select to authenticated using (public.suly_is_admin());
 
 -- Capture authenticated administrator mutations at the database boundary so
 -- changes through the admin app cannot silently bypass the activity ledger.
@@ -29,17 +34,17 @@ begin
   end if;
 
   if TG_OP <> 'INSERT' then
-    v_old := to_jsonb(OLD) - array['api_key','encrypted_key','secret','access_token','refresh_token','service_role_key'];
+    v_old := to_jsonb(OLD) - array['api_key','encrypted_api_key','encrypted_key','secret','access_token','refresh_token','service_role_key'];
   end if;
   if TG_OP <> 'DELETE' then
-    v_new := to_jsonb(NEW) - array['api_key','encrypted_key','secret','access_token','refresh_token','service_role_key'];
+    v_new := to_jsonb(NEW) - array['api_key','encrypted_api_key','encrypted_key','secret','access_token','refresh_token','service_role_key'];
   end if;
 
   v_target := coalesce(v_new ->> 'id', v_old ->> 'id', v_new ->> 'user_id', v_old ->> 'user_id', 'unknown');
   v_action := lower(TG_OP) || ':' || TG_TABLE_NAME;
 
-  insert into public.admin_audit_logs(admin_id, action, target_type, target_table, target_id, details, old_value, new_value, created_at)
-  values (v_admin, v_action, TG_TABLE_NAME, TG_TABLE_NAME, v_target, jsonb_build_object('operation', TG_OP), v_old, v_new, now());
+  insert into public.admin_audit_logs(admin_id, action, target_table, target_id, old_value, new_value, created_at)
+  values (v_admin, v_action, TG_TABLE_NAME, v_target, v_old, v_new, now());
 
   if TG_OP = 'DELETE' then return OLD; else return NEW; end if;
 end;
@@ -53,8 +58,9 @@ declare
 begin
   foreach v_table in array array[
     'suly_profiles',
+    'suly_admins',
     'ai_models',
-    'ai_providers_catalog',
+    'ai_providers',
     'agent_registry',
     'subscription_plans',
     'subscription_plan_features',
