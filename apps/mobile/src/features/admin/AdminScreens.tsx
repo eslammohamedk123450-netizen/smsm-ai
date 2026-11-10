@@ -20,6 +20,7 @@ type ModelRow = {
   context_window: number | null;
   routing_group: string;
   allowed_tiers: string[] | null;
+  capabilities_json?: string | Record<string, unknown> | null;
   response_timeout_ms: number;
   restriction_failure_threshold: number;
   restriction_window_minutes: number;
@@ -30,6 +31,16 @@ type AttemptRow = { attempt_status: string; duration_ms: number | null; error_co
 type ProbeLogRow = { run_type: "manual" | "scheduled"; status: "success" | "error" | "skipped"; duration_ms: number; error_code: string | null; checked_at: string; model_name: string; provider_name: string };
 type UserRow = { id: string; email: string; full_name: string | null; subscription_tier: string | null; is_banned: boolean; balance: number; reserved_balance: number };
 type TransactionRow = { id?: string; user_id?: string; event_type: string; amount: number; balance_delta?: number; balance_after: number; actual_cost?: number | null; input_tokens?: number; output_tokens?: number; model_id?: number | null; source?: string; reason?: string | null; created_at: string };
+
+type ModelCapabilityKey = "chat" | "vision" | "pdf" | "word" | "video";
+type ModelCapabilityState = Record<ModelCapabilityKey, boolean>;
+const MODEL_CAPABILITY_OPTIONS: Array<[ModelCapabilityKey, string]> = [["chat", "نص"], ["vision", "قراءة الصور"], ["pdf", "PDF"], ["word", "Word / DOCX"], ["video", "فيديو"]];
+function parseModelCapabilityState(value: unknown): ModelCapabilityState {
+  let parsed: Record<string, unknown> = {};
+  if (typeof value === "string") { try { const result = JSON.parse(value); if (result && typeof result === "object" && !Array.isArray(result)) parsed = result as Record<string, unknown>; } catch { /* Use safe text-only defaults. */ } }
+  else if (value && typeof value === "object" && !Array.isArray(value)) parsed = value as Record<string, unknown>;
+  return { chat: parsed.chat !== false, vision: parsed.vision === true, pdf: parsed.pdf === true, word: parsed.word === true, video: parsed.video === true };
+}
 
 function PageHeader({ title }: { title: string }) {
   return <View style={styles.header}><Link href="/admin" asChild><TouchableOpacity activeOpacity={0.7}><Text style={styles.back}>‹ لوحة المشرف</Text></TouchableOpacity></Link><Text style={styles.pageTitle}>{title}</Text></View>;
@@ -318,6 +329,7 @@ export function ModelsAdminScreen() {
   const [editTimeout, setEditTimeout] = useState("30000");
   const [editThreshold, setEditThreshold] = useState("3");
   const [editWindow, setEditWindow] = useState("15");
+  const [editCapabilities, setEditCapabilities] = useState<ModelCapabilityState>({ chat: true, vision: false, pdf: false, word: false, video: false });
 
   const load = async (showInitialLoader = false) => {
     if (showInitialLoader) setLoading(true);
@@ -346,6 +358,7 @@ export function ModelsAdminScreen() {
     setEditTimeout(String(model.response_timeout_ms ?? 30000));
     setEditThreshold(String(model.restriction_failure_threshold ?? 3));
     setEditWindow(String(model.restriction_window_minutes ?? 15));
+    setEditCapabilities(parseModelCapabilityState(model.capabilities_json));
     try {
       const [logs, probes] = await Promise.all([adminService.getModelAttempts(model.id), adminService.getModelProbeLogs(model.id)]);
       setAttempts(logs as AttemptRow[]);
@@ -367,6 +380,7 @@ export function ModelsAdminScreen() {
     try {
       await adminService.updateModel(selectedModel.id, {
         allowed_tiers: editTiers,
+        capabilities_json: JSON.stringify(editCapabilities),
         response_timeout_ms: timeout,
         restriction_failure_threshold: threshold,
         restriction_window_minutes: window,
@@ -486,7 +500,7 @@ export function ModelsAdminScreen() {
           const attempts = Number(model.health?.total_attempts ?? 0);
           const successRate = attempts ? `${Math.round(Number(model.health?.successful_attempts ?? 0) / attempts * 100)}%` : "—";
           return <ScrollView horizontal showsHorizontalScrollIndicator nestedScrollEnabled style={styles.modelTableScroller}><View style={styles.modelTableRow}>
-            <View style={styles.modelsTableName}><Text style={styles.cardTitle} numberOfLines={1}>{model.name}</Text><Text style={styles.modelTableSub} numberOfLines={1}>{model.provider_name} · {model.model_identifier}</Text><Text style={styles.modelTableSub}>مسار: {model.routing_group} · أولوية {model.priority}</Text></View>
+            <View style={styles.modelsTableName}><Text style={styles.cardTitle} numberOfLines={1}>{model.name}</Text><Text style={styles.modelTableSub} numberOfLines={1}>{model.provider_name} · {model.model_identifier}</Text><Text style={styles.modelTableSub}>مسار: {model.routing_group} · أولوية {model.priority}</Text><Text style={styles.modelTableSub}>القدرات: {MODEL_CAPABILITY_OPTIONS.filter(([key]) => parseModelCapabilityState(model.capabilities_json)[key]).map(([, label]) => label).join(" · ") || "غير محددة"}</Text></View>
             <View style={styles.modelsTableMetric}><Text style={[styles.statusBadgeText, statusTextStyle]}>{status}</Text></View>
             <View style={styles.modelsTableMetric}><Text style={styles.modelMetricValue}>{model.health?.average_latency_ms == null ? "—" : `${Math.round(model.health.average_latency_ms)}ms`}</Text></View>
             <View style={styles.modelsTableMetric}><Text style={styles.modelMetricValue}>{batchResults[model.id] ? (batchResults[model.id].status === "success" ? "100%" : "0%") : successRate}</Text><Text style={styles.modelTableSub}>{attempts ? `${attempts} طلب` : "لا بيانات"}</Text></View>
@@ -513,6 +527,15 @@ export function ModelsAdminScreen() {
               </Pressable>
             ))}
           </View>
+          <Text style={styles.detail}>قدرات هذا النموذج (لا تحدد إلا ما يدعمه المزود فعليًا):</Text>
+          <View style={styles.rowWrap}>
+            {MODEL_CAPABILITY_OPTIONS.map(([key, label]) => (
+              <Pressable key={key} accessibilityRole="button" accessibilityState={{ selected: editCapabilities[key] }} onPress={() => setEditCapabilities((current) => ({ ...current, [key]: !current[key] }))} style={[styles.pill, editCapabilities[key] && styles.pillSelected]}>
+                <Text style={styles.pillText}>{editCapabilities[key] ? "✓ " : ""}{label}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={styles.detail}>تُستخدم القدرات في التوجيه التلقائي. يُرسل PDF وDOCX بعد استخراج النص، ويحتاج الفيديو إلى دعم video_url لدى المزود.</Text>
           <NumberField label="مهلة الاستجابة response_timeout_ms" value={editTimeout} onChange={setEditTimeout} />
           <NumberField label="عتبة الإخفاق للتقييد failure_threshold" value={editThreshold} onChange={setEditThreshold} />
           <NumberField label="نافذة الحظر بالدقائق window_minutes" value={editWindow} onChange={setEditWindow} />

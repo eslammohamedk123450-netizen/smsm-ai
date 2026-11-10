@@ -1,10 +1,13 @@
 import { randomUUID } from "expo-crypto";
+import { env } from "../../config/env";
 import { supabase } from "../../lib/supabase/client";
 import { getQuickReply } from "../../lib/infra/quick-replies-cache";
 import type { ChatRequestBody } from "../../lib/network/sse-transport";
 import { summarizeContent } from "./conversation-title";
 import { buildRetryHistory } from "./chat-retry";
 import { chatStreamManager } from "./chat-stream-manager";
+import { getImageGenerationPrompt } from "./image-generation";
+import { getMediaDeliveryUrls, type MediaAsset } from "../media/media-service";
 export { titleFromMessage } from "./conversation-title";
 export { summarizeContent } from "./conversation-title";
 
@@ -17,6 +20,8 @@ export interface ChatMessage {
   createdAt: string;
   modelId: string | null;
   status: "sent" | "streaming" | "error";
+  generationState?: "pending" | "failed";
+  attachments?: MediaAsset[];
 }
 export interface ChatModel {
   id: string;
@@ -135,7 +140,39 @@ export const chatService = {
       .order("created_at", { ascending: true })
       .limit(500);
     if (error) throw new Error("تعذر تحميل رسائل المحادثة.");
-    return (data ?? []).map((row) => mapMessage(row as MessageRow));
+    const messages = (data ?? []).map((row) => mapMessage(row as MessageRow));
+    const messageIds = messages.map((message) => message.id);
+    if (!messageIds.length) return messages;
+    const { data: assetRows, error: assetError } = await supabase.from("global_media_assets")
+      .select("id,message_id,bucket,mime_type,size_bytes,original_filename,created_at,metadata")
+      .eq("feature_key", "chat")
+      .in("message_id", messageIds)
+      .limit(500);
+    if (assetError) throw new Error("تعذر تحميل مرفقات المحادثة.");
+    if (!assetRows?.length) return messages;
+    const urls = await getMediaDeliveryUrls(assetRows.map((asset) => String(asset.id)));
+    const attachmentsByMessage = new Map<string, MediaAsset[]>();
+    for (const row of assetRows) {
+      const messageId = String(row.message_id ?? "");
+      const id = String(row.id ?? "");
+      const metadata = row.metadata && typeof row.metadata === "object" ? row.metadata as Record<string, unknown> : {};
+      const kind = row.bucket === "video" ? "video" : row.bucket === "raw" ? "raw" : "image";
+      const attachment: MediaAsset = {
+        id,
+        featureKey: "chat",
+        url: urls.get(id) ?? "",
+        mimeType: typeof row.mime_type === "string" ? row.mime_type : null,
+        sizeBytes: Number(row.size_bytes ?? 0),
+        filename: typeof row.original_filename === "string" ? row.original_filename : null,
+        kind,
+        createdAt: String(row.created_at ?? ""),
+        width: typeof metadata.width === "number" ? metadata.width : null,
+        height: typeof metadata.height === "number" ? metadata.height : null,
+        durationSeconds: typeof metadata.duration_seconds === "number" ? metadata.duration_seconds : null,
+      };
+      attachmentsByMessage.set(messageId, [...(attachmentsByMessage.get(messageId) ?? []), attachment]);
+    }
+    return messages.map((message) => ({ ...message, attachments: attachmentsByMessage.get(message.id) }));
   },
 
   /** Most recently active conversations first, scoped to the signed-in user by RLS. */
@@ -206,12 +243,13 @@ export const chatService = {
   async sendMessage(options: {
     conversationId: string;
     content: string;
+    mediaAsset?: MediaAsset;
     signal: AbortSignal;
     onUserSaved(message: ChatMessage): void | Promise<void>;
     onChunk(text: string): void;
     onTaskUpdate?(task: { task: string; status: "pending" | "running" | "completed" | "failed" }): void;
   }): Promise<void> {
-    const content = options.content.trim();
+    const content = options.content.trim() || (options.mediaAsset?.kind === "image" ? "حلّل الصورة المرفقة من فضلك." : options.mediaAsset ? "اقرأ المرفق وأجب عنه من فضلك." : "");
     if (!content) return;
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) throw new Error("انتهت الجلسة. سجّل الدخول مجددًا.");
@@ -226,8 +264,16 @@ export const chatService = {
       tokens_used: Math.ceil(content.length / 4),
     }).select("id,conversation_id,role,content,model_id,created_at").single();
     if (insertError || !inserted) throw new Error("تعذر حفظ رسالتك. لم يُرسل الطلب إلى نموذج الذكاء الاصطناعي.");
-
-    await options.onUserSaved(mapMessage(inserted as MessageRow));
+    if (options.mediaAsset) {
+      try { await this.attachMediaToMessage(options.mediaAsset.id, String(inserted.id)); }
+      catch (error) {
+        await supabase.from("suly_messages").delete().eq("id", inserted.id).eq("user_id", user.id);
+        throw error;
+      }
+    }
+    const savedMessage = mapMessage(inserted as MessageRow);
+    if (options.mediaAsset) savedMessage.attachments = [options.mediaAsset];
+    await options.onUserSaved(savedMessage);
     const conversationUpdate: { updated_at: string; title?: string } = { updated_at: new Date().toISOString() };
     // Summarize only the first user message so later turns never overwrite
     // the conversation label.
@@ -237,7 +283,38 @@ export const chatService = {
       .eq("id", options.conversationId).eq("user_id", user.id);
     if (updateError) throw new Error("حُفظت رسالتك، لكن تعذر تحديث ترتيب المحادثة.");
 
-    const identityReply = checkStrictIdentity(content);
+    const imagePrompt = options.mediaAsset ? null : getImageGenerationPrompt(content);
+    if (imagePrompt) {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) throw new Error("انتهت الجلسة. سجّل الدخول مرة أخرى لبدء توليد الصورة.");
+      let response: Response;
+      try {
+        response = await fetch(`${env.edgeFunctionBaseUrl}/image-generator`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            apikey: env.supabaseAnonKey,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({ conversation_id: options.conversationId, user_message_id: String(inserted.id), prompt: imagePrompt }),
+          signal: options.signal,
+        });
+      } catch (cause) {
+        if (options.signal.aborted) throw cause;
+        throw new Error("تعذر الاتصال بخدمة توليد الصور. حاول مرة أخرى.");
+      }
+      let result: Record<string, unknown> = {};
+      try { result = await response.json() as Record<string, unknown>; } catch { /* show safe fallback below */ }
+      if (!response.ok || result.success !== true) {
+        const message = typeof result.error === "string" ? result.error : "تعذر توليد الصورة. حاول مرة أخرى.";
+        throw new Error(message);
+      }
+      return;
+    }
+
+    const identityReply = options.mediaAsset ? null : checkStrictIdentity(content);
     if (identityReply) {
       options.onChunk(identityReply);
       await supabase.from("suly_messages").insert({
@@ -252,7 +329,7 @@ export const chatService = {
 
     // quick-replies-cache: repeated chit-chat answers instantly from the
     // local cache with zero network calls and zero token spend.
-    const quickReply = getQuickReply(content);
+    const quickReply = options.mediaAsset ? null : getQuickReply(content);
     if (quickReply) {
       options.onChunk(quickReply);
       await supabase.from("suly_messages").insert({
@@ -272,6 +349,8 @@ export const chatService = {
     history.push({ role: "user", content });
     const requestBody: ChatRequestBody = {
       conversation_id: options.conversationId,
+      user_message_id: String(inserted.id),
+      media_asset_ids: options.mediaAsset ? [options.mediaAsset.id] : undefined,
       request_id: randomUUID(),
       messages: history,
       routing_mode: "auto",
@@ -294,8 +373,11 @@ export const chatService = {
     if (!messages.length || messages[messages.length - 1].role !== "user") {
       throw new Error("لا توجد رسالة مستخدم لإعادة توليد الرد عليها.");
     }
+    const latestUser = [...options.history].reverse().find((entry) => entry.role === "user");
     await chatStreamManager.start({
       conversation_id: options.conversationId,
+      user_message_id: latestUser?.id,
+      media_asset_ids: latestUser?.attachments?.map((asset) => asset.id),
       request_id: randomUUID(),
       messages,
       routing_mode: "auto",

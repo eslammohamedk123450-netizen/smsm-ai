@@ -226,8 +226,19 @@ export const adminService = {
 
   async updateModel(modelId: number, changes: Record<string, unknown>) {
     await requireAdmin();
-    const allowed = ["enabled", "priority", "routing_group", "allowed_tiers", "response_timeout_ms", "restriction_failure_threshold", "restriction_window_minutes"];
+    const allowed = ["enabled", "priority", "routing_group", "allowed_tiers", "response_timeout_ms", "restriction_failure_threshold", "restriction_window_minutes", "capabilities_json"];
     if (Object.keys(changes).some((key) => !allowed.includes(key))) throw new Error("حقل تعديل غير مسموح.");
+    if ("capabilities_json" in changes) {
+      let parsed: unknown = changes.capabilities_json;
+      if (typeof parsed === "string") {
+        try { parsed = JSON.parse(parsed); } catch { throw new Error("صيغة قدرات النموذج غير صالحة."); }
+      }
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("صيغة قدرات النموذج غير صالحة.");
+      const value = parsed as Record<string, unknown>;
+      const supported = ["chat", "vision", "pdf", "word", "video"];
+      if (Object.keys(value).some((key) => !supported.includes(key)) || supported.some((key) => key in value && typeof value[key] !== "boolean")) throw new Error("قدرات النموذج يجب أن تكون مفاتيح معروفة وقيمًا منطقية.");
+      changes.capabilities_json = JSON.stringify({ chat: value.chat !== false, vision: value.vision === true, pdf: value.pdf === true, word: value.word === true, video: value.video === true });
+    }
     const { error } = await supabase.from("ai_models").update(changes).eq("id", modelId);
     if (error) throw error;
   },
@@ -430,6 +441,29 @@ export const adminService = {
       updated_at: new Date().toISOString(),
     }).eq("id", planId);
     if (error) throw error;
+  },
+  async getCloudflareImageSettings(): Promise<{ accountId: string; tokenConfigured: boolean; enabled: boolean; creditsPerImage: number }> {
+    await requireAdmin();
+    const { data, error } = await supabase.rpc("suly_admin_get_cloudflare_image_config");
+    if (error) throw new Error("تعذر تحميل إعدادات Cloudflare. تحقق من نشر migration إعداد الصور.");
+    const row = Array.isArray(data) ? data[0] : data;
+    return {
+      accountId: typeof row?.account_id === "string" ? row.account_id : "",
+      tokenConfigured: row?.token_configured === true,
+      enabled: row?.enabled === true,
+      creditsPerImage: Math.max(1, Number(row?.credits_per_image ?? 1)),
+    };
+  },
+  async saveCloudflareImageSettings(input: { accountId: string; apiToken: string | null; enabled: boolean; creditsPerImage: number }): Promise<{ tokenConfigured: boolean }> {
+    await requireAdmin();
+    const { data, error } = await supabase.rpc("suly_admin_save_cloudflare_image_config", {
+      p_account_id: input.accountId,
+      p_api_token: input.apiToken,
+      p_enabled: input.enabled,
+      p_credits_per_image: input.creditsPerImage,
+    });
+    if (error || data?.success !== true) throw new Error("تعذر حفظ إعدادات Cloudflare بأمان. تحقق من Account ID والرمز وصلاحية المشرف.");
+    return { tokenConfigured: data.token_configured === true };
   },
   async getAdMobSettings(): Promise<{ appId: string; rewardedUnitId: string; bannerUnitId: string }> {
     await requireAdmin();

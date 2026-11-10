@@ -1,17 +1,20 @@
 import { useEffect, useRef, useState } from "react";
-import { Animated, Image, Platform, Pressable, StyleSheet, TouchableOpacity, View, Modal } from "react-native";
+import { ActivityIndicator, Animated, Image, Platform, Pressable, StyleSheet, TouchableOpacity, View, Modal } from "react-native";
 import { PremiumText as Text } from "../../../components/ui/PremiumText";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { colors } from "../../../theme/colors";
 import { useToast } from "../../../components/ui/Toast";
 import { MarkdownView } from "./MarkdownView";
+import type { MediaAsset } from "../../media/media-service";
 
 export interface MessageBubbleProps {
   role: "user" | "assistant";
   content: string;
   messageId: string;
+  attachments?: MediaAsset[];
   isStreaming?: boolean;
+  generationState?: "pending" | "failed";
   feedback?: Feedback;
   onFeedback?(value: Feedback): void | Promise<void>;
   onEdit?(content: string): void;
@@ -19,7 +22,7 @@ export interface MessageBubbleProps {
 
 export type Feedback = "like" | "dislike" | null;
 export type MessageFeedback = Exclude<Feedback, null>;
-const imagePattern = /(?:!\[[^\]]*\]\((https?:\/\/[^)\s]+)\)|(https?:\/\/[^\s]+?\.(?:png|jpe?g|gif|webp|avif)(?:\?[^\s]*)?))/gi;
+const imagePattern = /!\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)|(https?:\/\/[^\s]+?\.(?:png|jpe?g|gif|webp|avif|heic|heif)(?:\?[^\s]*)?)/gi;
 
 type ActionKind = "edit" | "copy" | "like" | "dislike";
 
@@ -76,7 +79,9 @@ function MessageAction({
 export function MessageBubble({
   role,
   content,
+  attachments = [],
   isStreaming = false,
+  generationState,
   feedback = null,
   onFeedback,
   onEdit,
@@ -111,14 +116,19 @@ export function MessageBubble({
     imagePattern.lastIndex = 0;
     let match: RegExpExecArray | null;
     while ((match = imagePattern.exec(content)) !== null) {
+      const markdownUrl = match[2];
+      const standaloneUrl = match[3];
+      const candidateUrl = markdownUrl || standaloneUrl || "";
+      const path = candidateUrl.toLowerCase().split(/[?#]/)[0];
+      if (markdownUrl && !/\.(?:png|jpe?g|gif|webp|avif|heic|heif)$/.test(path)) continue;
       if (match.index > cursor) {
         const textPart = content.slice(cursor, match.index);
         nodes.push(<Text key={`${cursor}`} style={isUser ? styles.userText : styles.assistantText}>{textPart}</Text>);
       }
-      const uri = match[1] || match[2];
+      const uri = candidateUrl;
       nodes.push(
         <TouchableOpacity key={`${match.index}`} onPress={() => setViewedImage(uri)}>
-          <Image source={{ uri }} style={styles.image} resizeMode="contain" />
+          <Image source={{ uri }} style={styles.imageThumbnail} resizeMode="cover" />
         </TouchableOpacity>
       );
       cursor = match.index + match[0].length;
@@ -136,7 +146,24 @@ export function MessageBubble({
       <View style={[styles.messageColumn, isUser ? styles.userColumn : styles.assistantColumn]}>
         <View style={[styles.bubble, isUser ? styles.userBubble : styles.assistantBubble]}>
           {isUser ? (
-            <View style={styles.paragraph}>{renderContent(content)}</View>
+            <>
+              {content.trim() ? <View style={styles.paragraph}>{renderContent(content)}</View> : null}
+              {attachments.length ? <View style={styles.attachments}>{attachments.map((asset) => {
+                const isImage = asset.kind === "image" || asset.mimeType?.toLowerCase().startsWith("image/");
+                const isVideo = asset.kind === "video" || asset.mimeType?.toLowerCase().startsWith("video/");
+                const label = asset.filename || (isImage ? "صورة مرفقة" : isVideo ? "فيديو مرفق" : "مستند مرفق");
+                return isImage ? (
+                  <Pressable key={asset.id} disabled={!asset.url} onPress={() => setViewedImage(asset.url)} accessibilityRole="button" accessibilityLabel={`فتح الصورة ${label}`}>
+                    {asset.url ? <Image source={{ uri: asset.url }} style={styles.imageThumbnail} resizeMode="cover" /> : <View style={styles.missingAttachment}><Ionicons name="image-outline" size={26} color="#A1A1AA" /></View>}
+                  </Pressable>
+                ) : (
+                  <View key={asset.id} style={styles.fileAttachment}>
+                    <Ionicons name={isVideo ? "videocam-outline" : "document-text-outline"} size={24} color="#2563EB" />
+                    <View style={styles.fileAttachmentText}><Text numberOfLines={1} style={styles.fileName}>{label}</Text><Text style={styles.fileKind}>{asset.mimeType || (isVideo ? "فيديو" : "مستند")}</Text></View>
+                  </View>
+                );
+              })}</View> : null}
+            </>
           ) : (
             <>
               {/* Header inside assistant bubble matching web */}
@@ -145,16 +172,31 @@ export function MessageBubble({
                   <Image source={require("../../../../assets/suly-icon.png")} style={styles.sulySmallIcon} resizeMode="cover" />
                   <Text style={styles.assistantTitle}>Suly</Text>
                 </View>
-                <TouchableOpacity onPress={() => void copyToClipboard(content, true)} style={styles.headerCopyBtn} accessibilityLabel="نسخ الرد">
+                {content ? <TouchableOpacity onPress={() => void copyToClipboard(content, true)} style={styles.headerCopyBtn} accessibilityLabel="نسخ الرد">
                   <Ionicons name={copied ? "checkmark" : "copy-outline"} size={14} color={copied ? "#0EA5E9" : "#A1A1AA"} />
-                </TouchableOpacity>
+                </TouchableOpacity> : null}
               </View>
 
-              {!isStreaming ? (
-                <View style={styles.markdown}>{renderContent(content)}</View>
-              ) : (
-                <Text style={styles.assistantText}>{content}</Text>
-              )}
+              {generationState ? (
+                <View style={styles.generationCard} accessibilityRole="progressbar" accessibilityLabel={generationState === "pending" ? "جاري توليد الصورة" : "تعذر توليد الصورة"}>
+                  {generationState === "pending" ? <ActivityIndicator size="large" color="#0EA5E9" /> : <Ionicons name="warning-outline" size={32} color="#F87171" />}
+                  <Text style={styles.generationLabel}>{generationState === "pending" ? "جاري توليد الصورة…" : "تعذر توليد الصورة. أرسل الطلب مجددًا للمحاولة."}</Text>
+                </View>
+              ) : <>
+                {!isStreaming ? (
+                  <View style={styles.markdown}>{renderContent(content)}</View>
+                ) : (
+                  <Text style={styles.assistantText}>{content}</Text>
+                )}
+                {attachments.length ? <View style={styles.assistantAttachments}>{attachments.map((asset) => {
+                  const isImage = asset.kind === "image" || asset.mimeType?.toLowerCase().startsWith("image/");
+                  return isImage ? (
+                    <Pressable key={asset.id} disabled={!asset.url} onPress={() => setViewedImage(asset.url)} accessibilityRole="button" accessibilityLabel="فتح الصورة المولدة">
+                      {asset.url ? <Image source={{ uri: asset.url }} style={styles.generatedImage} resizeMode="cover" /> : <View style={styles.missingGeneratedImage}><Ionicons name="image-outline" size={28} color="#A1A1AA" /></View>}
+                    </Pressable>
+                  ) : null;
+                })}</View> : null}
+              </>}
             </>
           )}
 
@@ -164,6 +206,7 @@ export function MessageBubble({
         <Modal visible={!!viewedImage} transparent={true} animationType="fade" onRequestClose={() => setViewedImage(null)}>
           <Pressable style={styles.modalOverlay} onPress={() => setViewedImage(null)}>
              <Image source={{ uri: viewedImage || "" }} style={styles.fullImage} resizeMode="contain" />
+             <Pressable style={styles.modalClose} onPress={() => setViewedImage(null)} accessibilityRole="button" accessibilityLabel="إغلاق الصورة"><Ionicons name="close" size={24} color="#FFFFFF" /></Pressable>
           </Pressable>
         </Modal>
 
@@ -232,7 +275,18 @@ const styles = StyleSheet.create({
   paragraph: { flexDirection: "row", flexWrap: "wrap", alignItems: "center" },
   userText: { fontSize: 16, lineHeight: 26, color: "#000000", fontWeight: "400", textAlign: "right", writingDirection: "rtl" },
   assistantText: { fontSize: 16, lineHeight: 26, color: "#F5F5F5", fontWeight: "400", textAlign: "right", writingDirection: "rtl" },
-  image: { width: "100%", height: 200, borderRadius: 12, marginVertical: 6 },
+  imageThumbnail: { width: 96, height: 96, borderRadius: 12, marginVertical: 4, backgroundColor: "#E5E7EB" },
+  attachments: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 },
+  assistantAttachments: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 },
+  generatedImage: { width: 240, height: 240, maxWidth: 260, borderRadius: 12, marginTop: 4, backgroundColor: "#1F1F1F" },
+  missingGeneratedImage: { width: 240, height: 240, borderRadius: 12, marginTop: 4, backgroundColor: "#1F1F1F", justifyContent: "center", alignItems: "center" },
+  generationCard: { width: 240, maxWidth: "100%", aspectRatio: 1, borderRadius: 14, borderWidth: 1, borderColor: "#262626", backgroundColor: "#0B0B0B", alignItems: "center", justifyContent: "center", padding: 20, gap: 14 },
+  generationLabel: { color: "#A1A1AA", fontSize: 12, lineHeight: 18, fontWeight: "600", textAlign: "center" },
+  missingAttachment: { width: 96, height: 96, borderRadius: 12, backgroundColor: "#E5E7EB", justifyContent: "center", alignItems: "center" },
+  fileAttachment: { maxWidth: 260, minWidth: 180, flexDirection: "row-reverse", alignItems: "center", gap: 10, padding: 10, borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 12, backgroundColor: "#F8FAFC" },
+  fileAttachmentText: { flex: 1, minWidth: 0, alignItems: "flex-end" },
+  fileName: { color: "#111827", fontSize: 12, fontWeight: "600", textAlign: "right" },
+  fileKind: { color: "#64748B", fontSize: 10, marginTop: 3, textAlign: "right" },
   pulse: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#0EA5E9", alignSelf: "flex-end", marginTop: 4 },
   actions: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 4, marginHorizontal: 4 },
   userActions: { justifyContent: "flex-end" },
@@ -244,4 +298,5 @@ const styles = StyleSheet.create({
   markdown: { width: "100%" },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0, 0, 0, 0.9)", justifyContent: "center", alignItems: "center" },
   fullImage: { width: "100%", height: "100%" },
+  modalClose: { position: "absolute", top: Platform.OS === "ios" ? 56 : 32, right: 20, width: 42, height: 42, borderRadius: 21, backgroundColor: "rgba(45,45,45,0.9)", alignItems: "center", justifyContent: "center" },
 });

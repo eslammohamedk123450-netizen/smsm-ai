@@ -3,6 +3,8 @@ import type { ElementRef } from "react";
 import {
   ActivityIndicator,
   Animated,
+  Image,
+  Modal,
   Platform,
   Pressable,
   StyleSheet,
@@ -50,6 +52,8 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
   const [text, setText] = useState("");
   const [selection, setSelection] = useState<{ start: number; end: number } | undefined>();
   const [attachment, setAttachment] = useState<ChatAttachment | null>(null);
+  const [attachmentPreviewUri, setAttachmentPreviewUri] = useState<string | null>(null);
+  const [previewVisible, setPreviewVisible] = useState(false);
   const [voiceActive, setVoiceActive] = useState(false);
   const [voiceListening, setVoiceListening] = useState(false);
   const [speechDetected, setSpeechDetected] = useState(false);
@@ -195,6 +199,19 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
     return () => animations.forEach((animation) => animation.stop());
   }, [speechDetected, voiceActive]);
 
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    if (attachment?.kind === "image") {
+      if (attachment.part.uri) setAttachmentPreviewUri(attachment.part.uri);
+      else if (Platform.OS === "web" && attachment.part.blob && typeof URL !== "undefined") {
+        objectUrl = URL.createObjectURL(attachment.part.blob);
+        setAttachmentPreviewUri(objectUrl);
+      } else setAttachmentPreviewUri(null);
+    } else setAttachmentPreviewUri(null);
+    setPreviewVisible(false);
+    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [attachment]);
+
   useEffect(() => () => {
     voiceIntent.current = false;
     clearRestart();
@@ -214,7 +231,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
 
   const submit = () => {
     const content = text.trim();
-    if (!content || disabled) return;
+    if ((!content && !attachment) || disabled) return;
     if (voiceActive) stopVoice();
     ignoreRecognitionResults.current = true;
     onSend(content, attachment ?? undefined);
@@ -264,7 +281,20 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
         </View>
       )}
 
-      {attachment ? (
+      {attachment ? attachment.kind === "image" && attachmentPreviewUri ? (
+        <View style={styles.imageAttachmentPreview}>
+          <Pressable onPress={() => setPreviewVisible(true)} accessibilityRole="button" accessibilityLabel="عرض معاينة الصورة">
+            <Image source={{ uri: attachmentPreviewUri }} style={styles.attachmentThumbnail} resizeMode="cover" />
+          </Pressable>
+          <View style={styles.attachmentInfo}>
+            <Text numberOfLines={1} style={styles.attachmentText}>{attachment.part.name}</Text>
+            <Text style={styles.attachmentHint}>اضغط على الصورة للتكبير</Text>
+          </View>
+          <Pressable onPress={() => setAttachment(null)} accessibilityRole="button" accessibilityLabel="إزالة المرفق" style={styles.removeAttachmentButton}>
+            <Ionicons name="close" size={18} color="#A1A1AA" />
+          </Pressable>
+        </View>
+      ) : (
         <View style={styles.attachmentChip}>
           <Text numberOfLines={1} style={styles.attachmentText}>مرفق: {attachment.part.name}</Text>
           <Pressable onPress={() => setAttachment(null)} accessibilityRole="button" accessibilityLabel="إزالة المرفق">
@@ -342,12 +372,12 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
             </Pressable>
           ) : (
             <Pressable
-              style={[styles.blueButton, (!text.trim() && !voiceActive) && styles.blueButtonIdle]}
+              style={[styles.blueButton, (!text.trim() && !attachment && !voiceActive) && styles.blueButtonIdle]}
               onPress={submit}
-              disabled={disabled || !text.trim()}
+              disabled={disabled || (!text.trim() && !attachment)}
               accessibilityLabel="إرسال"
             >
-              {text.trim() ? (
+              {text.trim() || attachment ? (
                 <Ionicons name="arrow-up" size={18} color="#FFFFFF" />
               ) : (
                 <Ionicons name="radio-outline" size={18} color="#FFFFFF" />
@@ -358,6 +388,14 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
       </View>
 
       <AttachSheet visible={attachVisible} onClose={() => setAttachVisible(false)} onPicked={setAttachment} />
+      <Modal visible={previewVisible} transparent animationType="fade" onRequestClose={() => setPreviewVisible(false)}>
+        <Pressable style={styles.previewOverlay} onPress={() => setPreviewVisible(false)} accessibilityRole="button" accessibilityLabel="إغلاق معاينة الصورة">
+          <Pressable style={styles.previewClose} onPress={() => setPreviewVisible(false)} accessibilityRole="button" accessibilityLabel="إغلاق">
+            <Ionicons name="close" size={24} color="#FFFFFF" />
+          </Pressable>
+          {attachmentPreviewUri ? <Image source={{ uri: attachmentPreviewUri }} style={styles.previewImage} resizeMode="contain" /> : null}
+        </Pressable>
+      </Modal>
     </View>
   );
 });
@@ -435,8 +473,16 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 6,
   },
+  imageAttachmentPreview: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 10, maxWidth: "100%", marginBottom: 8, padding: 6, borderRadius: 14, borderWidth: 1, borderColor: "#262626", backgroundColor: "#111111" },
+  attachmentThumbnail: { width: 66, height: 66, borderRadius: 9, backgroundColor: "#1F1F1F" },
+  attachmentInfo: { flex: 1, minWidth: 0 },
+  attachmentHint: { color: "#A1A1AA", fontSize: 11, marginTop: 4 },
+  removeAttachmentButton: { width: 30, height: 30, alignItems: "center", justifyContent: "center", borderRadius: 15, backgroundColor: "#1F1F1F" },
   attachmentText: { color: "#F5F5F5", fontSize: 12 },
   removeAttachment: { color: "#A1A1AA", fontSize: 18 },
+  previewOverlay: { flex: 1, backgroundColor: "rgba(0, 0, 0, 0.94)", justifyContent: "center", alignItems: "center" },
+  previewImage: { width: "100%", height: "85%" },
+  previewClose: { position: "absolute", top: 44, right: 20, zIndex: 1, width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 21, backgroundColor: "rgba(45, 45, 45, 0.9)" },
   voiceToolbar: {
     minHeight: 46,
     flexDirection: "row-reverse",

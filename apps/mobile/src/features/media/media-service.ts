@@ -115,6 +115,25 @@ export async function getMediaDeliveryUrl(mediaId: string): Promise<string> {
   if (error || !data || typeof data.url !== "string") throw new MediaUploadError("media_access_denied", gatewayMessage(error, data, "تعذر استرجاع الملف أو لا تملك صلاحية الوصول إليه."));
   return data.url;
 }
+export async function getMediaDeliveryUrls(mediaIds: string[]): Promise<Map<string, string>> {
+  const ids = [...new Set(mediaIds)].filter(Boolean).slice(0, 500);
+  if (!ids.length) return new Map();
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData?.session?.access_token || env.supabaseAnonKey;
+  const chunks: string[][] = [];
+  for (let index = 0; index < ids.length; index += 100) chunks.push(ids.slice(index, index + 100));
+  const results = await Promise.all(chunks.map(async (chunk) => {
+    const { data, error } = await supabase.functions.invoke("media-gateway", {
+      body: { action: "get_urls", media_ids: chunk },
+      headers: { Authorization: `Bearer ${token}`, apikey: env.supabaseAnonKey },
+    });
+    if (error || !Array.isArray(data?.assets)) throw new MediaUploadError("resolve_failed", gatewayMessage(error, data, "تعذر التحقق من صلاحية عرض الملفات."));
+    return data.assets as unknown[];
+  }));
+  return new Map<string, string>(results.flat()
+    .filter((asset: unknown): asset is { id: string; url: string } => !!asset && typeof asset === "object" && typeof (asset as { id?: unknown }).id === "string" && typeof (asset as { url?: unknown }).url === "string")
+    .map((asset: { id: string; url: string }) => [asset.id, asset.url]));
+}
 export async function uploadMediaFile(input: UploadMediaInput): Promise<MediaAsset> {
   const { picked } = input;
   const featureKey = normalizeFeatureKey(input.featureKey);
