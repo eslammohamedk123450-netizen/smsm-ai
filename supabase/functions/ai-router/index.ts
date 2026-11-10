@@ -363,16 +363,20 @@ async function handleRequest(req: Request): Promise<Response> {
   const { data: authData, error: authError } = await supabase.auth.getUser(userJwt);
   if (authError || !authData.user) return jsonResponse({ error: "Invalid or expired user access token." }, 401);
   const user = authData.user;
-  const [maintenanceResult, adminResult] = await Promise.all([
-    supabase.from("system_settings").select("value").eq("key", "maintenance_mode").maybeSingle(),
-    supabase.from("suly_admins").select("user_id").eq("user_id", user.id).maybeSingle(),
-  ]);
-  if (maintenanceResult.error || adminResult.error) {
-    console.error("Maintenance mode lookup failed:", maintenanceResult.error?.message ?? adminResult.error?.message);
+  const { data: maintenanceSetting, error: maintenanceError } = await supabase
+    .from("system_settings").select("value").eq("key", "maintenance_mode").maybeSingle();
+  if (maintenanceError) {
+    console.error("Maintenance mode lookup failed:", maintenanceError.message);
     return jsonResponse({ error: "Could not validate service availability." }, 503, req);
   }
-  if (maintenanceResult.data?.value === "true" && !adminResult.data) {
-    return jsonResponse({ error: "الخدمة تحت الصيانة حاليًا. حاول مرة أخرى لاحقًا." }, 503, req);
+  if (maintenanceSetting?.value === "true") {
+    const { data: admin, error: adminError } = await supabase
+      .from("suly_admins").select("user_id").eq("user_id", user.id).maybeSingle();
+    if (adminError) {
+      console.error("Maintenance admin check failed:", adminError.message);
+      return jsonResponse({ error: "Could not validate service availability." }, 503, req);
+    }
+    if (!admin) return jsonResponse({ error: "الخدمة تحت الصيانة حاليًا. حاول مرة أخرى لاحقًا." }, 503, req);
   }
   const { data: profile, error: profileError } = await supabase
     .from("suly_profiles")
