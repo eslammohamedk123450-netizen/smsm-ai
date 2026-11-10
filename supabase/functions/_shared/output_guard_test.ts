@@ -1,37 +1,49 @@
-import { assert, assertEquals, assertFalse, assertNull, assertTrue } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assert, assertEquals, assertFalse } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { OutputGuard } from "./output_guard.ts";
 
-defineTest("detects Arabic repetition across chunks", () => {
+Deno.test("cuts Arabic repetition across chunks before the repeated tail is released", () => {
   const guard = new OutputGuard({ maxChars: 1000 });
-  assertFalse(guard.push("إذا كنت، ").stopped);
-  const result = guard.push("إذا كنت، إذا كنت، إذا كنت، ثم أكمل");
-  assertTrue(result.stopped);
-  assertEquals(result.reason, "repetition");
-  assert(guard.text.length < "إذا كنت، إذا كنت، إذا كنت، ثم أكمل".length + 8);
+  const first = guard.push("مقدمة قصيرة. إذا كنت، ");
+  const second = guard.push("إذا كنت، إذا كنت، ثم أكمل");
+  const final = `${first.text}${second.text}${guard.finish().text}`;
+  assertEquals(second.reason, "repetition");
+  assert(final.includes("مقدمة قصيرة."));
+  assertFalse(final.includes("إذا كنت"));
 });
 
-defineTest("detects English repeated phrase across chunks", () => {
+Deno.test("cuts English repeated phrases spanning chunks", () => {
   const guard = new OutputGuard({ maxChars: 1000 });
-  guard.push("If you are, ");
-  const result = guard.push("if you are, if you are, if you are, continue");
-  assertEquals(result.reason, "repetition");
+  const first = guard.push("A useful start. If you are, ");
+  const second = guard.push("if you are, if you are, continue");
+  const final = `${first.text}${second.text}${guard.finish().text}`;
+  assertEquals(second.reason, "repetition");
+  assert(final.includes("A useful start."));
+  assertFalse(final.toLowerCase().includes("if you are"));
 });
 
-defineTest("does not flag a normal list", () => {
+Deno.test("does not flag a normal numbered list", () => {
   const guard = new OutputGuard({ maxChars: 1000 });
   const result = guard.push("1. First item\n2. Second item\n3. Third item");
+  const final = `${result.text}${guard.finish().text}`;
   assertFalse(result.stopped);
-  assertNull(result.reason);
+  assertEquals(guard.reason, null);
+  assert(final.includes("2. Second item"));
 });
 
-defineTest("enforces a bounded output", () => {
+Deno.test("does not flag natural repetition of one short word", () => {
+  const guard = new OutputGuard({ maxChars: 1000 });
+  guard.push("Yes. Yes. Yes. ");
+  const result = guard.push("Yes, that is correct.");
+  const final = `${result.text}${guard.finish().text}`;
+  assertFalse(result.stopped);
+  assertEquals(guard.reason, null);
+  assert(final.includes("that is correct"));
+});
+
+Deno.test("enforces a hard output bound", () => {
   const guard = new OutputGuard({ maxChars: 20 });
   const result = guard.push("1234567890123456789012345");
-  assertTrue(result.stopped);
+  assert(result.stopped);
   assertEquals(result.reason, "max_output");
   assertEquals(guard.text.length, 20);
 });
-
-function defineTest(name: string, fn: () => void): void {
-  Deno.test(name, fn);
-}

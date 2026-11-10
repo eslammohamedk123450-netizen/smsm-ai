@@ -98,50 +98,48 @@ export async function probeCandidates<T extends ProbeTarget>(
 }
 
 const NUMBERED_LINE = /^\s*(?:(\d{1,3})\s*[.)\-–:]|(?:س|q|Q)\s*\.?\s*(\d{1,3})\s*[.)\-–:])\s*/;
-const QUESTION_HINT = /(?:^|\n)\s*(?:\d{1,3}\s*[.)\-–]|[•\-*]\s|\?|؟)/g;
+const BULLET_LINE = /^\s*[•*\-–]\s+\S/;
+const DEPENDENCY_HINT = /(?:\bthen\b|\bafter\b|\bonce\b|\bfollowed by\b|\bdepends on\b|ثم|بعد ذلك|بعدها|بعد أن|بعد ما|يعتمد على|اعتمادًا على)/iu;
 
-function countQuestions(text: string): number {
-  const matches = text.match(QUESTION_HINT);
-  return matches ? matches.length : 0;
-}
-
-/** Splits a block of numbered questions (or long prose) into balanced parts. */
+/**
+ * Split only explicit, same-level numbered/bulleted asks. Message length and
+ * paragraph boundaries alone are never evidence that a request is parallel.
+ * Dependency language falls back to one direct model call rather than racing
+ * steps whose inputs may depend on each other.
+ */
 export function splitTask(text: string, maxParts: number): string[] {
-  const limit = Math.max(2, Math.min(12, Math.floor(maxParts) || 6));
+  const limit = Math.max(2, Math.min(5, Math.floor(maxParts) || 4));
   const trimmed = text.trim();
   if (!trimmed) return [];
-  const questionCount = countQuestions(trimmed);
-  const isLong = trimmed.length > 1200;
-  if (!isLong && questionCount < 4) return [trimmed];
+  if (DEPENDENCY_HINT.test(trimmed)) return [trimmed];
 
   const lines = trimmed.split(/\r?\n/);
   const blocks: string[] = [];
   let current: string[] = [];
-  let seenNumbered = false;
+  let listType: "numbered" | "bullet" | null = null;
   for (const line of lines) {
-    if (NUMBERED_LINE.test(line) && current.length > 0 && seenNumbered) {
+    const numbered = NUMBERED_LINE.test(line);
+    const bullet = BULLET_LINE.test(line);
+    const type = numbered ? "numbered" : bullet ? "bullet" : null;
+    if (type && listType && type !== listType) return [trimmed];
+    if (type && current.length > 0 && listType === type) {
       blocks.push(current.join("\n").trim());
       current = [line];
     } else {
-      if (NUMBERED_LINE.test(line)) seenNumbered = true;
       current.push(line);
+      if (type) listType = type;
     }
   }
   if (current.length) blocks.push(current.join("\n").trim());
 
   const usableBlocks = blocks.filter((block) => block.length > 0);
-  if (usableBlocks.length < 2) {
-    // No numbered structure: fall back to paragraph/size based splitting.
-    const paragraphs = trimmed.split(/\n{2,}/).map((part) => part.trim()).filter(Boolean);
-    if (paragraphs.length >= 2) return groupBySize(paragraphs, limit);
-    return sliceBySize(trimmed, limit);
-  }
+  if (!listType || usableBlocks.length < 2) return [trimmed];
   return groupBySize(usableBlocks, limit);
 }
 
 function groupBySize(blocks: string[], maxParts: number): string[] {
   const total = blocks.reduce((sum, block) => sum + block.length, 0);
-  const target = Math.max(400, Math.ceil(total / maxParts));
+  const target = Math.max(1, Math.ceil(total / maxParts));
   const parts: string[] = [];
   let buffer: string[] = [];
   let size = 0;
@@ -159,21 +157,71 @@ function groupBySize(blocks: string[], maxParts: number): string[] {
   return parts.filter(Boolean).slice(0, maxParts);
 }
 
-function sliceBySize(text: string, maxParts: number): string[] {
-  const target = Math.max(600, Math.ceil(text.length / maxParts));
-  const parts: string[] = [];
-  let cursor = 0;
-  while (cursor < text.length && parts.length < maxParts - 1) {
-    let end = Math.min(text.length, cursor + target);
-    if (end < text.length) {
-      const newline = text.lastIndexOf("\n", end);
-      if (newline > cursor + 200) end = newline;
-    }
-    parts.push(text.slice(cursor, end).trim());
-    cursor = end;
+export interface TaskPlanStep {
+  step_id: string;
+  description: string;
+  expected_inputs: Record<string, unknown>;
+  completion_criteria: string;
+  depends_on: string[];
+}
+
+/** Builds a compact deterministic plan for already-separated independent list items. */
+export function buildIndependentTaskPlan(parts: string[], maxParts: number): TaskPlanStep[] | null {
+  const limit = Math.max(2, Math.min(5, Math.floor(maxParts) || 4));
+  if (parts.length < 2 || parts.length > limit || parts.some((part) => !part.trim())) return null;
+  return parts.map((part, index) => ({
+    step_id: `part-${index + 1}`,
+    description: part.trim().slice(0, 240),
+    expected_inputs: { source: "user_request_list_item", list_index: index + 1 },
+    completion_criteria: "إجابة مكتملة ومباشرة عن هذا الجزء دون تنفيذ أجزاء أخرى.",
+    depends_on: [],
+  }));
+}
+
+/** Validates ids, bounds, required fields and an acyclic dependency graph. */
+export function validateTaskPlan(plan: TaskPlanStep[], maxParts: number): boolean {
+  const limit = Math.max(2, Math.min(5, Math.floor(maxParts) || 4));
+  if (plan.length < 2 || plan.length > limit) return false;
+  const ids = new Set(plan.map((step) => step.step_id));
+  if (ids.size !== plan.length) return false;
+  for (const step of plan) {
+    if (!step.step_id.trim() || !step.description.trim() || !step.completion_criteria.trim()) return false;
+    if (!step.expected_inputs || typeof step.expected_inputs !== "object" || !Array.isArray(step.depends_on)) return false;
+    if (step.depends_on.some((id) => !ids.has(id) || id === step.step_id)) return false;
   }
-  if (cursor < text.length) parts.push(text.slice(cursor).trim());
-  return parts.filter(Boolean);
+  const visited = new Set<string>();
+  const visiting = new Set<string>();
+  const byId = new Map(plan.map((step) => [step.step_id, step]));
+  const visit = (id: string): boolean => {
+    if (visiting.has(id)) return false;
+    if (visited.has(id)) return true;
+    visiting.add(id);
+    for (const parent of byId.get(id)?.depends_on ?? []) if (!visit(parent)) return false;
+    visiting.delete(id);
+    visited.add(id);
+    return true;
+  };
+  return [...ids].every(visit);
+}
+
+/** Stable-order bounded worker pool used for independent task parts. */
+export async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(items.length, Math.max(1, Math.floor(concurrency) || 1));
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (true) {
+      const index = nextIndex;
+      nextIndex += 1;
+      if (index >= items.length) return;
+      results[index] = await mapper(items[index], index);
+    }
+  }));
+  return results;
 }
 
 /** Joins part answers while keeping the original order and numbering visible. */

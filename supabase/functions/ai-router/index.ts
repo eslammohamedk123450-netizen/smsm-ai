@@ -11,6 +11,7 @@ import { lookupSemanticCache, recordCacheHit, storeSemanticCache } from "../_sha
 import { buildMemoryContext, searchTaskMemories, storeTaskMemory } from "../_shared/task_memory.ts";
 import { buildMindPolicy, classifyIntent } from "../_shared/intent_classifier.ts";
 import { OutputGuard } from "../_shared/output_guard.ts";
+import { fingerprintAiRequest, isCompletedAiRequestClaim, requestClaimHttpStatus } from "../_shared/ai_request_idempotency.ts";
 import { lookupQuickReply, storeQuickReply } from "../_shared/quick_replies_cache.ts";
 import {
   buildWorkerBrief,
@@ -19,7 +20,7 @@ import {
   upsertSharedTaskMemory,
 } from "../_shared/shared_task_memory.ts";
 import { CircuitBreaker } from "./circuit_breaker.ts";
-import { mergePartAnswers, probeCandidates, splitTask } from "./resilience.ts";
+import { buildIndependentTaskPlan, mapWithConcurrency, mergePartAnswers, probeCandidates, splitTask, validateTaskPlan } from "./resilience.ts";
 
 // Native Android/iOS clients do not require CORS. Web access must set WEB_CORS_ORIGIN
 // explicitly; never fall back to a wildcard in a deployed environment.
@@ -40,6 +41,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, cache-control",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
+const activeAiClaims = new WeakMap<Request, { supabase: any; requestId: string; userId: string }>();
 
 type ChatRole = "system" | "user" | "assistant";
 type ChatMessage = { role: ChatRole; content: string };
@@ -91,6 +93,7 @@ type ReadyCandidate = Candidate & {
   iterator: AsyncGenerator<string>;
   firstChunk: string;
   startedAtMs: number;
+  firstChunkAtMs: number;
   cleanup: () => void;
 };
 type AttemptRecorder = (candidate: Candidate, status: AttemptStatus, durationMs: number, errorCode?: string | null, errorReason?: string | null) => Promise<void>;
@@ -130,6 +133,15 @@ function taskEvent(task: string, status: "pending" | "running" | "completed" | "
 
 function estimateTokens(text: string): number {
   return Math.max(0, Math.ceil(text.length / 3));
+}
+
+function safeOperationalSummary(value: string, maxLength = 300): string {
+  return value
+    .replace(/Bearer\s+[^\s,;]+/gi, "Bearer [redacted]")
+    .replace(/(api[_ -]?key|token|secret|password|passwd)\s*[:=]\s*[^\s,;]+/gi, "$1=[redacted]")
+    .replace(/\b(?:sk-[A-Za-z0-9_-]{16,}|sb_[A-Za-z0-9_-]{20,})\b/g, "[credential-redacted]")
+    .replace(/https?:\/\/[^\s"'<>]+/gi, "[url-redacted]")
+    .slice(0, maxLength);
 }
 
 function calculateCreditCost(pricing: CreditPricing, inputTokens: number, outputTokens: number): number {
@@ -283,6 +295,7 @@ async function openCandidate(candidate: Candidate, controller: AbortController):
       iterator,
       firstChunk: first.value,
       startedAtMs,
+      firstChunkAtMs: Date.now(),
       cleanup: () => clearTimeout(timeoutId),
     };
   } catch (error) {
@@ -293,7 +306,7 @@ async function openCandidate(candidate: Candidate, controller: AbortController):
 }
 
 // The first model that produces actual non-empty text wins; HTTP headers alone do not win the race.
-async function firstReady(candidates: Candidate[], waitMs: number, recordAttempt: AttemptRecorder): Promise<ReadyCandidate | null> {
+async function firstReady(candidates: Candidate[], waitMs: number, recordAttempt: AttemptRecorder, onStart?: (count: number) => void): Promise<ReadyCandidate | null> {
   if (candidates.length === 0) return null;
   const raceState = { winnerSelected: false, deadlineExpired: false };
   const attempts = candidates.map((candidate) => {
@@ -315,6 +328,7 @@ async function firstReady(candidates: Candidate[], waitMs: number, recordAttempt
     });
     return { candidate, controller, promise, startedAtMs };
   });
+  onStart?.(attempts.length);
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<null>((resolve) => {
     timer = setTimeout(() => resolve(null), waitMs);
@@ -338,8 +352,39 @@ async function firstReady(candidates: Candidate[], waitMs: number, recordAttempt
   return winner;
 }
 
-async function collectCandidate(candidate: ReadyCandidate): Promise<string> {
-  const guard = new OutputGuard({ maxChars: 50000 });
+const OUTPUT_GUARD_NOTICE_RESERVE = 64;
+
+function outputLimitForRequest(intent: string, requestText: string, maxTokens: number): number {
+  const explicitlyLong = /(?:بالتفصيل|تفصيلي|مطول|مطولة|طويل|موسع|كامل|شامل|دراسة|تقرير|comprehensive|in\s+detail|thorough|long\s+form)/iu.test(requestText);
+  const intentLimit = intent === "complex_task" ? 50000 : intent === "simple_task" ? 24000 : 12000;
+  const tokenLimit = Math.max(4000, Math.min(50000, maxTokens * 8));
+  return Math.min(explicitlyLong ? 50000 : intentLimit, tokenLimit);
+}
+
+function outputGuardNotice(reason: "repetition" | "max_output"): string {
+  return reason === "repetition"
+    ? "\n\n[تم إيقاف التكرار تلقائيًا.]"
+    : "\n\n[تم إنهاء الرد عند بلوغ الحد الآمن.]";
+}
+
+function applyFinalOutputLimit(content: string, maxChars: number): { content: string; reason: "max_output" | null } {
+  if (content.length <= maxChars) return { content, reason: null };
+  const notice = outputGuardNotice("max_output");
+  const contentLimit = Math.max(1, maxChars - notice.length);
+  let bounded = content.slice(0, contentLimit);
+  const boundary = Math.max(
+    bounded.lastIndexOf("\n\n"),
+    bounded.lastIndexOf(". "),
+    bounded.lastIndexOf("؟"),
+    bounded.lastIndexOf("! "),
+    bounded.lastIndexOf("? "),
+  );
+  if (boundary > contentLimit * 0.65) bounded = bounded.slice(0, boundary + 1);
+  return { content: `${bounded.trimEnd()}${notice}`, reason: "max_output" };
+}
+
+async function collectCandidate(candidate: ReadyCandidate, maxChars: number): Promise<{ content: string; reason: "repetition" | "max_output" | null }> {
+  const guard = new OutputGuard({ maxChars: Math.max(512, maxChars - OUTPUT_GUARD_NOTICE_RESERVE) });
   let content = guard.push(candidate.firstChunk).text;
   try {
     if (!guard.reason) {
@@ -352,32 +397,49 @@ async function collectCandidate(candidate: ReadyCandidate): Promise<string> {
         }
       }
     }
-    return content;
+    const tail = guard.finish();
+    content += tail.text;
+    return { content, reason: guard.reason };
   } finally {
     candidate.cleanup();
   }
 }
 
-async function persistAssistant(
-  // The client generic differs between the router, the agent modules, and the
-  // shared infrastructure helpers, so the handoff uses the structural type.
+async function persistAssistantText(
   supabase: any,
   conversationId: string | null,
   userId: string,
-  candidate: ReadyCandidate,
+  requestId: string,
+  modelId: number | null,
   content: string,
 ) {
   if (!conversationId || !content) return null;
-  const { data, error } = await supabase.from("suly_messages").insert({
+  const { data, error } = await supabase.from("suly_messages").upsert({
+    request_id: requestId,
     conversation_id: conversationId,
     user_id: userId,
-    model_id: candidate.model.id,
+    model_id: modelId,
     role: "assistant",
     content,
     tokens_used: Math.ceil(content.length / 4),
-  }).select("id").maybeSingle();
+  }, { onConflict: "request_id", ignoreDuplicates: true }).select("id").maybeSingle();
   if (error) console.error("Could not save assistant message:", error.message);
-  return typeof data?.id === "string" ? data.id : null;
+  if (typeof data?.id === "string") return data.id;
+  const { data: existing, error: lookupError } = await supabase.from("suly_messages")
+    .select("id").eq("request_id", requestId).eq("user_id", userId).eq("role", "assistant").maybeSingle();
+  if (lookupError) console.error("Could not recover assistant message:", lookupError.message);
+  return typeof existing?.id === "string" ? existing.id : null;
+}
+
+async function persistAssistant(
+  supabase: any,
+  conversationId: string | null,
+  userId: string,
+  requestId: string,
+  candidate: ReadyCandidate,
+  content: string,
+) {
+  return await persistAssistantText(supabase, conversationId, userId, requestId, candidate.model.id, content);
 }
 
 async function handleRequest(req: Request): Promise<Response> {
@@ -433,6 +495,8 @@ async function handleRequest(req: Request): Promise<Response> {
   try { body = asRecord(await req.json()); }
   catch { return jsonResponse({ error: "Request body must be valid JSON." }, 400); }
 
+  const internalBrainCall = req.headers.get("x-suly-internal-brain-key") === serviceRoleKey
+    && normalizeFeatureKey(body.feature_key) === "brain_system";
   const conversationId = typeof body.conversation_id === "string" ? body.conversation_id : null;
   const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   const billingTaskId = typeof body.request_id === "string" ? body.request_id : crypto.randomUUID();
@@ -465,6 +529,9 @@ async function handleRequest(req: Request): Promise<Response> {
   if (messages[messages.length - 1].role !== "user") return jsonResponse({ error: "The final message must be from the user." }, 400);
   if (messages.reduce((sum, item) => sum + item.content.length, 0) > 50000) return jsonResponse({ error: "Conversation context is too long." }, 413);
   const originalUserInstruction = [...messages].reverse().find((message) => message.role === "user")?.content ?? "";
+  if (body.user_message_id != null && (typeof body.user_message_id !== "string" || !uuidPattern.test(body.user_message_id))) {
+    return jsonResponse({ error: "user_message_id must be a valid UUID." }, 400, req);
+  }
   const requestedAssetIds = Array.isArray(body.media_asset_ids) ? body.media_asset_ids : [];
   if (requestedAssetIds.length > 5 || requestedAssetIds.some((id) => typeof id !== "string" || !uuidPattern.test(id))) return jsonResponse({ error: "قائمة المرفقات غير صالحة أو تتجاوز الحد المسموح." }, 400);
   const mediaAssetIds = [...new Set(requestedAssetIds as string[])];
@@ -539,12 +606,107 @@ async function handleRequest(req: Request): Promise<Response> {
       messages[lastUserIndex].content = nextContent;
     }
   }
+  const rawModelId = Number(body.model_id);
+  const modelId = Number.isSafeInteger(rawModelId) && rawModelId > 0 ? rawModelId : 0;
+  const hasExplicitModel = modelId > 0;
+  const routingMode = body.routing_mode === "manual" || (hasExplicitModel && body.routing_mode !== "auto") ? "manual" : "auto";
+  const temperatureInput = typeof body.temperature === "number" ? body.temperature : 0.7;
+  const temperature = Math.min(2, Math.max(0, temperatureInput));
+  const maxTokensInput = typeof body.max_tokens === "number" ? body.max_tokens : 1024;
+  const maxTokens = Math.min(4096, Math.max(1, Math.floor(maxTokensInput)));
+  const requestedFeatureKey = normalizeFeatureKey(body.feature_key);
+  const fingerprintFeatureKey = profile.hims_activated !== true && requestedFeatureKey === "hims" ? "general" : requestedFeatureKey;
+  const userMessageId = typeof body.user_message_id === "string" ? body.user_message_id : null;
+  const requestFingerprint = await fingerprintAiRequest({
+    conversationId,
+    userMessageId,
+    messages: messages.filter((message) => message.role !== "system").map((message) => ({ role: message.role as "user" | "assistant", content: message.content })),
+    mediaAssetIds,
+    featureKey: fingerprintFeatureKey,
+    routingMode,
+    modelId: hasExplicitModel ? modelId : null,
+    temperature,
+    maxTokens,
+  });
+  const { data: claimData, error: claimError } = await supabase.rpc("suly_claim_ai_request", {
+    p_request_id: billingTaskId,
+    p_user_id: user.id,
+    p_conversation_id: conversationId,
+    p_user_message_id: userMessageId,
+    p_request_fingerprint: requestFingerprint,
+  });
+  if (claimError) {
+    console.error("Could not claim AI request:", claimError.message);
+    return jsonResponse({ error: "Could not establish a safe request session." }, 503, req);
+  }
+  const requestClaim = asRecord(claimData);
+  if (isCompletedAiRequestClaim(requestClaim)) {
+    let replayText = typeof requestClaim.response_text === "string" ? requestClaim.response_text : "";
+    if (!replayText && typeof requestClaim.response_message_id === "string") {
+      const { data: saved, error: savedError } = await supabase.from("suly_messages")
+        .select("content").eq("id", requestClaim.response_message_id).eq("request_id", billingTaskId)
+        .eq("user_id", user.id).eq("role", "assistant").maybeSingle();
+      if (savedError) console.error("Could not load completed AI response:", savedError.message);
+      replayText = typeof saved?.content === "string" ? saved.content : "";
+    }
+    if (!replayText) return jsonResponse({ error: "This completed request no longer has a replayable response." }, 410, req);
+    const replayInfo = { ...asRecord(requestClaim.response_metadata), replayed: true };
+    if (body.stream === true) return sseTextResponse(replayText, replayInfo, req);
+    return jsonResponse({ ...replayInfo, response: { choices: [{ message: { role: "assistant", content: replayText } }] } }, 200, req);
+  }
+  const claimStatus = requestClaimHttpStatus(requestClaim as Parameters<typeof requestClaimHttpStatus>[0]);
+  if (claimStatus !== 200 || requestClaim.claimed !== true) {
+    const errorCode = typeof requestClaim.error === "string" ? requestClaim.error : typeof requestClaim.error_code === "string" ? requestClaim.error_code : null;
+    const message = requestClaim.in_progress === true
+      ? "This request is already being processed."
+      : requestClaim.terminal === true
+        ? "This request already ended; send a new request id to retry it."
+        : errorCode === "request_id_conflict"
+          ? "request_id is already bound to a different user message or input."
+          : "Could not establish a safe request session.";
+    return jsonResponse({ error: message, code: errorCode, request_id: billingTaskId }, claimStatus, req);
+  }
+  activeAiClaims.set(req, { supabase, requestId: billingTaskId, userId: user.id });
+  const finishAiRequest = async (
+    status: "completed" | "failed" | "cancelled",
+    responseMessageId: string | null = null,
+    responseText: string | null = null,
+    responseMetadata: Record<string, unknown> = {},
+    errorCode: string | null = null,
+  ) => {
+    const { data, error } = await supabase.rpc("suly_finish_ai_request", {
+      p_request_id: billingTaskId,
+      p_user_id: user.id,
+      p_status: status,
+      p_response_message_id: responseMessageId,
+      p_response_text: responseText,
+      p_response_metadata: responseMetadata,
+      p_error_code: errorCode,
+    });
+    if (error) {
+      console.error("Could not finalize AI request:", error.message);
+      return false;
+    }
+    const result = asRecord(data);
+    if (result.finalized === true || result.already_completed === true) {
+      activeAiClaims.delete(req);
+      return true;
+    }
+    return false;
+  };
+  const failedResponse = async (response: Response, errorCode: string): Promise<Response> => {
+    await finishAiRequest("failed", null, null, {}, errorCode);
+    return response;
+  };
   const requiredCapabilities: ModelCapability[] = ["chat", ...trustedAttachments.map((asset) => asset.capability)];
   const uniqueRequiredCapabilities = [...new Set(requiredCapabilities)];
   let latestUserMessage = originalUserInstruction;
   // "The mind thinks first": a zero-token internal decision made before any
   // response or orchestration. It is never surfaced to the user.
-  const mind = classifyIntent(latestUserMessage);
+  const mind = internalBrainCall
+    ? { intent: "simple_task" as const, maxSources: 1, reason: "internal_brain_worker" }
+    : classifyIntent(latestUserMessage);
+  const maxOutputChars = outputLimitForRequest(mind.intent, latestUserMessage, maxTokens);
   const streamRequested = body.stream === true;
   let himsActivated = profile.hims_activated === true;
   let identityContext = buildSulyIdentityContext(himsActivated);
@@ -562,48 +724,19 @@ async function handleRequest(req: Request): Promise<Response> {
     const { error } = await supabase.from("agent_workspace_steps").update({ status, ...(status === "running" ? { started_at: timestamp } : {}), ...(status === "completed" || status === "failed" ? { completed_at: timestamp } : {}), ...patch }).eq("workspace_id", workspaceId).eq("step_key", stepKey);
     if (error) console.error("Could not update agent workspace step:", error.message);
   };
-  const { data: agentRows, error: agentRowsError } = mind.intent === "complex_task"
-    ? await supabase.from("agent_registry").select("id,role,name,system_prompt,model_fallback_chain").eq("is_active", true).order("updated_at", { ascending: false }).limit(1000)
-    : { data: [], error: null };
-  if (agentRowsError) console.error("Could not load active agents:", agentRowsError.message);
-  const plannerAgent = (agentRows ?? []).find((agent) => agent.role === "planner") ?? null;
-  const workerAgent = (agentRows ?? []).find((agent) => agent.role === "worker") ?? null;
-  const reviewerAgent = (agentRows ?? []).find((agent) => agent.role === "reviewer") ?? null;
-  // Chit-chat never pays for orchestration bookkeeping: no workspace, no
-  // steps, and no ledger rows are created for plain conversation turns.
-  if (mind.intent === "complex_task") {
-    const { data: workspaceRow, error: workspaceError } = await supabase.from("agent_workspaces").upsert({ request_id: billingTaskId, conversation_id: conversationId, user_id: user.id, status: "planning", plan: [{ step_key: "plan", description: "تحليل الطلب وتقسيمه" }, { step_key: "execute", description: "تنفيذ المهام" }, { step_key: "review", description: "مراجعة وتجميع النتيجة" }] }, { onConflict: "request_id" }).select("id").single();
-    if (workspaceError || !workspaceRow) console.error("Could not create agent workspace:", workspaceError?.message);
-    else {
-      workspaceId = String(workspaceRow.id);
-      const { error: stepsError } = await supabase.from("agent_workspace_steps").upsert([
-        { workspace_id: workspaceId, step_key: "plan", sequence_order: 1, description: "تحليل الطلب وتقسيمه إلى مهام", assigned_agent_id: plannerAgent?.id ?? null },
-        { workspace_id: workspaceId, step_key: "execute", sequence_order: 2, description: "تنفيذ المهمة عبر المساعد والنماذج المحددة", assigned_agent_id: workerAgent?.id ?? null },
-        { workspace_id: workspaceId, step_key: "review", sequence_order: 3, description: "مراجعة النتائج وتجميعها وتنسيقها", assigned_agent_id: reviewerAgent?.id ?? null },
-      ], { onConflict: "workspace_id,step_key" });
-      if (stepsError) console.error("Could not create agent workspace steps:", stepsError.message);
-    }
-    if (conversationId) {
-      const ledgerRows = [
-        ["plan", "تحليل الطلب وتقسيمه إلى مهام", 1],
-        ["execute", "تنفيذ المهمة عبر النموذج والمساعد المناسب", 2],
-        ["review", "مراجعة الإجابة وترتيبها وتنسيقها", 3],
-      ].map(([task_key, task_description, sequence_order]) => ({ conversation_id: conversationId, request_id: billingTaskId, workspace_id: workspaceId, task_key, task_description, sequence_order, status: "pending" }));
-      const { error: ledgerError } = await supabase.from("task_ledger").insert(ledgerRows);
-      if (ledgerError) console.error("Could not create task ledger:", ledgerError.message);
-    }
-    // Compound tasks get the one shared scratchpad that the mind, the workers,
-    // and the coordinator read from instead of re-reading the whole chat.
-    if (mind.intent === "complex_task") {
-      await upsertSharedTaskMemory(supabase, {
-        requestId: billingTaskId,
-        userId: user.id,
-        conversationId,
-        objective: latestUserMessage,
-      });
-    }
-  }
+  const updateTaskLedger = async (taskKey: string, status: "running" | "completed" | "failed", result?: Record<string, unknown>) => {
+    if (!conversationId) return;
+    const timestamp = new Date().toISOString();
+    const { error } = await supabase.from("task_ledger").update({
+      status,
+      ...(status === "running" ? { started_at: timestamp } : { completed_at: timestamp }),
+      ...(result ? { result } : {}),
+    }).match({ conversation_id: conversationId, request_id: billingTaskId, task_key: taskKey });
+    if (error) console.error("Could not update task ledger:", error.message);
+  };
   const startedAt = Date.now();
+  let modelInvocationCount = 0;
+  const countModelStarts = (count: number) => { modelInvocationCount += Math.max(0, Math.floor(count)); };
   const recordEvent = async (model: ModelRow | null, status: "success" | "error", errorSummary: string | null = null) => {
     const { error } = await supabase.from("suly_ai_request_events").insert({
       user_id: user.id,
@@ -611,7 +744,7 @@ async function handleRequest(req: Request): Promise<Response> {
       model_id: model?.id ?? null,
       status,
       duration_ms: Math.max(0, Date.now() - startedAt),
-      error_summary: errorSummary?.slice(0, 300) ?? null,
+      error_summary: errorSummary ? safeOperationalSummary(errorSummary, 300) : null,
     });
     if (error) console.error("Could not persist ai-router event:", error.message);
   };
@@ -621,24 +754,15 @@ async function handleRequest(req: Request): Promise<Response> {
     eventSummary = "deterministic_response",
     status: "success" | "error" = "success",
   ): Promise<Response> => {
-    if (conversationId) {
-      const { error } = await supabase.from("suly_messages").insert({
-        conversation_id: conversationId,
-        user_id: user.id,
-        model_id: null,
-        role: "assistant",
-        content: text,
-        tokens_used: Math.ceil(text.length / 4),
-      });
-      if (error) console.error("Could not save deterministic assistant message:", error.message);
-    }
+    const messageId = await persistAssistantText(supabase, conversationId, user.id, billingTaskId, null, text);
     await recordEvent(null, status, eventSummary);
     const responseInfo = { ...info, user_metadata: userMetadata };
+    await finishAiRequest("completed", messageId, messageId ? null : text, responseInfo);
     if (streamRequested) return sseTextResponse(text, responseInfo, req);
     return jsonResponse({ ...responseInfo, response: { choices: [{ message: { role: "assistant", content: text } }] } }, 200, req);
   };
 
-  const activationCommand = parseActivationCommand(latestUserMessage);
+  const activationCommand = internalBrainCall ? null : parseActivationCommand(latestUserMessage);
   if (activationCommand) {
     const activation = await activateFeatureByCode(supabase, user.id, activationCommand.code);
     const activationSucceeded = activation.outcome === "activated" || activation.outcome === "already_active";
@@ -661,17 +785,17 @@ async function handleRequest(req: Request): Promise<Response> {
     }
   }
 
-  if (trustedAttachments.length === 0 && !himsActivated && containsHimsReference(latestUserMessage)) {
+  if (!internalBrainCall && trustedAttachments.length === 0 && !himsActivated && containsHimsReference(latestUserMessage)) {
     return respondDeterministically(INACTIVE_UNKNOWN_ANSWER, { billing: null }, "restricted_feature_query");
   }
-  const identityAnswer = trustedAttachments.length === 0 ? getIdentityAnswer(latestUserMessage) : null;
+  const identityAnswer = !internalBrainCall && trustedAttachments.length === 0 ? getIdentityAnswer(latestUserMessage) : null;
   if (identityAnswer) {
     return respondDeterministically(identityAnswer, { billing: null }, "identity_question");
   }
 
   // quick-replies-cache: repeated chit-chat and previously answered exact
   // questions are served with zero model calls and zero credit spend.
-  const quickReply = trustedAttachments.length ? { reply: null } : await lookupQuickReply(supabase, user.id, latestUserMessage);
+  const quickReply = internalBrainCall || trustedAttachments.length ? { reply: null } : await lookupQuickReply(supabase, user.id, latestUserMessage);
   if (quickReply.reply) {
     return respondDeterministically(quickReply.reply, {
       route: "quick_reply",
@@ -688,17 +812,9 @@ async function handleRequest(req: Request): Promise<Response> {
 
   // Every feature namespaces its cache and memory through this key. Unknown or
   // malformed values fall back to `general`, so no caller can escape its scope.
-  const requestedFeatureKey = normalizeFeatureKey(body.feature_key);
   const featureKey = !himsActivated && requestedFeatureKey === "hims" ? "general" : requestedFeatureKey;
 
 
-  const modelId = Number(body.model_id);
-  const hasExplicitModel = Number.isSafeInteger(modelId) && modelId > 0;
-  const routingMode = body.routing_mode === "manual" || (hasExplicitModel && body.routing_mode !== "auto") ? "manual" : "auto";
-  const temperatureInput = typeof body.temperature === "number" ? body.temperature : 0.7;
-  const temperature = Math.min(2, Math.max(0, temperatureInput));
-  const maxTokensInput = typeof body.max_tokens === "number" ? body.max_tokens : 1024;
-  const maxTokens = Math.min(4096, Math.max(1, Math.floor(maxTokensInput)));
   const { data: pricingRow, error: pricingError } = await supabase
     .from("suly_credit_pricing")
     .select("enabled,minimum_request_credits,input_credits_per_1k_tokens,output_credits_per_1k_tokens")
@@ -706,7 +822,7 @@ async function handleRequest(req: Request): Promise<Response> {
     .maybeSingle();
   if (pricingError || !pricingRow) {
     console.error("Credit pricing could not be loaded:", pricingError?.message ?? "missing row");
-    return jsonResponse({ error: "Credit pricing configuration is unavailable." }, 503);
+    return await failedResponse(jsonResponse({ error: "Credit pricing configuration is unavailable." }, 503, req), "pricing_unavailable");
   }
   const creditPricing: CreditPricing = {
     enabled: pricingRow.enabled === true,
@@ -722,7 +838,7 @@ async function handleRequest(req: Request): Promise<Response> {
   ]);
   if (modelsError || providersError) {
     console.error("Could not load routing catalog:", modelsError?.message ?? providersError?.message);
-    return jsonResponse({ error: "Could not load the model routing catalog." }, 500);
+    return await failedResponse(jsonResponse({ error: "Could not load the model routing catalog." }, 500, req), "model_catalog_unavailable");
   }
   const { data: healthRows, error: healthError } = await supabase
     .from("ai_model_health")
@@ -730,7 +846,7 @@ async function handleRequest(req: Request): Promise<Response> {
     .limit(500);
   if (healthError) {
     console.error("Could not load model health:", healthError.message);
-    return jsonResponse({ error: "Could not load model health status." }, 500);
+    return await failedResponse(jsonResponse({ error: "Could not load model health status." }, 500, req), "model_health_unavailable");
   }
   const healthByModel = new Map<number, { auto_restricted: boolean; restriction_reason: string | null }>(
     (healthRows ?? []).map((row: { model_id: number; auto_restricted: boolean; restriction_reason: string | null }) => [row.model_id, row]),
@@ -745,7 +861,7 @@ async function handleRequest(req: Request): Promise<Response> {
     preflightProbeTimeoutMs: Math.max(300, Math.min(10000, Number(settingsRow?.preflight_probe_timeout_ms) || 1500)),
     preflightProbeMaxModels: Math.max(1, Math.min(20, Number(settingsRow?.preflight_probe_max_models) || 6)),
     taskSplitEnabled: settingsRow?.task_split_enabled !== false,
-    taskSplitMaxParts: Math.max(2, Math.min(12, Number(settingsRow?.task_split_max_parts) || 6)),
+    taskSplitMaxParts: Math.max(2, Math.min(5, Number(settingsRow?.task_split_max_parts) || 4)),
   };
   const providerById = new Map<number, ProviderRow>((providers ?? []).map((p: ProviderRow) => [p.id, p]));
   const healthyModels = (allModels ?? []).filter((model: ModelRow) => !healthByModel.get(model.id)?.auto_restricted);
@@ -755,12 +871,12 @@ async function handleRequest(req: Request): Promise<Response> {
     && modelSupportsRequest(model, uniqueRequiredCapabilities));
   if (routingMode === "auto" && !anyCapabilityEligible) {
     const labels = [...new Set(trustedAttachments.map((asset) => capabilityLabel(asset.capability)))].join(" و");
-    return jsonResponse({ error: trustedAttachments.length ? `لا يوجد نموذج مفعّل بقدرات ${labels} لهذا المرفق. فعّل القدرة المناسبة من إعدادات النماذج.` : "لا يوجد نموذج نصي مؤهل حاليًا." }, 422);
+    return await failedResponse(jsonResponse({ error: trustedAttachments.length ? `لا يوجد نموذج مفعّل بقدرات ${labels} لهذا المرفق. فعّل القدرة المناسبة من إعدادات النماذج.` : "لا يوجد نموذج نصي مؤهل حاليًا." }, 422, req), "no_eligible_model");
   }
   const manuallyRequested = routingMode === "manual" ? (allModels ?? []).find((m: ModelRow) => m.id === modelId) : null;
   const manualHealth = manuallyRequested ? healthByModel.get(manuallyRequested.id) : null;
   if (manualHealth?.auto_restricted) {
-    return jsonResponse({ error: "This model is temporarily restricted pending administrator review.", restriction_reason: manualHealth.restriction_reason }, 423);
+    return await failedResponse(jsonResponse({ error: "This model is temporarily restricted pending administrator review.", restriction_reason: manualHealth.restriction_reason }, 423, req), "model_restricted");
   }
   let candidatesFrom: ModelRow[] = [];
   if (routingMode === "manual") {
@@ -772,8 +888,8 @@ async function handleRequest(req: Request): Promise<Response> {
     candidatesFrom = tierFiltered.filter(m => m.routing_group === "free_race").sort((a,b) => b.priority - a.priority);
   }
 
-  if (routingMode === "manual" && candidatesFrom.length === 0) return jsonResponse({ error: manuallyRequested ? "النموذج المحدد لا يملك القدرات المطلوبة لهذا المرفق." : "Model not found or disabled." }, manuallyRequested ? 422 : 404);
-  if (routingMode === "manual" && !(candidatesFrom[0].allowed_tiers ?? []).includes(userTier)) return jsonResponse({ error: "This model is not available on your current plan." }, 403);
+  if (routingMode === "manual" && candidatesFrom.length === 0) return await failedResponse(jsonResponse({ error: manuallyRequested ? "النموذج المحدد لا يملك القدرات المطلوبة لهذا المرفق." : "Model not found or disabled." }, manuallyRequested ? 422 : 404, req), "manual_model_unavailable");
+  if (routingMode === "manual" && !(candidatesFrom[0].allowed_tiers ?? []).includes(userTier)) return await failedResponse(jsonResponse({ error: "This model is not available on your current plan." }, 403, req), "tier_not_allowed");
 
   const requiredProviderIds: number[] = [...new Set<number>((candidatesFrom as ModelRow[]).map((m: ModelRow) => m.provider_id))];
   const providerKeys = new Map<number, string>();
@@ -794,11 +910,7 @@ async function handleRequest(req: Request): Promise<Response> {
 
   const usableInitial = makeCandidates(candidatesFrom);
   const recordAttempt: AttemptRecorder = async (candidate, status, durationMs, errorCode = null, errorReason = null) => {
-    const safeReason = (errorReason ?? "")
-      .replace(/Bearer\s+[^\s,;]+/gi, "Bearer [redacted]")
-      .replace(/(api[_ -]?key|token|secret)\s*[:=]\s*[^\s,;]+/gi, "$1=[redacted]")
-      .replace(/https:\/\/res\.cloudinary\.com\/[^\s"'<>]+/gi, "[media-url-redacted]")
-      .slice(0, 1000);
+    const safeReason = safeOperationalSummary(errorReason ?? "", 1000);
     const { error } = await supabase.rpc("record_ai_model_attempt", {
       p_model_id: candidate.model.id,
       p_provider_id: candidate.provider.id,
@@ -858,12 +970,19 @@ async function handleRequest(req: Request): Promise<Response> {
   let billingReserved = false;
   let billingFinalized = false;
   let providerCandidateAvailable = usableInitial.length > 0;
-  if (creditPricing.enabled) {
+  if (creditPricing.enabled && !internalBrainCall) {
     // Reserve room for up to five bounded saved memories before embedding/retrieval runs.
     const inputUpperBound = messages.reduce((sum, item) => sum + item.content.length, 0) + 22000;
-    const reserveAmount = calculateCreditCost(creditPricing, inputUpperBound, maxTokens);
+    const proposedReservationParts = settings.taskSplitEnabled && trustedAttachments.length === 0 && mind.intent === "complex_task"
+      ? splitTask(latestUserMessage, settings.taskSplitMaxParts)
+      : [latestUserMessage];
+    const reservationPlan = buildIndependentTaskPlan(proposedReservationParts, settings.taskSplitMaxParts);
+    const boundedWorkerCalls = reservationPlan && validateTaskPlan(reservationPlan, settings.taskSplitMaxParts)
+      ? reservationPlan.length * 3
+      : 1;
+    const reserveAmount = calculateCreditCost(creditPricing, inputUpperBound * boundedWorkerCalls, maxTokens * boundedWorkerCalls);
     if (!Number.isSafeInteger(reserveAmount) || reserveAmount <= 0 || reserveAmount > 1000000000) {
-      return jsonResponse({ error: "Estimated credit reservation exceeds the configured safety limit." }, 422);
+      return await failedResponse(jsonResponse({ error: "Estimated credit reservation exceeds the configured safety limit." }, 422, req), "credit_reservation_invalid");
     }
     const { data: reservation, error: reservationError } = await supabase.rpc("reserve_credits", {
       p_user_id: user.id,
@@ -873,27 +992,29 @@ async function handleRequest(req: Request): Promise<Response> {
     });
     if (reservationError) {
       console.error("Could not reserve credits:", reservationError.message);
-      return jsonResponse({ error: "Could not reserve credits for this request." }, 503);
+      return await failedResponse(jsonResponse({ error: "Could not reserve credits for this request." }, 503, req), "credit_reservation_unavailable");
     }
     const reservationResult = asRecord(reservation);
     if (reservationResult.success === true && reservationResult.already_reserved === true) {
-      return jsonResponse({ error: "This request is already being processed.", request_id: billingTaskId }, 409);
+      return await failedResponse(jsonResponse({ error: "This request is already being processed.", request_id: billingTaskId }, 409, req), "legacy_credit_hold_conflict");
     }
     if (reservationResult.success !== true) {
       await recordEvent(null, "error", "Insufficient credits for the requested reservation.");
-      return jsonResponse({
+      return await failedResponse(jsonResponse({
         error: reservationResult.error === "insufficient_credits" ? "Insufficient credits." : "Credit reservation was rejected.",
         balance: reservationResult.balance,
         required: reservationResult.required,
-      }, reservationResult.error === "insufficient_credits" ? 402 : 409);
+      }, reservationResult.error === "insufficient_credits" ? 402 : 409, req), reservationResult.error === "insufficient_credits" ? "insufficient_credits" : "credit_reservation_rejected");
     }
     billingReserved = true;
   }
 
-  const memoryState = await prepareAgentMemory(supabase, user.id, latestUserMessage);
+  const memoryState = internalBrainCall
+    ? { embedding: null, memories: [] }
+    : await prepareAgentMemory(supabase, user.id, latestUserMessage);
   // Global layers: the same vector memory and feature context are shared by every
   // feature, so HIMS (or anything added later) inherits them for free.
-  const taskMemory = await searchTaskMemories({
+  const taskMemory = internalBrainCall ? { memories: [], embedding: null } : await searchTaskMemories({
     supabase,
     userId: user.id,
     query: latestUserMessage,
@@ -976,7 +1097,7 @@ async function handleRequest(req: Request): Promise<Response> {
   // Global semantic cache: a sufficiently similar earlier answer is served
   // without calling any provider. The reservation made above is released with a
   // zero-cost settlement, so cache hits never charge the user.
-  const cacheLookup = trustedAttachments.length ? { hit: null, embedding: null, promptHash: null, contextHash: null, skipped: true } : await lookupSemanticCache({
+  const cacheLookup = internalBrainCall || trustedAttachments.length ? { hit: null, embedding: null, promptHash: null, contextHash: null, skipped: true } : await lookupSemanticCache({
     supabase,
     featureKey,
     userMessage: latestUserMessage,
@@ -990,17 +1111,7 @@ async function handleRequest(req: Request): Promise<Response> {
   if (cacheLookup.hit && (himsActivated || !containsHimsReference(cacheLookup.hit.responseText))) {
     const cached = cacheLookup.hit;
     await recordCacheHit(supabase, cached.id);
-    if (conversationId) {
-      const { error } = await supabase.from("suly_messages").insert({
-        conversation_id: conversationId,
-        user_id: user.id,
-        model_id: null,
-        role: "assistant",
-        content: cached.responseText,
-        tokens_used: Math.ceil(cached.responseText.length / 4),
-      });
-      if (error) console.error("Could not save cached assistant message:", error.message);
-    }
+    const messageId = await persistAssistantText(supabase, conversationId, user.id, billingTaskId, null, cached.responseText);
     const billing = await finalizeBilling(null, cached.responseText, "semantic_cache", false);
     await recordEvent(null, "success", "served_from_semantic_cache");
     const info = {
@@ -1016,6 +1127,7 @@ async function handleRequest(req: Request): Promise<Response> {
       billing,
       user_metadata: userMetadata,
     };
+    await finishAiRequest("completed", messageId, messageId ? null : cached.responseText, info);
     if (streamRequested) return sseTextResponse(cached.responseText, info, req);
     return jsonResponse({ ...info, response: { choices: [{ message: { role: "assistant", content: cached.responseText } }] } }, 200, req);
   }
@@ -1077,10 +1189,51 @@ async function handleRequest(req: Request): Promise<Response> {
   // answers are merged so a single provider hiccup never fails the request.
   // Only compound tasks pay the decomposition cost; chat and simple tasks are
   // always answered in a single response.
-  const splitParts = settings.taskSplitEnabled && trustedAttachments.length === 0 && mind.intent === "complex_task"
+  const proposedParts = settings.taskSplitEnabled && trustedAttachments.length === 0 && mind.intent === "complex_task"
     ? splitTask(latestUserMessage, settings.taskSplitMaxParts)
     : [latestUserMessage];
+  let taskPlan = buildIndependentTaskPlan(proposedParts, settings.taskSplitMaxParts);
+  if (!taskPlan || !validateTaskPlan(taskPlan, settings.taskSplitMaxParts)) taskPlan = null;
+  const splitParts = taskPlan ? proposedParts : [latestUserMessage];
   if (splitParts.length > 1) {
+    const planPayload = taskPlan!.map((step) => ({ ...step }));
+    const { data: workspaceRow, error: workspaceError } = await supabase.from("agent_workspaces").upsert({
+      request_id: billingTaskId,
+      conversation_id: conversationId,
+      user_id: user.id,
+      status: "planning",
+      plan: planPayload,
+    }, { onConflict: "request_id" }).select("id").single();
+    if (workspaceError || !workspaceRow) {
+      console.error("Could not create agent workspace:", workspaceError?.message);
+    } else {
+      workspaceId = String(workspaceRow.id);
+    }
+    const workspaceSteps = [
+      { workspace_id: workspaceId, step_key: "plan", sequence_order: 0, description: "خطة حتمية من عناصر مستقلة صريحة، دون استدعاء Planner لغوي." },
+      ...taskPlan!.map((step, index) => ({ workspace_id: workspaceId, step_key: step.step_id, sequence_order: index + 1, description: step.description })),
+      { workspace_id: workspaceId, step_key: "merge", sequence_order: taskPlan!.length + 1, description: "جمع إجابات الأجزاء الناجحة بترتيب القائمة، دون مراجعة وكيل غير منفذة." },
+    ];
+    if (workspaceId) {
+      const { error: stepsError } = await supabase.from("agent_workspace_steps").upsert(workspaceSteps, { onConflict: "workspace_id,step_key" });
+      if (stepsError) console.error("Could not create task workspace steps:", stepsError.message);
+    }
+    const ledgerRows = [
+      { task_key: "plan", task_description: "تحقق من خطة الأجزاء المستقلة", sequence_order: 0 },
+      ...taskPlan!.map((step, index) => ({ task_key: step.step_id, task_description: step.description.slice(0, 240), sequence_order: index + 1 })),
+      { task_key: "merge", task_description: "جمع نتائج الأجزاء المكتملة", sequence_order: taskPlan!.length + 1 },
+    ].map((step) => ({ conversation_id: conversationId, request_id: billingTaskId, workspace_id: workspaceId, ...step, status: "pending" }));
+    if (conversationId) {
+      const { error: ledgerError } = await supabase.from("task_ledger").upsert(ledgerRows, { onConflict: "request_id,task_key", ignoreDuplicates: true });
+      if (ledgerError) console.error("Could not create task ledger:", ledgerError.message);
+    }
+    await updateWorkspaceStep("plan", "running");
+    await updateTaskLedger("plan", "running");
+    await updateWorkspaceStep("plan", "completed", { result: { plan_type: "independent_list", step_count: taskPlan!.length } });
+    await updateTaskLedger("plan", "completed", { plan_type: "independent_list", step_count: taskPlan!.length });
+    await updateWorkspace("executing");
+    // This deterministic plan contains no dependencies; each part is executed
+    // once, with one limited model fallback, by a pool of at most three workers.
     const systemMessages = messages.filter((message) => message.role === "system");
     // Workers read the shared-task-memory brief instead of the full chat
     // transcript, which is the main token saving of the orchestration.
@@ -1093,69 +1246,117 @@ async function handleRequest(req: Request): Promise<Response> {
     });
     const workerBrief = buildWorkerBrief(taskMemoryRecord);
     const pendingParts = new Set(splitParts.map((_, index) => index));
-    // Parts do not depend on one another, so run their races concurrently.
-    // Promise.all preserves the input order even when providers finish out of order.
-    const answerPart = async (index: number): Promise<{ index: number; content: string; model: string | null; candidate: ReadyCandidate | null }> => {
+    let workerInputTokens = 0;
+    let workerOutputTokens = 0;
+    let workerBillingCandidate: ReadyCandidate | null = null;
+    const accountedWorkerCandidates = new WeakSet<object>();
+    const accountWorkerUsage = (candidate: ReadyCandidate, content: string) => {
+      if (accountedWorkerCandidates.has(candidate)) return;
+      accountedWorkerCandidates.add(candidate);
+      workerBillingCandidate ??= candidate;
+      workerInputTokens += candidate.inputTokens > 0
+        ? candidate.inputTokens
+        : estimateTokens(candidate.requestMessages.map((message) => message.content).join("\n"));
+      workerOutputTokens += candidate.outputTokens > 0
+        ? candidate.outputTokens
+        : content.trim() ? estimateTokens(content) : candidate.firstChunk ? estimateTokens(candidate.firstChunk) : 0;
+    };
+    // Parts do not depend on one another. Bound parallel workers to three;
+    // each part also races at most three candidate models and has one fallback.
+    const answerPart = async (index: number): Promise<{ index: number; content: string; model: string | null; candidate: ReadyCandidate | null; outputGuard: "repetition" | "max_output" | null }> => {
+      const stepKey = `part-${index + 1}`;
+      await updateWorkspaceStep(stepKey, "running");
+      await updateTaskLedger(stepKey, "running");
       const partMessages: ChatMessage[] = [
         ...systemMessages,
         { role: "system", content: workerBrief },
         { role: "user", content: splitParts[index] },
       ];
-      let remaining = raceCandidates.map((candidate) => ({ ...candidate, requestMessages: partMessages }));
+      let remaining = raceCandidates.slice(0, 3).map((candidate) => ({ ...candidate, requestMessages: partMessages }));
       for (let attempt = 0; attempt < Math.min(2, remaining.length); attempt += 1) {
-        const partWinner = await firstReady(remaining, settings.freeRaceTimeoutMs, recordAttempt);
+        const partWinner = await firstReady(remaining, settings.freeRaceTimeoutMs, recordAttempt, countModelStarts);
         if (!partWinner) break;
         try {
-          const content = await collectCandidate(partWinner);
+          const collected = await collectCandidate(partWinner, Math.max(1600, Math.floor(maxOutputChars / splitParts.length)));
+          const content = collected.content + (collected.reason ? outputGuardNotice(collected.reason) : "");
+          accountWorkerUsage(partWinner, content);
           if (content.trim()) {
             const trimmedPart = content.trim();
             pendingParts.delete(index);
             const partSources = trimmedPart.match(/https?:\/\/[^\s)"]+/g) ?? [];
-            await updateSharedTaskMemory(supabase, billingTaskId, {
-              done: [`الجزء ${index + 1} من ${splitParts.length}: ${trimmedPart.slice(0, 150)}`],
-              remaining: [...pendingParts].map((pendingIndex) => splitParts[pendingIndex]),
-              ...(partSources.length > 0 ? { sources: partSources.slice(0, 3) } : {}),
-            });
-            return { index, content, model: partWinner.model.model_identifier, candidate: partWinner };
+            try {
+              await updateSharedTaskMemory(supabase, billingTaskId, {
+                done: [`الجزء ${index + 1} من ${splitParts.length}: ${trimmedPart.slice(0, 150)}`],
+                remaining: [...pendingParts].map((pendingIndex) => splitParts[pendingIndex]),
+                ...(partSources.length > 0 ? { sources: partSources.slice(0, 3) } : {}),
+              });
+            } catch { console.warn("Could not update temporary task scratchpad."); }
+            await updateWorkspaceStep(stepKey, "completed", { selected_model_id: partWinner.model.id, result: { characters: trimmedPart.length, output_guard: collected.reason } });
+            await updateTaskLedger(stepKey, "completed", { model_id: partWinner.model.id, characters: trimmedPart.length, output_guard: collected.reason });
+            return { index, content, model: partWinner.model.model_identifier, candidate: partWinner, outputGuard: collected.reason };
           }
         } catch (error) {
           const reason = error instanceof Error ? error.message : String(error);
+          accountWorkerUsage(partWinner, "");
           await recordAttempt(partWinner, "error", Date.now() - partWinner.startedAtMs, "stream_error", reason);
         }
         remaining = remaining.filter((candidate) => candidate.model.id !== partWinner.model.id);
       }
-      return { index, content: "", model: null, candidate: null };
+      await updateWorkspaceStep(stepKey, "failed", { error_message: "worker_failed" });
+      await updateTaskLedger(stepKey, "failed", { error: "worker_failed" });
+      return { index, content: "", model: null, candidate: null, outputGuard: null };
     };
-    const partResultsWithCandidates = await Promise.all(splitParts.map((_, index) => answerPart(index)));
+    const partResultsWithCandidates = await mapWithConcurrency(splitParts, 3, (_part, index) => answerPart(index));
     const partResults = partResultsWithCandidates.map(({ index, content, model }) => ({ index, content, model }));
+    const successfulParts = partResultsWithCandidates.filter((part) => part.candidate !== null);
+    const failedPartCount = splitParts.length - successfulParts.length;
     const bestCandidate = partResultsWithCandidates.find((part) => part.candidate)?.candidate ?? null;
-    const merged = mergePartAnswers(partResults);
+    if (successfulParts.length === 0) {
+      await updateWorkspaceStep("merge", "running");
+      await updateTaskLedger("merge", "running");
+      const workerBillingRef = ((): ReadyCandidate | null => workerBillingCandidate)();
+      const billingCandidate = workerBillingRef
+        ? { ...workerBillingRef, inputTokens: workerInputTokens, outputTokens: workerOutputTokens }
+        : null;
+      const billing = await finalizeBilling(billingCandidate, "", "worker_failure", Boolean(billingCandidate));
+      await updateWorkspaceStep("merge", "failed", { error_message: "no_worker_results" });
+      await updateTaskLedger("merge", "failed", { error: "no_worker_results" });
+      await updateWorkspace("failed", { parts: splitParts.length, completed: 0, failed: splitParts.length });
+      await clearSharedTaskMemory(supabase, billingTaskId);
+      await finishAiRequest("failed", null, null, { route: "task_split", parts: splitParts.length, failed_parts: splitParts.length, billing }, "all_workers_failed");
+      return jsonResponse({ error: "The compound request could not be completed because every task part failed.", completed_parts: 0, failed_parts: splitParts.length, billing }, 502, req);
+    }
+
+    await updateWorkspaceStep("merge", "running");
+    await updateTaskLedger("merge", "running");
+    const rawMerged = mergePartAnswers(partResults);
+    const limitedMerged = applyFinalOutputLimit(rawMerged, maxOutputChars);
+    const merged = limitedMerged.content;
     const mergedModel = bestCandidate;
     const messageId = mergedModel
-      ? await persistAssistant(supabase, conversationId, user.id, mergedModel, merged)
-      : null;
-    if (!mergedModel && conversationId) {
-      const { error } = await supabase.from("suly_messages").insert({
-        conversation_id: conversationId,
-        user_id: user.id,
-        model_id: null,
-        role: "assistant",
-        content: merged,
-        tokens_used: Math.ceil(merged.length / 4),
+      ? await persistAssistant(supabase, conversationId, user.id, billingTaskId, mergedModel, merged)
+      : await persistAssistantText(supabase, conversationId, user.id, billingTaskId, null, merged);
+    for (const part of successfulParts) {
+      await logMessageModel({
+        messageId,
+        modelId: part.candidate!.model.id,
+        modelIdentifier: part.candidate!.model.model_identifier,
+        providerType: part.candidate!.provider.provider_type,
+        route: "task_split",
+        durationMs: Date.now() - part.candidate!.startedAtMs,
+        partIndex: part.index + 1,
+        partCount: splitParts.length,
       });
-      if (error) console.error("Could not save split assistant message:", error.message);
     }
-    await logMessageModel({
-      messageId,
-      modelId: mergedModel?.model.id ?? null,
-      modelIdentifier: mergedModel?.model.model_identifier ?? null,
-      providerType: mergedModel?.provider.provider_type ?? null,
-      route: "task_split",
-      durationMs: Date.now() - startedAt,
-      partCount: splitParts.length,
-    });
-    await recordEvent(mergedModel?.model ?? null, "success", `task_split:${splitParts.length}_parts`);
-    const billing = await finalizeBilling(mergedModel, merged, "ai_request", Boolean(mergedModel));
+    await recordEvent(mergedModel?.model ?? null, "success", `task_split:${splitParts.length}_parts;completed:${successfulParts.length};failed:${failedPartCount}`);
+    const billingCandidate = mergedModel
+      ? { ...mergedModel, inputTokens: workerInputTokens, outputTokens: workerOutputTokens }
+      : null;
+    const billing = await finalizeBilling(billingCandidate, merged, "ai_request", Boolean(billingCandidate));
+    const outputGuard = limitedMerged.reason ?? (partResultsWithCandidates.some((part) => part.outputGuard === "repetition") ? "repetition" : null);
+    await updateWorkspaceStep("merge", "completed", { result: { characters: merged.length, completed_parts: successfulParts.length, failed_parts: failedPartCount, output_guard: outputGuard } });
+    await updateTaskLedger("merge", "completed", { characters: merged.length, completed_parts: successfulParts.length, failed_parts: failedPartCount, output_guard: outputGuard });
+    await updateWorkspace("completed", { characters: merged.length, model_id: mergedModel?.model.id ?? null, completed_parts: successfulParts.length, failed_parts: failedPartCount });
     // The task is done, so the shared scratchpad is wiped immediately.
     await clearSharedTaskMemory(supabase, billingTaskId);
     const info = {
@@ -1164,17 +1365,24 @@ async function handleRequest(req: Request): Promise<Response> {
       provider: mergedModel?.provider.provider_type ?? "multi",
       route: "task_split",
       parts: splitParts.length,
+      completed_parts: successfulParts.length,
+      failed_parts: failedPartCount,
+      model_calls: modelInvocationCount,
+      first_chunk_ms: Date.now() - startedAt,
+      total_ms: Date.now() - startedAt,
+      output_guard: outputGuard,
       billing,
       user_metadata: userMetadata,
     };
+    await finishAiRequest("completed", messageId, messageId ? null : merged, info);
     if (streamRequested) return sseTextResponse(merged, info, req);
     return jsonResponse({ ...info, response: { choices: [{ message: { role: "assistant", content: merged } }] } }, 200, req);
   }
 
   if (routingMode === "manual") {
-    winner = await firstReady(raceCandidates, settings.paidFallbackTimeoutMs, recordAttempt);
+    winner = await firstReady(raceCandidates, settings.paidFallbackTimeoutMs, recordAttempt, countModelStarts);
   } else {
-    winner = await firstReady(raceCandidates, settings.freeRaceTimeoutMs, recordAttempt);
+    winner = await firstReady(raceCandidates, settings.freeRaceTimeoutMs, recordAttempt, countModelStarts);
   }
 
   if (!winner && routingMode === "auto" && settings.paidFallbackEnabled) {
@@ -1195,7 +1403,7 @@ async function handleRequest(req: Request): Promise<Response> {
     for (const candidate of paidCandidates) {
       const remaining = fallbackDeadline - Date.now();
       if (remaining <= 0) break;
-      winner = await firstReady([candidate], remaining, recordAttempt);
+      winner = await firstReady([candidate], remaining, recordAttempt, countModelStarts);
       if (winner) break;
     }
   }
@@ -1206,7 +1414,8 @@ async function handleRequest(req: Request): Promise<Response> {
       ? "No eligible free_race or paid_fallback model returned a response."
       : "The selected model did not return a response.";
     await recordEvent(null, "error", errorMessage);
-    return jsonResponse({ error: errorMessage, billing }, routingMode === "auto" ? 404 : 502);
+    await finishAiRequest("failed", null, null, { billing }, "model_no_response");
+    return jsonResponse({ error: errorMessage, billing }, routingMode === "auto" ? 404 : 502, req);
   }
 
   const modeUsed = routingMode === "manual" ? "manual" : winner.model.routing_group;
@@ -1216,7 +1425,7 @@ async function handleRequest(req: Request): Promise<Response> {
   // memory, the cross-feature task memory, and the semantic cache.
   const persistLearning = async (candidate: Candidate | null, content: string): Promise<void> => {
     const answer = content.trim();
-    if (answer.length === 0) return;
+    if (answer.length === 0 || internalBrainCall) return;
     if (trustedAttachments.length) return;
     await saveAgentMemory(supabase, user.id, latestUserMessage, memoryState.embedding);
     // Chat turns answered by the mind join quick-replies-cache, so the next
@@ -1258,41 +1467,39 @@ async function handleRequest(req: Request): Promise<Response> {
     let attemptRecorded = false;
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
-        const outputGuard = new OutputGuard({ maxChars: Math.max(4000, Math.min(50000, maxTokens * 8)) });
+        const outputGuard = new OutputGuard({ maxChars: Math.max(512, maxOutputChars - OUTPUT_GUARD_NOTICE_RESERVE) });
         const firstOutput = outputGuard.push(winner!.firstChunk);
         let fullContent = firstOutput.text;
-        const emit = (value: Record<string, unknown>) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(value)}\n\n`));
+        let firstClientChunkAt: number | null = null;
+        const emit = (value: Record<string, unknown>) => {
+          if (typeof value.chunk === "string" && value.chunk.length > 0 && firstClientChunkAt === null) firstClientChunkAt = Date.now();
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(value)}\n\n`));
+        };
         try {
-          if (workspaceId) {
-            controller.enqueue(encoder.encode(taskEvent("تحليل الطلب", "running")));
-            await updateWorkspaceStep("plan", "running");
-            if (conversationId) await supabase.from("task_ledger").update({ status: "running", started_at: new Date().toISOString() }).match({ conversation_id: conversationId, request_id: billingTaskId, task_key: "plan" });
-            controller.enqueue(encoder.encode(taskEvent("تحليل الطلب", "completed")));
-            controller.enqueue(encoder.encode(taskEvent("تنفيذ المهمة", "running")));
-            await updateWorkspaceStep("plan", "completed");
-            await updateWorkspace("executing");
-            await updateWorkspaceStep("execute", "running");
-            if (conversationId) await supabase.from("task_ledger").update({ status: "completed", completed_at: new Date().toISOString() }).match({ conversation_id: conversationId, request_id: billingTaskId, task_key: "plan" });
-            if (conversationId) await supabase.from("task_ledger").update({ status: "running", started_at: new Date().toISOString() }).match({ conversation_id: conversationId, request_id: billingTaskId, task_key: "execute" });
-          }
           if (firstOutput.text) emit({ chunk: firstOutput.text, done: false, ...responseInfo });
-          for await (const chunk of winner!.iterator) {
-            const guarded = outputGuard.push(chunk);
-            fullContent += guarded.text;
-            if (guarded.text) emit({ chunk: guarded.text, done: false });
-            if (guarded.stopped) {
-              winner!.controller.abort();
-              break;
+          if (firstOutput.stopped) winner!.controller.abort();
+          if (!firstOutput.stopped) {
+            for await (const chunk of winner!.iterator) {
+              const guarded = outputGuard.push(chunk);
+              fullContent += guarded.text;
+              if (guarded.text) emit({ chunk: guarded.text, done: false });
+              if (guarded.stopped) {
+                winner!.controller.abort();
+                break;
+              }
             }
           }
+          if (!outputGuard.reason) {
+            const finalOutput = outputGuard.finish();
+            fullContent += finalOutput.text;
+            if (finalOutput.text) emit({ chunk: finalOutput.text, done: false });
+          }
           if (outputGuard.reason) {
-            const notice = outputGuard.reason === "repetition"
-              ? "\n\n[تم إيقاف التكرار تلقائيًا.]"
-              : "\n\n[تم إنهاء الرد عند بلوغ الحد الآمن.]";
+            const notice = outputGuardNotice(outputGuard.reason);
             fullContent += notice;
             emit({ chunk: notice, done: false });
           }
-          const messageId = await persistAssistant(supabase, conversationId, user.id, winner!, fullContent);
+          const messageId = await persistAssistant(supabase, conversationId, user.id, billingTaskId, winner!, fullContent);
           await logMessageModel({
             messageId,
             modelId: winner!.model.id,
@@ -1306,28 +1513,26 @@ async function handleRequest(req: Request): Promise<Response> {
           attemptRecorded = true;
           await recordEvent(winner!.model, "success");
           const billing = await finalizeBilling(winner!, fullContent, "ai_request", true);
-          if (workspaceId) {
-            controller.enqueue(encoder.encode(taskEvent("تنفيذ المهمة", "completed")));
-            controller.enqueue(encoder.encode(taskEvent("جمع الإجابة", "running")));
-            await updateWorkspaceStep("execute", "completed", { selected_model_id: winner!.model.id, result: { characters: fullContent.length, route: modeUsed } });
-            await updateWorkspace("reviewing");
-            await updateWorkspaceStep("review", "running");
-            if (conversationId) await supabase.from("task_ledger").update({ status: "completed", completed_at: new Date().toISOString() }).match({ conversation_id: conversationId, request_id: billingTaskId, task_key: "execute" });
-            if (conversationId) await supabase.from("task_ledger").update({ status: "completed", completed_at: new Date().toISOString(), result: { characters: fullContent.length } }).match({ conversation_id: conversationId, request_id: billingTaskId, task_key: "review" });
-            await updateWorkspaceStep("review", "completed", { result: { characters: fullContent.length, coordinator: true } });
-            await updateWorkspace("completed", { characters: fullContent.length, model_id: winner!.model.id, route: modeUsed });
-          }
-          emit({ done: true, ...responseInfo, billing, output_guard: outputGuard.reason });
-          if (workspaceId) controller.enqueue(encoder.encode(taskEvent("جمع الإجابة", "completed")));
+          const finalInfo = {
+            ...responseInfo,
+            billing,
+            output_guard: outputGuard.reason,
+            model_calls: modelInvocationCount,
+            first_chunk_ms: firstClientChunkAt === null ? Date.now() - startedAt : firstClientChunkAt - startedAt,
+            total_ms: Date.now() - startedAt,
+          };
+          await finishAiRequest("completed", messageId, messageId ? null : fullContent, finalInfo);
+          emit({ done: true, ...finalInfo });
           controller.close();
         } catch (error) {
           const summary = error instanceof Error ? error.message : String(error);
           const attemptStatus: AttemptStatus = clientCancelled ? "cancelled" : winner!.controller.signal.aborted ? "timeout" : "error";
+          let partialMessageId: string | null = null;
           // A user-initiated stop is still useful work: persist the text that
           // reached the client so stopping never erases a partial answer.
           if (clientCancelled && fullContent.trim()) {
             try {
-              await persistAssistant(supabase, conversationId, user.id, winner!, fullContent);
+              partialMessageId = await persistAssistant(supabase, conversationId, user.id, billingTaskId, winner!, fullContent);
             } catch {
               // The client still keeps the partial text locally if persistence
               // races with stream cancellation.
@@ -1337,12 +1542,19 @@ async function handleRequest(req: Request): Promise<Response> {
             await recordAttempt(winner!, attemptStatus, Date.now() - winner!.startedAtMs, attemptStatus === "timeout" ? "model_timeout" : "stream_error", summary);
             attemptRecorded = true;
           }
-          await updateWorkspaceStep("execute", "failed", { error_message: summary.slice(0, 500) });
-          await updateWorkspace("failed", { error: summary.slice(0, 500) });
-          await recordEvent(winner!.model, "error", summary);
           const billing = await finalizeBilling(winner!, fullContent, attemptStatus, true);
-          emit({ error: "The selected model stream was interrupted.", billing });
-          controller.close();
+          if (!clientCancelled) await recordEvent(winner!.model, "error", summary);
+          await finishAiRequest(
+            clientCancelled ? "cancelled" : "failed",
+            partialMessageId,
+            !partialMessageId && clientCancelled ? fullContent || null : null,
+            { ...responseInfo, billing, partial: clientCancelled, model_calls: modelInvocationCount, total_ms: Date.now() - startedAt },
+            clientCancelled ? "client_cancelled" : attemptStatus === "timeout" ? "model_timeout" : "stream_error",
+          );
+          if (!clientCancelled) {
+            emit({ error: "The selected model stream was interrupted.", billing });
+            controller.close();
+          }
         } finally {
           winner!.cleanup();
         }
@@ -1364,38 +1576,55 @@ async function handleRequest(req: Request): Promise<Response> {
   }
 
   try {
-    await updateWorkspaceStep("plan", "completed");
-    await updateWorkspace("executing");
-    await updateWorkspaceStep("execute", "running");
-    const content = await collectCandidate(winner);
-    await persistAssistant(supabase, conversationId, user.id, winner, content);
+    const collected = await collectCandidate(winner, maxOutputChars);
+    const content = collected.content + (collected.reason ? outputGuardNotice(collected.reason) : "");
+    if (!content.trim()) throw new Error("model returned no safe response text");
+    const messageId = await persistAssistant(supabase, conversationId, user.id, billingTaskId, winner, content);
     await persistLearning(winner, content);
     await recordAttempt(winner, "success", Date.now() - winner.startedAtMs);
     await recordEvent(winner.model, "success");
     const billing = await finalizeBilling(winner, content, "ai_request", true);
-    await updateWorkspaceStep("execute", "completed", { selected_model_id: winner.model.id, result: { characters: content.length } });
-    await updateWorkspace("reviewing");
-    await updateWorkspaceStep("review", "running");
-    await updateWorkspaceStep("review", "completed", { result: { characters: content.length, reviewer_agent_id: reviewerAgent?.id ?? null } });
-    await updateWorkspace("completed", { characters: content.length, model_id: winner.model.id });
-    return jsonResponse({ ...responseInfo, billing, response: { choices: [{ message: { role: "assistant", content } }] } }, 200, req);
+    const finalInfo = {
+      ...responseInfo,
+      billing,
+      output_guard: collected.reason,
+      model_calls: modelInvocationCount,
+      first_chunk_ms: Date.now() - startedAt,
+      total_ms: Date.now() - startedAt,
+      ...(internalBrainCall ? { usage: { input_tokens: winner.inputTokens, output_tokens: winner.outputTokens } } : {}),
+    };
+    await finishAiRequest("completed", messageId, messageId ? null : content, finalInfo);
+    return jsonResponse({ ...finalInfo, response: { choices: [{ message: { role: "assistant", content } }] } }, 200, req);
   } catch (error) {
     const summary = error instanceof Error ? error.message : String(error);
     const attemptStatus: AttemptStatus = winner.controller.signal.aborted ? "timeout" : "error";
     await recordAttempt(winner, attemptStatus, Date.now() - winner.startedAtMs, attemptStatus === "timeout" ? "model_timeout" : "stream_error", summary);
     await recordEvent(winner.model, "error", summary);
     const billing = await finalizeBilling(winner, "", attemptStatus, true);
-    await updateWorkspaceStep("execute", "failed", { error_message: summary.slice(0, 500) });
-    await updateWorkspace("failed", { error: summary.slice(0, 500) });
-    return jsonResponse({ error: "The selected model stream was interrupted.", billing }, 502);
+    await finishAiRequest("failed", null, null, { ...responseInfo, billing }, attemptStatus === "timeout" ? "model_timeout" : "stream_error");
+    return jsonResponse({ error: "The selected model stream was interrupted.", billing }, 502, req);
   }
 }
 
 Deno.serve(async (req: Request) => {
   try {
     return await handleRequest(req);
-  } catch (error) {
-    console.error("Unhandled ai-router error:", error instanceof Error ? error.message : String(error));
+  } catch {
+    const claim = activeAiClaims.get(req);
+    if (claim) {
+      const { error } = await claim.supabase.rpc("suly_finish_ai_request", {
+        p_request_id: claim.requestId,
+        p_user_id: claim.userId,
+        p_status: "failed",
+        p_response_message_id: null,
+        p_response_text: null,
+        p_response_metadata: {},
+        p_error_code: "unhandled_router_error",
+      });
+      if (error) console.error("Could not finalize unhandled AI request:", error.message);
+      activeAiClaims.delete(req);
+    }
+    console.error("Unhandled ai-router error.");
     return jsonResponse({ error: "Internal ai-router error." }, 500);
   }
 });
