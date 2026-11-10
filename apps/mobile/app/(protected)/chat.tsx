@@ -7,6 +7,7 @@ import { DrawerActions } from "@react-navigation/native";
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { useAuth } from "../../src/features/auth/auth-provider";
 import { chatService, type ChatMessage } from "../../src/features/chat/chat-service";
+import { getImageGenerationPrompt } from "../../src/features/chat/image-generation";
 import { chatStreamManager } from "../../src/features/chat/chat-stream-manager";
 import { runOnce } from "../../src/features/chat/submission-guard";
 import { ChatComposer, type ChatAttachment, type ChatComposerHandle } from "../../src/features/chat/components/ChatComposer";
@@ -253,16 +254,18 @@ export default function ChatPage() {
   const sendText = async (content: string, attachment?: ChatAttachment) => {
     await runOnce(lock, async () => {
       if (!user || (!content.trim() && !attachment)) return;
+      const imageGeneration = !attachment && getImageGenerationPrompt(content) !== null;
       setError(null);
       setRetryFailure(null);
       setIsSending(true);
-      setActiveTaskLabel("جاري تجهيز المهمة…");
+      setActiveTaskLabel(imageGeneration ? "جاري توليد الصورة…" : "جاري تجهيز المهمة…");
       void logFrictionEvent({ eventKind: "task_start", screenKey: "chat", featureKey: "chat", stepKey: "send_message", conversationId });
       const controller = new AbortController();
       abortRef.current = controller;
       let id = conversationId;
       let savedUserMessage = false;
       let savedUserMessageId: string | null = null;
+      let imagePlaceholderId: string | null = null;
       let streamCompleted = false;
       try {
         if (!id) {
@@ -292,7 +295,17 @@ export default function ChatPage() {
           async onUserSaved(message) {
             savedUserMessage = true;
             savedUserMessageId = message.id;
-            setMessages((current) => [...current.filter((item) => item.id !== STREAMING_ID), message]);
+            if (imageGeneration) imagePlaceholderId = `image-generation-${message.id}`;
+            setMessages((current) => [...current.filter((item) => item.id !== STREAMING_ID), message, ...(imageGeneration ? [{
+              id: `image-generation-${message.id}`,
+              conversationId: conversationKey,
+              role: "assistant" as const,
+              content: "",
+              createdAt: new Date().toISOString(),
+              modelId: null,
+              status: "streaming" as const,
+              generationState: "pending" as const,
+            }] : [])]);
           },
           onChunk(text) {
             streamedTextRef.current += text;
@@ -314,7 +327,10 @@ export default function ChatPage() {
       } catch (cause) {
         const partialContent = streamedTextRef.current.trim();
         if (controller.signal.aborted) {
-          if (partialContent) {
+          if (imageGeneration && imagePlaceholderId) {
+            setMessages((current) => current.filter((item) => item.id !== imagePlaceholderId && item.id !== STREAMING_ID));
+            if (id) void reloadMessages(id).catch(() => undefined);
+          } else if (partialContent) {
             setMessages((current) => [...current.filter((item) => item.id !== STREAMING_ID), {
               id: `partial-${savedUserMessageId ?? Date.now()}`,
               conversationId: id ?? conversationId ?? "",
@@ -331,7 +347,14 @@ export default function ChatPage() {
           setRetryFailure(null);
           if (savedUserMessage) void logFrictionEvent({ eventKind: "response_stopped", screenKey: "chat", featureKey: "chat", stepKey: "response", conversationId });
         } else if (savedUserMessage && savedUserMessageId && id && !streamCompleted) {
-          setMessages((current) => current.filter((item) => item.id !== STREAMING_ID));
+          if (imageGeneration && imagePlaceholderId) {
+            setMessages((current) => current.map((item) => item.id === imagePlaceholderId ? { ...item, status: "error", generationState: "failed" } : item));
+            setError(cause instanceof Error ? cause.message : "تعذر توليد الصورة. أرسل الطلب مجددًا للمحاولة.");
+            void logFrictionEvent({ eventKind: "action_failed", screenKey: "chat", featureKey: "chat", stepKey: "image_generation", errorCode: "image_generation_failed", conversationId: id });
+          } else {
+            setMessages((current) => current.filter((item) => item.id !== STREAMING_ID));
+          }
+          if (imageGeneration) return;
           // The user message is already persisted. Retry only assistant
           // generation, never sendMessage again, so it cannot be duplicated.
           try {
@@ -358,6 +381,9 @@ export default function ChatPage() {
             void logFrictionEvent({ eventKind: "action_failed", screenKey: "chat", featureKey: "chat", stepKey: "send_failed_after_retry", errorCode: "send_failed", conversationId: id });
           }
         } else {
+          if (imageGeneration && streamCompleted && id) {
+            void reloadMessages(id).catch(() => undefined);
+          }
           setError(cause instanceof Error ? cause.message : "تعذر إرسال الرسالة. تحقق من الاتصال وحاول مجددًا.");
           void logFrictionEvent({ eventKind: "action_failed", screenKey: "chat", featureKey: "chat", stepKey: "send_message", errorCode: "send_failed", conversationId });
         }
@@ -496,6 +522,7 @@ export default function ChatPage() {
       content={item.content}
       attachments={item.attachments}
       isStreaming={item.status === "streaming"}
+      generationState={item.generationState}
       feedback={feedbackByMessage[item.id] ?? null}
       onEdit={item.role === "user" ? (content) => composerRef.current?.editMessage(content) : undefined}
       onFeedback={item.role === "assistant" && item.status !== "streaming" ? (value) => updateFeedback(item.id, value) : undefined}

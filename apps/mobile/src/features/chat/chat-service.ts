@@ -1,10 +1,12 @@
 import { randomUUID } from "expo-crypto";
+import { env } from "../../config/env";
 import { supabase } from "../../lib/supabase/client";
 import { getQuickReply } from "../../lib/infra/quick-replies-cache";
 import type { ChatRequestBody } from "../../lib/network/sse-transport";
 import { summarizeContent } from "./conversation-title";
 import { buildRetryHistory } from "./chat-retry";
 import { chatStreamManager } from "./chat-stream-manager";
+import { getImageGenerationPrompt } from "./image-generation";
 import { getMediaDeliveryUrls, type MediaAsset } from "../media/media-service";
 export { titleFromMessage } from "./conversation-title";
 export { summarizeContent } from "./conversation-title";
@@ -18,6 +20,7 @@ export interface ChatMessage {
   createdAt: string;
   modelId: string | null;
   status: "sent" | "streaming" | "error";
+  generationState?: "pending" | "failed";
   attachments?: MediaAsset[];
 }
 export interface ChatModel {
@@ -138,7 +141,7 @@ export const chatService = {
       .limit(500);
     if (error) throw new Error("تعذر تحميل رسائل المحادثة.");
     const messages = (data ?? []).map((row) => mapMessage(row as MessageRow));
-    const messageIds = messages.filter((message) => message.role === "user").map((message) => message.id);
+    const messageIds = messages.map((message) => message.id);
     if (!messageIds.length) return messages;
     const { data: assetRows, error: assetError } = await supabase.from("global_media_assets")
       .select("id,message_id,bucket,mime_type,size_bytes,original_filename,created_at,metadata")
@@ -279,6 +282,37 @@ export const chatService = {
       .update(conversationUpdate)
       .eq("id", options.conversationId).eq("user_id", user.id);
     if (updateError) throw new Error("حُفظت رسالتك، لكن تعذر تحديث ترتيب المحادثة.");
+
+    const imagePrompt = options.mediaAsset ? null : getImageGenerationPrompt(content);
+    if (imagePrompt) {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) throw new Error("انتهت الجلسة. سجّل الدخول مرة أخرى لبدء توليد الصورة.");
+      let response: Response;
+      try {
+        response = await fetch(`${env.edgeFunctionBaseUrl}/image-generator`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            apikey: env.supabaseAnonKey,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({ conversation_id: options.conversationId, user_message_id: String(inserted.id), prompt: imagePrompt }),
+          signal: options.signal,
+        });
+      } catch (cause) {
+        if (options.signal.aborted) throw cause;
+        throw new Error("تعذر الاتصال بخدمة توليد الصور. حاول مرة أخرى.");
+      }
+      let result: Record<string, unknown> = {};
+      try { result = await response.json() as Record<string, unknown>; } catch { /* show safe fallback below */ }
+      if (!response.ok || result.success !== true) {
+        const message = typeof result.error === "string" ? result.error : "تعذر توليد الصورة. حاول مرة أخرى.";
+        throw new Error(message);
+      }
+      return;
+    }
 
     const identityReply = options.mediaAsset ? null : checkStrictIdentity(content);
     if (identityReply) {

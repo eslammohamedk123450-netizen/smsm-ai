@@ -442,6 +442,29 @@ export const adminService = {
     }).eq("id", planId);
     if (error) throw error;
   },
+  async getCloudflareImageSettings(): Promise<{ accountId: string; tokenConfigured: boolean; enabled: boolean; creditsPerImage: number }> {
+    await requireAdmin();
+    const { data, error } = await supabase.rpc("suly_admin_get_cloudflare_image_config");
+    if (error) throw new Error("تعذر تحميل إعدادات Cloudflare. تحقق من نشر migration إعداد الصور.");
+    const row = Array.isArray(data) ? data[0] : data;
+    return {
+      accountId: typeof row?.account_id === "string" ? row.account_id : "",
+      tokenConfigured: row?.token_configured === true,
+      enabled: row?.enabled === true,
+      creditsPerImage: Math.max(1, Number(row?.credits_per_image ?? 1)),
+    };
+  },
+  async saveCloudflareImageSettings(input: { accountId: string; apiToken: string | null; enabled: boolean; creditsPerImage: number }): Promise<{ tokenConfigured: boolean }> {
+    await requireAdmin();
+    const { data, error } = await supabase.rpc("suly_admin_save_cloudflare_image_config", {
+      p_account_id: input.accountId,
+      p_api_token: input.apiToken,
+      p_enabled: input.enabled,
+      p_credits_per_image: input.creditsPerImage,
+    });
+    if (error || data?.success !== true) throw new Error("تعذر حفظ إعدادات Cloudflare بأمان. تحقق من Account ID والرمز وصلاحية المشرف.");
+    return { tokenConfigured: data.token_configured === true };
+  },
   async getAdMobSettings(): Promise<{ appId: string; rewardedUnitId: string; bannerUnitId: string }> {
     await requireAdmin();
     const { data, error } = await supabase.from("system_settings").select("key,value").in("key", ["admob_app_id", "admob_rewarded_unit_id", "admob_banner_unit_id"]);

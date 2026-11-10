@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Animated, Image, Platform, Pressable, StyleSheet, TouchableOpacity, View, Modal } from "react-native";
+import { ActivityIndicator, Animated, Image, Platform, Pressable, StyleSheet, TouchableOpacity, View, Modal } from "react-native";
 import { PremiumText as Text } from "../../../components/ui/PremiumText";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
@@ -14,6 +14,7 @@ export interface MessageBubbleProps {
   messageId: string;
   attachments?: MediaAsset[];
   isStreaming?: boolean;
+  generationState?: "pending" | "failed";
   feedback?: Feedback;
   onFeedback?(value: Feedback): void | Promise<void>;
   onEdit?(content: string): void;
@@ -80,6 +81,7 @@ export function MessageBubble({
   content,
   attachments = [],
   isStreaming = false,
+  generationState,
   feedback = null,
   onFeedback,
   onEdit,
@@ -170,16 +172,31 @@ export function MessageBubble({
                   <Image source={require("../../../../assets/suly-icon.png")} style={styles.sulySmallIcon} resizeMode="cover" />
                   <Text style={styles.assistantTitle}>Suly</Text>
                 </View>
-                <TouchableOpacity onPress={() => void copyToClipboard(content, true)} style={styles.headerCopyBtn} accessibilityLabel="نسخ الرد">
+                {content ? <TouchableOpacity onPress={() => void copyToClipboard(content, true)} style={styles.headerCopyBtn} accessibilityLabel="نسخ الرد">
                   <Ionicons name={copied ? "checkmark" : "copy-outline"} size={14} color={copied ? "#0EA5E9" : "#A1A1AA"} />
-                </TouchableOpacity>
+                </TouchableOpacity> : null}
               </View>
 
-              {!isStreaming ? (
-                <View style={styles.markdown}>{renderContent(content)}</View>
-              ) : (
-                <Text style={styles.assistantText}>{content}</Text>
-              )}
+              {generationState ? (
+                <View style={styles.generationCard} accessibilityRole="progressbar" accessibilityLabel={generationState === "pending" ? "جاري توليد الصورة" : "تعذر توليد الصورة"}>
+                  {generationState === "pending" ? <ActivityIndicator size="large" color="#0EA5E9" /> : <Ionicons name="warning-outline" size={32} color="#F87171" />}
+                  <Text style={styles.generationLabel}>{generationState === "pending" ? "جاري توليد الصورة…" : "تعذر توليد الصورة. أرسل الطلب مجددًا للمحاولة."}</Text>
+                </View>
+              ) : <>
+                {!isStreaming ? (
+                  <View style={styles.markdown}>{renderContent(content)}</View>
+                ) : (
+                  <Text style={styles.assistantText}>{content}</Text>
+                )}
+                {attachments.length ? <View style={styles.assistantAttachments}>{attachments.map((asset) => {
+                  const isImage = asset.kind === "image" || asset.mimeType?.toLowerCase().startsWith("image/");
+                  return isImage ? (
+                    <Pressable key={asset.id} disabled={!asset.url} onPress={() => setViewedImage(asset.url)} accessibilityRole="button" accessibilityLabel="فتح الصورة المولدة">
+                      {asset.url ? <Image source={{ uri: asset.url }} style={styles.generatedImage} resizeMode="cover" /> : <View style={styles.missingGeneratedImage}><Ionicons name="image-outline" size={28} color="#A1A1AA" /></View>}
+                    </Pressable>
+                  ) : null;
+                })}</View> : null}
+              </>}
             </>
           )}
 
@@ -260,6 +277,11 @@ const styles = StyleSheet.create({
   assistantText: { fontSize: 16, lineHeight: 26, color: "#F5F5F5", fontWeight: "400", textAlign: "right", writingDirection: "rtl" },
   imageThumbnail: { width: 96, height: 96, borderRadius: 12, marginVertical: 4, backgroundColor: "#E5E7EB" },
   attachments: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 },
+  assistantAttachments: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 },
+  generatedImage: { width: 240, height: 240, maxWidth: 260, borderRadius: 12, marginTop: 4, backgroundColor: "#1F1F1F" },
+  missingGeneratedImage: { width: 240, height: 240, borderRadius: 12, marginTop: 4, backgroundColor: "#1F1F1F", justifyContent: "center", alignItems: "center" },
+  generationCard: { width: 240, maxWidth: "100%", aspectRatio: 1, borderRadius: 14, borderWidth: 1, borderColor: "#262626", backgroundColor: "#0B0B0B", alignItems: "center", justifyContent: "center", padding: 20, gap: 14 },
+  generationLabel: { color: "#A1A1AA", fontSize: 12, lineHeight: 18, fontWeight: "600", textAlign: "center" },
   missingAttachment: { width: 96, height: 96, borderRadius: 12, backgroundColor: "#E5E7EB", justifyContent: "center", alignItems: "center" },
   fileAttachment: { maxWidth: 260, minWidth: 180, flexDirection: "row-reverse", alignItems: "center", gap: 10, padding: 10, borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 12, backgroundColor: "#F8FAFC" },
   fileAttachmentText: { flex: 1, minWidth: 0, alignItems: "flex-end" },
