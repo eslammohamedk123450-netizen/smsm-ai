@@ -1,5 +1,5 @@
 jest.mock("expo-crypto", () => ({ randomUUID: () => "retry-request-id" }));
-jest.mock("../../lib/supabase/client", () => ({ supabase: { from: jest.fn() } }));
+jest.mock("../../lib/supabase/client", () => ({ supabase: { from: jest.fn(), auth: { getSession: jest.fn() }, functions: { invoke: jest.fn() } } }));
 jest.mock("../../lib/network/sse-client", () => ({ streamChatPlatform: jest.fn().mockResolvedValue(undefined) }));
 
 import { chatService } from "./chat-service";
@@ -12,9 +12,12 @@ const streamMock = streamChatPlatform as jest.Mock;
 
 describe("chatService.retryAssistant", () => {
   beforeEach(() => {
-    const query = {
+    (supabase.auth.getSession as unknown as jest.Mock).mockResolvedValue({ data: { session: null }, error: null });
+    (supabase.functions.invoke as unknown as jest.Mock).mockResolvedValue({ data: { assets: [] }, error: null });
+    const messagesQuery = {
       select: jest.fn().mockReturnThis(),
       eq: jest.fn().mockReturnThis(),
+      in: jest.fn().mockReturnThis(),
       order: jest.fn().mockReturnThis(),
       limit: jest.fn().mockResolvedValue({
         data: [
@@ -24,7 +27,13 @@ describe("chatService.retryAssistant", () => {
       }),
       insert: jest.fn(),
     };
-    fromMock.mockReturnValue(query);
+    const assetsQuery = {
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      in: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockResolvedValue({ data: [], error: null }),
+    };
+    fromMock.mockImplementation((table: string) => (table === "global_media_assets" ? assetsQuery : messagesQuery));
     streamMock.mockResolvedValue(undefined);
   });
 
