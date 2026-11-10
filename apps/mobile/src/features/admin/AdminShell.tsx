@@ -10,6 +10,7 @@ const NAV = [
   { path: "/admin/users", label: "المستخدمون", icon: "♙" },
   { path: "/admin/conversations", label: "المحادثات", icon: "▤" },
   { path: "/admin/models", label: "النماذج والتوجيه", icon: "◈" },
+  { path: "/admin/brain", label: "العقول والقدرات", icon: "✧" },
   { path: "/admin/agents", label: "المساعدون", icon: "✦" },
   { path: "/admin/credit-management", label: "الرصيد", icon: "◉" },
   { path: "/admin/pricing", label: "الباقات", icon: "▧" },

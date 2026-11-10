@@ -47,5 +47,8 @@ verify_jwt = true
 [functions.ai-router]
 verify_jwt = true
 
+[functions.brain-router]
+verify_jwt = true
+
 [functions.model-health-check]
 verify_jwt = false
