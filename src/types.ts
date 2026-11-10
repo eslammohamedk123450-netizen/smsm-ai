@@ -9,17 +9,27 @@ export interface ChatMessage {
   remaining?: number;
 }
 
+export interface ConversationRecord {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  messages: ChatMessage[];
+  pinned: boolean;
+  archived: boolean;
+}
+
 export type TransactionType = 'chat' | 'image' | 'document' | 'recharge';
 
 export interface TransactionRecord {
   id: string;
-  title: string; // 3 words max: e.g. "استفسار مالي تنفيذي"
+  title: string;
   type: TransactionType;
-  typeLabel: string; // "محادثة" | "صورة" | "مستند" | "شحن رصيد"
+  typeLabel: string;
   points: number;
-  isCredit: boolean; // true if recharge (+), false if consumption (-)
-  time: string; // "14:25"
-  date: string; // "9 نوفمبر 2026"
+  isCredit: boolean;
+  time: string;
+  date: string;
 }
 
 export interface TaskItem {
