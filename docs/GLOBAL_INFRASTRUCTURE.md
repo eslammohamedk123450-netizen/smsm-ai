@@ -129,15 +129,13 @@ select suly_admin_grant_feature('<user-uuid>', 'hims', true);
 
 | المتغير | الاستخدام |
 | --- | --- |
-| `CLOUDINARY_CLOUD_NAME` | اسم مساحة Cloudinary. |
-| `CLOUDINARY_API_KEY` | المفتاح العام المستخدم فقط في نموذج الرفع الموقّع. |
-| `CLOUDINARY_API_SECRET` | السرّ؛ يستخدمه Edge Function فقط لتوقيع الرفع وروابط العرض والتحقق من الأصل. |
+| `cloudinary_URL` | رابط اتصال Cloudinary بصيغة `cloudinary://API_KEY:API_SECRET@CLOUD_NAME`؛ يظل سريًا ويُقرأ على الخادم فقط. يقبل الكود أيضًا الاسم القياسي `CLOUDINARY_URL`. |
 
 ```bash
-supabase secrets set CLOUDINARY_CLOUD_NAME=... CLOUDINARY_API_KEY=... CLOUDINARY_API_SECRET=...
+supabase secrets set 'cloudinary_URL=cloudinary://API_KEY:API_SECRET@CLOUD_NAME'
 ```
 
-لا تضف `CLOUDINARY_API_SECRET` إلى `.env` الخاص بتطبيق الهاتف أو Expo؛ يجب أن يبقى سرًا على الخادم.
+لا تضف `cloudinary_URL` إلى `.env` الخاص بتطبيق الهاتف أو Expo؛ يحتوي على السرّ كاملًا ويجب أن يبقى في أسرار Supabase على الخادم.
 
 ## النشر
 
@@ -148,6 +146,7 @@ supabase db push
 # 2) نشر الدوال بعد ضبط أسرار Cloudinary
 supabase functions deploy ai-router
 supabase functions deploy media-gateway
+supabase functions deploy upload-media
 ```
 
 ## التحقق المحلي (بدون لمس الإنتاج)
