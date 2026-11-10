@@ -281,7 +281,7 @@ export default function ChatPage() {
           try {
             const mimeType = attachment.part.type;
             const kind = mimeType.startsWith("video") ? "video" : "image";
-            attachmentUrl = await uploadMedia(attachment.part.uri || attachment.part.name, mimeType, kind);
+            attachmentUrl = await uploadMedia(attachment.part.uri || attachment.part.name, mimeType, kind, conversationKey);
           } catch (cause) {
             setIsUploadingAttachment(false);
             throw cause;
