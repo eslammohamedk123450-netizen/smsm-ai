@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, TouchableOpacity, View, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { PremiumText as Text } from "../../src/components/ui/PremiumText";
-import { AppLogo } from "../../src/components/ui/AppLogo";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { DrawerActions } from "@react-navigation/native";
@@ -519,10 +518,7 @@ export default function ChatPage() {
           <Pressable onPress={() => navigation.dispatch(DrawerActions.openDrawer())} style={styles.headerButton} accessibilityRole="button" accessibilityLabel="فتح سجل المحادثات">
             <Text style={styles.headerIcon}>☰</Text>
           </Pressable>
-          <View style={styles.brandCenter}>
-            <AppLogo size={22} />
-            <Text style={styles.brandTitle}>Suly</Text>
-          </View>
+          <View style={styles.headerSpacer} />
           <View style={styles.headerActions}>
             {creditBalance !== null ? (
               <TouchableOpacity onPress={() => router.push("/(protected)/balance")} style={styles.creditPill} accessibilityRole="button" accessibilityLabel="رصيد Suly">

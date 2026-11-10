@@ -13,7 +13,7 @@
     },
     "android": {
       "package": "com.suly.agentai",
-      "versionCode": 7
+      "versionCode": 8
     }
   }
 }

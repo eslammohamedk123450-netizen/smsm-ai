@@ -286,6 +286,7 @@ export function ModelsAdminScreen() {
   const [testResults, setTestResults] = useState<Record<number, string>>({});
   const [batchTesting, setBatchTesting] = useState(false);
   const [batchResults, setBatchResults] = useState<Record<number, { status: "success" | "error"; durationMs: number; errorCode: string | null }>>({});
+  const [batchFilter, setBatchFilter] = useState<"all" | "success" | "error">("all");
 
   const [freeTimeout, setFreeTimeout] = useState("5000");
   const [fallbackTimeout, setFallbackTimeout] = useState("30000");
@@ -300,9 +301,11 @@ export function ModelsAdminScreen() {
         || (modelFilter === "enabled" && model.provider_enabled !== false && model.enabled && model.routing_group !== "disabled" && !model.health?.auto_restricted)
         || (modelFilter === "disabled" && (model.provider_enabled === false || !model.enabled || model.routing_group === "disabled"))
         || (modelFilter === "restricted" && Boolean(model.health?.auto_restricted));
-      return matchesQuery && matchesFilter;
+      const batchStatus = batchResults[model.id]?.status;
+      const matchesBatch = batchFilter === "all" || batchStatus === batchFilter;
+      return matchesQuery && matchesFilter && matchesBatch;
     });
-  }, [models, modelFilter, search]);
+  }, [models, modelFilter, search, batchFilter, batchResults]);
 
   // حالة تعديل النموذج المختار ومراجعة سجل محاولاته
   const [selectedModel, setSelectedModel] = useState<ModelRow | null>(null);
@@ -427,7 +430,7 @@ export function ModelsAdminScreen() {
 
   const testFilteredModels = async () => {
     if (!filteredModels.length) return;
-    setBatchTesting(true); setError(null); setBatchResults({});
+    setBatchTesting(true); setError(null); setBatchResults({}); setBatchFilter("all");
     try {
       await adminService.testModelsBatch(filteredModels.map((model) => model.id), (result) => {
         setBatchResults((current) => ({ ...current, [result.modelId]: result }));
@@ -464,7 +467,7 @@ export function ModelsAdminScreen() {
               ] as const).map(([filter, label]) => <Pressable key={filter} accessibilityRole="button" accessibilityState={{ selected: modelFilter === filter }} onPress={() => setModelFilter(filter)} style={[styles.filterChip, modelFilter === filter && styles.filterChipSelected]}><Text style={[styles.filterText, modelFilter === filter && styles.filterTextSelected]}>{label}</Text></Pressable>)}
             </ScrollView>
             <Text style={styles.resultsCount}>عرض {filteredModels.length} من {models.length}</Text>
-            <Card><View style={styles.sectionRow}><View style={styles.batchCopy}><Text style={styles.sectionTitle}>اختبار شامل للنماذج</Text><Text style={styles.detail}>يختبر النماذج الظاهرة حسب الفلتر الحالي فحصًا تشخيصيًا (لا يغير التوجيه تلقائيًا).</Text></View><PrimaryButton label={batchTesting ? "جارٍ الاختبار…" : `اختبار ${filteredModels.length} نموذج`} onPress={() => void testFilteredModels()} disabled={batchTesting || testingModelId !== null || filteredModels.length === 0} /></View>{Object.keys(batchResults).length > 0 ? <View style={styles.batchSummary}><Text style={styles.success}>نجح: {Object.values(batchResults).filter((result) => result.status === "success").length}</Text><Text style={styles.warning}>فشل/مشكلة: {Object.values(batchResults).filter((result) => result.status === "error").length}</Text><Text style={styles.detail}>تم اختبار: {Object.keys(batchResults).length} من {filteredModels.length}</Text></View> : null}</Card>
+            <Card><View style={styles.sectionRow}><View style={styles.batchCopy}><Text style={styles.sectionTitle}>اختبار شامل للنماذج</Text><Text style={styles.detail}>يختبر النماذج الظاهرة بالتوازي حتى 5 نماذج، باستخدام طلب قصير قليل التوكنز.</Text></View><PrimaryButton label={batchTesting ? "جارٍ الاختبار…" : `اختبار ${filteredModels.length} نموذج`} onPress={() => void testFilteredModels()} disabled={batchTesting || testingModelId !== null || filteredModels.length === 0} /></View>{Object.keys(batchResults).length > 0 ? <View style={styles.batchSummary}><Pressable onPress={() => setBatchFilter("success")}><Text style={styles.success}>الناجح: {Object.values(batchResults).filter((result) => result.status === "success").length}</Text></Pressable><Pressable onPress={() => setBatchFilter("error")}><Text style={styles.warning}>الفاشل: {Object.values(batchResults).filter((result) => result.status === "error").length}</Text></Pressable><Pressable onPress={() => setBatchFilter("all")}><Text style={styles.detail}>الكل</Text></Pressable><Text style={styles.detail}>تم اختبار: {Object.keys(batchResults).length}</Text></View> : null}</Card>
 
             <Card><View style={styles.healthProbeHeading}><View style={styles.sectionIcon}><Text style={styles.sectionIconText}>ϟ</Text></View><View style={styles.settingsHeadingText}><Text style={styles.sectionTitle}>مراقبة صحة النماذج</Text><Text style={styles.detail}>فحص تلقائي يوميًا الساعة 02:00 UTC لكل نموذج مفعّل ولكل مفتاح مرتبط به. يستخدم طلبًا قصيرًا بحد أقصى 16 token، ولا يخصم رصيد المستخدم؛ قد يستهلك استخدامًا لدى مزود الخدمة.</Text></View></View><Text style={styles.detail}>بعد 3 إخفاقات فحص متتالية يُستبعد النموذج آليًا من التوجيه، ويعود بعد نجاح فحصين متتاليين. الإيقاف اليدوي لا يُلغى بالفحص.</Text></Card>
             {settings && <Card><View style={styles.settingsHeading}><View style={styles.sectionIcon}><Text style={styles.sectionIconText}>⚙</Text></View><View style={styles.settingsHeadingText}><Text style={styles.sectionTitle}>إعدادات التوجيه</Text><Text style={styles.detail}>ai_router_settings · تؤثر على اختيار النماذج وتوازي الطلبات</Text></View></View><View style={styles.settingsFields}><NumberField label="مهلة سباق النماذج (ms)" value={freeTimeout} onChange={setFreeTimeout} /><NumberField label="مهلة البديل المدفوع (ms)" value={fallbackTimeout} onChange={setFallbackTimeout} /><NumberField label="أقصى نماذج متوازية" value={parallel} onChange={setParallel} /></View><View style={styles.settingsToggles}><Toggle label="تفعيل البديل المدفوع" value={paidFallback} onChange={setPaidFallback} /><Toggle label="التقييد التلقائي للصحة" value={autoRestrict} onChange={setAutoRestrict} /></View><PrimaryButton label={busy ? "جارٍ الحفظ…" : "✓  حفظ إعدادات التوجيه"} onPress={() => void saveSettings()} disabled={busy} /></Card>}
@@ -480,6 +483,7 @@ export function ModelsAdminScreen() {
           const scheduledStatus = model.probe?.last_scheduled_status === "success" ? "ناجح" : model.probe?.last_scheduled_status === "error" ? "فاشل" : "لم يُفحص بعد";
           return <Card>
             <View style={styles.modelCardHeader}>
+              <View style={styles.scoreSquare}><Text style={styles.scoreText}>{batchResults[model.id] ? (batchResults[model.id].status === "success" ? "100%" : "0%") : model.probe?.last_scheduled_status === "success" ? "✓" : "—"}</Text></View>
               <View style={[styles.statusBadge, statusStyle]}><Text style={[styles.statusBadgeText, statusTextStyle]}>{status}</Text></View>
               <View style={styles.modelNameBlock}><Text style={styles.cardTitle}>{model.name}</Text><Text style={styles.detail}>{model.provider_name} · {model.model_identifier}</Text></View>
             </View>
@@ -703,7 +707,8 @@ export function AgentsAdminScreen() {
   const [name, setName] = useState("");
   const [prompt, setPrompt] = useState("");
   const [chain, setChain] = useState<string[]>([]);
-  const [role, setRole] = useState<"planner" | "worker" | "reviewer">("worker");
+  const [role, setRole] = useState<"planner" | "thinker" | "worker" | "reviewer" | "coordinator">("worker");
+  const [modelSearch, setModelSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -717,16 +722,22 @@ export function AgentsAdminScreen() {
   useEffect(() => { void load(); }, []);
   const addAgent = async () => {
     setBusy(true); setError(null); setNotice(null);
-    try { await adminService.createAgent({ name, role, systemPrompt: prompt, modelFallbackChain: chain }); setName(""); setPrompt(""); setChain([]); setRole("worker"); setNotice("تمت إضافة المساعد."); await load(); }
+    try {
+      const fixed = role !== "worker" ? agents.find((agent) => agent.role === role) : null;
+      if (fixed) await adminService.updateAgent(fixed.id, { name: fixed.name, systemPrompt: fixed.system_prompt, modelFallbackChain: chain, isActive: fixed.is_active });
+      else await adminService.createAgent({ name: name.trim(), role, systemPrompt: prompt, modelFallbackChain: chain });
+      setName(""); setPrompt(""); setChain([]); setRole("worker"); setNotice(fixed ? "تم تحديث نماذج الوظيفة الثابتة." : "تمت إضافة العامل."); await load();
+    }
     catch (cause) { setError(cause instanceof Error ? cause.message : "تعذرت إضافة المساعد."); }
     finally { setBusy(false); }
   };
   const toggleModel = (id: string) => setChain((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  const roleLabel = role === "planner" ? "العقل المخطط" : role === "thinker" ? "العقل المفكر" : role === "reviewer" ? "المراجع" : role === "coordinator" ? "المنسق" : "عامل متخصص";
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <PageHeader title="إدارة المساعدين" />
     <Text style={styles.explainer}>أضف العقل والمراجع والمساعدين المتخصصين وحدد تعليماتهم وسلسلة نماذج غير محدودة عملياً حسب الأولوية.</Text>
     <ErrorText>{error}</ErrorText>{notice && <Text style={styles.success}>{notice}</Text>}
-    <Card><Text style={styles.sectionTitle}>إضافة مكوّن</Text><View style={styles.filterRow}>{([['planner','العقل / المخطط'],['worker','مساعد متخصص'],['reviewer','المراجع / المنسق']] as const).map(([value, label]) => <Pressable key={value} onPress={() => setRole(value)} style={[styles.filterChip, role === value && styles.filterChipSelected]}><Text style={[styles.filterText, role === value && styles.filterTextSelected]}>{label}</Text></Pressable>)}</View><TextInput style={styles.input} value={name} onChangeText={setName} placeholder={role === "planner" ? "العقل المفكر" : role === "reviewer" ? "المراجع والمنسق" : "اسم المساعد"} placeholderTextColor={colors.textMuted} /><TextInput style={[styles.input, { minHeight: 130 }]} value={prompt} onChangeText={setPrompt} placeholder="وظيفة المساعد وتعليماته" placeholderTextColor={colors.textMuted} multiline textAlignVertical="top" /><Text style={styles.label}>النماذج حسب الأولوية (اضغط بالترتيب؛ بلا حد 20)</Text><View style={styles.filterRow}>{models.filter((model) => model.enabled).map((model) => <Pressable key={String(model.id)} onPress={() => toggleModel(String(model.id))} style={[styles.filterChip, chain.includes(String(model.id)) && styles.filterChipSelected]}><Text style={[styles.filterText, chain.includes(String(model.id)) && styles.filterTextSelected]}>{chain.includes(String(model.id)) ? `${chain.indexOf(String(model.id)) + 1}. ` : ""}{model.name}</Text></Pressable>)}</View><PrimaryButton label={busy ? "جارٍ الحفظ…" : "إضافة المكوّن"} onPress={() => void addAgent()} disabled={busy} /></Card>
+    <Card><Text style={styles.sectionTitle}>إضافة مكوّن</Text><View style={styles.filterRow}>{([['planner','العقل المخطط'],['thinker','العقل المفكر'],['reviewer','المراجع'],['coordinator','المنسق'],['worker','عامل متخصص']] as const).map(([value, label]) => <Pressable key={value} onPress={() => setRole(value)} style={[styles.filterChip, role === value && styles.filterChipSelected]}><Text style={[styles.filterText, role === value && styles.filterTextSelected]}>{label}</Text></Pressable>)}</View><TextInput style={styles.input} value={name} onChangeText={setName} placeholder={role === "planner" ? "العقل المفكر" : role === "reviewer" ? "المراجع والمنسق" : "اسم المساعد"} placeholderTextColor={colors.textMuted} /><TextInput style={[styles.input, { minHeight: 130 }]} value={prompt} onChangeText={setPrompt} placeholder="وظيفة المساعد وتعليماته" placeholderTextColor={colors.textMuted} multiline textAlignVertical="top" /><Text style={styles.label}>النماذج حسب الأولوية (اضغط بالترتيب)</Text><TextInput style={styles.input} placeholder="ابحث عن نموذج بالاسم" placeholderTextColor={colors.textMuted} onChangeText={setModelSearch} value={modelSearch} /><View style={styles.filterRow}>{models.filter((model) => model.enabled && `${model.name} ${model.model_identifier}`.toLowerCase().includes(modelSearch.trim().toLowerCase())).map((model) => <Pressable key={String(model.id)} onPress={() => toggleModel(String(model.id))} style={[styles.filterChip, chain.includes(String(model.id)) && styles.filterChipSelected]}><Text style={[styles.filterText, chain.includes(String(model.id)) && styles.filterTextSelected]}>{chain.includes(String(model.id)) ? `${chain.indexOf(String(model.id)) + 1}. ` : ""}{model.name}</Text></Pressable>)}</View><PrimaryButton label={busy ? "جارٍ الحفظ…" : "إضافة المكوّن"} onPress={() => void addAgent()} disabled={busy} /></Card>
     <Text style={styles.sectionTitle}>المساعدون الحاليون</Text>
     {loading ? <ActivityIndicator color={colors.primary} /> : agents.map((agent) => <Card key={agent.id}><View style={styles.providerCardHeader}><Text style={styles.metaBadgeText}>{agent.role === "planner" ? "العقل" : agent.role === "reviewer" ? "المراجع" : "مساعد"}</Text><Text style={styles.cardTitle}>{agent.name}</Text></View><Text style={styles.detail}>{agent.system_prompt}</Text><Text style={styles.detail}>النماذج بالترتيب: {agent.model_fallback_chain.join(" → ") || "سيستخدم التوجيه العام"}</Text><Pressable onPress={() => { void adminService.deleteAgent(agent.id).then(() => load()).catch((cause) => setError(cause instanceof Error ? cause.message : "تعذر حذف المساعد.")); }}><Text style={styles.deleteFeature}>حذف المساعد</Text></Pressable></Card>)}
   </ScrollView>;
@@ -791,6 +802,8 @@ const styles = StyleSheet.create({
   resultsCount: { color: colors.textMuted, fontSize: 11, textAlign: "right", marginTop: -4 },
   emptyIcon: { color: colors.textMuted, fontSize: 26, textAlign: "center" },
   modelCardHeader: { flexDirection: "row-reverse", alignItems: "flex-start", gap: 10 },
+  scoreSquare: { width: 42, height: 42, borderRadius: 8, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.primary, alignItems: "center", justifyContent: "center" },
+  scoreText: { color: colors.primary, fontSize: 11, fontWeight: "800" },
   modelNameBlock: { flex: 1, gap: 3, alignItems: "flex-end" },
   statusBadge: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1 },
   statusEnabled: { backgroundColor: colors.surfaceElevated, borderColor: colors.success },

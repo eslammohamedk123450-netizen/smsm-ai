@@ -30,7 +30,7 @@ export interface PricingFeature {
 export interface AgentConfig {
   id: string;
   name: string;
-  role: "planner" | "worker" | "reviewer";
+  role: "planner" | "thinker" | "worker" | "reviewer" | "coordinator";
   system_prompt: string;
   model_fallback_chain: string[];
   is_active: boolean;
@@ -178,6 +178,21 @@ export const adminService = {
     if (error) throw error;
   },
 
+  async updateProvider(providerId: number, input: { name: string; baseUrl: string; description: string; apiKey?: string }) {
+    await requireAdmin();
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data, error } = await supabase.rpc("suly_admin_update_provider", {
+      p_user_id: user?.id,
+      p_provider_id: providerId,
+      p_name: input.name.trim(),
+      p_base_url: input.baseUrl.trim(),
+      p_description: input.description.trim(),
+      p_api_key: input.apiKey?.trim() || null,
+    });
+    if (error) throw error;
+    if (!data?.success) throw new Error("تعذر حفظ بيانات المفتاح.");
+  },
+
   async getModelsOverview() {
     await requireAdmin();
     const [modelsResult, healthResult, probeResult, settingsResult, providers] = await Promise.all([
@@ -268,16 +283,22 @@ export const adminService = {
   },
   async testModelsBatch(modelIds: number[], onResult?: (result: { modelId: number; status: "success" | "error"; durationMs: number; errorCode: string | null }) => void) {
     const results: Array<{ modelId: number; status: "success" | "error"; durationMs: number; errorCode: string | null }> = [];
-    for (const modelId of [...new Set(modelIds)].slice(0, 500)) {
-      try {
-        const result = await this.testModel(modelId);
-        const item = { modelId, status: result.status, durationMs: Number(result.duration_ms ?? 0), errorCode: result.error_code ?? null };
-        results.push(item); onResult?.(item);
-      } catch (cause) {
-        const item = { modelId, status: "error" as const, durationMs: 0, errorCode: cause instanceof Error ? cause.message : "test_failed" };
-        results.push(item); onResult?.(item);
+    const queue = [...new Set(modelIds)].slice(0, 500);
+    let cursor = 0;
+    const worker = async () => {
+      while (cursor < queue.length) {
+        const modelId = queue[cursor++];
+        try {
+          const result = await this.testModel(modelId);
+          const item = { modelId, status: result.status, durationMs: Number(result.duration_ms ?? 0), errorCode: result.error_code ?? null };
+          results.push(item); onResult?.(item);
+        } catch (cause) {
+          const item = { modelId, status: "error" as const, durationMs: 0, errorCode: cause instanceof Error ? cause.message : "test_failed" };
+          results.push(item); onResult?.(item);
+        }
       }
-    }
+    };
+    await Promise.all(Array.from({ length: Math.min(5, queue.length) }, () => worker()));
     return results;
   },
 
@@ -437,9 +458,9 @@ export const adminService = {
       .select("id,name,role,system_prompt,model_fallback_chain,is_active,created_at,updated_at")
       .order("updated_at", { ascending: false }).limit(200);
     if (error) throw error;
-    return (data ?? []).map((row) => ({ ...row, role: row.role === "planner" || row.role === "reviewer" ? row.role : "worker", model_fallback_chain: Array.isArray(row.model_fallback_chain) ? row.model_fallback_chain.map(String) : [] })) as AgentConfig[];
+    return (data ?? []).map((row) => ({ ...row, role: ["planner", "thinker", "worker", "reviewer", "coordinator"].includes(row.role) ? row.role : "worker", model_fallback_chain: Array.isArray(row.model_fallback_chain) ? row.model_fallback_chain.map(String) : [] })) as AgentConfig[];
   },
-  async createAgent(input: { name: string; role: "planner" | "worker" | "reviewer"; systemPrompt: string; modelFallbackChain: string[] }) {
+  async createAgent(input: { name: string; role: "planner" | "thinker" | "worker" | "reviewer" | "coordinator"; systemPrompt: string; modelFallbackChain: string[] }) {
     await requireAdmin();
     const name = input.name.trim().slice(0, 120);
     const systemPrompt = input.systemPrompt.trim().slice(0, 12000);

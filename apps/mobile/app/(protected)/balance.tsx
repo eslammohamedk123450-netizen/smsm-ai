@@ -63,6 +63,7 @@ export default function BalanceScreen() {
 
   const [balance, setBalance] = useState<number | null>(null);
   const [monthlyConsumed, setMonthlyConsumed] = useState<number | null>(null);
+  const [monthlyAllowance, setMonthlyAllowance] = useState<number | null>(null);
   const [planTier, setPlanTier] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState<TransactionItem[]>([]);
@@ -73,6 +74,7 @@ export default function BalanceScreen() {
     if (!user) {
       setBalance(null);
       setMonthlyConsumed(null);
+      setMonthlyAllowance(null);
       setPlanTier(null);
       setTransactions([]);
       setLoading(false);
@@ -84,17 +86,25 @@ export default function BalanceScreen() {
       getCreditLedger(100),
       supabase.from("suly_profiles").select("subscription_tier").eq("id", user.id).maybeSingle(),
     ])
-      .then(([ledger, profileResult]) => {
+      .then(async ([ledger, profileResult]) => {
         if (!active) return;
         setBalance(ledger.balance);
         setTransactions(mapCreditEntries(ledger.entries));
         setPlanTier(String(profileResult.data?.subscription_tier ?? user.user_metadata?.subscription_tier ?? "").toLowerCase() || null);
+        const tier = String(profileResult.data?.subscription_tier ?? user.user_metadata?.subscription_tier ?? "free").toLowerCase();
+        if (tier === "free") setMonthlyAllowance(null);
+        else {
+          const { data: plan } = await supabase.from("subscription_plans").select("monthly_credits,daily_credits").eq("id", tier === "lite" ? 2 : tier === "pro" ? 3 : tier === "max" ? 4 : tier === "ultra" ? 5 : 1).maybeSingle();
+          const monthly = Number(plan?.monthly_credits ?? 0) || Number(plan?.daily_credits ?? 0) * 30;
+          setMonthlyAllowance(monthly > 0 ? monthly : null);
+        }
       })
       .catch(() => {
         if (!active) return;
         setBalance(null);
         setTransactions([]);
         setPlanTier(null);
+        setMonthlyAllowance(null);
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -108,7 +118,8 @@ export default function BalanceScreen() {
   }, [user]));
 
   const monthlySpent = monthlyConsumed ?? 0;
-  const monthlyTotal = monthlySpent + (balance ?? 0);
+  const isPaidPlan = Boolean(planTier && planTier !== "free");
+  const monthlyTotal = monthlyAllowance ?? 0;
   const percentage = monthlyTotal > 0 ? Math.min(100, Math.round((monthlySpent / monthlyTotal) * 100)) : 0;
   const planName = planTier ? planTier.charAt(0).toUpperCase() + planTier.slice(1) : "—";
 
@@ -214,9 +225,11 @@ export default function BalanceScreen() {
 
         {/* 2. كارت الاستهلاك: عنوان استهلاك هذا الشهر + Progress Bar */}
         <View style={styles.consumptionCard}>
+          {!isPaidPlan ? <View style={styles.lockedConsumption}><Ionicons name="lock-closed" size={22} color="#A1A1AA" /><Text style={styles.lockedText}>تفاصيل الاستهلاك متاحة للمشتركين في باقة مدفوعة</Text><TouchableOpacity onPress={() => router.push("/(protected)/upgrade")} style={styles.lockedButton}><Text style={styles.lockedButtonText}>عرض الباقات</Text></TouchableOpacity></View> : null}
+          {isPaidPlan ? <>
           <View style={styles.consumptionHeaderRow}>
             <Text style={styles.consumptionTitle}>استهلاك هذا الشهر</Text>
-            <Text style={styles.consumptionPercent}>{monthlyConsumed === null || balance === null ? "—" : `${percentage}%`}</Text>
+            <Text style={styles.consumptionPercent}>{monthlyConsumed === null || monthlyAllowance === null ? "—" : `${percentage}%`}</Text>
           </View>
 
           {/* Progress bar: background #262626, filled part #0EA5E9 */}
@@ -225,10 +238,11 @@ export default function BalanceScreen() {
           </View>
 
           <Text style={styles.consumptionSubtitle}>
-            {monthlyConsumed === null || balance === null
+            {monthlyConsumed === null || monthlyAllowance === null
               ? "تعذر تحميل بيانات الرصيد والاستهلاك الفعلية."
-              : `استخدمت ${monthlySpent.toLocaleString("en-US")} نقطة هذا الشهر من إجمالي ${monthlyTotal.toLocaleString("en-US")} نقطة (الاستهلاك الفعلي + الرصيد الحالي).`}
+              : `استخدمت ${monthlySpent.toLocaleString("en-US")} نقطة من باقتك الحالية البالغة ${monthlyTotal.toLocaleString("en-US")} نقطة.`}
           </Text>
+          </> : null}
         </View>
 
         {/* 3. قسم سجل الاستهلاك */}
@@ -481,6 +495,27 @@ const styles = StyleSheet.create({
     color: "#A1A1AA",
     textAlign: "right",
     marginTop: 10,
+  },
+  lockedConsumption: {
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 12,
+  },
+  lockedText: {
+    color: "#A1A1AA",
+    fontSize: 13,
+    textAlign: "center",
+  },
+  lockedButton: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 9999,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+  },
+  lockedButtonText: {
+    color: "#000000",
+    fontWeight: "700",
+    fontSize: 12,
   },
   historySection: {
     marginTop: 8,

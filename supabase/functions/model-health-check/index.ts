@@ -5,7 +5,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-suly-health-check-secret",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-const MAX_OUTPUT_TOKENS = 16;
+const MAX_OUTPUT_TOKENS = 8;
 const MAX_PROBE_TIMEOUT_MS = 10_000;
 const SCHEDULED_CONCURRENCY = 5;
 const PROBE_PROMPT = "Reply with OK.";
@@ -215,6 +215,48 @@ async function getProviderKey(serviceClient: SupabaseClient, providerId: number)
   return !error && typeof data === "string" && data.length > 0 ? data : null;
 }
 
+// Flexible probe cadence: healthy enabled models get 3 checks/day (480 min),
+// restricted or manually disabled models are re-probed every ~2 hours until
+// they recover. Intervals come from ai_router_settings when the columns exist,
+// otherwise the safe defaults above apply.
+async function getProbeIntervals(serviceClient: SupabaseClient): Promise<{ healthyMinutes: number; restrictedMinutes: number }> {
+  const fallback = { healthyMinutes: 480, restrictedMinutes: 120 };
+  try {
+    const { data, error } = await serviceClient
+      .from("ai_router_settings")
+      .select("probe_interval_minutes,restricted_probe_interval_minutes")
+      .eq("id", 1)
+      .maybeSingle();
+    if (error || !data) return fallback;
+    const healthy = Number((data as { probe_interval_minutes?: unknown }).probe_interval_minutes);
+    const restricted = Number((data as { restricted_probe_interval_minutes?: unknown }).restricted_probe_interval_minutes);
+    return {
+      healthyMinutes: Number.isFinite(healthy) && healthy >= 5 && healthy <= 10_080 ? Math.floor(healthy) : fallback.healthyMinutes,
+      restrictedMinutes: Number.isFinite(restricted) && restricted >= 5 && restricted <= 10_080 ? Math.floor(restricted) : fallback.restrictedMinutes,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+function slotKeyFor(modelId: number, intervalMinutes: number): string {
+  const slot = Math.floor(Date.now() / (intervalMinutes * 60_000));
+  return `scheduled:${modelId}:${intervalMinutes}m-${slot}`;
+}
+
+type ProbeEligibility = { skip: false; intervalMinutes: number; isRestricted: boolean } | { skip: true; reason: "provider_missing_or_disabled" };
+
+function probeEligibility(
+  model: ModelRow,
+  provider: ProviderRow | undefined,
+  autoRestricted: boolean,
+  intervals: { healthyMinutes: number; restrictedMinutes: number },
+): ProbeEligibility {
+  const isRestricted = model.enabled === false || model.routing_group === "disabled" || autoRestricted;
+  if (!provider || !provider.enabled) return { skip: true, reason: "provider_missing_or_disabled" };
+  return { skip: false, intervalMinutes: isRestricted ? intervals.restrictedMinutes : intervals.healthyMinutes, isRestricted };
+}
+
 async function recordProbe(
   serviceClient: SupabaseClient,
   model: ModelRow,
@@ -253,9 +295,18 @@ async function runManualTest(serviceClient: SupabaseClient, modelId: number): Pr
     .maybeSingle();
   if (providerError || !providerData) return jsonResponse({ error: "Provider not found." }, 404);
   const provider = providerData as ProviderRow;
+  const intervals = await getProbeIntervals(serviceClient);
+  const { data: healthRow } = await serviceClient
+    .from("ai_model_health")
+    .select("auto_restricted")
+    .eq("model_id", model.id)
+    .maybeSingle();
+  const eligibility = probeEligibility(model, provider, (healthRow as { auto_restricted?: boolean } | null)?.auto_restricted === true, intervals);
   if (!provider.enabled) {
     const skipped: ProbeResult = { status: "error", duration_ms: 0, error_code: "provider_disabled" };
-    await recordProbe(serviceClient, model, provider, "manual", `manual:${model.id}:${crypto.randomUUID()}`, skipped);
+    // Manual tests count toward the periodic daily checks; provider-disabled
+    // models are logged on their own key so they never consume a live slot.
+    await recordProbe(serviceClient, model, provider, "scheduled", `scheduled:${model.id}:manual-offline:${crypto.randomUUID()}`, skipped);
     return jsonResponse({ model_id: model.id, status: "error", duration_ms: 0, error_code: "provider_disabled" });
   }
 
@@ -263,7 +314,16 @@ async function runManualTest(serviceClient: SupabaseClient, modelId: number): Pr
   const result = apiKey
     ? await probeModel(model, provider, apiKey)
     : { status: "error", duration_ms: 0, error_code: "credential_unavailable" } satisfies ProbeResult;
-  await recordProbe(serviceClient, model, provider, "manual", `manual:${model.id}:${crypto.randomUUID()}`, result);
+  // Recording the manual run as the current periodic slot makes a manual test
+  // count as one of the day's scheduled checks instead of duplicating effort.
+  await recordProbe(
+    serviceClient,
+    model,
+    provider,
+    "scheduled",
+    eligibility.skip ? `scheduled:${model.id}:manual:${crypto.randomUUID()}` : slotKeyFor(model.id, eligibility.intervalMinutes),
+    result,
+  );
   return jsonResponse({ model_id: model.id, status: result.status, duration_ms: result.duration_ms, error_code: result.error_code });
 }
 
@@ -286,11 +346,9 @@ async function runScheduledChecks(serviceClient: SupabaseClient): Promise<Respon
   const { data: modelData, error: modelError } = await serviceClient
     .from("ai_models")
     .select("id,name,provider_id,model_identifier,enabled,routing_group,response_timeout_ms")
-    .eq("enabled", true)
-    .neq("routing_group", "disabled")
     .order("id", { ascending: true })
     .limit(500);
-  if (modelError) return jsonResponse({ error: "Could not load enabled models." }, 500);
+  if (modelError) return jsonResponse({ error: "Could not load models." }, 500);
 
   const models = (modelData ?? []) as ModelRow[];
   if (models.length === 0) return jsonResponse({ checked: 0, succeeded: 0, failed: 0, skipped: 0 });
@@ -308,12 +366,22 @@ async function runScheduledChecks(serviceClient: SupabaseClient): Promise<Respon
     const provider = providers.get(providerId);
     if (provider) providerKeys.set(providerId, await getProviderKey(serviceClient, providerId));
   }));
+  const intervals = await getProbeIntervals(serviceClient);
+  const { data: healthData, error: healthError } = await serviceClient
+    .from("ai_model_health")
+    .select("model_id,auto_restricted")
+    .limit(1000);
+  if (healthError) return jsonResponse({ error: "Could not load model health." }, 500);
+  const autoRestricted = new Map<number, boolean>((healthData ?? []).map((row) => [Number(row.model_id), row.auto_restricted === true]));
 
-  const utcDay = new Date().toISOString().slice(0, 10);
+  // Healthy enabled models run on the long cadence (3 checks/day by default);
+  // restricted or manually disabled models run on the short recovery cadence
+  // (~every 2 hours by default) until a passing probe restores them.
   const results = await mapLimit(models, SCHEDULED_CONCURRENCY, async (model): Promise<"success" | "error" | "skipped"> => {
     const provider = providers.get(model.provider_id);
-    if (!provider) return "skipped";
-    const checkKey = `scheduled:${model.id}:${utcDay}`;
+    const eligibility = probeEligibility(model, provider, autoRestricted.get(model.id) === true, intervals);
+    if (eligibility.skip) return "skipped";
+    const checkKey = slotKeyFor(model.id, eligibility.intervalMinutes);
     const { data: existing, error: existingError } = await serviceClient
       .from("ai_model_probe_logs")
       .select("check_key")

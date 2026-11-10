@@ -2,7 +2,6 @@ import { Redirect, useFocusEffect, useRouter } from "expo-router";
 import { Drawer, DrawerContentScrollView, type DrawerContentComponentProps } from "expo-router/drawer";
 import { ActivityIndicator, FlatList, StyleSheet, TextInput, TouchableOpacity, View } from "react-native";
 import { PremiumText as Text } from "../../src/components/ui/PremiumText";
-import { AppLogo } from "../../src/components/ui/AppLogo";
 import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "../../src/features/auth/auth-provider";
@@ -26,6 +25,7 @@ function CustomDrawerContent({ isAdmin, ...props }: DrawerContentComponentProps 
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [balance, setBalance] = useState<number | null>(null);
+  const [planTier, setPlanTier] = useState("free");
   const [renameTarget, setRenameTarget] = useState<Conversation | null>(null);
   const [actionTarget, setActionTarget] = useState<Conversation | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Conversation | null>(null);
@@ -36,6 +36,8 @@ function CustomDrawerContent({ isAdmin, ...props }: DrawerContentComponentProps 
       setConversations(await chatService.listConversations(100));
       const ledger = await getCreditLedger(1);
       if (typeof ledger.balance === "number") setBalance(ledger.balance);
+      const { data: profile } = await supabase.from("suly_profiles").select("subscription_tier").eq("id", user?.id ?? "").maybeSingle();
+      setPlanTier(String(profile?.subscription_tier ?? user?.user_metadata?.subscription_tier ?? "free").toLowerCase());
     } catch (cause) {
       show(cause instanceof Error ? cause.message : "تعذّر تحميل المحادثات.", "error");
     } finally {
@@ -97,15 +99,6 @@ function CustomDrawerContent({ isAdmin, ...props }: DrawerContentComponentProps 
   return (
     <View style={styles.drawerRoot}>
       <DrawerContentScrollView {...props} contentContainerStyle={styles.drawerContent}>
-        {/* Brand Header */}
-        <View style={styles.drawerBrand}>
-          <AppLogo size={28} />
-          <View style={styles.drawerBrandInfo}>
-            <Text style={styles.drawerBrandTitle}>Suly</Text>
-            <Text style={styles.drawerBrandSubtitle}>منظومة الأعمال الذكية</Text>
-          </View>
-        </View>
-
         {/* New Chat Button: White background, black text, borderRadius 9999 */}
         <TouchableOpacity activeOpacity={0.8} style={styles.newChatButton} onPress={() => goToChat()} accessibilityRole="button">
           <Ionicons name="add" size={18} color="#000000" />
@@ -156,8 +149,8 @@ function CustomDrawerContent({ isAdmin, ...props }: DrawerContentComponentProps 
           <View style={styles.planCardInfo}>
             <Ionicons name="shield-checkmark" size={18} color="#0EA5E9" />
             <View>
-              <Text style={styles.planCardTitle}>حساب الشركات</Text>
-              <Text style={styles.planCardSubtitle}>الخطة الحالية: Free</Text>
+              <Text style={styles.planCardTitle}>{planTier === "free" ? "الخطة المجانية" : `خطة ${planTier.toUpperCase()}`}</Text>
+              <Text style={styles.planCardSubtitle}>الخطة الحالية: {planTier === "free" ? "Free" : planTier.toUpperCase()}</Text>
             </View>
           </View>
           <TouchableOpacity activeOpacity={0.7} onPress={() => { router.push("/(protected)/upgrade"); props.navigation.closeDrawer(); }}>
