@@ -1,2 +1,2 @@
-import { CreditManagementAdminScreen } from "../../../src/features/admin/AdminScreens";
-export default CreditManagementAdminScreen;
+import { AdminCreditCommandScreen } from "../../../src/features/admin/AdminCreditCommandScreen";
+export default AdminCreditCommandScreen;

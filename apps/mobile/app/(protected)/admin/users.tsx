@@ -1,2 +1,2 @@
-import { UsersAdminScreen } from "../../../src/features/admin/AdminScreens";
-export default UsersAdminScreen;
+import { AdminUsersCommandScreen } from "../../../src/features/admin/AdminUsersCommandScreen";
+export default AdminUsersCommandScreen;

@@ -1,0 +1,28 @@
+import { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { PremiumText as Text } from "../../components/ui/PremiumText";
+import { supabase } from "../../lib/supabase/client";
+import { colors } from "../../theme/colors";
+
+type Conversation = { id: string; user_id: string; title: string | null; created_at: string; updated_at: string };
+type Profile = { id: string; email: string | null; full_name: string | null };
+export function AdminConversationsScreen() {
+  const [rows, setRows] = useState<Conversation[]>([]);
+  const [profiles, setProfiles] = useState<Record<string, Profile>>({});
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const load = async () => {
+    setLoading(true); setError(null);
+    const { data, error: queryError } = await supabase.from("suly_conversations").select("id,user_id,title,created_at,updated_at").order("updated_at", { ascending: false }).limit(500);
+    if (queryError) { setError("تعذر قراءة المحادثات. تحقق من صلاحيات الأدمن وسياسات RLS."); setRows([]); setLoading(false); return; }
+    const items = (data ?? []) as Conversation[]; setRows(items);
+    const ids = [...new Set(items.map((item) => item.user_id))];
+    if (ids.length) { const { data: people } = await supabase.from("suly_profiles").select("id,email,full_name").in("id", ids); setProfiles(Object.fromEntries(((people ?? []) as Profile[]).map((person) => [person.id, person]))); }
+    setLoading(false);
+  };
+  useEffect(() => { void load(); }, []);
+  const filtered = useMemo(() => { const q = search.trim().toLowerCase(); return q ? rows.filter((row) => `${row.title ?? ""} ${row.id} ${row.user_id} ${profiles[row.user_id]?.email ?? ""} ${profiles[row.user_id]?.full_name ?? ""}`.toLowerCase().includes(q)) : rows; }, [rows, profiles, search]);
+  return <View style={styles.screen}><View style={styles.heading}><View style={styles.headingCopy}><Text style={styles.eyebrow}>مراقبة النشاط</Text><Text style={styles.title}>المحادثات</Text><Text style={styles.subtitle}>عرض بيانات وصفية فقط · لا يُعرض محتوى المحادثة هنا</Text></View><Pressable onPress={() => void load()} style={styles.refresh}><Text style={styles.refreshText}>↻ تحديث</Text></Pressable></View><TextInput value={search} onChangeText={setSearch} placeholder="بحث بالعنوان أو البريد أو UUID" placeholderTextColor={colors.textMuted} style={styles.search} autoCapitalize="none" />{error ? <Text style={styles.error}>{error}</Text> : null}{loading ? <ActivityIndicator color={colors.primary} style={{ margin: 18 }} /> : <ScrollView horizontal style={styles.table}><View><View style={styles.tableHead}><Text style={[styles.cell, styles.titleCol]}>العنوان</Text><Text style={[styles.cell, styles.userCol]}>المستخدم</Text><Text style={[styles.cell, styles.idCol]}>UUID المحادثة</Text><Text style={[styles.cell, styles.dateCol]}>آخر تحديث</Text></View><ScrollView>{filtered.map((row) => <View key={row.id} style={styles.tableRow}><Text style={[styles.cell, styles.titleCol, styles.primaryText]} numberOfLines={1}>{row.title?.trim() || "محادثة بدون عنوان"}</Text><View style={[styles.cell, styles.userCol, styles.userInfo]}><Text numberOfLines={1} style={styles.primaryText}>{profiles[row.user_id]?.full_name || profiles[row.user_id]?.email || "حساب المستخدم"}</Text><Text selectable numberOfLines={1} style={styles.muted}>{row.user_id}</Text></View><Text selectable numberOfLines={1} style={[styles.cell, styles.idCol, styles.muted]}>{row.id}</Text><Text style={[styles.cell, styles.dateCol, styles.muted]}>{new Date(row.updated_at).toLocaleString("ar-EG")}</Text></View>)}</ScrollView>{filtered.length === 0 ? <Text style={styles.empty}>لا توجد محادثات مطابقة.</Text> : null}</View></ScrollView>}</View>;
+}
+const styles = StyleSheet.create({ screen: { flex: 1, backgroundColor: colors.background, padding: 12, gap: 8 }, heading: { flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center", gap: 8 }, headingCopy: { flex: 1, alignItems: "flex-end", gap: 2 }, eyebrow: { color: colors.primary, fontSize: 9, fontWeight: "800" }, title: { color: colors.textPrimary, fontSize: 19, fontWeight: "900" }, subtitle: { color: colors.textMuted, fontSize: 9 }, refresh: { borderWidth: 1, borderColor: colors.divider, borderRadius: 7, paddingHorizontal: 9, paddingVertical: 7 }, refreshText: { color: colors.textPrimary, fontSize: 9 }, search: { minHeight: 36, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 7, paddingHorizontal: 9, textAlign: "right", fontSize: 10, color: colors.textPrimary }, error: { color: colors.error, fontSize: 10, textAlign: "right" }, table: { flex: 1, borderWidth: 1, borderColor: colors.divider, borderRadius: 8, backgroundColor: colors.surface }, tableHead: { minWidth: 820, flexDirection: "row-reverse", backgroundColor: colors.surfaceElevated, borderBottomWidth: 1, borderColor: colors.divider }, tableRow: { minWidth: 820, minHeight: 46, flexDirection: "row-reverse", alignItems: "center", borderBottomWidth: 1, borderColor: colors.divider }, cell: { paddingHorizontal: 8, paddingVertical: 6, textAlign: "right", fontSize: 8, color: colors.textSecondary }, titleCol: { width: 190 }, userCol: { width: 210 }, idCol: { width: 230 }, dateCol: { width: 190 }, userInfo: { alignItems: "flex-end", gap: 2 }, primaryText: { color: colors.textPrimary, fontWeight: "700" }, muted: { color: colors.textMuted }, empty: { color: colors.textMuted, textAlign: "center", padding: 20, fontSize: 10 } });
