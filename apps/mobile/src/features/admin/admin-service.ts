@@ -226,8 +226,19 @@ export const adminService = {
 
   async updateModel(modelId: number, changes: Record<string, unknown>) {
     await requireAdmin();
-    const allowed = ["enabled", "priority", "routing_group", "allowed_tiers", "response_timeout_ms", "restriction_failure_threshold", "restriction_window_minutes"];
+    const allowed = ["enabled", "priority", "routing_group", "allowed_tiers", "response_timeout_ms", "restriction_failure_threshold", "restriction_window_minutes", "capabilities_json"];
     if (Object.keys(changes).some((key) => !allowed.includes(key))) throw new Error("حقل تعديل غير مسموح.");
+    if ("capabilities_json" in changes) {
+      let parsed: unknown = changes.capabilities_json;
+      if (typeof parsed === "string") {
+        try { parsed = JSON.parse(parsed); } catch { throw new Error("صيغة قدرات النموذج غير صالحة."); }
+      }
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("صيغة قدرات النموذج غير صالحة.");
+      const value = parsed as Record<string, unknown>;
+      const supported = ["chat", "vision", "pdf", "word", "video"];
+      if (Object.keys(value).some((key) => !supported.includes(key)) || supported.some((key) => key in value && typeof value[key] !== "boolean")) throw new Error("قدرات النموذج يجب أن تكون مفاتيح معروفة وقيمًا منطقية.");
+      changes.capabilities_json = JSON.stringify({ chat: value.chat !== false, vision: value.vision === true, pdf: value.pdf === true, word: value.word === true, video: value.video === true });
+    }
     const { error } = await supabase.from("ai_models").update(changes).eq("id", modelId);
     if (error) throw error;
   },

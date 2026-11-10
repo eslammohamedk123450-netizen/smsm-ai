@@ -4,6 +4,9 @@ import { activationOutcomeMessage, parseActivationCommand, shouldReportActivatio
 import { activateFeatureByCode, buildFeatureSystemContext, getFeatureContext } from "../_shared/feature_flags.ts";
 import { buildSulyIdentityContext, containsHimsReference, getIdentityAnswer, INACTIVE_UNKNOWN_ANSWER, sanitizeContextText } from "../_shared/identity_context.ts";
 import { normalizeFeatureKey } from "../_shared/prompt_keys.ts";
+import { capabilityForMime, supportsModelCapabilities, type ModelCapability } from "../_shared/model_capabilities.ts";
+import { extractDocxText, extractPdfText, fetchCloudinaryBytes, MAX_EXTRACTED_DOCUMENT_CHARS, MediaProcessingError } from "../_shared/media_content.ts";
+import { cloudinaryAuthenticatedDeliveryUrl } from "../_shared/cloudinary_delivery.ts";
 import { lookupSemanticCache, recordCacheHit, storeSemanticCache } from "../_shared/semantic_cache.ts";
 import { buildMemoryContext, searchTaskMemories, storeTaskMemory } from "../_shared/task_memory.ts";
 import { buildMindPolicy, classifyIntent } from "../_shared/intent_classifier.ts";
@@ -39,6 +42,8 @@ const corsHeaders = {
 
 type ChatRole = "system" | "user" | "assistant";
 type ChatMessage = { role: ChatRole; content: string };
+type ProviderContentPart = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } } | { type: "video_url"; video_url: { url: string } };
+type ProviderChatMessage = { role: ChatRole; content: string | ProviderContentPart[] };
 type ModelRow = {
   id: number;
   name: string;
@@ -74,7 +79,7 @@ type Candidate = {
   provider: ProviderRow;
   apiKey: string;
   endpoint: string;
-  requestMessages: ChatMessage[];
+  requestMessages: ProviderChatMessage[];
   temperature: number;
   maxTokens: number;
   inputTokens: number;
@@ -156,13 +161,29 @@ function safeChatEndpoint(value: unknown): string | null {
 }
 
 function modelSupportsChat(model: ModelRow): boolean {
-  if (!model.capabilities_json) return true;
-  try {
-    const capabilities = JSON.parse(model.capabilities_json);
-    return capabilities?.chat !== false;
-  } catch {
-    return true;
+  return supportsModelCapabilities(model.capabilities_json, ["chat"]);
+}
+
+type TrustedChatAttachment = { id: string; capability: ModelCapability; url: string; filename: string; extractedText?: string };
+
+function modelSupportsRequest(model: ModelRow, required: readonly ModelCapability[]): boolean {
+  return supportsModelCapabilities(model.capabilities_json, required);
+}
+
+function providerMessagesForModel(messages: ChatMessage[], attachments: TrustedChatAttachment[]): ProviderChatMessage[] {
+  if (!attachments.length) return messages;
+  const lastUserIndex = messages.findLastIndex((message) => message.role === "user");
+  if (lastUserIndex < 0) return messages;
+  const content: ProviderContentPart[] = [{ type: "text", text: messages[lastUserIndex].content }];
+  for (const attachment of attachments) {
+    if (attachment.capability === "vision") content.push({ type: "image_url", image_url: { url: attachment.url } });
+    else if (attachment.capability === "video") content.push({ type: "video_url", video_url: { url: attachment.url } });
   }
+  return messages.map((message, index) => index === lastUserIndex ? { ...message, content } : message);
+}
+
+function capabilityLabel(capability: ModelCapability): string {
+  return capability === "vision" ? "قراءة الصور" : capability === "pdf" ? "قراءة PDF" : capability === "word" ? "قراءة Word" : capability === "video" ? "تحليل الفيديو" : "النص";
 }
 
 async function* readOpenAiStream(
@@ -432,7 +453,84 @@ async function handleRequest(req: Request): Promise<Response> {
   if (messages.length === 0 || !messages.some((m) => m.role === "user")) return jsonResponse({ error: "message or messages with a user message is required." }, 400);
   if (messages[messages.length - 1].role !== "user") return jsonResponse({ error: "The final message must be from the user." }, 400);
   if (messages.reduce((sum, item) => sum + item.content.length, 0) > 50000) return jsonResponse({ error: "Conversation context is too long." }, 413);
-  let latestUserMessage = [...messages].reverse().find((message) => message.role === "user")?.content ?? "";
+  const originalUserInstruction = [...messages].reverse().find((message) => message.role === "user")?.content ?? "";
+  const requestedAssetIds = Array.isArray(body.media_asset_ids) ? body.media_asset_ids : [];
+  if (requestedAssetIds.length > 5 || requestedAssetIds.some((id) => typeof id !== "string" || !uuidPattern.test(id))) return jsonResponse({ error: "قائمة المرفقات غير صالحة أو تتجاوز الحد المسموح." }, 400);
+  const mediaAssetIds = [...new Set(requestedAssetIds as string[])];
+  const trustedAttachments: TrustedChatAttachment[] = [];
+  if (mediaAssetIds.length) {
+    const userMessageId = typeof body.user_message_id === "string" ? body.user_message_id : "";
+    if (!conversationId || !uuidPattern.test(userMessageId)) return jsonResponse({ error: "تعذر ربط المرفق برسالة المحادثة." }, 400);
+    const { data: userMessage, error: userMessageError } = await supabase.from("suly_messages")
+      .select("id").eq("id", userMessageId).eq("conversation_id", conversationId).eq("user_id", user.id).eq("role", "user").maybeSingle();
+    if (userMessageError) return jsonResponse({ error: "تعذر التحقق من رسالة المرفق." }, 500);
+    if (!userMessage) return jsonResponse({ error: "رسالة المرفق غير موجودة أو لا تملك صلاحية الوصول إليها." }, 404);
+    const { data: assetRows, error: assetError } = await supabase.from("global_media_assets")
+      .select("id,user_id,feature_key,bucket,object_key,mime_type,size_bytes,original_filename,metadata,conversation_id,message_id")
+      .in("id", mediaAssetIds).eq("user_id", user.id).eq("feature_key", "chat")
+      .eq("conversation_id", conversationId).eq("message_id", userMessageId).is("support_ticket_id", null).limit(5);
+    if (assetError) return jsonResponse({ error: "تعذر التحقق من صلاحية المرفق." }, 500);
+    if (!assetRows || assetRows.length !== mediaAssetIds.length) return jsonResponse({ error: "المرفق غير موجود أو لا يخص هذه الرسالة والمحادثة." }, 404);
+    for (const asset of assetRows) {
+      const filename = typeof asset.original_filename === "string" ? asset.original_filename : "attachment";
+      const capability = capabilityForMime(String(asset.mime_type ?? ""), filename);
+      if (!capability) return jsonResponse({ error: "نوع الملف غير مدعوم في المحادثة." }, 415);
+      const sizeBytes = Number(asset.size_bytes ?? 0);
+      if (!Number.isFinite(sizeBytes) || sizeBytes < 1) return jsonResponse({ error: "تعذر التحقق من حجم المرفق." }, 400);
+      const maxBytes = capability === "vision" ? 20 * 1024 * 1024 : capability === "pdf" ? 20 * 1024 * 1024 : capability === "word" ? 15 * 1024 * 1024 : capability === "chat" ? 5 * 1024 * 1024 : 50 * 1024 * 1024;
+      if (sizeBytes > maxBytes) return jsonResponse({ error: `حجم الملف أكبر من الحد المسموح لمعالجة ${capabilityLabel(capability)}.` }, 413);
+      const cloudinaryUrl = await cloudinaryAuthenticatedDeliveryUrl({
+        bucket: String(asset.bucket ?? ""),
+        object_key: String(asset.object_key ?? ""),
+        metadata: asRecord(asset.metadata),
+      });
+      if (!cloudinaryUrl) return jsonResponse({ error: "تعذر إنشاء رابط داخلي آمن لمعالجة المرفق." }, 503);
+      const attachment: TrustedChatAttachment = { id: String(asset.id), capability, url: cloudinaryUrl, filename };
+      if (capability === "pdf") {
+        try {
+          const bytes = await fetchCloudinaryBytes(cloudinaryUrl, maxBytes);
+          attachment.extractedText = await extractPdfText(bytes, Math.min(MAX_EXTRACTED_DOCUMENT_CHARS, 12000));
+        } catch (error) {
+          if (error instanceof MediaProcessingError) return jsonResponse({ error: error.message }, error.code === "media_too_large" ? 413 : 415);
+          return jsonResponse({ error: "تعذر تجهيز PDF للتحليل." }, 502);
+        }
+      } else if (capability === "word") {
+        if (!/\.docx$/i.test(filename)) return jsonResponse({ error: "يدعم تحليل Word حاليًا ملفات DOCX؛ صيغة DOC القديمة تحتاج محولًا إضافيًا." }, 415);
+        try {
+          const bytes = await fetchCloudinaryBytes(cloudinaryUrl, maxBytes);
+          attachment.extractedText = extractDocxText(bytes, Math.min(MAX_EXTRACTED_DOCUMENT_CHARS, 12000));
+        } catch (error) {
+          if (error instanceof MediaProcessingError) return jsonResponse({ error: error.message }, error.code === "media_too_large" ? 413 : 415);
+          return jsonResponse({ error: "تعذر تجهيز ملف Word للتحليل." }, 502);
+        }
+      } else if (capability === "chat") {
+        try {
+          const bytes = await fetchCloudinaryBytes(cloudinaryUrl, maxBytes);
+          const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes).replace(/\0/g, "").trim();
+          if (!text) return jsonResponse({ error: "الملف النصي فارغ أو غير قابل للقراءة." }, 415);
+          attachment.extractedText = text.slice(0, Math.min(MAX_EXTRACTED_DOCUMENT_CHARS, 12000));
+        } catch (error) {
+          if (error instanceof MediaProcessingError) return jsonResponse({ error: error.message }, error.code === "media_too_large" ? 413 : 415);
+          return jsonResponse({ error: "تعذر تجهيز الملف النصي للتحليل." }, 415);
+        }
+      } else if (capability === "video") {
+        const metadata = asRecord(asset.metadata);
+        const duration = Number(metadata.duration_seconds ?? metadata.duration ?? 0);
+        if (duration > 120) return jsonResponse({ error: "الفيديو أطول من دقيقتين؛ اختصره ثم أعد المحاولة." }, 413);
+      }
+      trustedAttachments.push(attachment);
+    }
+    const documentText = trustedAttachments.filter((asset) => asset.extractedText).map((asset) => `\n\n[محتوى الملف: ${asset.filename}]\n${asset.extractedText}`).join("");
+    if (documentText) {
+      const lastUserIndex = messages.findLastIndex((message) => message.role === "user");
+      const nextContent = `${messages[lastUserIndex].content}${documentText}`;
+      if (nextContent.length > 16000) return jsonResponse({ error: "النص المستخرج من الملف مع رسالتك يتجاوز حد السياق. أرسل مستندًا أقصر أو اختصر الطلب." }, 413);
+      messages[lastUserIndex].content = nextContent;
+    }
+  }
+  const requiredCapabilities: ModelCapability[] = ["chat", ...trustedAttachments.map((asset) => asset.capability)];
+  const uniqueRequiredCapabilities = [...new Set(requiredCapabilities)];
+  let latestUserMessage = originalUserInstruction;
   // "The mind thinks first": a zero-token internal decision made before any
   // response or orchestration. It is never surfaced to the user.
   const mind = classifyIntent(latestUserMessage);
@@ -550,17 +648,17 @@ async function handleRequest(req: Request): Promise<Response> {
     }
   }
 
-  if (!himsActivated && containsHimsReference(latestUserMessage)) {
+  if (trustedAttachments.length === 0 && !himsActivated && containsHimsReference(latestUserMessage)) {
     return respondDeterministically(INACTIVE_UNKNOWN_ANSWER, { billing: null }, "restricted_feature_query");
   }
-  const identityAnswer = getIdentityAnswer(latestUserMessage);
+  const identityAnswer = trustedAttachments.length === 0 ? getIdentityAnswer(latestUserMessage) : null;
   if (identityAnswer) {
     return respondDeterministically(identityAnswer, { billing: null }, "identity_question");
   }
 
   // quick-replies-cache: repeated chit-chat and previously answered exact
   // questions are served with zero model calls and zero credit spend.
-  const quickReply = await lookupQuickReply(supabase, user.id, latestUserMessage);
+  const quickReply = trustedAttachments.length ? { reply: null } : await lookupQuickReply(supabase, user.id, latestUserMessage);
   if (quickReply.reply) {
     return respondDeterministically(quickReply.reply, {
       route: "quick_reply",
@@ -570,7 +668,7 @@ async function handleRequest(req: Request): Promise<Response> {
   }
 
   for (const message of messages) message.content = sanitizeContextText(message.content, himsActivated);
-  latestUserMessage = [...messages].reverse().find((message) => message.role === "user")?.content ?? "";
+  latestUserMessage = originalUserInstruction;
   // The mind's internal policy rides along with the system prompt; the user
   // never sees it in the conversation bubbles.
   messages.unshift({ role: "system", content: `${systemPrompt}\n\n${buildMindPolicy(mind)}` });
@@ -638,6 +736,14 @@ async function handleRequest(req: Request): Promise<Response> {
   };
   const providerById = new Map<number, ProviderRow>((providers ?? []).map((p: ProviderRow) => [p.id, p]));
   const healthyModels = (allModels ?? []).filter((model: ModelRow) => !healthByModel.get(model.id)?.auto_restricted);
+  const anyCapabilityEligible = healthyModels.some((model: ModelRow) => model.enabled
+    && (model.allowed_tiers ?? []).includes(userTier)
+    && (model.routing_group === "free_race" || (settings.paidFallbackEnabled && model.routing_group === "paid_fallback"))
+    && modelSupportsRequest(model, uniqueRequiredCapabilities));
+  if (routingMode === "auto" && !anyCapabilityEligible) {
+    const labels = [...new Set(trustedAttachments.map((asset) => capabilityLabel(asset.capability)))].join(" و");
+    return jsonResponse({ error: trustedAttachments.length ? `لا يوجد نموذج مفعّل بقدرات ${labels} لهذا المرفق. فعّل القدرة المناسبة من إعدادات النماذج.` : "لا يوجد نموذج نصي مؤهل حاليًا." }, 422);
+  }
   const manuallyRequested = routingMode === "manual" ? (allModels ?? []).find((m: ModelRow) => m.id === modelId) : null;
   const manualHealth = manuallyRequested ? healthByModel.get(manuallyRequested.id) : null;
   if (manualHealth?.auto_restricted) {
@@ -645,15 +751,15 @@ async function handleRequest(req: Request): Promise<Response> {
   }
   let candidatesFrom: ModelRow[] = [];
   if (routingMode === "manual") {
-    candidatesFrom = healthyModels.filter((m: ModelRow) => m.id === modelId && m.routing_group !== "disabled");
+    candidatesFrom = healthyModels.filter((m: ModelRow) => m.id === modelId && m.routing_group !== "disabled" && modelSupportsRequest(m, uniqueRequiredCapabilities));
   } else {
     // Auto routing always starts with the free race. Paid models are selected only
     // after every free candidate has failed or no usable free candidate exists.
-    const tierFiltered = healthyModels.filter((m: ModelRow) => (m.allowed_tiers ?? []).includes(userTier) && modelSupportsChat(m));
+    const tierFiltered = healthyModels.filter((m: ModelRow) => (m.allowed_tiers ?? []).includes(userTier) && modelSupportsRequest(m, uniqueRequiredCapabilities));
     candidatesFrom = tierFiltered.filter(m => m.routing_group === "free_race").sort((a,b) => b.priority - a.priority);
   }
 
-  if (routingMode === "manual" && candidatesFrom.length === 0) return jsonResponse({ error: "Model not found or disabled." }, 404);
+  if (routingMode === "manual" && candidatesFrom.length === 0) return jsonResponse({ error: manuallyRequested ? "النموذج المحدد لا يملك القدرات المطلوبة لهذا المرفق." : "Model not found or disabled." }, manuallyRequested ? 422 : 404);
   if (routingMode === "manual" && !(candidatesFrom[0].allowed_tiers ?? []).includes(userTier)) return jsonResponse({ error: "This model is not available on your current plan." }, 403);
 
   const requiredProviderIds: number[] = [...new Set<number>((candidatesFrom as ModelRow[]).map((m: ModelRow) => m.provider_id))];
@@ -670,7 +776,7 @@ async function handleRequest(req: Request): Promise<Response> {
     const apiKey = providerKeys.get(model.provider_id);
     const endpoint = safeChatEndpoint(provider?.base_url);
     if (!provider || !provider.enabled || !apiKey || !endpoint) return [];
-    return [{ model, provider, apiKey, endpoint, requestMessages: messages, temperature, maxTokens, inputTokens: 0, outputTokens: 0 }];
+    return [{ model, provider, apiKey, endpoint, requestMessages: providerMessagesForModel(messages, trustedAttachments), temperature, maxTokens, inputTokens: 0, outputTokens: 0 }];
   });
 
   const usableInitial = makeCandidates(candidatesFrom);
@@ -678,6 +784,7 @@ async function handleRequest(req: Request): Promise<Response> {
     const safeReason = (errorReason ?? "")
       .replace(/Bearer\s+[^\s,;]+/gi, "Bearer [redacted]")
       .replace(/(api[_ -]?key|token|secret)\s*[:=]\s*[^\s,;]+/gi, "$1=[redacted]")
+      .replace(/https:\/\/res\.cloudinary\.com\/[^\s"'<>]+/gi, "[media-url-redacted]")
       .slice(0, 1000);
     const { error } = await supabase.rpc("record_ai_model_attempt", {
       p_model_id: candidate.model.id,
@@ -856,7 +963,7 @@ async function handleRequest(req: Request): Promise<Response> {
   // Global semantic cache: a sufficiently similar earlier answer is served
   // without calling any provider. The reservation made above is released with a
   // zero-cost settlement, so cache hits never charge the user.
-  const cacheLookup = await lookupSemanticCache({
+  const cacheLookup = trustedAttachments.length ? { hit: null, embedding: null, promptHash: null, contextHash: null, skipped: true } : await lookupSemanticCache({
     supabase,
     featureKey,
     userMessage: latestUserMessage,
@@ -957,7 +1064,7 @@ async function handleRequest(req: Request): Promise<Response> {
   // answers are merged so a single provider hiccup never fails the request.
   // Only compound tasks pay the decomposition cost; chat and simple tasks are
   // always answered in a single response.
-  const splitParts = settings.taskSplitEnabled && mind.intent === "complex_task"
+  const splitParts = settings.taskSplitEnabled && trustedAttachments.length === 0 && mind.intent === "complex_task"
     ? splitTask(latestUserMessage, settings.taskSplitMaxParts)
     : [latestUserMessage];
   if (splitParts.length > 1) {
@@ -1059,7 +1166,7 @@ async function handleRequest(req: Request): Promise<Response> {
 
   if (!winner && routingMode === "auto" && settings.paidFallbackEnabled) {
     const paidModels: ModelRow[] = healthyModels
-      .filter((m: ModelRow) => m.routing_group === "paid_fallback" && (m.allowed_tiers ?? []).includes(userTier) && modelSupportsChat(m))
+      .filter((m: ModelRow) => m.routing_group === "paid_fallback" && (m.allowed_tiers ?? []).includes(userTier) && modelSupportsRequest(m, uniqueRequiredCapabilities))
       .sort((a: ModelRow, b: ModelRow) => Number(b.priority) - Number(a.priority));
     const paidProviderIds: number[] = [...new Set<number>(paidModels.map((m: ModelRow) => m.provider_id))];
     await Promise.all(paidProviderIds.map(async (providerId) => {
@@ -1095,9 +1202,10 @@ async function handleRequest(req: Request): Promise<Response> {
   // Every successful answer feeds the three global layers: long-term chat
   // memory, the cross-feature task memory, and the semantic cache.
   const persistLearning = async (candidate: Candidate | null, content: string): Promise<void> => {
-    await saveAgentMemory(supabase, user.id, latestUserMessage, memoryState.embedding);
     const answer = content.trim();
     if (answer.length === 0) return;
+    if (trustedAttachments.length) return;
+    await saveAgentMemory(supabase, user.id, latestUserMessage, memoryState.embedding);
     // Chat turns answered by the mind join quick-replies-cache, so the next
     // identical ask is served with zero model calls.
     if (mind.intent === "chat") {

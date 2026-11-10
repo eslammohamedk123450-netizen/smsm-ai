@@ -252,7 +252,7 @@ export default function ChatPage() {
 
   const sendText = async (content: string, attachment?: ChatAttachment) => {
     await runOnce(lock, async () => {
-      if (!user || !content.trim()) return;
+      if (!user || (!content.trim() && !attachment)) return;
       setError(null);
       setRetryFailure(null);
       setIsSending(true);
@@ -274,26 +274,20 @@ export default function ChatPage() {
         }
         const conversationKey = id;
         streamedTextRef.current = "";
-        let mediaAssetId: string | null = null;
-        let attachmentUrl: string | undefined;
+        let uploadedAsset: Awaited<ReturnType<typeof uploadMediaFile>> | undefined;
         if (attachment) {
           setIsUploadingAttachment(true);
           try {
-            const uploadedAsset = await uploadMediaFile({ picked: attachment, featureKey: "chat", conversationId: conversationKey });
-            attachmentUrl = uploadedAsset.url;
+            uploadedAsset = await uploadMediaFile({ picked: attachment, featureKey: "chat", conversationId: conversationKey });
           } catch (cause) {
             setIsUploadingAttachment(false);
             throw cause;
           } finally { setIsUploadingAttachment(false); }
         }
-        
-        const fullContent = attachmentUrl 
-          ? `${content}\n\n![مرفق](${attachmentUrl})` 
-          : content;
-
         await chatService.sendMessage({
           conversationId: conversationKey,
-          content: fullContent,
+          content,
+          mediaAsset: uploadedAsset,
           signal: controller.signal,
           async onUserSaved(message) {
             savedUserMessage = true;
@@ -500,6 +494,7 @@ export default function ChatPage() {
       messageId={item.id}
       role={item.role === "user" ? "user" : "assistant"}
       content={item.content}
+      attachments={item.attachments}
       isStreaming={item.status === "streaming"}
       feedback={feedbackByMessage[item.id] ?? null}
       onEdit={item.role === "user" ? (content) => composerRef.current?.editMessage(content) : undefined}

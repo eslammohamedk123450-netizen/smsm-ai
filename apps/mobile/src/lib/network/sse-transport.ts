@@ -11,6 +11,8 @@ export interface StreamCallbacks {
 
 export interface ChatRequestBody {
   conversation_id: string;
+  user_message_id?: string;
+  media_asset_ids?: string[];
   request_id: string;
   messages: Array<{ role: "user" | "assistant"; content: string }>;
   routing_mode: "auto";
@@ -25,6 +27,14 @@ function publicHttpError(status: number): Error {
   if (status === 429) return new Error("أُرسلت الطلبات بسرعة كبيرة. انتظر قليلًا ثم أعد المحاولة.");
   if (status >= 500) return new Error("خدمة الدردشة غير متاحة مؤقتًا. حاول مرة أخرى لاحقًا.");
   return new Error(`تعذر إرسال الرسالة (HTTP ${status}).`);
+}
+
+async function publicResponseError(response: Response): Promise<Error> {
+  const status = response.status;
+  if (status === 401 || status === 403 || status === 402 || status === 429 || status >= 500) return publicHttpError(status);
+  const payload = await response.clone().json().catch(() => null) as { error?: unknown } | null;
+  if (typeof payload?.error === "string" && payload.error.length > 0 && payload.error.length <= 400) return new Error(payload.error);
+  return publicHttpError(status);
 }
 
 function dispatch(event: RouterSseEvent, callbacks: StreamCallbacks): boolean {
@@ -87,7 +97,7 @@ export async function streamChat(
     });
     const response = await Promise.race([responsePromise, timeoutPromise]);
     if (connectTimer) clearTimeout(connectTimer);
-    if (!response.ok) throw publicHttpError(response.status);
+    if (!response.ok) throw await publicResponseError(response);
     if (!response.body?.getReader) throw new Error("هذا النظام لا يوفر قارئ بث مناسبًا. استخدم نسخة تطوير native مدعومة.");
 
     reader = response.body.getReader();
