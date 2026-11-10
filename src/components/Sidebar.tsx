@@ -77,7 +77,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       .filter((conversation) => conversation.group && conversation.title.trim())
       .filter((conversation) => !query || conversation.title.toLocaleLowerCase().includes(query))
       .sort((a, b) => Number(b.pinned) - Number(a.pinned) || new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-    return Object.fromEntries(GROUPS.map((group) => [group, visible.filter((conversation) => conversation.group === group)])) as Record<ConversationGroup, ConversationRecord[]>;
+    return Object.fromEntries(GROUPS.map((group) => [group, visible.filter((conversation) => conversation.group === group)])) as unknown as Record<ConversationGroup, ConversationRecord[]>;
   }, [conversations, searchQuery]);
 
   const activeItemClass = 'bg-[#2A2A2A] text-[#F5F5F5] border border-[#3A3A3A]';
@@ -141,7 +141,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <section className="space-y-1">
             <div className="px-2 pb-1 text-[14px] font-medium text-[#8B8B8B]">الحساب والإعدادات</div>
             <button type="button" onClick={() => { onNavigate('home'); onClose(); }} className={`flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 text-[14px] text-[#E5E7EB] transition-colors ${currentScreen === 'home' ? activeItemClass : 'hover:bg-[#1D1D1D]'}`}><UserRound className="h-5 w-5 text-[#A1A1AA]" /><span>الحساب</span></button>
-            <button type="button" onClick={() => { onNavigate('home'); onClose(); }} className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 text-[14px] text-[#E5E7EB] transition-colors hover:bg-[#1D1D1D]"><Settings className="h-5 w-5 text-[#A1A1AA]" /><span>الإعدادات</span></button>
+            <button type="button" onClick={() => { onNavigate('admin'); onClose(); }} className={`flex w-full items-center gap-3 rounded-xl px-2.5 py-2.5 text-[14px] text-[#E5E7EB] transition-colors ${currentScreen === 'admin' ? activeItemClass : 'hover:bg-[#1D1D1D]'}`}><Settings className="h-5 w-5 text-[#A1A1AA]" /><span>إعدادات الإدارة</span></button>
           </section>
         </div>
       </aside>

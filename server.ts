@@ -1,10 +1,41 @@
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
+import { createClient } from '@supabase/supabase-js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json({ limit: '10mb' }));
+
+function getSupabaseFromRequest(req: express.Request) {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+  const authorization = req.header('authorization');
+  if (!supabaseUrl || !supabaseAnonKey || !authorization?.startsWith('Bearer ')) return null;
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    global: { headers: { Authorization: authorization } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
+app.get('/api/admin/composio', async (req, res) => {
+  const supabase = getSupabaseFromRequest(req);
+  if (!supabase) return res.status(401).json({ error: 'جلسة المدير غير موجودة أو إعداد Supabase ناقص.' });
+  const { data, error } = await supabase.rpc('suly_admin_composio_status');
+  if (error) return res.status(error.code === '42501' ? 403 : 500).json({ error: 'لا يمكن قراءة حالة إعداد Composio لهذه الجلسة.' });
+  const row = Array.isArray(data) ? data[0] : data;
+  return res.json({ configured: row?.configured === true, updated_at: row?.updated_at ?? null });
+});
+
+app.put('/api/admin/composio', async (req, res) => {
+  const supabase = getSupabaseFromRequest(req);
+  if (!supabase) return res.status(401).json({ error: 'جلسة المدير غير موجودة أو إعداد Supabase ناقص.' });
+  const apiKey = typeof req.body?.apiKey === 'string' ? req.body.apiKey.trim() : '';
+  if (!apiKey || apiKey.length > 16384) return res.status(400).json({ error: 'مفتاح Composio غير صالح.' });
+  const { error } = await supabase.rpc('suly_admin_set_composio_api_key', { p_api_key: apiKey });
+  if (error) return res.status(error.code === '42501' ? 403 : 400).json({ error: 'تعذر حفظ مفتاح Composio داخل Vault.' });
+  return res.json({ ok: true, updated_at: new Date().toISOString() });
+});
 
 // Suly Chat API
 app.post('/api/chat', async (req, res) => {
