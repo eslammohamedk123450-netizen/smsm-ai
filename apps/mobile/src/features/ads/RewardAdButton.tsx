@@ -7,6 +7,8 @@ import { supabase } from "../../lib/supabase/client";
 import { colors } from "../../theme/colors";
 import { initializeAds } from "./ads-config";
 
+const REWARDED_ADS_PAUSED = true;
+
 export function RewardAdButton() {
   const [unitId, setUnitId] = useState<string | null>(null);
   const [loadingConfig, setLoadingConfig] = useState(true);
@@ -73,6 +75,7 @@ export function RewardAdButton() {
   };
 
   if (Platform.OS === "web") return null;
+  if (REWARDED_ADS_PAUSED) return <Text accessibilityRole="alert" style={styles.message}>مكافآت الإعلانات متوقفة مؤقتًا لحين تفعيل التحقق الآمن.</Text>;
   return <>
     <Pressable accessibilityRole="button" onPress={showRewardedAd} disabled={busy || loadingConfig} style={[styles.button, (busy || loadingConfig) && styles.disabled]}>
       {busy || loadingConfig ? <ActivityIndicator color={colors.textPrimary} /> : <Text style={styles.buttonText}>احصل على 1000 رصيد</Text>}

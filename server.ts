@@ -1,30 +1,16 @@
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
-import { GoogleGenAI } from '@google/genai';
-import dotenv from 'dotenv';
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json({ limit: '10mb' }));
 
-// Server-side Gemini initialization if key exists
-const apiKey = process.env.GEMINI_API_KEY;
-let aiClient: GoogleGenAI | null = null;
-if (apiKey) {
-  aiClient = new GoogleGenAI({
-    apiKey,
-    httpOptions: {
-      headers: {
-        'User-Agent': 'aistudio-build',
-      },
-    },
-  });
-}
-
 // Suly Chat API
 app.post('/api/chat', async (req, res) => {
+  return res.status(410).json({ error: 'This legacy chat endpoint is retired. Use the authenticated AI router.' });
+  /* Legacy implementation retained only for migration history; unreachable. */
+  /*
   const { message, isFirstMessage } = req.body;
   if (!message || typeof message !== 'string') {
     return res.status(400).json({ error: 'الرجاء إرسال رسالة صالحة' });
@@ -81,6 +67,7 @@ ${isFirstMessage ? 'هذه الرسالة الأولى في المحادثة، �
     const reply = formatDirectReply(rawReply, !!isFirstMessage);
     return res.json({ reply, cost });
   }
+  */
 });
 
 // Check strict identity queries to guarantee exact wording
