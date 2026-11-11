@@ -30,6 +30,29 @@ describe("adminService tests", () => {
     await expect(adminService.getProviders()).rejects.toThrow("يتطلب هذا الإجراء صلاحية مشرف موثقة.");
   });
 
+  test("Cloudinary status requires admin and returns metadata only", async () => {
+    (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "admin-1" } }, error: null });
+    (supabase.rpc as jest.Mock).mockImplementation((rpcName: string) => {
+      if (rpcName === "suly_is_admin") return Promise.resolve({ data: true, error: null });
+      if (rpcName === "suly_admin_cloudinary_status") return Promise.resolve({ data: [{ configured: true, updated_at: "2026-11-11T00:00:00Z" }], error: null });
+      return Promise.resolve({ data: null, error: null });
+    });
+
+    await expect(adminService.getCloudinaryStatus()).resolves.toEqual({ configured: true, updated_at: "2026-11-11T00:00:00Z" });
+    expect(supabase.rpc).toHaveBeenCalledWith("suly_admin_cloudinary_status");
+  });
+
+  test("Cloudinary credentials are sent only to the admin Vault RPC", async () => {
+    (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "admin-1" } }, error: null });
+    (supabase.rpc as jest.Mock).mockImplementation((rpcName: string) => rpcName === "suly_is_admin"
+      ? Promise.resolve({ data: true, error: null })
+      : Promise.resolve({ data: null, error: null }));
+    const value = "cloudinary://test-key:test-secret@test-cloud";
+
+    await adminService.saveCloudinaryUrl(value);
+    expect(supabase.rpc).toHaveBeenCalledWith("suly_admin_set_cloudinary_url", { p_cloudinary_url: value });
+  });
+
   test("adjustCredits validates amount and reason", async () => {
     (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "admin-1" } }, error: null });
     (supabase.rpc as jest.Mock).mockImplementation((rpcName: string) => {

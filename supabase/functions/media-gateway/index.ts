@@ -138,7 +138,7 @@ async function handle(req: Request): Promise<Response> {
   } catch { return json({ error: "Invalid JSON request." }, 400); }
   const action = safeString(body.action, 40);
   if (!["sign_upload", "register", "get_url", "get_urls"].includes(action)) return json({ error: "Unsupported action." }, 400);
-  const config = getCloudinaryConfig();
+  const config = await getCloudinaryConfig(ctx.service);
   if (!config) return json({ error: "Cloudinary server credentials are not configured.", code: "cloudinary_not_configured" }, 503);
 
   if (action === "sign_upload") {

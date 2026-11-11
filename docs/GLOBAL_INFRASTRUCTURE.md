@@ -125,11 +125,17 @@ select suly_admin_grant_feature('<user-uuid>', 'hims', true);
 
 كل الأدوات مقيّدة بالمستخدم المُصادَق (`userId` من التوكن)، ولا تقبل معرّف مستخدم من الوسائط.
 
+## إعداد Cloudinary الآمن من لوحة الإدارة
+
+يُدخل المشرف `Cloud Name` و`API Key` و`API Secret` من شاشة **التخزين · Cloudinary**. تُحوَّل القيم إلى رابط اتصال داخل التطبيق ثم تُرسل عبر اتصال Supabase المشفر إلى دالة إدارية تتحقق من صلاحية المشرف وتحفظ الرابط في Supabase Vault. شاشة الحالة لا تقرأ السر، ولا يمكن استرجاعه إلى التطبيق. تُصدر Edge Functions الرابط من Vault باستخدام `service_role` فقط، مع الإبقاء على سر البيئة القديم كمسار انتقال خلفي للدوال التي تستخدم القارئ المشترك.
+
+من لوحة الإدارة، افتح **التخزين · Cloudinary** وأدخل القيم كما تظهر في لوحة Cloudinary. لا تُدخلها في `.env` الخاص بالهاتف ولا في GitHub.
+
 ## متغيرات البيئة (Secrets)
 
 | المتغير | الاستخدام |
 | --- | --- |
-| `cloudinary_URL` | رابط اتصال Cloudinary بصيغة `cloudinary://API_KEY:API_SECRET@CLOUD_NAME`؛ يظل سريًا ويُقرأ على الخادم فقط. يقبل الكود أيضًا الاسم القياسي `CLOUDINARY_URL`. |
+| `cloudinary_URL` | مسار انتقال قديم لرابط اتصال Cloudinary بصيغة `cloudinary://API_KEY:API_SECRET@CLOUD_NAME`. الإعداد من لوحة الإدارة عبر Vault هو المسار الموصى به. |
 
 ```bash
 supabase secrets set 'cloudinary_URL=cloudinary://API_KEY:API_SECRET@CLOUD_NAME'
@@ -146,8 +152,9 @@ supabase db push
 # 2) نشر الدوال بعد ضبط أسرار Cloudinary
 supabase functions deploy ai-router
 supabase functions deploy media-gateway
-supabase functions deploy upload-media
 ```
+
+`upload-media` القديم متوقف؛ يرفع تطبيق الهاتف عبر `media-gateway` المصادق والمقيّد بملكية المستخدم والسياق.
 
 ## التحقق المحلي (بدون لمس الإنتاج)
 

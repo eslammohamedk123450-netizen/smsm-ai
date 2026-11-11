@@ -1,4 +1,5 @@
 import { getCloudinaryConfig } from "./cloudinary_config.ts";
+import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const encoder = new TextEncoder();
 function hex(bytes: Uint8Array): string { return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join(""); }
@@ -10,8 +11,8 @@ export async function cloudinaryAuthenticatedDeliveryUrl(asset: {
   bucket: string;
   object_key: string;
   metadata: Record<string, unknown> | null;
-}): Promise<string | null> {
-  const config = getCloudinaryConfig();
+}, service: Pick<SupabaseClient<any, "public", any>, "rpc">): Promise<string | null> {
+  const config = await getCloudinaryConfig(service);
   if (!config || !["image", "video", "raw"].includes(asset.bucket)) return null;
   if (!/^suly\/[0-9a-f-]{36}\/(chat|support|hims|general)\/[0-9a-f-]{36}$/i.test(asset.object_key)) return null;
   const metadata = asset.metadata && typeof asset.metadata === "object" ? asset.metadata : {};

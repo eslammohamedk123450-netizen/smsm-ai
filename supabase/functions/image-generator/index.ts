@@ -1,4 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { getCloudinaryConfig } from "../_shared/cloudinary_config.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -27,18 +29,6 @@ function cloudinarySignature(fields: Record<string, string>, secret: string): Pr
   const canonical = Object.entries(fields).filter(([, value]) => value !== "").sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => `${key}=${value}`).join("&");
   return sha1(`${canonical}${secret}`);
 }
-function parseCloudinaryUrl(value: string): { cloudName: string; apiKey: string; apiSecret: string } | null {
-  if (!value || value.length > 2048) return null;
-  try {
-    const parsed = new URL(value.trim());
-    if (parsed.protocol !== "cloudinary:" || parsed.search || parsed.hash || (parsed.pathname && parsed.pathname !== "/")) return null;
-    const cloudName = parsed.hostname;
-    const apiKey = decodeURIComponent(parsed.username);
-    const apiSecret = decodeURIComponent(parsed.password);
-    if (!/^[a-zA-Z0-9_-]+$/.test(cloudName) || !apiKey || !apiSecret) return null;
-    return { cloudName, apiKey, apiSecret };
-  } catch { return null; }
-}
 function imageFormat(bytes: Uint8Array): { mimeType: string; extension: string; format: string } | null {
   if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return { mimeType: "image/jpeg", extension: "jpg", format: "jpg" };
   if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47 && bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a) return { mimeType: "image/png", extension: "png", format: "png" };
@@ -54,7 +44,7 @@ function decodeBase64Image(raw: string): Uint8Array {
     return Uint8Array.from(binary, (character) => character.charCodeAt(0));
   } catch { throw new ServiceError(502, "تعذر قراءة الصورة التي أنشأها المزود."); }
 }
-async function getUserId(service: ReturnType<typeof createClient>, req: Request): Promise<string> {
+async function getUserId(service: SupabaseClient<any, "public", any>, req: Request): Promise<string> {
   const authorization = req.headers.get("Authorization") ?? "";
   const match = authorization.match(/^Bearer\s+(.+)$/i);
   if (!match) throw new ServiceError(401, "سجّل الدخول قبل إنشاء صورة.");
@@ -62,7 +52,7 @@ async function getUserId(service: ReturnType<typeof createClient>, req: Request)
   if (error || !data.user) throw new ServiceError(401, "انتهت جلسة الدخول. سجّل الدخول مرة أخرى.");
   return data.user.id;
 }
-async function settleCredits(service: ReturnType<typeof createClient>, userId: string, taskId: string, actualCost: number): Promise<void> {
+async function settleCredits(service: SupabaseClient<any, "public", any>, userId: string, taskId: string, actualCost: number): Promise<void> {
   const { error } = await service.rpc("finalize_credits", {
     p_user_id: userId,
     p_task_id: taskId,
@@ -87,7 +77,7 @@ async function uploadImageToCloudinary(input: {
   const signedFields = { overwrite: "false", public_id: input.publicId, timestamp, type: "authenticated" };
   const signature = await cloudinarySignature(signedFields, input.apiSecret);
   const form = new FormData();
-  form.set("file", new Blob([input.bytes], { type: input.mimeType }), `generated.${input.extension}`);
+  form.set("file", new Blob([input.bytes.slice().buffer as ArrayBuffer], { type: input.mimeType }), `generated.${input.extension}`);
   form.set("public_id", input.publicId);
   form.set("timestamp", timestamp);
   form.set("type", "authenticated");
@@ -165,7 +155,7 @@ Deno.serve(async (req: Request) => {
   if (configError || config.enabled !== true || typeof config.api_token !== "string" || !config.api_token || typeof config.account_id !== "string" || !CF_ACCOUNT_RE.test(config.account_id)) {
     return json(503, { error: "توليد الصور غير مفعّل أو إعداد Cloudflare غير مكتمل. تواصل مع المشرف." });
   }
-  const cloudinary = parseCloudinaryUrl(Deno.env.get("cloudinary_URL") ?? Deno.env.get("CLOUDINARY_URL") ?? "");
+  const cloudinary = await getCloudinaryConfig(service);
   if (!cloudinary) return json(503, { error: "تخزين الصور الخاصة غير مهيأ على الخادم." });
 
   const creditsPerImage = Math.max(1, Math.floor(Number(config.credits_per_image) || 1));

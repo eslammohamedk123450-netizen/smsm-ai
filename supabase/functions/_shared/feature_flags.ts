@@ -96,7 +96,7 @@ export async function getFeatureContext(supabase: any, userId: string): Promise<
         if (mediaId) {
           const asset = assetsById.get(mediaId);
           if (asset && asset.feature_key === featureKey && asset.storage_provider === "cloudinary" && asset.delivery_type === "authenticated") {
-            url = await cloudinaryAuthenticatedDeliveryUrl({ bucket: String(asset.bucket), object_key: String(asset.object_key), metadata: asRecord(asset.metadata) });
+            url = await cloudinaryAuthenticatedDeliveryUrl({ bucket: String(asset.bucket), object_key: String(asset.object_key), metadata: asRecord(asset.metadata) }, supabase);
           }
         }
         if (!url) continue;
