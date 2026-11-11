@@ -7,6 +7,7 @@ import { DrawerActions } from "@react-navigation/native";
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { useAuth } from "../../src/features/auth/auth-provider";
 import { chatService, type ChatMessage } from "../../src/features/chat/chat-service";
+import { getRotatingSuggestions } from "../../src/features/chat/suggestions";
 import { getImageGenerationPrompt } from "../../src/features/chat/image-generation";
 import { chatStreamManager } from "../../src/features/chat/chat-stream-manager";
 import { runOnce } from "../../src/features/chat/submission-guard";
@@ -23,6 +24,7 @@ import { useToast } from "../../src/components/ui/Toast";
 import { supabase } from "../../src/lib/supabase/client";
 
 const STREAMING_ID = "local-streaming-assistant";
+const TASK_SUGGESTIONS = getRotatingSuggestions(Date.now(), 4);
 
 export default function ChatPage() {
   const { user } = useAuth();
@@ -514,11 +516,25 @@ export default function ChatPage() {
         {isLoading ? <View style={styles.loading}><ActivityIndicator color={colors.primary} /><Text style={styles.loadingText}>جارٍ تحميل المحادثة…</Text></View> : messages.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.emptyTitle}>دع Suly يعمل من أجلك</Text>
-
             <View style={styles.chooseTaskTitle} accessibilityRole="text">
               <Ionicons name="sparkles-outline" size={18} color={colors.primary} />
               <Text style={styles.chooseTaskText}>اختيار مهمة</Text>
             </View>
+            <View style={styles.taskGrid}>
+              {TASK_SUGGESTIONS.map((suggestion) => (
+                <Pressable
+                  key={suggestion.text}
+                  onPress={() => composerRef.current?.editMessage(suggestion.text)}
+                  style={styles.taskCard}
+                  accessibilityRole="button"
+                  accessibilityLabel={`استخدام المهمة: ${suggestion.text}`}
+                >
+                  <View style={styles.taskIconCircle}><Ionicons name={suggestion.icon} size={19} color={colors.primary} /></View>
+                  <Text numberOfLines={2} style={styles.taskCardText}>{suggestion.text}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text style={styles.taskHint}>اختر مثالًا لكتابته في الرسالة، أو اكتب طلبك بنفسك</Text>
           </View>
         ) : (
           <View style={styles.messageListContainer}>
@@ -592,10 +608,15 @@ const styles = StyleSheet.create({
   messageListContainer: { flex: 1, position: "relative" },
   scrollToBottomButton: { position: "absolute", right: 24, bottom: 12, width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.divider, elevation: 5, zIndex: 2 },
   messageContent: { flexGrow: 1, paddingVertical: 12 },
-  empty: { flex: 1, alignItems: "center", paddingHorizontal: 12, paddingVertical: 14, gap: 14 },
+  empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 18, paddingVertical: 14, gap: 14 },
   emptyTitle: { color: "#FFFFFF", fontSize: 22, fontWeight: "700", textAlign: "center" },
-  chooseTaskTitle: { width: "100%", flexDirection: "row-reverse", alignItems: "center", justifyContent: "flex-start", gap: 8, paddingHorizontal: 8 },
+  chooseTaskTitle: { width: "100%", flexDirection: "row-reverse", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 8 },
   chooseTaskText: { color: "#F5F5F5", fontSize: 16, fontWeight: "700", textAlign: "right" },
+  taskGrid: { width: "100%", flexDirection: "row-reverse", flexWrap: "wrap", justifyContent: "center", gap: 10 },
+  taskCard: { width: "48%", minHeight: 92, flexDirection: "row-reverse", alignItems: "center", gap: 9, paddingHorizontal: 11, paddingVertical: 12, borderRadius: 16, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
+  taskIconCircle: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(14, 165, 233, 0.12)" },
+  taskCardText: { flex: 1, color: colors.textPrimary, textAlign: "right", fontSize: 12, lineHeight: 18 },
+  taskHint: { color: colors.textMuted, textAlign: "center", fontSize: 11, lineHeight: 17 },
   starsRow: { flexDirection: "row", alignItems: "center", gap: 2 },
   star: { color: colors.textMuted, fontSize: 25 },
   starSelected: { color: "#FBBF24" },

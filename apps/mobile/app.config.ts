@@ -1,6 +1,6 @@
 import type { ExpoConfig } from "expo/config";
 
-const easProjectId = process.env.EAS_PROJECT_ID;
+const easProjectId = process.env.EAS_PROJECT_ID?.trim() || undefined;
 
 const config: ExpoConfig & { splash?: { image: string; resizeMode: "contain"; backgroundColor: string } } = {
   name: "Suly",

@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Animated,
   Image,
+  Keyboard,
   Modal,
   Platform,
   Pressable,
@@ -233,6 +234,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
     const content = text.trim();
     if ((!content && !attachment) || disabled) return;
     if (voiceActive) stopVoice();
+    Keyboard.dismiss();
     ignoreRecognitionResults.current = true;
     onSend(content, attachment ?? undefined);
     setText(""); setSelection(undefined); setAttachment(null); speechBase.current = "";
