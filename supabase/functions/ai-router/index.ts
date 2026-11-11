@@ -561,7 +561,7 @@ async function handleRequest(req: Request): Promise<Response> {
         bucket: String(asset.bucket ?? ""),
         object_key: String(asset.object_key ?? ""),
         metadata: asRecord(asset.metadata),
-      });
+      }, supabase);
       if (!cloudinaryUrl) return jsonResponse({ error: "تعذر إنشاء رابط داخلي آمن لمعالجة المرفق." }, 503);
       const attachment: TrustedChatAttachment = { id: String(asset.id), capability, url: cloudinaryUrl, filename };
       if (capability === "pdf") {
