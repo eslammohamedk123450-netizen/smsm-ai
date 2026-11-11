@@ -33,6 +33,9 @@ export interface ChatComposerProps {
   onOpenRecharge?(): void;
 }
 
+const MIN_INPUT_HEIGHT = 42;
+const MAX_INPUT_HEIGHT = 132;
+
 function formatDictationDuration(totalSeconds: number) {
   const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, "0");
   const seconds = (totalSeconds % 60).toString().padStart(2, "0");
@@ -51,6 +54,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
   ref
 ) {
   const [text, setText] = useState("");
+  const [inputHeight, setInputHeight] = useState(MIN_INPUT_HEIGHT);
   const [selection, setSelection] = useState<{ start: number; end: number } | undefined>();
   const [attachment, setAttachment] = useState<ChatAttachment | null>(null);
   const [attachmentPreviewUri, setAttachmentPreviewUri] = useState<string | null>(null);
@@ -89,6 +93,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
   useImperativeHandle(ref, () => ({
     editMessage(content: string) {
       setText(content);
+      setInputHeight(MIN_INPUT_HEIGHT);
       setAttachment(null);
       speechBase.current = "";
       setSelection({ start: content.length, end: content.length });
@@ -237,7 +242,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
     Keyboard.dismiss();
     ignoreRecognitionResults.current = true;
     onSend(content, attachment ?? undefined);
-    setText(""); setSelection(undefined); setAttachment(null); speechBase.current = "";
+    setText(""); setInputHeight(MIN_INPUT_HEIGHT); setSelection(undefined); setAttachment(null); speechBase.current = "";
   };
 
   const beginVoice = () => {
@@ -343,13 +348,18 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
           ref={inputRef}
           value={text}
           onChangeText={setText}
+          onContentSizeChange={(event) => {
+            const measuredHeight = Math.ceil(event.nativeEvent.contentSize.height) + 16;
+            setInputHeight(Math.max(MIN_INPUT_HEIGHT, Math.min(MAX_INPUT_HEIGHT, measuredHeight)));
+          }}
           selection={selection}
           onSelectionChange={(event) => setSelection(event.nativeEvent.selection)}
           editable={!disabled && !isStreaming}
           placeholder="اسأل Suly"
           placeholderTextColor="#A1A1AA"
-          style={styles.input}
-          multiline={false}
+          style={[styles.input, { height: inputHeight }]}
+          multiline
+          scrollEnabled={inputHeight >= MAX_INPUT_HEIGHT}
           maxLength={16000}
           textAlign="right"
           accessibilityLabel="اسأل Suly"
@@ -426,10 +436,11 @@ const styles = StyleSheet.create({
   bannerRechargeBtn: { backgroundColor: "#FFFFFF", paddingHorizontal: 12, paddingVertical: 5, borderRadius: 999 },
   bannerRechargeText: { color: "#000000", fontSize: 11, fontWeight: "700" },
   container: {
-    height: 56,
+    minHeight: 56,
     flexDirection: "row-reverse",
     alignItems: "center",
     paddingHorizontal: 8,
+    paddingVertical: 6,
     borderRadius: 9999,
     borderWidth: 1,
     borderColor: "#262626",
@@ -443,11 +454,16 @@ const styles = StyleSheet.create({
   plusButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 20 },
   input: {
     flex: 1,
-    height: 48,
+    minHeight: MIN_INPUT_HEIGHT,
+    maxHeight: MAX_INPUT_HEIGHT,
     color: "#F5F5F5",
     fontSize: 15,
+    lineHeight: 21,
     paddingHorizontal: 10,
+    paddingTop: 8,
+    paddingBottom: 8,
     textAlign: "right",
+    textAlignVertical: "top",
     writingDirection: "rtl",
   },
   leftControls: { flexDirection: "row", alignItems: "center", gap: 4 },
