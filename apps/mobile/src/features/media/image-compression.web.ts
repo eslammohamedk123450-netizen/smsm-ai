@@ -1,8 +1,8 @@
 // Web image compression: decode, downscale to the longest edge, re-encode as
 // JPEG. Runs entirely in the browser, so no server work and no extra traffic.
 
-import { IMAGE_MAX_DIMENSION, IMAGE_QUALITY } from "./cloudinary-config";
-import type { UploadFilePart } from "./cloudinary";
+import { IMAGE_MAX_DIMENSION, IMAGE_QUALITY } from "./media-config";
+import type { UploadFilePart } from "./media-utils";
 
 export interface CompressOptions {
   width?: number;

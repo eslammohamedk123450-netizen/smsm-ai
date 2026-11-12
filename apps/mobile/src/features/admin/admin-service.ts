@@ -10,7 +10,6 @@ export interface ProviderInput {
   api_key: string;
 }
 export interface ComposioStatus { configured: boolean; updated_at: string | null; }
-export interface CloudinaryStatus { configured: boolean; updated_at: string | null; }
 export interface PricingPlan {
   id: number;
   name: string;
@@ -83,20 +82,6 @@ function describeFunctionFailure(error: unknown, functionName: string): string {
 }
 
 export const adminService = {
-  async getCloudinaryStatus(): Promise<CloudinaryStatus> {
-    await requireAdmin();
-    const { data, error } = await supabase.rpc("suly_admin_cloudinary_status");
-    if (error) throw error;
-    const row = Array.isArray(data) ? data[0] : data;
-    return { configured: row?.configured === true, updated_at: row?.updated_at ?? null };
-  },
-  async saveCloudinaryUrl(cloudinaryUrl: string): Promise<void> {
-    await requireAdmin();
-    const value = cloudinaryUrl.trim();
-    if (!value.startsWith("cloudinary://") || value.length > 2048) throw new Error("بيانات Cloudinary غير صالحة.");
-    const { error } = await supabase.rpc("suly_admin_set_cloudinary_url", { p_cloudinary_url: value });
-    if (error) throw error;
-  },
   async getComposioStatus(): Promise<ComposioStatus> {
     await requireAdmin();
     const { data, error } = await supabase.rpc("suly_admin_composio_status");

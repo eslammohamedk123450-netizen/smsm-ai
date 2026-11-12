@@ -54,7 +54,7 @@ export function SupportAdminScreen() {
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     <View style={styles.header}><Text style={styles.title}>الدعم والشكاوى</Text><Pressable onPress={() => void load()}><Text style={styles.link}>تحديث</Text></Pressable></View>
-    <Text style={styles.subtitle}>صندوق تذاكر من قاعدة البيانات؛ المرفقات تُعرض بروابط Cloudinary مصرح بها.</Text>
+    <Text style={styles.subtitle}>صندوق تذاكر من قاعدة البيانات؛ المرفقات تُعرض بروابط خاصة ومصرح بها.</Text>
     {loading ? <ActivityIndicator color={colors.primary} /> : tickets.length === 0 ? <Text style={styles.empty}>لا توجد طلبات دعم.</Text> : tickets.map((ticket) => <Pressable key={ticket.id} style={styles.ticket} onPress={() => void open(ticket)}>
       <View style={styles.ticketTop}><Text style={styles.badge}>{statusLabel[ticket.status] ?? ticket.status}</Text><Text style={styles.subject}>{ticket.subject}</Text></View>
       <Text style={styles.description} numberOfLines={2}>{ticket.description}</Text>

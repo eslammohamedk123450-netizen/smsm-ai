@@ -6,19 +6,17 @@ import { env } from "../../config/env";
 import { compressImageForUpload } from "./image-compression";
 import { pickFile } from "./web-file-input";
 import {
-  CloudinaryError,
   detectMediaKind,
   formatBytes,
   shouldCompressImage,
-  uploadToCloudinary,
+  uploadToStorage,
   type MediaKind,
-  type SignedCloudinaryUpload,
+  type SignedStorageUpload,
   type UploadFilePart,
-} from "./cloudinary";
+  MediaUploadError,
+} from "./media-utils";
 
-export { MAX_UPLOAD_BYTES } from "./cloudinary-config";
-export { CloudinaryError, formatBytes } from "./cloudinary";
-
+export { MAX_UPLOAD_BYTES, formatBytes, MediaUploadError } from "./media-utils";
 export interface MediaAsset {
   id: string;
   featureKey: string;
@@ -32,17 +30,7 @@ export interface MediaAsset {
   height: number | null;
   durationSeconds: number | null;
 }
-export interface PickedMedia {
-  part: UploadFilePart;
-  kind: MediaKind;
-  width?: number;
-  height?: number;
-  sourceBytes: number;
-}
-export class MediaUploadError extends Error {
-  readonly code: string;
-  constructor(code: string, message: string) { super(message); this.name = "MediaUploadError"; this.code = code; }
-}
+export interface PickedMedia { part: UploadFilePart; kind: MediaKind; width?: number; height?: number; sourceBytes: number; }
 function normalizeFeatureKey(value: string | undefined): "chat" | "support" | "hims" | "general" {
   return value === "chat" || value === "support" || value === "hims" || value === "general" ? value : "general";
 }
@@ -89,44 +77,34 @@ export function pickedFromWebFile(file: File): PickedMedia {
   const kind = detectMediaKind(file.type, file.name);
   return { part: { blob: file, name: file.name, type: file.type || "application/octet-stream" }, kind, sourceBytes: file.size };
 }
-export interface UploadMediaInput {
-  picked: PickedMedia;
-  featureKey?: string;
-  conversationId?: string;
-  messageId?: string;
-  supportTicketId?: string;
-}
-interface GatewayError { error?: string; code?: string; }
+export interface UploadMediaInput { picked: PickedMedia; featureKey?: string; conversationId?: string; messageId?: string; supportTicketId?: string; }
+interface GatewayError { error?: string; }
 function gatewayMessage(error: unknown, data: unknown, fallback: string): string {
   const response = data && typeof data === "object" ? data as GatewayError : null;
   const fromData = response?.error;
   const context = (error as { context?: { status?: number } } | null)?.context;
-  if (context?.status === 404) return "بوابة Cloudinary غير منشورة بعد على Supabase.";
-  if (context?.status === 503 || response?.code === "cloudinary_not_configured") return "تخزين Cloudinary الآمن غير مهيأ على الخادم بعد. يلزم ضبط مفاتيح Cloudinary السرية في Supabase.";
+  if (context?.status === 401) return "انتهت جلسة الدخول. سجّل الدخول مرة أخرى.";
+  if (context?.status === 404) return "الخدمة غير متاحة الآن. حاول مرة أخرى لاحقًا.";
   return typeof fromData === "string" ? fromData : fallback;
 }
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const { data } = await supabase.auth.getSession();
+  const token = data?.session?.access_token || env.supabaseAnonKey;
+  return { Authorization: `Bearer ${token}`, apikey: env.supabaseAnonKey };
+}
 export async function getMediaDeliveryUrl(mediaId: string): Promise<string> {
-  const { data: sessionData } = await supabase.auth.getSession();
-  const token = sessionData?.session?.access_token || env.supabaseAnonKey;
-  const { data, error } = await supabase.functions.invoke("media-gateway", { 
-    body: { action: "get_url", media_id: mediaId },
-    headers: { Authorization: `Bearer ${token}`, apikey: env.supabaseAnonKey }
-  });
+  const { data, error } = await supabase.functions.invoke("media-gateway", { body: { action: "get_url", media_id: mediaId }, headers: await getAuthHeaders() });
   if (error || !data || typeof data.url !== "string") throw new MediaUploadError("media_access_denied", gatewayMessage(error, data, "تعذر استرجاع الملف أو لا تملك صلاحية الوصول إليه."));
   return data.url;
 }
 export async function getMediaDeliveryUrls(mediaIds: string[]): Promise<Map<string, string>> {
   const ids = [...new Set(mediaIds)].filter(Boolean).slice(0, 500);
   if (!ids.length) return new Map();
-  const { data: sessionData } = await supabase.auth.getSession();
-  const token = sessionData?.session?.access_token || env.supabaseAnonKey;
   const chunks: string[][] = [];
   for (let index = 0; index < ids.length; index += 100) chunks.push(ids.slice(index, index + 100));
+  const headers = await getAuthHeaders();
   const results = await Promise.all(chunks.map(async (chunk) => {
-    const { data, error } = await supabase.functions.invoke("media-gateway", {
-      body: { action: "get_urls", media_ids: chunk },
-      headers: { Authorization: `Bearer ${token}`, apikey: env.supabaseAnonKey },
-    });
+    const { data, error } = await supabase.functions.invoke("media-gateway", { body: { action: "get_urls", media_ids: chunk }, headers });
     if (error || !Array.isArray(data?.assets)) throw new MediaUploadError("resolve_failed", gatewayMessage(error, data, "تعذر التحقق من صلاحية عرض الملفات."));
     return data.assets as unknown[];
   }));
@@ -143,38 +121,28 @@ export async function uploadMediaFile(input: UploadMediaInput): Promise<MediaAss
   if (picked.kind === "image" && shouldCompressImage(part.type, part.name)) part = await compressImageForUpload(part, { width: picked.width });
   const uploadSize = part.blob?.size ?? picked.sourceBytes;
   if (!Number.isFinite(uploadSize) || uploadSize < 1) throw new MediaUploadError("empty", "الملف فارغ أو تعذر معرفة حجمه.");
-  if (uploadSize > 100 * 1024 * 1024) throw new MediaUploadError("too_large", "حجم الملف أكبر من الحد المسموح (100 ميجابايت). ");
-  const { data: signedData, error: signError } = await supabase.functions.invoke("media-gateway", {
-    body: { action: "sign_upload", feature_key: featureKey, resource_type: picked.kind, mime_type: part.type, size_bytes: uploadSize, conversation_id: input.conversationId ?? null, message_id: input.messageId ?? null, support_ticket_id: input.supportTicketId ?? null },
-    headers: { Authorization: `Bearer ${sessionData.session.access_token}`, apikey: env.supabaseAnonKey }
-  });
-  if (signError || !signedData?.signed_fields) throw new MediaUploadError("sign_failed", gatewayMessage(signError, signedData, "تعذر توقيع طلب الرفع الآمن."));
-  let uploaded;
-  try { uploaded = await uploadToCloudinary(part, signedData as SignedCloudinaryUpload); }
-  catch (cause) {
-    if (cause instanceof CloudinaryError) throw new MediaUploadError(cause.code, cause.message);
-    throw new MediaUploadError("upload_failed", "تعذر رفع الملف إلى Cloudinary.");
-  }
-  const { data: registered, error: registerError } = await supabase.functions.invoke("media-gateway", {
-    body: { action: "register", feature_key: featureKey, resource_type: picked.kind, public_id: uploaded.publicId, mime_type: part.type, original_filename: part.name, conversation_id: input.conversationId ?? null, message_id: input.messageId ?? null, support_ticket_id: input.supportTicketId ?? null },
-    headers: { Authorization: `Bearer ${sessionData.session.access_token}`, apikey: env.supabaseAnonKey }
-  });
-  if (registerError || !registered?.success || typeof registered.id !== "string") {
-    throw new MediaUploadError("register_failed", gatewayMessage(registerError, registered, "تم رفع الملف لكن تعذر ربطه بقاعدة البيانات."));
-  }
-  if (typeof registered.url !== "string") throw new MediaUploadError("delivery_failed", "حُفظ الملف لكن تعذر إصدار رابط عرض مصرح به.");
+  if (uploadSize > 100 * 1024 * 1024) throw new MediaUploadError("too_large", "حجم الملف أكبر من الحد المسموح (100 ميجابايت).");
+  const headers = { Authorization: `Bearer ${sessionData.session.access_token}`, apikey: env.supabaseAnonKey };
+  const context = { feature_key: featureKey, resource_type: picked.kind, mime_type: part.type, size_bytes: uploadSize, original_filename: part.name, conversation_id: input.conversationId ?? null, message_id: input.messageId ?? null, support_ticket_id: input.supportTicketId ?? null };
+  const { data: signedData, error: signError } = await supabase.functions.invoke("media-gateway", { body: { action: "sign_upload", ...context }, headers });
+  if (signError || !signedData?.bucket || !signedData?.object_key || !signedData?.token) throw new MediaUploadError("sign_failed", gatewayMessage(signError, signedData, "تعذر تجهيز رفع الملف."));
+  const signed = signedData as SignedStorageUpload;
+  await uploadToStorage(part, signed, supabase.storage);
+  const { data: registered, error: registerError } = await supabase.functions.invoke("media-gateway", { body: { action: "register", ...context, object_key: signed.object_key }, headers });
+  if (registerError || !registered?.success || typeof registered.id !== "string") throw new MediaUploadError("register_failed", gatewayMessage(registerError, registered, "تعذر حفظ الملف في المكتبة."));
+  if (typeof registered.url !== "string") throw new MediaUploadError("delivery_failed", "تم حفظ الملف لكن تعذر تجهيزه للعرض.");
   return {
     id: registered.id,
     featureKey,
     url: registered.url,
     mimeType: part.type,
-    sizeBytes: Number(registered.size_bytes ?? uploaded.bytes),
+    sizeBytes: Number(registered.size_bytes ?? uploadSize),
     filename: part.name,
     kind: picked.kind,
     createdAt: new Date().toISOString(),
-    width: uploaded.width,
-    height: uploaded.height,
-    durationSeconds: uploaded.durationSeconds,
+    width: picked.width ?? null,
+    height: picked.height ?? null,
+    durationSeconds: null,
   };
 }
 function asKind(value: unknown): MediaKind { const text = String(value ?? ""); return text === "video" || text === "raw" ? text : "image"; }
@@ -183,12 +151,7 @@ export async function listMyMedia(limit = 60): Promise<MediaAsset[]> {
   if (error) throw new MediaUploadError("list_failed", "تعذر تحميل مكتبة الوسائط.");
   const rows = Array.isArray(data) ? data as Record<string, unknown>[] : [];
   if (!rows.length) return [];
-  const { data: sessionData } = await supabase.auth.getSession();
-  const token = sessionData?.session?.access_token || env.supabaseAnonKey;
-  const { data: resolved, error: resolveError } = await supabase.functions.invoke("media-gateway", { 
-    body: { action: "get_urls", media_ids: rows.map((row) => String(row.id)).filter(Boolean) },
-    headers: { Authorization: `Bearer ${token}`, apikey: env.supabaseAnonKey }
-  });
+  const { data: resolved, error: resolveError } = await supabase.functions.invoke("media-gateway", { body: { action: "get_urls", media_ids: rows.map((row) => String(row.id)).filter(Boolean) }, headers: await getAuthHeaders() });
   if (resolveError) throw new MediaUploadError("resolve_failed", gatewayMessage(resolveError, resolved, "تعذر التحقق من صلاحية عرض الملفات."));
   const urlById = new Map<string, string>((resolved?.assets ?? []).map((item: { id: string; url: string }) => [String(item.id), String(item.url)]));
   return rows.map((row) => {
@@ -198,7 +161,7 @@ export async function listMyMedia(limit = 60): Promise<MediaAsset[]> {
       mimeType: typeof row.mime_type === "string" ? row.mime_type : null, sizeBytes: Number(row.size_bytes ?? 0),
       filename: typeof row.original_filename === "string" ? row.original_filename : null, kind: asKind(metadata.kind ?? row.storage_provider),
       createdAt: String(row.created_at ?? ""), width: typeof metadata.width === "number" ? metadata.width : null,
-      height: typeof metadata.height === "number" ? metadata.height : null, durationSeconds: typeof metadata.duration === "number" ? metadata.duration : null,
+      height: typeof metadata.height === "number" ? metadata.height : null, durationSeconds: typeof metadata.duration_seconds === "number" ? metadata.duration_seconds : null,
     };
   }).filter((asset) => asset.url.length > 0);
 }

@@ -17,7 +17,7 @@ const NAV = [
   { path: "/admin/api-keys", label: "مفاتيح API", icon: "⌘" },
   { path: "/admin/composio", label: "Composio", icon: "C" },
   { path: "/admin/image-generation", label: "توليد الصور", icon: "▣" },
-  { path: "/admin/storage", label: "التخزين · Cloudinary", icon: "↥" },
+  { path: "/admin/storage", label: "التخزين", icon: "↥" },
   { path: "/admin/audit", label: "سجل النشاط", icon: "≡" },
   { path: "/admin/circuit-breaker", label: "إعدادات النظام", icon: "⚙" },
 ] as const;
