@@ -25,35 +25,6 @@ on conflict (id) do update set
 
 alter table public.global_media_assets alter column storage_provider set default 'supabase';
 
-create or replace function public.suly_media_list_self(p_limit integer default 60)
-returns table(
-  id uuid,
-  feature_key text,
-  size_bytes bigint,
-  original_filename text,
-  mime_type text,
-  metadata jsonb,
-  storage_provider text,
-  created_at timestamptz
-)
-language plpgsql
-stable
-security definer
-set search_path = pg_catalog, public, auth
-as $$
-begin
-  if auth.uid() is null then raise exception 'authentication required' using errcode = '42501'; end if;
-  return query
-    select a.id,a.feature_key,a.size_bytes,a.original_filename,a.mime_type,a.metadata,a.storage_provider,a.created_at
-    from public.global_media_assets a
-    where a.user_id = auth.uid()
-    order by a.created_at desc
-    limit least(greatest(coalesce(p_limit,60),1),200);
-end;
-$$;
-revoke all on function public.suly_media_list_self(integer) from public, anon;
-grant execute on function public.suly_media_list_self(integer) to authenticated;
-
 create or replace function public.suly_admin_upsert_feature_resource_v2(
   p_feature_key text,
   p_title text,
