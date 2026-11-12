@@ -62,23 +62,32 @@ jobs:
           EXPO_PUBLIC_EDGE_FUNCTION_BASE_URL: https://razvryvazmqvvqkzetuo.supabase.co/functions/v1
         run: npx expo prebuild --platform android --clean --no-install
 
-      - name: Build debug APK
+      - name: Build standalone release APK
         working-directory: apps/mobile/android
-        run: ./gradlew --no-daemon --stacktrace :app:assembleDebug
+        run: ./gradlew --no-daemon --stacktrace :app:assembleRelease
+
+      - name: Verify standalone bundle and APK signature
+        working-directory: apps/mobile
+        run: |
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          test -f "$APK"
+          unzip -Z1 "$APK" > /tmp/suly-apk-files.txt
+          grep -Fx 'assets/index.android.bundle' /tmp/suly-apk-files.txt
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify "$APK"
 
       - name: Rename APK and write build info
         working-directory: apps/mobile
         run: |
           mkdir -p dist
-          cp android/app/build/outputs/apk/debug/app-debug.apk dist/Suly-Android-debug.apk
-          printf 'Commit: %s\nRun: %s\nBuilt: %s\n' "$GITHUB_SHA" "$GITHUB_RUN_NUMBER" "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > dist/build-info.txt
+          cp android/app/build/outputs/apk/release/app-release.apk dist/Suly-Android.apk
+          printf 'Variant: standalone release\nSigning: debug key, testing only\nCommit: %s\nRun: %s\nBuilt: %s\n' "$GITHUB_SHA" "$GITHUB_RUN_NUMBER" "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > dist/build-info.txt
 
       - name: Upload APK to GitHub Actions
         uses: actions/upload-artifact@v4
         with:
           name: Suly-Android-APK-${{ github.run_number }}
           path: |
-            apps/mobile/dist/Suly-Android-debug.apk
+            apps/mobile/dist/Suly-Android.apk
             apps/mobile/dist/build-info.txt
           if-no-files-found: error
           retention-days: 30
