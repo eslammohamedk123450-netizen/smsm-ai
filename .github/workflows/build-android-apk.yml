@@ -1,0 +1,83 @@
+name: Build Android APK (GitHub)
+
+on:
+  push:
+    branches: [release/v1]
+    paths:
+      - "apps/mobile/**"
+      - ".github/workflows/build-android-apk.yml"
+  pull_request:
+    branches: [release/v1]
+    paths:
+      - "apps/mobile/**"
+      - ".github/workflows/build-android-apk.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    name: Build installable Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;27.1.12297006"
+
+      - name: Install JavaScript dependencies
+        working-directory: apps/mobile
+        run: npm ci
+
+      - name: Generate native Android project
+        working-directory: apps/mobile
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: https://razvryvazmqvvqkzetuo.supabase.co
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_t5xrzZNN6Uj9zhhBLUYQVg_mj7qPjQL
+          EXPO_PUBLIC_EDGE_FUNCTION_BASE_URL: https://razvryvazmqvvqkzetuo.supabase.co/functions/v1
+        run: npx expo prebuild --platform android --clean --no-install
+
+      - name: Build debug APK
+        working-directory: apps/mobile/android
+        run: ./gradlew --no-daemon --stacktrace :app:assembleDebug
+
+      - name: Rename APK and write build info
+        working-directory: apps/mobile
+        run: |
+          mkdir -p dist
+          cp android/app/build/outputs/apk/debug/app-debug.apk dist/Suly-Android-debug.apk
+          printf 'Commit: %s\nRun: %s\nBuilt: %s\n' "$GITHUB_SHA" "$GITHUB_RUN_NUMBER" "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > dist/build-info.txt
+
+      - name: Upload APK to GitHub Actions
+        uses: actions/upload-artifact@v4
+        with:
+          name: Suly-Android-APK-${{ github.run_number }}
+          path: |
+            apps/mobile/dist/Suly-Android-debug.apk
+            apps/mobile/dist/build-info.txt
+          if-no-files-found: error
+          retention-days: 30
