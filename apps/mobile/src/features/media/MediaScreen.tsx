@@ -6,11 +6,6 @@ import { supabase } from "../../lib/supabase/client";
 import { colors } from "../../theme/colors";
 import { formatBytes, listMyMedia, pickMedia, uploadMediaFile, type MediaAsset, type PickKind } from "./media-service";
 
-function posterFor(asset: MediaAsset): string {
-  if (asset.kind !== "video") return asset.url;
-  return asset.url.replace(/\.[A-Za-z0-9]+$/, ".jpg");
-}
-
 export function MediaScreen() {
   const [assets, setAssets] = useState<MediaAsset[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,10 +32,9 @@ export function MediaScreen() {
       if (!picked) { setBusy(null); return; }
       setNotice(`جارٍ رفع ${picked.part.name}…`);
       const asset = await uploadMediaFile({ picked, featureKey: "general" });
-      // Insert at the top so the file appears the moment Cloudinary answers,
-      // before the list is refreshed from Supabase.
+      // Insert at the top so the file appears immediately, before the list refreshes.
       setAssets((current) => [asset, ...current.filter((item) => item.id !== asset.id)]);
-      setNotice(`تم الرفع (${formatBytes(asset.sizeBytes)}). الرابط محفوظ في Supabase.`);
+      setNotice(`تم الرفع (${formatBytes(asset.sizeBytes)}).`);
       void load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "تعذر رفع الملف.");
@@ -58,7 +52,7 @@ export function MediaScreen() {
       <Text style={styles.title}>مكتبة الوسائط</Text>
       <Pressable onPress={() => void load()}><Text style={styles.link}>تحديث</Text></Pressable>
     </View>
-    <Text style={styles.explainer}>الملفات تُرفع إلى Cloudinary، وSupabase يحفظ الرابط والوصف فقط. الصور تُضغط قبل الرفع لتوفير المساحة.</Text>
+    <Text style={styles.explainer}>ارفع صورك وفيديوهاتك وملفاتك للوصول إليها بأمان. الصور تُضغط قبل الرفع لتوفير المساحة.</Text>
 
     {isAdmin && (
       <View style={styles.actions}>
@@ -81,9 +75,9 @@ export function MediaScreen() {
     {!loading && assets.length === 0 ? <Text style={styles.empty}>لا يوجد ملف بعد. ابدأ برفع صورة.</Text> : null}
     <View style={styles.grid}>
       {assets.map((asset) => <View key={asset.id || asset.url} style={styles.card}>
-        {asset.kind === "raw"
-          ? <View style={[styles.thumb, styles.fileThumb]}><Text style={styles.fileIcon}>FILE</Text></View>
-          : <Image source={{ uri: posterFor(asset) }} style={styles.thumb} resizeMode="cover" accessibilityLabel={asset.filename ?? "مقطع"}/>}
+        {asset.kind === "raw" || asset.kind === "video"
+          ? <View style={[styles.thumb, styles.fileThumb]}><Text style={styles.fileIcon}>{asset.kind === "video" ? "VIDEO" : "FILE"}</Text></View>
+          : <Image source={{ uri: asset.url }} style={styles.thumb} resizeMode="cover" accessibilityLabel={asset.filename ?? "صورة"}/>}
         <Text numberOfLines={1} style={styles.filename}>{asset.filename ?? "ملف"}</Text>
         <Text style={styles.meta}>{asset.kind === "video" ? "فيديو" : asset.kind === "image" ? "صورة" : "ملف"} · {formatBytes(asset.sizeBytes)}</Text>
         <Pressable onPress={() => void copy(asset.url)}><Text style={styles.link}>نسخ الرابط</Text></Pressable>

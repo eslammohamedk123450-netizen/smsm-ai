@@ -81,13 +81,13 @@ export function HimsAdminScreen() {
     finally { setBusy(false); }
   };
 
-  /** Uploads a real file to Cloudinary under the HIMS feature, then fills the form. */
+  /** Uploads a real file under the HIMS feature, then fills the form. */
   const uploadForHims = async (pickKind: PickKind) => {
     setUploading(pickKind); setError(null); setNotice(null);
     try {
       const picked = await pickMedia(pickKind);
       if (!picked) { setUploading(null); return; }
-      setNotice(`جارٍ رفع ${picked.part.name} إلى Cloudinary…`);
+      setNotice(`جارٍ رفع ${picked.part.name}…`);
       const asset = await uploadMediaFile({ picked, featureKey: "hims" });
       setPreview(asset);
       setMediaAssetId(asset.id);
@@ -96,7 +96,7 @@ export function HimsAdminScreen() {
       setKind(asset.kind === "video" ? "video" : asset.kind === "image" ? "image" : "file");
       setNotice(`تم رفع الملف (${formatBytes(asset.sizeBytes)}). اضغط «إضافة المورد» لحفظه داخل HIMS.`);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "تعذر رفع الملف إلى Cloudinary.");
+      setError(cause instanceof Error ? cause.message : "تعذر رفع الملف.");
       setNotice(null);
     } finally { setUploading(null); }
   };
@@ -117,7 +117,7 @@ export function HimsAdminScreen() {
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <View style={styles.header}><Text style={styles.title}>إدارة HIMS</Text><Pressable onPress={() => void load()}><Text style={styles.link}>تحديث</Text></Pressable></View>
-      <Text style={styles.explainer}>أنشئ أكواد تفعيل وأضف محاضرات وملفات. ملفات Cloudinary تُحفظ كأصول خاصة، وتُسجّل بياناتها وملكية الوصول في Supabase.</Text>
+      <Text style={styles.explainer}>أنشئ أكواد تفعيل وأضف محاضرات وملفات. تُحفظ الملفات كأصول خاصة وتُسجّل بياناتها وملكية الوصول بأمان.</Text>
     {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
     {notice ? <Text style={styles.success}>{notice}</Text> : null}
 
@@ -149,7 +149,7 @@ export function HimsAdminScreen() {
         <View style={styles.flex}>
           <Text style={styles.cardTitle}>{preview.filename ?? "ملف مرفوع"}</Text>
           <Text style={styles.detail}>{preview.kind} · {formatBytes(preview.sizeBytes)}</Text>
-          <Text selectable numberOfLines={1} style={styles.detail}>{mediaAssetId ? `Cloudinary خاص · ${mediaAssetId}` : preview.url}</Text>
+          <Text selectable numberOfLines={1} style={styles.detail}>{mediaAssetId ? `ملف خاص · ${mediaAssetId}` : preview.url}</Text>
         </View>
       </View> : null}
       <Field label="العنوان" value={title} onChange={setTitle} placeholder="محاضرة الشبكات - الوحدة الأولى" />

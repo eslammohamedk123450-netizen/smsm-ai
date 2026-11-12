@@ -1,6 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { getCloudinaryConfig } from "../_shared/cloudinary_config.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -11,7 +10,7 @@ const CORS_HEADERS = {
 const MODEL = "@cf/black-forest-labs/flux-1-schnell";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CF_ACCOUNT_RE = /^[0-9a-f]{32}$/i;
-const encoder = new TextEncoder();
+const MEDIA_BUCKET = "suly-media";
 
 class ServiceError extends Error {
   status: number;
@@ -22,12 +21,6 @@ function json(status: number, body: Record<string, unknown>): Response {
 }
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
-}
-function hex(bytes: Uint8Array): string { return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join(""); }
-async function sha1(value: string): Promise<string> { return hex(new Uint8Array(await crypto.subtle.digest("SHA-1", encoder.encode(value)))); }
-function cloudinarySignature(fields: Record<string, string>, secret: string): Promise<string> {
-  const canonical = Object.entries(fields).filter(([, value]) => value !== "").sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => `${key}=${value}`).join("&");
-  return sha1(`${canonical}${secret}`);
 }
 function imageFormat(bytes: Uint8Array): { mimeType: string; extension: string; format: string } | null {
   if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return { mimeType: "image/jpeg", extension: "jpg", format: "jpg" };
@@ -64,57 +57,14 @@ async function settleCredits(service: SupabaseClient<any, "public", any>, userId
   });
   if (error) console.error("Image generation credit settlement failed.", error.code ?? "database_error");
 }
-async function uploadImageToCloudinary(input: {
-  bytes: Uint8Array;
-  mimeType: string;
-  extension: string;
-  publicId: string;
-  cloudName: string;
-  apiKey: string;
-  apiSecret: string;
-}): Promise<{ version: number; bytes: number; format: string; width: number | null; height: number | null }> {
-  const timestamp = String(Math.floor(Date.now() / 1000));
-  const signedFields = { overwrite: "false", public_id: input.publicId, timestamp, type: "authenticated" };
-  const signature = await cloudinarySignature(signedFields, input.apiSecret);
-  const form = new FormData();
-  form.set("file", new Blob([input.bytes.slice().buffer as ArrayBuffer], { type: input.mimeType }), `generated.${input.extension}`);
-  form.set("public_id", input.publicId);
-  form.set("timestamp", timestamp);
-  form.set("type", "authenticated");
-  form.set("overwrite", "false");
-  form.set("api_key", input.apiKey);
-  form.set("signature", signature);
-  const response = await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(input.cloudName)}/image/upload`, { method: "POST", body: form });
-  if (!response.ok) throw new ServiceError(502, "تعذر حفظ الصورة الخاصة في التخزين.");
-  let uploaded: Record<string, unknown>;
-  try { uploaded = asRecord(await response.json()); }
-  catch { throw new ServiceError(502, "لم يقبل التخزين استجابة الرفع."); }
-  const version = Number(uploaded.version);
-  const bytes = Number(uploaded.bytes);
-  const format = String(uploaded.format ?? input.extension).replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
-  if (uploaded.public_id !== input.publicId || !Number.isSafeInteger(version) || version < 1 || !Number.isSafeInteger(bytes) || bytes < 1) {
-    throw new ServiceError(502, "تعذر التحقق من الملف المحفوظ.");
-  }
-  return {
-    version,
-    bytes,
-    format,
-    width: Number.isFinite(Number(uploaded.width)) ? Number(uploaded.width) : null,
-    height: Number.isFinite(Number(uploaded.height)) ? Number(uploaded.height) : null,
-  };
+async function uploadImageToStorage(input: { bytes: Uint8Array; mimeType: string; objectKey: string; service: SupabaseClient<any, "public", any> }): Promise<void> {
+  const body = new Blob([input.bytes.slice().buffer as ArrayBuffer], { type: input.mimeType });
+  const { error } = await input.service.storage.from(MEDIA_BUCKET).upload(input.objectKey, body, { contentType: input.mimeType, upsert: false });
+  if (error) throw new ServiceError(502, "تعذر حفظ الصورة.");
 }
-async function destroyCloudinaryAsset(input: { publicId: string; cloudName: string; apiKey: string; apiSecret: string }): Promise<void> {
-  try {
-    const timestamp = String(Math.floor(Date.now() / 1000));
-    const fields = { public_id: input.publicId, timestamp, type: "authenticated" };
-    const form = new FormData();
-    form.set("public_id", fields.public_id);
-    form.set("timestamp", fields.timestamp);
-    form.set("type", fields.type);
-    form.set("api_key", input.apiKey);
-    form.set("signature", await cloudinarySignature(fields, input.apiSecret));
-    await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(input.cloudName)}/image/destroy`, { method: "POST", body: form });
-  } catch { /* best-effort cleanup only */ }
+async function removeStoredImage(service: SupabaseClient<any, "public", any>, objectKey: string): Promise<void> {
+  try { await service.storage.from(MEDIA_BUCKET).remove([objectKey]); }
+  catch { /* best-effort cleanup only */ }
 }
 
 Deno.serve(async (req: Request) => {
@@ -155,8 +105,6 @@ Deno.serve(async (req: Request) => {
   if (configError || config.enabled !== true || typeof config.api_token !== "string" || !config.api_token || typeof config.account_id !== "string" || !CF_ACCOUNT_RE.test(config.account_id)) {
     return json(503, { error: "توليد الصور غير مفعّل أو إعداد Cloudflare غير مكتمل. تواصل مع المشرف." });
   }
-  const cloudinary = await getCloudinaryConfig(service);
-  if (!cloudinary) return json(503, { error: "تخزين الصور الخاصة غير مهيأ على الخادم." });
 
   const creditsPerImage = Math.max(1, Math.floor(Number(config.credits_per_image) || 1));
   const { data: pricing, error: pricingError } = await service.from("suly_credit_pricing").select("enabled").eq("id", 1).maybeSingle();
@@ -186,7 +134,7 @@ Deno.serve(async (req: Request) => {
     reserved = true;
   }
 
-  let uploadedPublicId: string | null = null;
+  let uploadedObjectKey: string | null = null;
   let assistantMessageId: string | null = null;
   try {
     const controller = new AbortController();
@@ -223,17 +171,9 @@ Deno.serve(async (req: Request) => {
     if (!format) throw new ServiceError(502, "صيغة الصورة التي رجعها المزود غير مدعومة.");
 
     const assetId = crypto.randomUUID();
-    const publicId = `suly/${userId}/chat/${assetId}`;
-    uploadedPublicId = publicId;
-    const uploaded = await uploadImageToCloudinary({
-      bytes,
-      mimeType: format.mimeType,
-      extension: format.extension,
-      publicId,
-      cloudName: cloudinary.cloudName,
-      apiKey: cloudinary.apiKey,
-      apiSecret: cloudinary.apiSecret,
-    });
+    const objectKey = `${userId}/chat/${assetId}.${format.extension}`;
+    uploadedObjectKey = objectKey;
+    await uploadImageToStorage({ bytes, mimeType: format.mimeType, objectKey, service });
 
     const { data: assistantMessage, error: assistantError } = await service.from("suly_messages").insert({
       conversation_id: conversationId,
@@ -251,19 +191,18 @@ Deno.serve(async (req: Request) => {
       id: assetId,
       user_id: userId,
       feature_key: "chat",
-      storage_provider: "cloudinary",
-      bucket: "image",
-      object_key: publicId,
+      storage_provider: "supabase",
+      bucket: MEDIA_BUCKET,
+      object_key: objectKey,
       public_url: null,
       mime_type: format.mimeType,
-      size_bytes: uploaded.bytes,
+      size_bytes: bytes.byteLength,
       original_filename: `generated-image.${format.extension}`,
       metadata: {
         kind: "image",
-        format: uploaded.format || format.format,
-        version: uploaded.version,
-        width: uploaded.width,
-        height: uploaded.height,
+        format: format.format,
+        width: null,
+        height: null,
         generated: true,
         generation_provider: "cloudflare_workers_ai",
         model: MODEL,
@@ -281,7 +220,7 @@ Deno.serve(async (req: Request) => {
     return json(200, { success: true, message_id: assistantMessageId, media_id: assetId, model: MODEL });
   } catch (error) {
     if (assistantMessageId) await service.from("suly_messages").delete().eq("id", assistantMessageId).eq("user_id", userId);
-    if (uploadedPublicId) await destroyCloudinaryAsset({ publicId: uploadedPublicId, cloudName: cloudinary.cloudName, apiKey: cloudinary.apiKey, apiSecret: cloudinary.apiSecret });
+    if (uploadedObjectKey) await removeStoredImage(service, uploadedObjectKey);
     if (reserved) await settleCredits(service, userId, requestId, 0);
     if (error instanceof ServiceError) return json(error.status, { error: error.message });
     console.error("Image generation failed.");

@@ -1,9 +1,9 @@
-// Native image compression. Re-encoding before upload keeps Cloudinary usage
+// Native image compression. Re-encoding before upload keeps space usage
 // low and makes the upload noticeably faster on mobile data.
 
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
-import { IMAGE_MAX_DIMENSION, IMAGE_QUALITY } from "./cloudinary-config";
-import type { UploadFilePart } from "./cloudinary";
+import { IMAGE_MAX_DIMENSION, IMAGE_QUALITY } from "./media-config";
+import type { UploadFilePart } from "./media-utils";
 
 export interface CompressOptions {
   /** Source width reported by the picker, when known. */

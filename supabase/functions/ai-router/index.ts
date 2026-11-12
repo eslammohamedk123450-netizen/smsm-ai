@@ -544,7 +544,7 @@ async function handleRequest(req: Request): Promise<Response> {
     if (userMessageError) return jsonResponse({ error: "تعذر التحقق من رسالة المرفق." }, 500);
     if (!userMessage) return jsonResponse({ error: "رسالة المرفق غير موجودة أو لا تملك صلاحية الوصول إليها." }, 404);
     const { data: assetRows, error: assetError } = await supabase.from("global_media_assets")
-      .select("id,user_id,feature_key,bucket,object_key,mime_type,size_bytes,original_filename,metadata,conversation_id,message_id")
+      .select("id,user_id,feature_key,storage_provider,bucket,object_key,mime_type,size_bytes,original_filename,metadata,conversation_id,message_id")
       .in("id", mediaAssetIds).eq("user_id", user.id).eq("feature_key", "chat")
       .eq("conversation_id", conversationId).eq("message_id", userMessageId).is("support_ticket_id", null).limit(5);
     if (assetError) return jsonResponse({ error: "تعذر التحقق من صلاحية المرفق." }, 500);
@@ -557,16 +557,28 @@ async function handleRequest(req: Request): Promise<Response> {
       if (!Number.isFinite(sizeBytes) || sizeBytes < 1) return jsonResponse({ error: "تعذر التحقق من حجم المرفق." }, 400);
       const maxBytes = capability === "vision" ? 20 * 1024 * 1024 : capability === "pdf" ? 20 * 1024 * 1024 : capability === "word" ? 15 * 1024 * 1024 : capability === "chat" ? 5 * 1024 * 1024 : 50 * 1024 * 1024;
       if (sizeBytes > maxBytes) return jsonResponse({ error: `حجم الملف أكبر من الحد المسموح لمعالجة ${capabilityLabel(capability)}.` }, 413);
-      const cloudinaryUrl = await cloudinaryAuthenticatedDeliveryUrl({
-        bucket: String(asset.bucket ?? ""),
-        object_key: String(asset.object_key ?? ""),
-        metadata: asRecord(asset.metadata),
-      }, supabase);
-      if (!cloudinaryUrl) return jsonResponse({ error: "تعذر إنشاء رابط داخلي آمن لمعالجة المرفق." }, 503);
-      const attachment: TrustedChatAttachment = { id: String(asset.id), capability, url: cloudinaryUrl, filename };
+      const storageProvider = String(asset.storage_provider ?? "");
+      let deliveryUrl: string | null = null;
+      if (storageProvider === "supabase") {
+        const { data: signed, error: signedError } = await supabase.storage.from(String(asset.bucket)).createSignedUrl(String(asset.object_key), 300);
+        if (!signedError && signed?.signedUrl) deliveryUrl = signed.signedUrl;
+      } else if (storageProvider === "cloudinary") {
+        deliveryUrl = await cloudinaryAuthenticatedDeliveryUrl({
+          bucket: String(asset.bucket ?? ""), object_key: String(asset.object_key ?? ""), metadata: asRecord(asset.metadata),
+        }, supabase);
+      }
+      if (!deliveryUrl) return jsonResponse({ error: "تعذر تجهيز المرفق للمعالجة." }, 503);
+      const downloadAttachmentBytes = async (limit: number): Promise<Uint8Array> => {
+        if (storageProvider !== "supabase") return fetchCloudinaryBytes(deliveryUrl!, limit);
+        const { data: file, error: downloadError } = await supabase.storage.from(String(asset.bucket)).download(String(asset.object_key));
+        if (downloadError || !file) throw new MediaProcessingError("media_download_failed", "تعذر تنزيل المرفق بأمان.");
+        if (file.size > limit) throw new MediaProcessingError("media_too_large", "حجم الملف أكبر من الحد المستخدم للتحليل.");
+        return new Uint8Array(await file.arrayBuffer());
+      };
+      const attachment: TrustedChatAttachment = { id: String(asset.id), capability, url: deliveryUrl, filename };
       if (capability === "pdf") {
         try {
-          const bytes = await fetchCloudinaryBytes(cloudinaryUrl, maxBytes);
+          const bytes = await downloadAttachmentBytes(maxBytes);
           attachment.extractedText = await extractPdfText(bytes, Math.min(MAX_EXTRACTED_DOCUMENT_CHARS, 12000));
         } catch (error) {
           if (error instanceof MediaProcessingError) return jsonResponse({ error: error.message }, error.code === "media_too_large" ? 413 : 415);
@@ -575,7 +587,7 @@ async function handleRequest(req: Request): Promise<Response> {
       } else if (capability === "word") {
         if (!/\.docx$/i.test(filename)) return jsonResponse({ error: "يدعم تحليل Word حاليًا ملفات DOCX؛ صيغة DOC القديمة تحتاج محولًا إضافيًا." }, 415);
         try {
-          const bytes = await fetchCloudinaryBytes(cloudinaryUrl, maxBytes);
+          const bytes = await downloadAttachmentBytes(maxBytes);
           attachment.extractedText = extractDocxText(bytes, Math.min(MAX_EXTRACTED_DOCUMENT_CHARS, 12000));
         } catch (error) {
           if (error instanceof MediaProcessingError) return jsonResponse({ error: error.message }, error.code === "media_too_large" ? 413 : 415);
@@ -583,7 +595,7 @@ async function handleRequest(req: Request): Promise<Response> {
         }
       } else if (capability === "chat") {
         try {
-          const bytes = await fetchCloudinaryBytes(cloudinaryUrl, maxBytes);
+          const bytes = await downloadAttachmentBytes(maxBytes);
           const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes).replace(/\0/g, "").trim();
           if (!text) return jsonResponse({ error: "الملف النصي فارغ أو غير قابل للقراءة." }, 415);
           attachment.extractedText = text.slice(0, Math.min(MAX_EXTRACTED_DOCUMENT_CHARS, 12000));

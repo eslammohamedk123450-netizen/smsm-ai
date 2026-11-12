@@ -1,3 +1,3 @@
-import { CloudinarySettingsScreen } from "../../../src/features/admin/CloudinarySettingsScreen";
+import { StorageSettingsScreen } from "../../../src/features/admin/StorageSettingsScreen";
 
-export default CloudinarySettingsScreen;
+export default StorageSettingsScreen;
