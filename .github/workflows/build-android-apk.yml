@@ -64,6 +64,10 @@ jobs:
 
       - name: Build standalone release APK
         working-directory: apps/mobile/android
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: https://razvryvazmqvvqkzetuo.supabase.co
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_t5xrzZNN6Uj9zhhBLUYQVg_mj7qPjQL
+          EXPO_PUBLIC_EDGE_FUNCTION_BASE_URL: https://razvryvazmqvvqkzetuo.supabase.co/functions/v1
         run: ./gradlew --no-daemon --stacktrace :app:assembleRelease
 
       - name: Verify standalone bundle and APK signature
@@ -73,6 +77,7 @@ jobs:
           test -f "$APK"
           unzip -Z1 "$APK" > /tmp/suly-apk-files.txt
           grep -Fx 'assets/index.android.bundle' /tmp/suly-apk-files.txt
+          strings "$APK" | grep -q 'razvryvazmqvvqkzetuo' || (echo "Supabase URL missing from release APK bundle" && exit 1)
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify "$APK"
 
       - name: Rename APK and write build info
