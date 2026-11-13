@@ -28,6 +28,7 @@ const STREAMING_ID = "local-streaming-assistant";
 const TASK_SUGGESTIONS = getRotatingSuggestions(Date.now(), 4);
 
 type RequestedConnectorTask = { toolkit: ToolkitStatus["toolkit"]; intent: "read" | "write" };
+type ExecutionMode = "chat" | "agent";
 
 function requestedConnectorTask(text: string): RequestedConnectorTask | null {
   const read = /\b(show|search|find|list|get|read|summari[sz]e|check|review|fetch|open|look up)\b|ابحث|دور|هات|جيب|اعرض|أظهر|اظهر|اقرأ|لخص|لخّص|راجع|افحص|تحقق|وريني|شوف|استخرج|آخر|اخر/iu.test(text);
@@ -52,6 +53,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(routeConversationId || null);
   const [isSending, setIsSending] = useState(false);
+  const [executionMode, setExecutionMode] = useState<ExecutionMode>("chat");
   const [activeTaskLabel, setActiveTaskLabel] = useState<string | null>(null);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
   const [isLoading, setIsLoading] = useState(Boolean(routeConversationId));
@@ -261,6 +263,7 @@ export default function ChatPage() {
         await chatService.sendMessage({
           conversationId: conversationKey,
           content,
+          executionMode,
           confirmedConnectorAction,
           mediaAsset: uploadedAsset,
           signal: controller.signal,
@@ -335,6 +338,7 @@ export default function ChatPage() {
             await chatService.retryAssistant({
               conversationId: id,
               userMessageId: savedUserMessageId,
+              executionMode,
               signal: controller.signal,
               onChunk(text) {
                 streamedTextRef.current += text;
@@ -385,6 +389,7 @@ export default function ChatPage() {
       try {
         await chatService.retryAssistant({
           ...failed,
+          executionMode,
           signal: controller.signal,
           onChunk(text) {
             streamedTextRef.current += text;
@@ -476,6 +481,10 @@ export default function ChatPage() {
     const requested = requestedConnectorTask(text);
     if (!user || attachment || !text || !requested) {
       void sendText(content, attachment);
+      return;
+    }
+    if (executionMode === "chat") {
+      show("هذا طلب يحتاج إلى قراءة أو تنفيذ عبر Gmail أو تطبيق مرتبط. بدّل الوضع إلى Agent ثم أرسل الطلب مرة أخرى.", "error");
       return;
     }
     if (preflightLock.current) return;
@@ -658,6 +667,16 @@ export default function ChatPage() {
         )}
         {isUploadingAttachment ? <View style={styles.uploadStatus}><ActivityIndicator size="small" color={colors.primary} /><Text style={styles.loadingText}>جارٍ رفع المرفق…</Text></View> : null}
         <StreamingStatus isStreaming={isSending && !isUploadingAttachment} taskLabel={activeTaskLabel} onCancel={() => abortRef.current?.abort()} />
+        <View style={styles.modeBar} accessibilityRole="radiogroup" accessibilityLabel="وضع المحادثة والتنفيذ">
+          <Pressable onPress={() => setExecutionMode("agent")} accessibilityRole="radio" accessibilityState={{ selected: executionMode === "agent" }} style={[styles.modeOption, executionMode === "agent" && styles.modeOptionSelected]}>
+            <Ionicons name="sparkles-outline" size={15} color={executionMode === "agent" ? colors.background : colors.primary} />
+            <Text style={[styles.modeText, executionMode === "agent" && styles.modeTextSelected]}>Agent · تنفيذ المهام</Text>
+          </Pressable>
+          <Pressable onPress={() => setExecutionMode("chat")} accessibilityRole="radio" accessibilityState={{ selected: executionMode === "chat" }} style={[styles.modeOption, executionMode === "chat" && styles.modeOptionSelected]}>
+            <Ionicons name="chatbubble-ellipses-outline" size={15} color={executionMode === "chat" ? colors.background : colors.primary} />
+            <Text style={[styles.modeText, executionMode === "chat" && styles.modeTextSelected]}>Chat · محادثة سريعة</Text>
+          </Pressable>
+        </View>
         <ChatComposer ref={composerRef} onSend={handleSend} disabled={isSending || Boolean(connectorApproval)} isStreaming={isSending} onCancel={() => abortRef.current?.abort()} creditBalance={creditBalance} onOpenRecharge={() => router.push("/(protected)/balance")} />
       </KeyboardAvoidingView>
       <ShareConversationSheet visible={shareVisible} conversationId={conversationId} title={shareTitle} plainText={shareText} onClose={closeShareSheet} />
@@ -723,6 +742,11 @@ const styles = StyleSheet.create({
   loading: { flex: 1, justifyContent: "center", alignItems: "center", gap: 10 },
   loadingText: { color: colors.textSecondary },
   uploadStatus: { flexDirection: "row-reverse", justifyContent: "center", alignItems: "center", gap: 8, paddingVertical: 8 },
+  modeBar: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 14, paddingVertical: 7 },
+  modeOption: { flexDirection: "row-reverse", alignItems: "center", gap: 5, minHeight: 34, paddingHorizontal: 11, borderRadius: 9999, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
+  modeOptionSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
+  modeText: { color: colors.textSecondary, fontSize: 11, fontWeight: "700" },
+  modeTextSelected: { color: colors.background },
   messages: { flex: 1 },
   messageListContainer: { flex: 1, position: "relative" },
   scrollToBottomButton: { position: "absolute", right: 24, bottom: 12, width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.divider, elevation: 5, zIndex: 2 },
