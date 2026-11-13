@@ -190,6 +190,22 @@ function hasWriteTag(item: JsonRecord): boolean {
   return tags.some((tag) => typeof tag === "string" && ["createhint", "updatehint", "destructivehint"].includes(tag.toLowerCase().replace(/[_-]/g, "")));
 }
 
+// A small exact-name fallback for stable Gmail actions when Composio omits tags.
+// Keep write execution behind the existing request-bound approval check.
+const GMAIL_READ_ALLOWLIST = new Set(["GMAIL_GET_MESSAGE"]);
+const GMAIL_WRITE_ALLOWLIST = new Set(["GMAIL_SEND_MESSAGE"]);
+
+export function isComposioToolAllowed(toolkit: ComposioToolkitKey, slug: unknown, intent: "read" | "write"): boolean {
+  return intent === "read" ? safeReadOnlySlug(toolkit, slug) : safeWriteSlug(toolkit, slug);
+}
+
+export function isGmailTaglessToolAllowlisted(slug: unknown, intent: "read" | "write"): boolean {
+  if (typeof slug !== "string") return false;
+  return intent === "read"
+    ? GMAIL_READ_ALLOWLIST.has(slug.toUpperCase())
+    : GMAIL_WRITE_ALLOWLIST.has(slug.toUpperCase());
+}
+
 function safeReadOnlySlug(toolkit: ComposioToolkitKey, slug: unknown): slug is string {
   if (typeof slug !== "string") return false;
   const prefixes: Record<ComposioToolkitKey, RegExp> = {
@@ -239,8 +255,9 @@ export async function runComposioReadOnlyTask(
   });
   const catalog = await composioRequest(apiKey, `/v3.1/tools?${query.toString()}`);
   const tools = Array.isArray(catalog.items) ? catalog.items.map(asRecord) : [];
-  const selected = tools.find((item) => hasReadOnlyTag(item) && safeReadOnlySlug(toolkit, item.slug))
-    ?? tools.find((item) => safeReadOnlySlug(toolkit, item.slug));
+  const selected = tools.find((item) => isComposioToolAllowed(toolkit, item.slug, "read")
+    && (hasReadOnlyTag(item) || (toolkit === "gmail" && isGmailTaglessToolAllowlisted(item.slug, "read"))))
+    ?? tools.find((item) => isComposioToolAllowed(toolkit, item.slug, "read"));
   if (!selected || typeof selected.slug !== "string") return { unavailable: "no_read_tool" };
 
   const executed = await composioRequest(apiKey, `/v3.1/tools/execute/${encodeURIComponent(selected.slug)}`, {
@@ -270,7 +287,8 @@ export async function runComposioWriteTask(
   });
   const catalog = await composioRequest(apiKey, `/v3.1/tools?${query.toString()}`);
   const tools = Array.isArray(catalog.items) ? catalog.items.map(asRecord) : [];
-  const selected = tools.find((item) => hasWriteTag(item) && safeWriteSlug(toolkit, item.slug));
+  const selected = tools.find((item) => isComposioToolAllowed(toolkit, item.slug, "write")
+    && (hasWriteTag(item) || (toolkit === "gmail" && isGmailTaglessToolAllowlisted(item.slug, "write"))));
   if (!selected || typeof selected.slug !== "string") return { unavailable: "no_write_tool" };
 
   const executed = await composioRequest(apiKey, `/v3.1/tools/execute/${encodeURIComponent(selected.slug)}`, {

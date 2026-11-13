@@ -1,4 +1,15 @@
-import { detectComposioToolkitRequest, hasExplicitComposioExecutionSuccess, hasVerifiableComposioReadResult, isMultiToolkitComposioRequest } from "./composio.ts";
+import { detectComposioToolkitRequest, hasExplicitComposioExecutionSuccess, hasVerifiableComposioReadResult, isComposioToolAllowed, isGmailTaglessToolAllowlisted, isMultiToolkitComposioRequest } from "./composio.ts";
+
+Deno.test("allows only the exact Gmail fallback tool names without Composio tags", () => {
+  if (!isGmailTaglessToolAllowlisted("GMAIL_GET_MESSAGE", "read")) throw new Error("GMAIL_GET_MESSAGE should be allowed as a tagless read");
+  if (!isGmailTaglessToolAllowlisted("GMAIL_SEND_MESSAGE", "write")) throw new Error("GMAIL_SEND_MESSAGE should be allowed as a tagless write");
+  if (isGmailTaglessToolAllowlisted("GMAIL_DELETE_MESSAGE", "write")) throw new Error("Unlisted Gmail writes must remain rejected");
+  if (isGmailTaglessToolAllowlisted("GMAIL_SEND_MESSAGE", "read")) throw new Error("A write tool must not be allowed as a read");
+  if (!isComposioToolAllowed("gmail", "GMAIL_GET_MESSAGE", "read")) throw new Error("GMAIL_GET_MESSAGE must satisfy the Gmail read safety pattern");
+  if (!isComposioToolAllowed("gmail", "GMAIL_SEND_MESSAGE", "write")) throw new Error("GMAIL_SEND_MESSAGE must satisfy the Gmail write safety pattern");
+  if (isComposioToolAllowed("gmail", "GMAIL_SEND_MESSAGE", "read")) throw new Error("A send action must not satisfy the Gmail read safety pattern");
+  if (isGmailTaglessToolAllowlisted("GMAIL_GET_MESSAGE", "write")) throw new Error("A read tool must not be allowed as a write");
+});
 
 Deno.test("detects Arabic Gmail lookup as a read, not a write", () => {
   const request = detectComposioToolkitRequest("دورلي على آخر ايميل من الشركة");
