@@ -622,6 +622,9 @@ async function handleRequest(req: Request): Promise<Response> {
   const modelId = Number.isSafeInteger(rawModelId) && rawModelId > 0 ? rawModelId : 0;
   const hasExplicitModel = modelId > 0;
   const routingMode = body.routing_mode === "manual" || (hasExplicitModel && body.routing_mode !== "auto") ? "manual" : "auto";
+  // New clients select Chat or Agent explicitly. Legacy clients remain Agent
+  // compatible so existing connected-app requests do not silently lose tools.
+  const executionMode = body.execution_mode === "chat" ? "chat" : "agent";
   const temperatureInput = typeof body.temperature === "number" ? body.temperature : 0.7;
   const temperature = Math.min(2, Math.max(0, temperatureInput));
   const maxTokensInput = typeof body.max_tokens === "number" ? body.max_tokens : 1024;
@@ -820,7 +823,10 @@ async function handleRequest(req: Request): Promise<Response> {
   latestUserMessage = originalUserInstruction;
   // The mind's internal policy rides along with the system prompt; the user
   // never sees it in the conversation bubbles.
-  messages.unshift({ role: "system", content: `${systemPrompt}\n\n${buildMindPolicy(mind)}` });
+  const modePolicy = executionMode === "chat"
+    ? "Execution mode: CHAT. Respond conversationally and quickly. Do not access, read, send, edit, or claim to have accessed any connected app. If the user asks for a connected-app task, explain briefly that they must switch to Agent mode and resend the request. Do not create a task plan or expose internal reasoning."
+    : "Execution mode: AGENT. When the request concerns a connected app, use the connector data supplied below as the authoritative result. Never claim a connector action succeeded unless an executed tool result is present. For read requests, answer from the fetched data directly and identify the relevant sender, subject, date, and content when available.";
+  messages.unshift({ role: "system", content: `${systemPrompt}\n\n${buildMindPolicy(mind)}\n\n${modePolicy}` });
 
   // Every feature namespaces its cache and memory through this key. Unknown or
   // malformed values fall back to `general`, so no caller can escape its scope.
@@ -1067,7 +1073,7 @@ async function handleRequest(req: Request): Promise<Response> {
   }
   // Connected-app tasks are dispatched only to a safely categorized tool.
   // Reads need no extra approval; writes require an explicit client confirmation.
-  if (!internalBrainCall && trustedAttachments.length === 0) {
+  if (executionMode === "agent" && !internalBrainCall && trustedAttachments.length === 0) {
     const composioRequest = detectComposioToolkitRequest(latestUserMessage);
     if (isMultiToolkitComposioRequest(latestUserMessage)) {
       const composioContext = "This request targets multiple connected-app toolkits at once. No connector action was executed. Explain that only one connector can be handled per request, and ask the user to retry with one service at a time. Do not claim any service was read or changed.";
@@ -1107,7 +1113,11 @@ async function handleRequest(req: Request): Promise<Response> {
           else messages.unshift({ role: "system", content: composioContext });
         }
       } catch (cause) {
-        console.error("Composio read-only assist failed:", cause instanceof Error ? cause.message : String(cause));
+        const failure = cause instanceof Error ? cause.message : String(cause);
+        console.error("Composio connector assist failed:", failure);
+        const composioFailureContext = "The connected-app request could not be completed because the connector service returned an error. Do not say the user failed to provide an email or that no email exists. Explain that the Gmail connector could not be read right now and ask the user to retry or check the connection.";
+        if (messages[0]?.role === "system") messages[0].content += `\n\n${composioFailureContext}`;
+        else messages.unshift({ role: "system", content: composioFailureContext });
       }
     }
   }
