@@ -15,6 +15,20 @@ function asRecord(value: unknown): JsonRecord {
   return value && typeof value === "object" && !Array.isArray(value) ? value as JsonRecord : {};
 }
 
+export function hasExplicitComposioExecutionSuccess(value: unknown): boolean {
+  return asRecord(value).successful === true;
+}
+
+export function hasVerifiableComposioReadResult(value: unknown): boolean {
+  if (Array.isArray(value)) return true; // An empty list is a valid "no matches" result.
+  if (value && typeof value === "object") {
+    const record = asRecord(value);
+    if (record.error || record.error_message || record.successful === false) return false;
+    return Object.keys(record).some((key) => key !== "successful");
+  }
+  return typeof value === "string" ? value.trim().length > 0 : typeof value === "number" || typeof value === "boolean";
+}
+
 export function parseComposioToolkit(value: unknown): ComposioToolkitKey | null {
   if (typeof value !== "string") return null;
   return TOOLKIT_KEYS.includes(value.trim().toLowerCase() as ComposioToolkitKey)
@@ -233,7 +247,7 @@ export async function runComposioReadOnlyTask(
     method: "POST",
     body: JSON.stringify({ user_id: userId, text: `${connectorSearchQuery(toolkit, naturalLanguageTask)}. Return sender, subject, date, and body content.`, toolkit_versions: "latest" }),
   });
-  if (executed.successful === false) throw new Error("The requested connected-app read operation did not complete.");
+  if (!hasExplicitComposioExecutionSuccess(executed)) throw new Error("The connected-app read response did not confirm successful tool execution.");
   return { toolSlug: selected.slug, result: executed.data ?? executed };
 }
 
@@ -263,6 +277,6 @@ export async function runComposioWriteTask(
     method: "POST",
     body: JSON.stringify({ user_id: userId, text: naturalLanguageTask.slice(0, 1500), ...(typeof selected.version === "string" ? { version: selected.version } : {}) }),
   });
-  if (executed.successful === false) throw new Error("The requested connected-app write operation did not complete.");
+  if (!hasExplicitComposioExecutionSuccess(executed)) throw new Error("The connected-app write response did not confirm successful tool execution.");
   return { toolSlug: selected.slug, result: executed.data ?? executed };
 }

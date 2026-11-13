@@ -18,7 +18,8 @@ export interface ChatRequestBody {
   routing_mode: "auto";
   execution_mode: "chat" | "agent";
   stream: true;
-  confirmed_connector_action?: boolean;
+  connector_approval_request_id?: string;
+  connector_approval_original_text?: string;
 }
 
 export type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;

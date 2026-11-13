@@ -23,12 +23,13 @@ import { getCurrentCreditBalance, getTaskRating, getTaskUsage, saveTaskRating, t
 import { useToast } from "../../src/components/ui/Toast";
 import { supabase } from "../../src/lib/supabase/client";
 import { integrationService, type ToolkitStatus } from "../../src/features/integrations/integration-service";
+import { randomUUID } from "expo-crypto";
 
 const STREAMING_ID = "local-streaming-assistant";
 const TASK_SUGGESTIONS = getRotatingSuggestions(Date.now(), 4);
 
 type RequestedConnectorTask = { toolkit: ToolkitStatus["toolkit"]; intent: "read" | "write" };
-type ExecutionMode = "chat" | "agent";
+type ConnectorWriteApproval = { requestId: string; originalText: string };
 
 function requestedConnectorTask(text: string): RequestedConnectorTask | null {
   const read = /\b(show|search|find|list|get|read|summari[sz]e|check|review|fetch|open|look up|what|which|who|when|latest|recent|name|size|files?)\b|ابحث|دور|هات|جيب|اعرض|أظهر|اظهر|اقرأ|لخص|لخّص|راجع|افحص|تحقق|وريني|شوف|استخرج|آخر|اخر|وصلني|وصلتني|وصل|رسالة|رسائل|محتوى|مين|اسم|حجم|أسماء|اسماء|عدد|ملفات|موجودة|الموجودة/iu.test(text);
@@ -53,7 +54,6 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(routeConversationId || null);
   const [isSending, setIsSending] = useState(false);
-  const [executionMode, setExecutionMode] = useState<ExecutionMode>("chat");
   const [activeTaskLabel, setActiveTaskLabel] = useState<string | null>(null);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
   const [isLoading, setIsLoading] = useState(Boolean(routeConversationId));
@@ -70,7 +70,7 @@ export default function ChatPage() {
   const [ratingNote, setRatingNote] = useState("");
   const [ratingSaving, setRatingSaving] = useState(false);
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
-  const [connectorApproval, setConnectorApproval] = useState<{ content: string; toolkit: ToolkitStatus["toolkit"]; intent: "read" | "write"; connected: boolean; accountExists: boolean; disabled: boolean } | null>(null);
+  const [connectorApproval, setConnectorApproval] = useState<{ content: string; toolkit: ToolkitStatus["toolkit"]; intent: "read" | "write"; connected: boolean; accountExists: boolean; disabled: boolean; writeApproval: ConnectorWriteApproval | null } | null>(null);
   const closeShareSheet = useCallback(() => setShareVisible(false), []);
   const composerRef = useRef<ChatComposerHandle>(null);
   const listRef = useRef<FlatList<ChatMessage>>(null);
@@ -213,7 +213,7 @@ export default function ChatPage() {
     });
   }, [conversationId, reloadMessages, refreshCreditBalance]);
 
-  const sendText = async (content: string, attachment?: ChatAttachment, confirmedConnectorAction = false) => {
+  const sendText = async (content: string, attachment?: ChatAttachment, writeApproval?: ConnectorWriteApproval) => {
     await runOnce(lock, async () => {
       if (!user || (!content.trim() && !attachment)) return;
       const imageGeneration = !attachment && getImageGenerationPrompt(content) !== null;
@@ -263,8 +263,7 @@ export default function ChatPage() {
         await chatService.sendMessage({
           conversationId: conversationKey,
           content,
-          executionMode,
-          confirmedConnectorAction,
+          writeApproval,
           mediaAsset: uploadedAsset,
           signal: controller.signal,
           async onUserSaved(message) {
@@ -322,7 +321,7 @@ export default function ChatPage() {
           setError(null);
           setRetryFailure(null);
           if (savedUserMessage) void logFrictionEvent({ eventKind: "response_stopped", screenKey: "chat", featureKey: "chat", stepKey: "response", conversationId });
-        } else if (savedUserMessage && savedUserMessageId && id && !streamCompleted) {
+        } else if (savedUserMessage && savedUserMessageId && id && !streamCompleted && !writeApproval) {
           if (imageGeneration && imagePlaceholderId) {
             setMessages((current) => current.map((item) => item.id === imagePlaceholderId ? { ...item, status: "error", generationState: "failed" } : item));
             setError(cause instanceof Error ? cause.message : "تعذر توليد الصورة. أرسل الطلب مجددًا للمحاولة.");
@@ -338,7 +337,6 @@ export default function ChatPage() {
             await chatService.retryAssistant({
               conversationId: id,
               userMessageId: savedUserMessageId,
-              executionMode,
               signal: controller.signal,
               onChunk(text) {
                 streamedTextRef.current += text;
@@ -389,7 +387,6 @@ export default function ChatPage() {
       try {
         await chatService.retryAssistant({
           ...failed,
-          executionMode,
           signal: controller.signal,
           onChunk(text) {
             streamedTextRef.current += text;
@@ -466,7 +463,7 @@ export default function ChatPage() {
           return;
         }
       }
-      await sendText(approval.content, undefined, approval.intent === "write");
+      await sendText(approval.content, undefined, approval.writeApproval ?? undefined);
     } catch (cause) {
       show(cause instanceof Error ? cause.message : "تعذّر إكمال الاتصال، ولم يبدأ الطلب.", "error");
     } finally {
@@ -481,10 +478,6 @@ export default function ChatPage() {
     const requested = requestedConnectorTask(text);
     if (!user || attachment || !text || !requested) {
       void sendText(content, attachment);
-      return;
-    }
-    if (executionMode === "chat") {
-      show("هذا طلب يحتاج إلى قراءة أو تنفيذ عبر Gmail أو تطبيق مرتبط. بدّل الوضع إلى Agent ثم أرسل الطلب مرة أخرى.", "error");
       return;
     }
     if (preflightLock.current) return;
@@ -512,6 +505,7 @@ export default function ChatPage() {
         connected: result.connected === true,
         accountExists: result.accountExists === true,
         disabled: result.disabled === true,
+        writeApproval: intent === "write" ? { requestId: randomUUID(), originalText: text } : null,
       });
       setIsSending(false);
       setActiveTaskLabel(null);
@@ -667,16 +661,6 @@ export default function ChatPage() {
         )}
         {isUploadingAttachment ? <View style={styles.uploadStatus}><ActivityIndicator size="small" color={colors.primary} /><Text style={styles.loadingText}>جارٍ رفع المرفق…</Text></View> : null}
         <StreamingStatus isStreaming={isSending && !isUploadingAttachment} taskLabel={activeTaskLabel} onCancel={() => abortRef.current?.abort()} />
-        <View style={styles.modeBar} accessibilityRole="radiogroup" accessibilityLabel="وضع المحادثة والتنفيذ">
-          <Pressable onPress={() => setExecutionMode("agent")} accessibilityRole="radio" accessibilityState={{ selected: executionMode === "agent" }} style={[styles.modeOption, executionMode === "agent" && styles.modeOptionSelected]}>
-            <Ionicons name="sparkles-outline" size={15} color={executionMode === "agent" ? colors.background : colors.primary} />
-            <Text style={[styles.modeText, executionMode === "agent" && styles.modeTextSelected]}>Agent · تنفيذ المهام</Text>
-          </Pressable>
-          <Pressable onPress={() => setExecutionMode("chat")} accessibilityRole="radio" accessibilityState={{ selected: executionMode === "chat" }} style={[styles.modeOption, executionMode === "chat" && styles.modeOptionSelected]}>
-            <Ionicons name="chatbubble-ellipses-outline" size={15} color={executionMode === "chat" ? colors.background : colors.primary} />
-            <Text style={[styles.modeText, executionMode === "chat" && styles.modeTextSelected]}>Chat · محادثة سريعة</Text>
-          </Pressable>
-        </View>
         <ChatComposer ref={composerRef} onSend={handleSend} disabled={isSending || Boolean(connectorApproval)} isStreaming={isSending} onCancel={() => abortRef.current?.abort()} creditBalance={creditBalance} onOpenRecharge={() => router.push("/(protected)/balance")} />
       </KeyboardAvoidingView>
       <ShareConversationSheet visible={shareVisible} conversationId={conversationId} title={shareTitle} plainText={shareText} onClose={closeShareSheet} />
@@ -742,11 +726,6 @@ const styles = StyleSheet.create({
   loading: { flex: 1, justifyContent: "center", alignItems: "center", gap: 10 },
   loadingText: { color: colors.textSecondary },
   uploadStatus: { flexDirection: "row-reverse", justifyContent: "center", alignItems: "center", gap: 8, paddingVertical: 8 },
-  modeBar: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 14, paddingVertical: 7 },
-  modeOption: { flexDirection: "row-reverse", alignItems: "center", gap: 5, minHeight: 34, paddingHorizontal: 11, borderRadius: 9999, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
-  modeOptionSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
-  modeText: { color: colors.textSecondary, fontSize: 11, fontWeight: "700" },
-  modeTextSelected: { color: colors.background },
   messages: { flex: 1 },
   messageListContainer: { flex: 1, position: "relative" },
   scrollToBottomButton: { position: "absolute", right: 24, bottom: 12, width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.divider, elevation: 5, zIndex: 2 },
