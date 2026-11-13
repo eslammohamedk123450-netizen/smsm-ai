@@ -2,7 +2,7 @@ name: Deploy ai-router to Supabase
 
 on:
   push:
-    branches: [main]
+    branches: [release/v1]
     paths:
       - "supabase/functions/ai-router/**"
       - "supabase/functions/_shared/**"

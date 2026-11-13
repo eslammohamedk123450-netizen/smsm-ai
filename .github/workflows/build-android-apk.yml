@@ -1,16 +1,7 @@
 name: Build Android APK (GitHub)
 
 on:
-  push:
-    branches: [release/v1]
-    paths:
-      - "apps/mobile/**"
-      - ".github/workflows/build-android-apk.yml"
-  pull_request:
-    branches: [release/v1]
-    paths:
-      - "apps/mobile/**"
-      - ".github/workflows/build-android-apk.yml"
+  # APK builds remain opt-in; ordinary release/v1 pushes publish only web/OTA.
   workflow_dispatch:
 
 permissions:
