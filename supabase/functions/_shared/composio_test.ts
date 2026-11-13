@@ -1,4 +1,4 @@
-import { connectorSearchQuery, detectComposioToolkitRequest, hasExplicitComposioExecutionSuccess, hasVerifiableComposioReadResult, isComposioToolAllowed, isGmailTaglessToolAllowlisted, isMultiToolkitComposioRequest } from "./composio.ts";
+import { composioToolCatalogParams, connectorSearchQuery, detectComposioToolkitRequest, hasExplicitComposioExecutionSuccess, hasVerifiableComposioReadResult, isComposioToolAllowed, isGmailTaglessToolAllowlisted, isMultiToolkitComposioRequest } from "./composio.ts";
 
 Deno.test("allows only the exact Gmail fallback tool names without Composio tags", () => {
   if (!isGmailTaglessToolAllowlisted("GMAIL_GET_MESSAGE", "read")) throw new Error("GMAIL_GET_MESSAGE should be allowed as a tagless read");
@@ -19,6 +19,18 @@ Deno.test("searches Composio for the canonical Gmail email-fetch action", () => 
   if (!query.includes("latest email from Mim")) throw new Error("The original Gmail request should be preserved in the tool-search query");
   if (!isGmailTaglessToolAllowlisted("GMAIL_FETCH_EMAILS", "read")) throw new Error("Canonical fetch action should be allowed without tags for reads");
   if (isGmailTaglessToolAllowlisted("GMAIL_FETCH_EMAILS", "write")) throw new Error("Fetch action must not be allowed as a write");
+});
+
+Deno.test("requests GMAIL_FETCH_EMAILS directly from the Composio catalog", () => {
+  const gmail = composioToolCatalogParams("gmail", "Tell me the latest email from Mim");
+  if (gmail.tool_slugs !== "GMAIL_FETCH_EMAILS") throw new Error(`Expected direct Gmail slug lookup, got ${JSON.stringify(gmail)}`);
+  if (gmail.query !== undefined) throw new Error("Gmail catalog lookup must not depend on a free-text query");
+  if (gmail.limit !== "1") throw new Error("Direct Gmail lookup should request only the named action");
+
+  const drive = composioToolCatalogParams("googledrive", "Find the latest file");
+  if (drive.tool_slugs !== undefined || !drive.query?.includes("googledrive")) {
+    throw new Error(`Google Drive catalog search should remain unchanged, got ${JSON.stringify(drive)}`);
+  }
 });
 
 Deno.test("detects Arabic Gmail lookup as a read, not a write", () => {
