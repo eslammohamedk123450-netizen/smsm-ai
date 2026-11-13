@@ -192,7 +192,7 @@ function hasWriteTag(item: JsonRecord): boolean {
 
 // A small exact-name fallback for stable Gmail actions when Composio omits tags.
 // Keep write execution behind the existing request-bound approval check.
-const GMAIL_READ_ALLOWLIST = new Set(["GMAIL_GET_MESSAGE"]);
+const GMAIL_READ_ALLOWLIST = new Set(["GMAIL_FETCH_EMAILS", "GMAIL_LIST_MESSAGES", "GMAIL_GET_MESSAGE"]);
 const GMAIL_WRITE_ALLOWLIST = new Set(["GMAIL_SEND_MESSAGE"]);
 
 export function isComposioToolAllowed(toolkit: ComposioToolkitKey, slug: unknown, intent: "read" | "write"): boolean {
@@ -226,13 +226,14 @@ function safeWriteSlug(toolkit: ComposioToolkitKey, slug: unknown): slug is stri
   return prefixes[toolkit].test(slug);
 }
 
-function connectorSearchQuery(toolkit: ComposioToolkitKey, request: string): string {
+export function connectorSearchQuery(toolkit: ComposioToolkitKey, request: string): string {
   const value = request.toLocaleLowerCase();
   if (toolkit === "gmail") {
     const sent = /sent|مبعوث|مبعت|مُرسَل|أرسلت|ارسلت|المُرسلة|المرسلة/iu.test(value);
     const received = /received|inbox|واردة|الواردة|وصلت|استلمت/iu.test(value);
     const latest = /latest|newest|recent|آخر|اخر|الأخيرة|الاخيرة/iu.test(value);
-    return `${sent ? "Gmail sent mail" : received ? "Gmail inbox received mail" : "Gmail messages"} ${latest ? "most recent newest first" : "search messages"} sender subject date body content`;
+    const task = request.replace(/\s+/g, " ").trim().slice(0, 300);
+    return `GMAIL_FETCH_EMAILS fetch emails from Gmail mailbox ${sent ? "sent mail" : received ? "inbox received mail" : "messages"} ${latest ? "most recent newest first" : "search messages"} sender subject date body content. User request: ${task}`;
   }
   return `${toolkit} search and read ${request.slice(0, 500)}`;
 }
