@@ -162,6 +162,9 @@ export default function SettingsScreen() {
         <Text style={styles.sectionTitle}>{isArabic ? "المحادثات" : "Conversations"}</Text>
         <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => void openArchive()} accessibilityRole="button"><Text style={styles.rowText}>{isArabic ? "الأرشيف" : "Archive"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
 
+        <Text style={styles.sectionTitle}>{isArabic ? "التكاملات" : "Integrations"}</Text>
+        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/integrations")} accessibilityRole="button"><Text style={styles.rowText}>{isArabic ? "التطبيقات المرتبطة" : "Connected apps"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
+
         <Text style={styles.sectionTitle}>{isArabic ? "المعلومات والسياسات" : "Information & policies"}</Text>
         <View style={styles.policyCard}>
           <TouchableOpacity activeOpacity={0.7} onPress={() => setPolicyModal("privacy")} style={styles.policyRow}><Text style={styles.rowText}>{isArabic ? "سياسة الخصوصية" : "Privacy policy"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>

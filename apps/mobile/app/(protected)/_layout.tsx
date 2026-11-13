@@ -231,6 +231,7 @@ export default function ProtectedLayout() {
       <Drawer.Screen name="upgrade" options={{ title: "الباقات والترقية", drawerItemStyle: { display: "none" } }} />
       <Drawer.Screen name="admin" options={{ title: "لوحة التحكم", drawerItemStyle: isAdmin ? undefined : { display: "none" } }} />
       <Drawer.Screen name="settings" options={{ title: "الإعدادات" }} />
+      <Drawer.Screen name="integrations" options={{ title: "التطبيقات المرتبطة", drawerItemStyle: { display: "none" } }} />
       <Drawer.Screen name="support" options={{ title: "الشكاوى والدعم" }} />
     </Drawer>
   );
