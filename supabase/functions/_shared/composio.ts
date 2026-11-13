@@ -238,6 +238,17 @@ export function connectorSearchQuery(toolkit: ComposioToolkitKey, request: strin
   return `${toolkit} search and read ${request.slice(0, 500)}`;
 }
 
+export function composioToolCatalogParams(toolkit: ComposioToolkitKey, request: string): Record<string, string> {
+  const params: Record<string, string> = {
+    toolkit_slug: COMPOSIO_TOOLKITS[toolkit].slug,
+    toolkit_versions: "latest",
+    limit: toolkit === "gmail" ? "1" : "20",
+  };
+  if (toolkit === "gmail") params.tool_slugs = "GMAIL_FETCH_EMAILS";
+  else params.query = connectorSearchQuery(toolkit, request);
+  return params;
+}
+
 export async function runComposioReadOnlyTask(
   apiKey: string,
   userId: string,
@@ -248,12 +259,7 @@ export async function runComposioReadOnlyTask(
   const connected = accounts.some((account) => account.status === "ACTIVE" && account.is_disabled !== true);
   if (!connected) return { unavailable: "not_connected" };
 
-  const query = new URLSearchParams({
-    toolkit_slug: COMPOSIO_TOOLKITS[toolkit].slug,
-    query: connectorSearchQuery(toolkit, naturalLanguageTask),
-    toolkit_versions: "latest",
-    limit: "20",
-  });
+  const query = new URLSearchParams(composioToolCatalogParams(toolkit, naturalLanguageTask));
   const catalog = await composioRequest(apiKey, `/v3.1/tools?${query.toString()}`);
   const tools = Array.isArray(catalog.items) ? catalog.items.map(asRecord) : [];
   const selected = tools.find((item) => isComposioToolAllowed(toolkit, item.slug, "read")
