@@ -16,6 +16,15 @@ jobs:
       - name: Checkout release branch
         uses: actions/checkout@v4
 
+      - name: Verify Expo deployment credentials
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "EXPO_TOKEN is missing. Add it as a GitHub Actions secret to publish production OTA updates."
+            exit 1
+          fi
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -31,7 +40,7 @@ jobs:
         working-directory: apps/mobile
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-          EAS_PROJECT_ID: ${{ secrets.EAS_PROJECT_ID }}
+          EAS_PROJECT_ID: 4eb557a8-8aea-4ea9-a3d7-7ccba99f6c73
           EXPO_PUBLIC_SUPABASE_URL: https://razvryvazmqvvqkzetuo.supabase.co
           EXPO_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_t5xrzZNN6Uj9zhhBLUYQVg_mj7qPjQL
           EXPO_PUBLIC_EDGE_FUNCTION_BASE_URL: https://razvryvazmqvvqkzetuo.supabase.co/functions/v1
