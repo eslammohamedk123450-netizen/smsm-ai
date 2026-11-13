@@ -22,9 +22,25 @@ import { BottomSheet } from "../../src/components/ui/BottomSheet";
 import { getCurrentCreditBalance, getTaskRating, getTaskUsage, saveTaskRating, type TaskRating, type TaskUsage } from "../../src/features/credits/credit-service";
 import { useToast } from "../../src/components/ui/Toast";
 import { supabase } from "../../src/lib/supabase/client";
+import { integrationService, type ToolkitStatus } from "../../src/features/integrations/integration-service";
 
 const STREAMING_ID = "local-streaming-assistant";
 const TASK_SUGGESTIONS = getRotatingSuggestions(Date.now(), 4);
+
+type RequestedConnectorTask = { toolkit: ToolkitStatus["toolkit"]; intent: "read" | "write" };
+
+function requestedConnectorTask(text: string): RequestedConnectorTask | null {
+  const read = /\b(show|search|find|list|get|read|summari[sz]e|check|review|fetch|open|look up)\b|ابحث|دور|هات|جيب|اعرض|أظهر|اظهر|اقرأ|لخص|لخّص|راجع|افحص|تحقق|وريني|شوف|استخرج|آخر|اخر/iu.test(text);
+  const write = /\b(send|forward|reply|create|update|edit|delete|remove|write|commit|push|merge|star|unstar|invite|upload|share|move|rename|archive|label|schedule|copy|close|reopen|comment|fork|publish)\b|ابعت|ابعث|أرسل|ارسل|اكتب|انشئ|أنشئ|عدّل|عدل|احذف|امسح|ارفع|شارك|غيّر|غير|انقل|ادمج|حوّل|حول|أرشف|ارشف|انسخ|صنّف|صنف|انشر|اعمل.*(?:issue|رسالة|ملف)/iu.test(text);
+  if (!read && !write) return null;
+  const intent = write ? "write" : "read";
+  const toolkits = [
+    /\b(gmail|google mail|inbox|email|e-mail)\b|جيميل|جى ميل|بريدي|البريد|إيميلي|ايميلي|إيميل|ايميل|الايميل|الإيميل|رسائلي/iu.test(text) ? "gmail" : null,
+    /\b(google drive|googledrive|drive|my drive)\b|جوجل درايف|غوغل درايف|درايف|ملفاتي على جوجل/iu.test(text) ? "googledrive" : null,
+    /\b(github|git hub|repository|repo|pull request|issue)\b|جيت هاب|مستودع(?:ي|ات)?|ريبو|طلبات السحب/iu.test(text) ? "github" : null,
+  ].filter((toolkit): toolkit is ToolkitStatus["toolkit"] => toolkit !== null);
+  return toolkits.length === 1 ? { toolkit: toolkits[0], intent } : null;
+}
 
 export default function ChatPage() {
   const { user } = useAuth();
@@ -52,12 +68,14 @@ export default function ChatPage() {
   const [ratingNote, setRatingNote] = useState("");
   const [ratingSaving, setRatingSaving] = useState(false);
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
+  const [connectorApproval, setConnectorApproval] = useState<{ content: string; toolkit: ToolkitStatus["toolkit"]; intent: "read" | "write"; connected: boolean; accountExists: boolean; disabled: boolean } | null>(null);
   const closeShareSheet = useCallback(() => setShareVisible(false), []);
   const composerRef = useRef<ChatComposerHandle>(null);
   const listRef = useRef<FlatList<ChatMessage>>(null);
   const isNearBottomRef = useRef(true);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const lock = useRef(false);
+  const preflightLock = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const internalConversationTransitionRef = useRef<string | null>(null);
   const optimisticMessageIdRef = useRef<string | null>(null);
@@ -193,7 +211,7 @@ export default function ChatPage() {
     });
   }, [conversationId, reloadMessages, refreshCreditBalance]);
 
-  const sendText = async (content: string, attachment?: ChatAttachment) => {
+  const sendText = async (content: string, attachment?: ChatAttachment, confirmedConnectorAction = false) => {
     await runOnce(lock, async () => {
       if (!user || (!content.trim() && !attachment)) return;
       const imageGeneration = !attachment && getImageGenerationPrompt(content) !== null;
@@ -211,7 +229,7 @@ export default function ChatPage() {
       setError(null);
       setRetryFailure(null);
       setIsSending(true);
-      setActiveTaskLabel(imageGeneration ? "جاري توليد الصورة…" : "جاري تجهيز المهمة…");
+      setActiveTaskLabel(imageGeneration ? "جاري توليد الصورة…" : "جارٍ الرد على رسالتك…");
       void logFrictionEvent({ eventKind: "task_start", screenKey: "chat", featureKey: "chat", stepKey: "send_message", conversationId });
       const controller = new AbortController();
       abortRef.current = controller;
@@ -243,6 +261,7 @@ export default function ChatPage() {
         await chatService.sendMessage({
           conversationId: conversationKey,
           content,
+          confirmedConnectorAction,
           mediaAsset: uploadedAsset,
           signal: controller.signal,
           async onUserSaved(message) {
@@ -415,7 +434,85 @@ export default function ChatPage() {
     });
   };
 
-  const handleSend = (content: string, attachment?: ChatAttachment) => { void sendText(content, attachment); };
+  const cancelConnectorApproval = () => {
+    setConnectorApproval(null);
+    preflightLock.current = false;
+  };
+
+  const continueConnectorApproval = async () => {
+    const approval = connectorApproval;
+    if (!approval) return;
+    setConnectorApproval(null);
+    setIsSending(true);
+    setActiveTaskLabel(approval.connected ? "جارٍ تجهيز الإجراء الموافق عليه…" : "جارٍ الاتصال بالتطبيق…");
+    let keepApprovalOpen = false;
+    try {
+      if (!approval.connected) {
+        const returned = await integrationService.openConnectFlow(approval.toolkit);
+        if (!returned) return;
+        const verified = await integrationService.preflight(approval.content);
+        if (!verified.required || !verified.connected) {
+          show("لم يتم تأكيد الاتصال، لذلك لم يبدأ الطلب.", "error");
+          return;
+        }
+        if (approval.intent === "write") {
+          keepApprovalOpen = true;
+          setConnectorApproval({ ...approval, connected: true, accountExists: true, disabled: false });
+          return;
+        }
+      }
+      await sendText(approval.content, undefined, approval.intent === "write");
+    } catch (cause) {
+      show(cause instanceof Error ? cause.message : "تعذّر إكمال الاتصال، ولم يبدأ الطلب.", "error");
+    } finally {
+      if (!keepApprovalOpen) preflightLock.current = false;
+      setIsSending(false);
+      setActiveTaskLabel(null);
+    }
+  };
+
+  const handleSend = (content: string, attachment?: ChatAttachment) => {
+    const text = content.trim();
+    const requested = requestedConnectorTask(text);
+    if (!user || attachment || !text || !requested) {
+      void sendText(content, attachment);
+      return;
+    }
+    if (preflightLock.current) return;
+    preflightLock.current = true;
+    setIsSending(true);
+    setActiveTaskLabel("جارٍ فحص اتصال التطبيق المطلوب…");
+    void integrationService.preflight(text).then((result) => {
+      if (!result.required) {
+        throw new Error("تعذّر التحقق من موصل الطلب، ولم يبدأ التنفيذ.");
+      }
+      const toolkit = result.toolkit ?? requested.toolkit;
+      const intent = result.intent ?? requested.intent;
+      if (toolkit !== requested.toolkit) throw new Error("تعذّر التحقق من التطبيق المطلوب، ولم يبدأ التنفيذ.");
+      if (result.connected && intent === "read") {
+        preflightLock.current = false;
+        setIsSending(false);
+        setActiveTaskLabel(null);
+        void sendText(content);
+        return;
+      }
+      setConnectorApproval({
+        content,
+        toolkit,
+        intent,
+        connected: result.connected === true,
+        accountExists: result.accountExists === true,
+        disabled: result.disabled === true,
+      });
+      setIsSending(false);
+      setActiveTaskLabel(null);
+    }).catch((cause) => {
+      preflightLock.current = false;
+      show(cause instanceof Error ? cause.message : "تعذّر فحص الاتصال، ولم يبدأ الطلب.", "error");
+      setIsSending(false);
+      setActiveTaskLabel(null);
+    });
+  };
 
   const updateFeedback = async (messageId: string, value: MessageFeedback | null) => {
     const previous = feedbackByMessage[messageId] ?? null;
@@ -518,7 +615,7 @@ export default function ChatPage() {
             <Text style={styles.emptyTitle}>دع Suly يعمل من أجلك</Text>
             <View style={styles.chooseTaskTitle} accessibilityRole="text">
               <Ionicons name="sparkles-outline" size={18} color={colors.primary} />
-              <Text style={styles.chooseTaskText}>اختيار مهمة</Text>
+              <Text style={styles.chooseTaskText}>ابدأ من هنا</Text>
             </View>
             <View style={styles.taskGrid}>
               {TASK_SUGGESTIONS.map((suggestion) => (
@@ -527,7 +624,7 @@ export default function ChatPage() {
                   onPress={() => composerRef.current?.editMessage(suggestion.text)}
                   style={styles.taskCard}
                   accessibilityRole="button"
-                  accessibilityLabel={`استخدام المهمة: ${suggestion.text}`}
+                  accessibilityLabel={`استخدام اقتراح: ${suggestion.text}`}
                 >
                   <View style={styles.taskIconCircle}><Ionicons name={suggestion.icon} size={19} color={colors.primary} /></View>
                   <Text numberOfLines={2} style={styles.taskCardText}>{suggestion.text}</Text>
@@ -561,7 +658,7 @@ export default function ChatPage() {
         )}
         {isUploadingAttachment ? <View style={styles.uploadStatus}><ActivityIndicator size="small" color={colors.primary} /><Text style={styles.loadingText}>جارٍ رفع المرفق…</Text></View> : null}
         <StreamingStatus isStreaming={isSending && !isUploadingAttachment} taskLabel={activeTaskLabel} onCancel={() => abortRef.current?.abort()} />
-        <ChatComposer ref={composerRef} onSend={handleSend} disabled={isSending} isStreaming={isSending} onCancel={() => abortRef.current?.abort()} creditBalance={creditBalance} onOpenRecharge={() => router.push("/(protected)/balance")} />
+        <ChatComposer ref={composerRef} onSend={handleSend} disabled={isSending || Boolean(connectorApproval)} isStreaming={isSending} onCancel={() => abortRef.current?.abort()} creditBalance={creditBalance} onOpenRecharge={() => router.push("/(protected)/balance")} />
       </KeyboardAvoidingView>
       <ShareConversationSheet visible={shareVisible} conversationId={conversationId} title={shareTitle} plainText={shareText} onClose={closeShareSheet} />
       <BottomSheet visible={usageVisible} title="إحصائيات المهمة الحالية" onClose={() => setUsageVisible(false)}>
@@ -574,6 +671,28 @@ export default function ChatPage() {
           <TextInput value={ratingNote} onChangeText={setRatingNote} placeholder="يمكنك تقديم ملاحظاتك للحصول على أفضل خدمة" placeholderTextColor={colors.textMuted} style={styles.ratingInput} multiline maxLength={2000} />
           <Pressable disabled={ratingSaving || ratingStars === 0} style={[styles.ratingSubmit, (ratingSaving || ratingStars === 0) && styles.disabled]} onPress={() => { if (!conversationId) return; setRatingSaving(true); void saveTaskRating({ conversationId, taskId: taskUsage.taskId, stars: ratingStars, note: ratingNote }).then(() => { setTaskRating({ stars: ratingStars, note: ratingNote.trim() || null }); show("تم إرسال تقييم المهمة.", "success"); }).catch((cause) => show(cause instanceof Error ? cause.message : "تعذر إرسال التقييم.", "error")).finally(() => setRatingSaving(false)); }}><Text style={styles.ratingSubmitText}>{ratingSaving ? "جارٍ الإرسال…" : "حفظ التقييم"}</Text></Pressable>
         </View> : <Text style={styles.loadingText}>لا يوجد استهلاك مسجل لهذه المحادثة بعد.</Text>}
+      </BottomSheet>
+      <BottomSheet
+        visible={Boolean(connectorApproval)}
+        title={connectorApproval?.connected ? "مراجعة الإجراء" : "يلزم الاتصال قبل تنفيذ الطلب"}
+        onClose={cancelConnectorApproval}
+      >
+        {connectorApproval ? (() => {
+          const name = connectorApproval.toolkit === "gmail" ? "Gmail" : connectorApproval.toolkit === "googledrive" ? "Google Drive" : "GitHub";
+          const accountState = connectorApproval.disabled ? "الحساب مرتبط لكنه معطّل حاليًا." : connectorApproval.accountExists ? "الحساب مرتبط لكنه غير نشط." : "الحساب غير مرتبط.";
+          return <View style={styles.connectorApproval}>
+            <Text style={styles.connectorApprovalText}>{connectorApproval.connected
+              ? `الطلب يتضمن إجراءً على حسابك في ${name}. راجع النص التالي؛ لن يُنفّذ أي إرسال أو تعديل أو حذف دون تأكيدك.`
+              : `${accountState} لن يبدأ الطلب قبل اكتمال الربط${connectorApproval.intent === "write" ? "، وبعد الربط ستراجع الإجراء وتؤكده بشكل منفصل." : " ومراجعة حالة الاتصال."}`}</Text>
+            <View style={styles.connectorRequest}><Text style={styles.connectorRequestText}>{connectorApproval.content}</Text></View>
+            <View style={styles.connectorActions}>
+              <Pressable style={styles.connectorCancel} onPress={cancelConnectorApproval} accessibilityRole="button"><Text style={styles.connectorCancelText}>إلغاء</Text></Pressable>
+              <Pressable style={styles.connectorContinue} onPress={() => void continueConnectorApproval()} accessibilityRole="button">
+                <Text style={styles.connectorContinueText}>{connectorApproval.connected ? "تأكيد وتنفيذ الطلب" : connectorApproval.intent === "write" ? "اتصال، ثم مراجعة التنفيذ" : "اتصال ومتابعة المهمة"}</Text>
+              </Pressable>
+            </View>
+          </View>;
+        })() : null}
       </BottomSheet>
     </SafeAreaView>
   );
@@ -632,4 +751,13 @@ const styles = StyleSheet.create({
   usageMetricLabel: { color: colors.textSecondary, textAlign: "center" },
   usageMetricValue: { color: colors.primary, fontSize: 32, fontWeight: "800" },
   usageStatus: { color: colors.textMuted, textAlign: "right" },
+  connectorApproval: { gap: 14, paddingBottom: 8 },
+  connectorApprovalText: { color: colors.textSecondary, textAlign: "right", fontSize: 13, lineHeight: 21 },
+  connectorRequest: { padding: 12, borderRadius: 12, backgroundColor: colors.inputBackground, borderWidth: 1, borderColor: colors.divider, maxHeight: 180 },
+  connectorRequestText: { color: colors.textPrimary, textAlign: "right", fontSize: 12, lineHeight: 19 },
+  connectorActions: { flexDirection: "row-reverse", gap: 10 },
+  connectorCancel: { minHeight: 46, paddingHorizontal: 18, borderRadius: 13, borderWidth: 1, borderColor: colors.divider, alignItems: "center", justifyContent: "center" },
+  connectorCancelText: { color: colors.textSecondary, fontWeight: "700" },
+  connectorContinue: { flex: 1, minHeight: 46, paddingHorizontal: 14, borderRadius: 13, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
+  connectorContinueText: { color: colors.background, fontSize: 12, fontWeight: "800", textAlign: "center" },
 });

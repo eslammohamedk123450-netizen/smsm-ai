@@ -112,11 +112,7 @@ function CustomDrawerContent({ isAdmin, ...props }: DrawerContentComponentProps 
         <View style={styles.navSection}>
           <TouchableOpacity activeOpacity={0.7} style={styles.navItem} onPress={() => goToChat()}>
             <Ionicons name="chatbubbles-outline" size={18} color="#0EA5E9" />
-            <Text style={styles.navItemText}>المحادثة والمهام</Text>
-          </TouchableOpacity>
-          <TouchableOpacity activeOpacity={0.7} style={styles.navItem} onPress={() => { router.push("/(protected)/tasks"); props.navigation.closeDrawer(); }} accessibilityRole="button">
-            <Ionicons name="sparkles-outline" size={18} color="#0EA5E9" />
-            <Text style={styles.navItemText}>تنفيذ مهمة ذكية</Text>
+            <Text style={styles.navItemText}>المحادثة</Text>
           </TouchableOpacity>
           <TouchableOpacity activeOpacity={0.7} style={styles.navItem} onPress={goToBalance}>
             <View style={styles.navItemRight}>

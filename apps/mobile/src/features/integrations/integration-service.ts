@@ -4,13 +4,31 @@ export interface ToolkitStatus {
   toolkit: "gmail" | "googledrive" | "github";
   label: string;
   connected: boolean;
+  accountExists: boolean;
+  disabled: boolean;
   updatedAt: string | null;
 }
+
+export type ConnectorPreflight = {
+  required: boolean;
+  toolkit?: ToolkitStatus["toolkit"];
+  intent?: "read" | "write";
+  connected?: boolean;
+  accountExists?: boolean;
+  disabled?: boolean;
+};
 
 interface IntegrationResponse {
   error?: string;
   redirect_url?: string;
-  toolkits?: Record<string, { connected?: boolean; status?: string | null; updated_at?: string | null }>;
+  service_ready?: boolean;
+  toolkit?: ToolkitStatus["toolkit"];
+  intent?: "read" | "write";
+  required?: boolean;
+  connected?: boolean;
+  account_exists?: boolean;
+  disabled?: boolean;
+  toolkits?: Record<string, { connected?: boolean; is_disabled?: boolean; status?: string | null; updated_at?: string | null }>;
 }
 
 const TOOLKIT_LABELS: Record<ToolkitStatus["toolkit"], string> = {
@@ -33,18 +51,35 @@ async function callIntegration(body: Record<string, unknown>): Promise<Integrati
 }
 
 export const integrationService = {
-  async getStatus(): Promise<ToolkitStatus[]> {
+  async getStatus(): Promise<{ toolkits: ToolkitStatus[]; serviceReady: boolean }> {
     const payload = await callIntegration({ action: "status" });
     const toolkits = payload.toolkits ?? {};
-    return (Object.keys(TOOLKIT_LABELS) as ToolkitStatus["toolkit"][]).map((toolkit) => {
-      const entry = toolkits[toolkit] ?? {};
-      return {
-        toolkit,
-        label: TOOLKIT_LABELS[toolkit],
-        connected: entry.connected === true,
-        updatedAt: typeof entry.updated_at === "string" ? entry.updated_at : null,
-      };
-    });
+    return {
+      serviceReady: payload.service_ready === true,
+      toolkits: (Object.keys(TOOLKIT_LABELS) as ToolkitStatus["toolkit"][]).map((toolkit) => {
+        const entry = toolkits[toolkit] ?? {};
+        return {
+          toolkit,
+          label: TOOLKIT_LABELS[toolkit],
+          connected: entry.connected === true,
+          accountExists: typeof entry.status === "string" || entry.is_disabled === true,
+          disabled: entry.is_disabled === true,
+          updatedAt: typeof entry.updated_at === "string" ? entry.updated_at : null,
+        };
+      }),
+    };
+  },
+
+  async preflight(task: string): Promise<ConnectorPreflight> {
+    const payload = await callIntegration({ action: "preflight", task });
+    return {
+      required: payload.required === true,
+      toolkit: payload.toolkit,
+      intent: payload.intent,
+      connected: payload.connected === true,
+      accountExists: payload.account_exists === true,
+      disabled: payload.disabled === true,
+    };
   },
 
   async openConnectFlow(toolkit: ToolkitStatus["toolkit"]): Promise<boolean> {

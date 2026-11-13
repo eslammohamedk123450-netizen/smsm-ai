@@ -251,6 +251,7 @@ export const chatService = {
   async sendMessage(options: {
     conversationId: string;
     content: string;
+    confirmedConnectorAction?: boolean;
     mediaAsset?: MediaAsset;
     signal: AbortSignal;
     onUserSaved(message: ChatMessage): void | Promise<void>;
@@ -363,6 +364,7 @@ export const chatService = {
       messages: history,
       routing_mode: "auto",
       stream: true,
+      confirmed_connector_action: options.confirmedConnectorAction === true ? true : undefined,
     };
     await chatStreamManager.start(requestBody, { onChunk: options.onChunk, onTaskUpdate: options.onTaskUpdate, onDone() {} }, options.signal);
   },
