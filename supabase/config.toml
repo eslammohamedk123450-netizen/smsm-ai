@@ -50,5 +50,8 @@ verify_jwt = true
 [functions.brain-router]
 verify_jwt = true
 
+[functions.composito-integration]
+verify_jwt = true
+
 [functions.model-health-check]
 verify_jwt = false
