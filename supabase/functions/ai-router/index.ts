@@ -23,6 +23,7 @@ import {
 import { CircuitBreaker } from "./circuit_breaker.ts";
 import { buildIndependentTaskPlan, mapWithConcurrency, mergePartAnswers, probeCandidates, splitTask, validateTaskPlan } from "./resilience.ts";
 import { parseAgentDecision, runAgentLoop, type AgentLoopStep, type AgentTool } from "./agent/orchestrator.ts";
+import { prioritizeModelCandidate } from "./agent/model_routing.ts";
 
 // Native Android/iOS clients do not require CORS. Web access must set WEB_CORS_ORIGIN
 // explicitly; never fall back to a wildcard in a deployed environment.
@@ -859,7 +860,7 @@ async function handleRequest(req: Request): Promise<Response> {
   };
 
   const [{ data: settingsRow }, { data: allModels, error: modelsError }, { data: providers, error: providersError }] = await Promise.all([
-    supabase.from("ai_router_settings").select("free_race_timeout_ms,paid_fallback_enabled,paid_fallback_timeout_ms,max_parallel_free_models,health_auto_restrict_enabled,preflight_probe_enabled,preflight_probe_timeout_ms,preflight_probe_max_models,task_split_enabled,task_split_max_parts").eq("id", 1).maybeSingle(),
+    supabase.from("ai_router_settings").select("free_race_timeout_ms,paid_fallback_enabled,paid_fallback_timeout_ms,max_parallel_free_models,health_auto_restrict_enabled,preflight_probe_enabled,preflight_probe_timeout_ms,preflight_probe_max_models,task_split_enabled,task_split_max_parts,gmail_task_model_id").eq("id", 1).maybeSingle(),
     supabase.from("ai_models").select("id,name,provider_id,model_identifier,enabled,priority,routing_group,allowed_tiers,capabilities_json,response_timeout_ms,restriction_failure_threshold,restriction_window_minutes").eq("enabled", true).order("priority", { ascending: false }).limit(200),
     supabase.from("ai_providers").select("id,name,provider_type,base_url,enabled,timeout_seconds,api_key_vault_id").limit(100),
   ]);
@@ -883,6 +884,7 @@ async function handleRequest(req: Request): Promise<Response> {
     freeRaceTimeoutMs: Math.max(1000, Math.min(30000, Number(settingsRow?.free_race_timeout_ms) || 5000)),
     paidFallbackEnabled: settingsRow?.paid_fallback_enabled !== false,
     paidFallbackTimeoutMs: Math.max(1000, Math.min(120000, Number(settingsRow?.paid_fallback_timeout_ms) || 30000)),
+    gmailTaskModelId: Number.isSafeInteger(Number(settingsRow?.gmail_task_model_id)) && Number(settingsRow?.gmail_task_model_id) > 0 ? Number(settingsRow?.gmail_task_model_id) : null,
     maxParallelFreeModels: Math.max(1, Math.min(50, Number(settingsRow?.max_parallel_free_models) || 10)),
     preflightProbeEnabled: settingsRow?.preflight_probe_enabled !== false,
     preflightProbeTimeoutMs: Math.max(300, Math.min(10000, Number(settingsRow?.preflight_probe_timeout_ms) || 1500)),
@@ -1450,6 +1452,11 @@ async function handleRequest(req: Request): Promise<Response> {
       paidPlanPool = makeCandidates(paidModels);
     }
 
+    const preferredGmailModelId = connectorRequest?.toolkit === "gmail" ? settings.gmailTaskModelId : null;
+    const plannerPools = [
+      prioritizeModelCandidate(freePlanPool, preferredGmailModelId),
+      prioritizeModelCandidate(paidPlanPool, preferredGmailModelId),
+    ];
     let plannerInputTokens = 0;
     let plannerOutputTokens = 0;
     let plannerAttemptCount = 0;
@@ -1488,7 +1495,7 @@ async function handleRequest(req: Request): Promise<Response> {
         inputTokens: 0,
         outputTokens: 0,
       });
-      for (const pool of [freePlanPool, paidPlanPool]) {
+      for (const pool of plannerPools) {
         for (const baseCandidate of pool) {
           if (plannerAttemptCount >= 3) break;
           plannerAttemptCount += 1;

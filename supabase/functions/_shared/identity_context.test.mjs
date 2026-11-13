@@ -40,6 +40,11 @@ test("identity query and unknown-feature response are deterministic", () => {
   assert.equal(getIdentityAnswer("من أنت؟"), IDENTITY_ANSWER_TEXT);
   assert.equal(getIdentityAnswer("مين طورك؟"), CREATOR_ANSWER_TEXT);
   assert.equal(getIdentityAnswer("شركة Suly-Technologies دي بتاعة مين؟"), COMPANY_ANSWER_TEXT);
+  assert.equal(getIdentityAnswer("كلمني عن Suly-Technologies"), COMPANY_ANSWER_TEXT);
+  assert.equal(getIdentityAnswer("مين مؤسس الشركة؟"), COMPANY_ANSWER_TEXT);
   assert.ok(IDENTITY_ANSWER_TEXT.includes("أنا Suly"));
+  assert.ok(CREATOR_ANSWER_TEXT.includes("المهندس إسلام محمد البدري"));
+  assert.ok(COMPANY_ANSWER_TEXT.includes("شركة مصرية ناشئة"));
+  assert.ok(COMPANY_ANSWER_TEXT.includes("وكلاء ذكاء اصطناعي"));
   assert.equal(INACTIVE_UNKNOWN_ANSWER, "لا أملك معلومات حول ذلك.");
 });

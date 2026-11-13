@@ -22,6 +22,8 @@ function CustomDrawerContent({ isAdmin, ...props }: DrawerContentComponentProps 
   const { show } = useToast();
   const router = useRouter();
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [conversationLimit, setConversationLimit] = useState(100);
+  const [loadingMoreConversations, setLoadingMoreConversations] = useState(false);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [balance, setBalance] = useState<number | null>(null);
@@ -33,7 +35,7 @@ function CustomDrawerContent({ isAdmin, ...props }: DrawerContentComponentProps 
 
   const refresh = useCallback(async () => {
     try {
-      setConversations(await chatService.listConversations(100));
+      setConversations(await chatService.listConversations(conversationLimit));
       const ledger = await getCreditLedger(1);
       if (typeof ledger.balance === "number") setBalance(ledger.balance);
       const { data: profile } = await supabase.from("suly_profiles").select("subscription_tier").eq("id", user?.id ?? "").maybeSingle();
@@ -43,7 +45,20 @@ function CustomDrawerContent({ isAdmin, ...props }: DrawerContentComponentProps 
     } finally {
       setLoading(false);
     }
-  }, [show]);
+  }, [show, conversationLimit, user?.id]);
+
+  const loadOlderConversations = async () => {
+    const nextLimit = conversationLimit + 100;
+    setLoadingMoreConversations(true);
+    try {
+      setConversations(await chatService.listConversations(nextLimit));
+      setConversationLimit(nextLimit);
+    } catch (cause) {
+      show(cause instanceof Error ? cause.message : "تعذّر تحميل محادثات أقدم.", "error");
+    } finally {
+      setLoadingMoreConversations(false);
+    }
+  };
 
   useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
 
@@ -55,11 +70,6 @@ function CustomDrawerContent({ isAdmin, ...props }: DrawerContentComponentProps 
 
   const goToBalance = () => {
     router.push("/(protected)/balance");
-    props.navigation.closeDrawer();
-  };
-
-  const goToSupport = () => {
-    router.push("/(protected)/support");
     props.navigation.closeDrawer();
   };
 
@@ -144,6 +154,7 @@ function CustomDrawerContent({ isAdmin, ...props }: DrawerContentComponentProps 
             )}
           />
         ) : <Text style={styles.emptyHistory}>{query ? "لا توجد نتائج مطابقة." : "لا توجد محادثات سابقة."}</Text>}
+        {!loading && conversations.length >= conversationLimit ? <TouchableOpacity activeOpacity={0.7} disabled={loadingMoreConversations} onPress={() => void loadOlderConversations()} style={styles.loadOlderButton} accessibilityRole="button">{loadingMoreConversations ? <ActivityIndicator size="small" color={colors.primary} /> : <Text style={styles.loadOlderText}>تحميل محادثات أقدم</Text>}</TouchableOpacity> : null}
       </DrawerContentScrollView>
 
       <View style={styles.drawerFooter}>
@@ -165,10 +176,6 @@ function CustomDrawerContent({ isAdmin, ...props }: DrawerContentComponentProps 
           <Ionicons name="settings-outline" size={19} color={colors.textSecondary} />
         </TouchableOpacity>
 
-        <TouchableOpacity activeOpacity={0.7} style={styles.settingsRow} onPress={goToSupport} accessibilityRole="button">
-          <Text style={styles.footerText}>الدعم والشكاوى</Text>
-          <Ionicons name="help-circle-outline" size={19} color={colors.textSecondary} />
-        </TouchableOpacity>
       </View>
 
       <BottomSheet visible={Boolean(actionTarget)} title={actionTarget?.title ?? "إجراءات المحادثة"} onClose={() => setActionTarget(null)}>
@@ -264,6 +271,8 @@ const styles = StyleSheet.create({
   chatItemText: { width: "100%", color: "#F5F5F5", textAlign: "right", fontSize: 13 },
   chatItemDate: { color: "#A1A1AA", fontSize: 10, textAlign: "right" },
   emptyHistory: { color: "#A1A1AA", textAlign: "right", padding: 10, fontSize: 13 },
+  loadOlderButton: { minHeight: 40, alignItems: "center", justifyContent: "center", marginTop: 4, marginBottom: 8 },
+  loadOlderText: { color: colors.primary, fontSize: 12, fontWeight: "700" },
   drawerFooter: { borderTopWidth: 1, borderTopColor: "#262626", paddingHorizontal: 16, paddingVertical: 14, gap: 10, backgroundColor: "#111111" },
   planCard: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", backgroundColor: "#1F1F1F", borderWidth: 1, borderColor: "#262626", borderRadius: 12, padding: 10 },
   planCardInfo: { flexDirection: "row-reverse", alignItems: "center", gap: 8 },

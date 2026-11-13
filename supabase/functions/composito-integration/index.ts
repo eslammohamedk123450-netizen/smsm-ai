@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import {
   COMPOSIO_TOOLKITS,
   createComposioConnectLink,
+  disconnectComposioAccount,
   listComposioAccounts,
   parseComposioToolkit,
   publicAccountSummary,
@@ -97,6 +98,15 @@ Deno.serve(async (req: Request) => {
       if (!toolkit) return jsonResponse({ error: "Unsupported toolkit." }, 422);
       const link = await createComposioConnectLink(apiKey, toolkit, user.id);
       return jsonResponse({ action, toolkit, redirect_url: link.redirectUrl, connected_account_id: link.connectedAccountId });
+    }
+
+    if (action === "disconnect") {
+      const toolkit = parseComposioToolkit(body.toolkit);
+      const accountId = typeof body.account_id === "string" ? body.account_id.trim() : "";
+      if (!toolkit) return jsonResponse({ error: "Unsupported toolkit." }, 422);
+      if (!accountId || accountId.length > 200) return jsonResponse({ error: "A valid connected account ID is required." }, 422);
+      await disconnectComposioAccount(apiKey, user.id, toolkit, accountId);
+      return jsonResponse({ action, toolkit, disconnected: true });
     }
 
     if (action === "read") {

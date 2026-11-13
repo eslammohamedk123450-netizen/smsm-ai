@@ -142,6 +142,16 @@ export async function listComposioAccounts(apiKey: string, userId: string, toolk
   return Array.isArray(body.items) ? body.items.map(asRecord) : [];
 }
 
+export async function disconnectComposioAccount(apiKey: string, userId: string, toolkit: ComposioToolkitKey, connectedAccountId: string): Promise<void> {
+  const accountId = connectedAccountId.trim();
+  if (!accountId || accountId.length > 200) throw new Error("Invalid connected account ID.");
+  const accounts = await listComposioAccounts(apiKey, userId, toolkit);
+  const account = accounts.find((entry) => entry.id === accountId && asRecord(entry.toolkit).slug === COMPOSIO_TOOLKITS[toolkit].slug);
+  if (!account || account.status !== "ACTIVE" || account.is_disabled === true) throw new Error("The connected account is not active for this user and toolkit.");
+  const deleted = await composioRequest(apiKey, `/v3.1/connected_accounts/${encodeURIComponent(accountId)}`, { method: "DELETE" }, { revoke_on_delete: "true" });
+  if (deleted.success !== true) throw new Error("Composio did not confirm connected-account deletion.");
+}
+
 export function publicAccountSummary(account: JsonRecord): JsonRecord {
   const toolkitInfo = asRecord(account.toolkit);
   return {
