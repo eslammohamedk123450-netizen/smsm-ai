@@ -17,6 +17,7 @@ export interface ChatRequestBody {
   messages: Array<{ role: "user" | "assistant"; content: string }>;
   routing_mode: "auto";
   stream: true;
+  confirmed_connector_action?: boolean;
 }
 
 export type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;

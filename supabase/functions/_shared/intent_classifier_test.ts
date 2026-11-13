@@ -26,6 +26,18 @@ Deno.test("keeps short Arabic chitchat classified as chat", () => {
   if (decision.maxSources !== 0) throw new Error(`Expected maxSources 0, got ${decision.maxSources}`);
 });
 
+Deno.test("routes an ordinary Arabic question through the single-reply path", () => {
+  const decision = classifyIntent("اشرحلي الفرق بين الذاكرة قصيرة المدى وطويلة المدى");
+  if (decision.intent !== "simple_task") throw new Error(`Expected simple_task, got ${decision.intent}`);
+  if (decision.reason === "compound_task_marker") throw new Error("A one-answer request must not enter compound planning");
+});
+
+Deno.test("sends an explicit Arabic multi-step request to the compound-task path", () => {
+  const decision = classifyIntent("ابحث عن أفضل الخيارات، ثم قارن الأسعار والمزايا، وبعدين اكتب توصية نهائية");
+  if (decision.intent !== "complex_task") throw new Error(`Expected complex_task, got ${decision.intent}`);
+  if (decision.maxSources < 2) throw new Error(`Expected multiple sources, got ${decision.maxSources}`);
+});
+
 Deno.test("classifies English compound and simple tasks", () => {
   const compound = classifyIntent("Create a roadmap for launching a small online store");
   if (compound.intent !== "complex_task") throw new Error(`Expected complex_task, got ${compound.intent}`);

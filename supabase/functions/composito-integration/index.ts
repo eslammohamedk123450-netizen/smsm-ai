@@ -7,6 +7,7 @@ import {
   publicAccountSummary,
   readComposioApiKey,
   runComposioReadOnlyTask,
+  detectComposioToolkitRequest,
 } from "../_shared/composio.ts";
 
 const corsHeaders = {
@@ -57,7 +58,30 @@ Deno.serve(async (req: Request) => {
           .sort((a, b) => String(b.updated_at ?? "").localeCompare(String(a.updated_at ?? "")))[0] ?? null;
         byToolkit[key] = match ? { ...publicAccountSummary(match), connected: match.status === "ACTIVE" && match.is_disabled !== true } : { connected: false };
       }
-      return jsonResponse({ action, user_id: user.id, toolkits: byToolkit });
+      return jsonResponse({ action, user_id: user.id, service_ready: true, toolkits: byToolkit });
+    }
+
+    if (action === "preflight") {
+      const task = typeof body.task === "string" ? body.task.trim() : "";
+      if (!task || task.length > 50000) return jsonResponse({ error: "A task description of 1 to 50000 characters is required." }, 422);
+      const request = detectComposioToolkitRequest(task);
+      if (!request) return jsonResponse({ action, required: false });
+      const accounts = await listComposioAccounts(apiKey, user.id, request.toolkit);
+      const account = accounts
+        .sort((a, b) => String(b.updated_at ?? "").localeCompare(String(a.updated_at ?? "")))[0] ?? null;
+      const accountExists = Boolean(account);
+      const disabled = account?.is_disabled === true;
+      const connected = account?.status === "ACTIVE" && !disabled;
+      return jsonResponse({
+        action,
+        required: true,
+        toolkit: request.toolkit,
+        intent: request.intent,
+        connected,
+        account_exists: accountExists,
+        disabled,
+        status: account && typeof account.status === "string" ? account.status : null,
+      });
     }
 
     if (action === "connect") {
