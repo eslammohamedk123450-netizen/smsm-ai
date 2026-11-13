@@ -1,10 +1,11 @@
-name: Deploy ai-router to Supabase
+name: Deploy Agent Edge Functions to Supabase
 
 on:
   push:
     branches: [release/v1]
     paths:
       - "supabase/functions/ai-router/**"
+      - "supabase/functions/composito-integration/**"
       - "supabase/functions/_shared/**"
       - ".github/workflows/deploy-supabase-ai-router.yml"
   workflow_dispatch:
@@ -18,7 +19,7 @@ concurrency:
 
 jobs:
   deploy:
-    name: Deploy ai-router Edge Function
+    name: Deploy Agent Edge Functions
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -32,6 +33,10 @@ jobs:
         with:
           version: latest
       - name: Verify deployment credentials
-        run: test -n "$SUPABASE_ACCESS_TOKEN"
-      - name: Deploy ai-router
-        run: supabase functions deploy ai-router --project-ref "$SUPABASE_PROJECT_REF"
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "SUPABASE_ACCESS_TOKEN is missing. Add it as a GitHub Actions secret to enable automatic Supabase deployments from release/v1."
+            exit 1
+          fi
+      - name: Deploy Agent Edge Functions
+        run: supabase functions deploy ai-router composito-integration --project-ref "$SUPABASE_PROJECT_REF"
