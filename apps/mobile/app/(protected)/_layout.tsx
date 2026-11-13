@@ -114,6 +114,10 @@ function CustomDrawerContent({ isAdmin, ...props }: DrawerContentComponentProps 
             <Ionicons name="chatbubbles-outline" size={18} color="#0EA5E9" />
             <Text style={styles.navItemText}>المحادثة والمهام</Text>
           </TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.7} style={styles.navItem} onPress={() => { router.push("/(protected)/tasks"); props.navigation.closeDrawer(); }} accessibilityRole="button">
+            <Ionicons name="sparkles-outline" size={18} color="#0EA5E9" />
+            <Text style={styles.navItemText}>تنفيذ مهمة ذكية</Text>
+          </TouchableOpacity>
           <TouchableOpacity activeOpacity={0.7} style={styles.navItem} onPress={goToBalance}>
             <View style={styles.navItemRight}>
               <Ionicons name="card-outline" size={18} color="#0EA5E9" />
@@ -226,6 +230,7 @@ export default function ProtectedLayout() {
   return (
     <Drawer drawerContent={(props) => <CustomDrawerContent {...props} isAdmin={isAdmin} />} screenOptions={{ headerShown: false, drawerPosition: "right", drawerStyle: { backgroundColor: colors.background, width: 320 }, swipeEdgeWidth: 36 }}>
       <Drawer.Screen name="chat" options={{ title: "المحادثة" }} />
+      <Drawer.Screen name="tasks" options={{ title: "تنفيذ مهمة ذكية", drawerItemStyle: { display: "none" } }} />
       <Drawer.Screen name="balance" options={{ title: "الرصيد والاستهلاك", drawerItemStyle: { display: "none" } }} />
       <Drawer.Screen name="media" options={{ title: "المكتبة" }} />
       <Drawer.Screen name="upgrade" options={{ title: "الباقات والترقية", drawerItemStyle: { display: "none" } }} />
