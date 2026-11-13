@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 const CAPABILITIES = ["text", "coding", "image", "video", "vision", "audio", "reasoning", "web_search"] as const;
 type Capability = typeof CAPABILITIES[number];
 type Tier = "router" | "worker" | "planner" | "merger";
-type TierRow = { tier_name: Tier; priority: number; model_id: string; max_tokens_per_task: number; model: { id: string; name: string; legacy_ai_model_id: number | null; is_active: boolean } | null };
+type TierRow = { tier_name: Tier; priority: number; model_id: string; max_tokens_per_task: number; model: { id: string; name: string; legacy_ai_model_id: number | null; is_active: boolean; model_capabilities?: Array<{ capability_key: Capability }> } | null };
 type Step = { step_index: number; capability: Capability; description: string; expected_inputs: Record<string, unknown> };
 type InvocationResult = { text: string; tokens: number; usedEstimate: boolean };
 
@@ -51,13 +51,15 @@ async function main(req: Request): Promise<Response> {
 
   const [{ data: profile, error: profileError }, { data: tierRows, error: tiersError }] = await Promise.all([
     admin.from("suly_profiles").select("subscription_tier,is_banned").eq("id", userId).maybeSingle(),
-    admin.from("brain_tiers").select("tier_name,priority,model_id,max_tokens_per_task,model:models(id,name,legacy_ai_model_id,is_active)").eq("is_active", true).order("tier_name").order("priority").limit(100),
+    admin.from("brain_tiers").select("tier_name,priority,model_id,max_tokens_per_task,model:models(id,name,legacy_ai_model_id,is_active,model_capabilities(capability_key))").eq("is_active", true).order("tier_name").order("priority").limit(100),
   ]);
   if (profileError || !profile) return json({ error: "Application profile is missing" }, 403);
   if (profile.is_banned) return json({ error: "This account is suspended" }, 403);
   if (tiersError) return json({ error: "Brain tiers could not be loaded" }, 500);
   const tiers = (tierRows ?? []) as unknown as TierRow[];
-  const byTier = (name: Tier) => tiers.filter((row) => row.tier_name === name && row.model?.is_active).sort((a, b) => a.priority - b.priority);
+  const byTier = (name: Tier, requiredCapability: Capability = "text") => tiers
+    .filter((row) => row.tier_name === name && row.model?.is_active && row.model.model_capabilities?.some((item) => item.capability_key === requiredCapability))
+    .sort((a, b) => a.priority - b.priority);
   const maxConfigured = Math.max(1024, ...tiers.map((row) => Math.max(128, Number(row.max_tokens_per_task) || 1024)));
   const reserveEstimate = Math.min(100000, Math.max(4096, maxConfigured + maxConfigured + maxConfigured * 8 + maxConfigured));
   const { data: reservationData, error: reservationError } = await admin.rpc("brain_reserve_usage", { p_user_id: userId, p_task_id: taskId, p_tokens: reserveEstimate });
@@ -150,8 +152,8 @@ async function main(req: Request): Promise<Response> {
       return null;
     }
   };
-  const invokeTier = async (tier: Tier, prompt: string): Promise<(InvocationResult & { row: TierRow }) | null> => {
-    const candidates = byTier(tier);
+  const invokeTier = async (tier: Tier, prompt: string, requiredCapability: Capability = "text"): Promise<(InvocationResult & { row: TierRow }) | null> => {
+    const candidates = byTier(tier, requiredCapability);
     for (const row of candidates) {
       const result = await invokeLegacy(tier, row, prompt);
       if (result) return { ...result, row };
@@ -188,7 +190,7 @@ async function main(req: Request): Promise<Response> {
     const results: Array<{ step_index: number; capability: Capability; result: string }> = [];
     for (const step of steps) {
       const workerPrompt = `أنت Worker. نفّذ خطوة واحدة فقط من task_context التالي. إذا كانت الخطوة أكبر من قدرتك، حاول تنظيمها داخليًا أو أعد صياغة نتيجة قابلة للتنفيذ بدل الرفض. أعد النتيجة النصية فقط دون وصف داخلي.\nالمهمة الأصلية: ${objective}\nالخطوة ${step.step_index}: ${step.description}\nالقدرة: ${step.capability}\nالمدخلات المتوقعة: ${JSON.stringify(step.expected_inputs)}\nالسياق المشترك: ${JSON.stringify(results).slice(-12000)}`;
-      const workerResult = await invokeTier("worker", workerPrompt);
+      const workerResult = await invokeTier("worker", workerPrompt, step.capability);
       if (!workerResult) {
         const { error } = await admin.from("brain_task_steps").update({ status: "failed" }).eq("task_id", taskId).eq("step_index", step.step_index);
         if (error) throw new Error("task_step_update_failed");
