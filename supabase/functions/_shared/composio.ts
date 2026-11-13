@@ -15,6 +15,20 @@ function asRecord(value: unknown): JsonRecord {
   return value && typeof value === "object" && !Array.isArray(value) ? value as JsonRecord : {};
 }
 
+export function hasExplicitComposioExecutionSuccess(value: unknown): boolean {
+  return asRecord(value).successful === true;
+}
+
+export function hasVerifiableComposioReadResult(value: unknown): boolean {
+  if (Array.isArray(value)) return true; // An empty list is a valid "no matches" result.
+  if (value && typeof value === "object") {
+    const record = asRecord(value);
+    if (record.error || record.error_message || record.successful === false) return false;
+    return Object.keys(record).some((key) => key !== "successful");
+  }
+  return typeof value === "string" ? value.trim().length > 0 : typeof value === "number" || typeof value === "boolean";
+}
+
 export function parseComposioToolkit(value: unknown): ComposioToolkitKey | null {
   if (typeof value !== "string") return null;
   return TOOLKIT_KEYS.includes(value.trim().toLowerCase() as ComposioToolkitKey)
@@ -56,7 +70,7 @@ export async function readComposioApiKey(supabase: { rpc: Function }): Promise<s
 }
 
 async function listAuthConfigs(apiKey: string, toolkit: ComposioToolkitKey): Promise<JsonRecord[]> {
-  const body = await composioRequest(apiKey, "/v3/auth_configs", {}, {
+  const body = await composioRequest(apiKey, "/v3.1/auth_configs", {}, {
     toolkit_slugs: COMPOSIO_TOOLKITS[toolkit].slug,
     is_composio_managed: "true",
     limit: "200",
@@ -77,7 +91,7 @@ export async function getOrCreateManagedAuthConfig(apiKey: string, toolkit: Comp
   if (selectedId) return selectedId;
 
   try {
-    const created = await composioRequest(apiKey, "/v3/auth_configs", {
+    const created = await composioRequest(apiKey, "/v3.1/auth_configs", {
       method: "POST",
       body: JSON.stringify({
         toolkit: { slug: COMPOSIO_TOOLKITS[toolkit].slug },
@@ -105,7 +119,7 @@ export async function getOrCreateManagedAuthConfig(apiKey: string, toolkit: Comp
 
 export async function createComposioConnectLink(apiKey: string, toolkit: ComposioToolkitKey, userId: string): Promise<{ redirectUrl: string; connectedAccountId: string | null }> {
   const authConfigId = await getOrCreateManagedAuthConfig(apiKey, toolkit);
-  const body = await composioRequest(apiKey, "/v3/connected_accounts/link", {
+  const body = await composioRequest(apiKey, "/v3.1/connected_accounts/link", {
     method: "POST",
     body: JSON.stringify({ auth_config_id: authConfigId, user_id: userId }),
   });
@@ -124,7 +138,7 @@ export async function createComposioConnectLink(apiKey: string, toolkit: Composi
 export async function listComposioAccounts(apiKey: string, userId: string, toolkit?: ComposioToolkitKey): Promise<JsonRecord[]> {
   const params: Record<string, string> = { user_ids: userId, limit: "100", order_by: "updated_at", order_direction: "desc" };
   if (toolkit) params.toolkit_slugs = COMPOSIO_TOOLKITS[toolkit].slug;
-  const body = await composioRequest(apiKey, "/v3/connected_accounts", {}, params);
+  const body = await composioRequest(apiKey, "/v3.1/connected_accounts", {}, params);
   return Array.isArray(body.items) ? body.items.map(asRecord) : [];
 }
 
@@ -142,7 +156,7 @@ export function publicAccountSummary(account: JsonRecord): JsonRecord {
 
 export function detectComposioToolkitRequest(text: string): { toolkit: ComposioToolkitKey; intent: "read" | "write" } | null {
   const value = text.toLocaleLowerCase();
-  const hasReadRequest = /\b(show|search|find|list|get|read|summari[sz]e|check|review|fetch|open|look up)\b|ابحث|دور|هات|جيب|اعرض|اعرضلي|أظهر|اظهر|اقرأ|لخص|لخّص|راجع|افحص|تحقق|وريني|شوف|استخرج|آخر|اخر/iu.test(value);
+  const hasReadRequest = /\b(show|search|find|list|get|read|summari[sz]e|check|review|fetch|open|look up|what|which|who|when|latest|recent|name|size|files?)\b|ابحث|دور|هات|جيب|اعرض|اعرضلي|أظهر|اظهر|اقرأ|لخص|لخّص|راجع|افحص|تحقق|وريني|شوف|استخرج|آخر|اخر|وصلني|وصلتني|وصل|رسالة|رسائل|محتوى|مين|اسم|حجم|أسماء|اسماء|عدد|ملفات|موجودة|الموجودة/iu.test(value);
   const hasWriteRequest = /\b(send|forward|reply|create|update|edit|delete|remove|write|commit|push|merge|star|unstar|invite|upload|share|move|rename|archive|label|schedule|copy|close|reopen|comment|fork|publish)\b|ابعت|ابعث|أرسل|ارسل|اكتب|انشئ|أنشئ|عدّل|عدل|احذف|امسح|ارفع|شارك|غيّر|غير|انقل|ادمج|حوّل|حول|أرشف|ارشف|انسخ|صنّف|صنف|انشر|اعمل.*(?:issue|رسالة|ملف)|(?:رسالة|بريد|إيميل).*(?:إلى|لـ|لشخص)/iu.test(value);
   const toolkitMentions = [
     /\b(gmail|google mail|inbox|email|e-mail)\b|جيميل|جى ميل|بريدي|البريد|إيميلي|ايميلي|إيميل|ايميل|الايميل|الإيميل|رسائلي/iu.test(value) ? "gmail" : null,
@@ -196,6 +210,17 @@ function safeWriteSlug(toolkit: ComposioToolkitKey, slug: unknown): slug is stri
   return prefixes[toolkit].test(slug);
 }
 
+function connectorSearchQuery(toolkit: ComposioToolkitKey, request: string): string {
+  const value = request.toLocaleLowerCase();
+  if (toolkit === "gmail") {
+    const sent = /sent|مبعوث|مبعت|مُرسَل|أرسلت|ارسلت|المُرسلة|المرسلة/iu.test(value);
+    const received = /received|inbox|واردة|الواردة|وصلت|استلمت/iu.test(value);
+    const latest = /latest|newest|recent|آخر|اخر|الأخيرة|الاخيرة/iu.test(value);
+    return `${sent ? "Gmail sent mail" : received ? "Gmail inbox received mail" : "Gmail messages"} ${latest ? "most recent newest first" : "search messages"} sender subject date body content`;
+  }
+  return `${toolkit} search and read ${request.slice(0, 500)}`;
+}
+
 export async function runComposioReadOnlyTask(
   apiKey: string,
   userId: string,
@@ -208,20 +233,21 @@ export async function runComposioReadOnlyTask(
 
   const query = new URLSearchParams({
     toolkit_slug: COMPOSIO_TOOLKITS[toolkit].slug,
-    query: naturalLanguageTask.slice(0, 1000),
+    query: connectorSearchQuery(toolkit, naturalLanguageTask),
     toolkit_versions: "latest",
     limit: "20",
   });
   const catalog = await composioRequest(apiKey, `/v3.1/tools?${query.toString()}`);
   const tools = Array.isArray(catalog.items) ? catalog.items.map(asRecord) : [];
-  const selected = tools.find((item) => hasReadOnlyTag(item) && safeReadOnlySlug(toolkit, item.slug));
+  const selected = tools.find((item) => hasReadOnlyTag(item) && safeReadOnlySlug(toolkit, item.slug))
+    ?? tools.find((item) => safeReadOnlySlug(toolkit, item.slug));
   if (!selected || typeof selected.slug !== "string") return { unavailable: "no_read_tool" };
 
   const executed = await composioRequest(apiKey, `/v3.1/tools/execute/${encodeURIComponent(selected.slug)}`, {
     method: "POST",
-    body: JSON.stringify({ user_id: userId, text: naturalLanguageTask.slice(0, 1500), toolkit_versions: "latest" }),
+    body: JSON.stringify({ user_id: userId, text: `${connectorSearchQuery(toolkit, naturalLanguageTask)}. Return sender, subject, date, and body content.`, toolkit_versions: "latest" }),
   });
-  if (executed.successful === false) throw new Error("The requested connected-app read operation did not complete.");
+  if (!hasExplicitComposioExecutionSuccess(executed)) throw new Error("The connected-app read response did not confirm successful tool execution.");
   return { toolSlug: selected.slug, result: executed.data ?? executed };
 }
 
@@ -251,6 +277,6 @@ export async function runComposioWriteTask(
     method: "POST",
     body: JSON.stringify({ user_id: userId, text: naturalLanguageTask.slice(0, 1500), ...(typeof selected.version === "string" ? { version: selected.version } : {}) }),
   });
-  if (executed.successful === false) throw new Error("The requested connected-app write operation did not complete.");
+  if (!hasExplicitComposioExecutionSuccess(executed)) throw new Error("The connected-app write response did not confirm successful tool execution.");
   return { toolSlug: selected.slug, result: executed.data ?? executed };
 }

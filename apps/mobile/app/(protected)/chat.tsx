@@ -23,14 +23,16 @@ import { getCurrentCreditBalance, getTaskRating, getTaskUsage, saveTaskRating, t
 import { useToast } from "../../src/components/ui/Toast";
 import { supabase } from "../../src/lib/supabase/client";
 import { integrationService, type ToolkitStatus } from "../../src/features/integrations/integration-service";
+import { randomUUID } from "expo-crypto";
 
 const STREAMING_ID = "local-streaming-assistant";
 const TASK_SUGGESTIONS = getRotatingSuggestions(Date.now(), 4);
 
 type RequestedConnectorTask = { toolkit: ToolkitStatus["toolkit"]; intent: "read" | "write" };
+type ConnectorWriteApproval = { requestId: string; originalText: string };
 
 function requestedConnectorTask(text: string): RequestedConnectorTask | null {
-  const read = /\b(show|search|find|list|get|read|summari[sz]e|check|review|fetch|open|look up)\b|ابحث|دور|هات|جيب|اعرض|أظهر|اظهر|اقرأ|لخص|لخّص|راجع|افحص|تحقق|وريني|شوف|استخرج|آخر|اخر/iu.test(text);
+  const read = /\b(show|search|find|list|get|read|summari[sz]e|check|review|fetch|open|look up|what|which|who|when|latest|recent|name|size|files?)\b|ابحث|دور|هات|جيب|اعرض|أظهر|اظهر|اقرأ|لخص|لخّص|راجع|افحص|تحقق|وريني|شوف|استخرج|آخر|اخر|وصلني|وصلتني|وصل|رسالة|رسائل|محتوى|مين|اسم|حجم|أسماء|اسماء|عدد|ملفات|موجودة|الموجودة/iu.test(text);
   const write = /\b(send|forward|reply|create|update|edit|delete|remove|write|commit|push|merge|star|unstar|invite|upload|share|move|rename|archive|label|schedule|copy|close|reopen|comment|fork|publish)\b|ابعت|ابعث|أرسل|ارسل|اكتب|انشئ|أنشئ|عدّل|عدل|احذف|امسح|ارفع|شارك|غيّر|غير|انقل|ادمج|حوّل|حول|أرشف|ارشف|انسخ|صنّف|صنف|انشر|اعمل.*(?:issue|رسالة|ملف)/iu.test(text);
   if (!read && !write) return null;
   const intent = write ? "write" : "read";
@@ -68,7 +70,7 @@ export default function ChatPage() {
   const [ratingNote, setRatingNote] = useState("");
   const [ratingSaving, setRatingSaving] = useState(false);
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
-  const [connectorApproval, setConnectorApproval] = useState<{ content: string; toolkit: ToolkitStatus["toolkit"]; intent: "read" | "write"; connected: boolean; accountExists: boolean; disabled: boolean } | null>(null);
+  const [connectorApproval, setConnectorApproval] = useState<{ content: string; toolkit: ToolkitStatus["toolkit"]; intent: "read" | "write"; connected: boolean; accountExists: boolean; disabled: boolean; writeApproval: ConnectorWriteApproval | null } | null>(null);
   const closeShareSheet = useCallback(() => setShareVisible(false), []);
   const composerRef = useRef<ChatComposerHandle>(null);
   const listRef = useRef<FlatList<ChatMessage>>(null);
@@ -211,7 +213,7 @@ export default function ChatPage() {
     });
   }, [conversationId, reloadMessages, refreshCreditBalance]);
 
-  const sendText = async (content: string, attachment?: ChatAttachment, confirmedConnectorAction = false) => {
+  const sendText = async (content: string, attachment?: ChatAttachment, writeApproval?: ConnectorWriteApproval) => {
     await runOnce(lock, async () => {
       if (!user || (!content.trim() && !attachment)) return;
       const imageGeneration = !attachment && getImageGenerationPrompt(content) !== null;
@@ -261,7 +263,7 @@ export default function ChatPage() {
         await chatService.sendMessage({
           conversationId: conversationKey,
           content,
-          confirmedConnectorAction,
+          writeApproval,
           mediaAsset: uploadedAsset,
           signal: controller.signal,
           async onUserSaved(message) {
@@ -319,7 +321,7 @@ export default function ChatPage() {
           setError(null);
           setRetryFailure(null);
           if (savedUserMessage) void logFrictionEvent({ eventKind: "response_stopped", screenKey: "chat", featureKey: "chat", stepKey: "response", conversationId });
-        } else if (savedUserMessage && savedUserMessageId && id && !streamCompleted) {
+        } else if (savedUserMessage && savedUserMessageId && id && !streamCompleted && !writeApproval) {
           if (imageGeneration && imagePlaceholderId) {
             setMessages((current) => current.map((item) => item.id === imagePlaceholderId ? { ...item, status: "error", generationState: "failed" } : item));
             setError(cause instanceof Error ? cause.message : "تعذر توليد الصورة. أرسل الطلب مجددًا للمحاولة.");
@@ -461,7 +463,7 @@ export default function ChatPage() {
           return;
         }
       }
-      await sendText(approval.content, undefined, approval.intent === "write");
+      await sendText(approval.content, undefined, approval.writeApproval ?? undefined);
     } catch (cause) {
       show(cause instanceof Error ? cause.message : "تعذّر إكمال الاتصال، ولم يبدأ الطلب.", "error");
     } finally {
@@ -503,6 +505,7 @@ export default function ChatPage() {
         connected: result.connected === true,
         accountExists: result.accountExists === true,
         disabled: result.disabled === true,
+        writeApproval: intent === "write" ? { requestId: randomUUID(), originalText: text } : null,
       });
       setIsSending(false);
       setActiveTaskLabel(null);

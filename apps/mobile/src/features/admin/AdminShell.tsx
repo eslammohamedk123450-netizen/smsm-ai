@@ -16,6 +16,7 @@ const NAV = [
   { path: "/admin/pricing", label: "الباقات", icon: "▧" },
   { path: "/admin/api-keys", label: "مفاتيح API", icon: "⌘" },
   { path: "/admin/composio", label: "Composio", icon: "C" },
+  { path: "/admin/tavily", label: "Tavily بحث الويب", icon: "T" },
   { path: "/admin/image-generation", label: "توليد الصور", icon: "▣" },
   { path: "/admin/storage", label: "التخزين", icon: "↥" },
   { path: "/admin/audit", label: "سجل النشاط", icon: "≡" },

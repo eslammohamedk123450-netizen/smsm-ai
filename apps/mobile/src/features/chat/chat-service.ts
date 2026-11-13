@@ -1,7 +1,6 @@
 import { randomUUID } from "expo-crypto";
 import { env } from "../../config/env";
 import { supabase } from "../../lib/supabase/client";
-import { getQuickReply } from "../../lib/infra/quick-replies-cache";
 import type { ChatRequestBody } from "../../lib/network/sse-transport";
 import { summarizeContent } from "./conversation-title";
 import { buildRetryHistory } from "./chat-retry";
@@ -70,23 +69,6 @@ function mapMessage(row: MessageRow): ChatMessage {
     modelId: row.model_id === null ? null : String(row.model_id),
     status: "sent",
   };
-}
-
-function checkStrictIdentity(query: string): string | null {
-  const q = query.replace(/[؟?.,!]/g, "").trim().toLowerCase();
-  const whoAreYouPattern = /^(انت مين|من انت|من أنت|عرف بنفسك|عرف عن نفسك|عرفنا بنفسك|ما هو سولي|ما هو suly|مين سولي|مين suly|انت ايه)$/i;
-  if (whoAreYouPattern.test(q)) {
-    return "أنا Suly، مساعد ذكي تم تطويري بواسطة شركة Suly-Technologies.";
-  }
-  const whoMadeYouPattern = /^(مين اللي عملك|مين عملك|مين طورك|مين اللي طورك|من طورك|من صنعك|مين صنعك|مين برمجك|من برمجك|من انشاك|مين انشاك)$/i;
-  if (whoMadeYouPattern.test(q)) {
-    return "تم تطويري بواسطة شركة Suly-Technologies.";
-  }
-  const whoIsCompanyPattern = /^(ايه هي suly-technologies|ايه هي شركة suly-technologies|ما هي suly-technologies|ما هي شركة suly-technologies|كلمني عن الشركة|كلمني عن suly-technologies|معلومات عن الشركة|من هو مؤسس suly-technologies|مين صاحب الشركة)$/i;
-  if (whoIsCompanyPattern.test(q)) {
-    return "شركة Suly-Technologies هي شركة مصرية تدعم الابتكار والخدمات الإلكترونية والبرمجة، تم تأسيسها على يد المهندس: إسلام محمد البدوي.";
-  }
-  return null;
 }
 
 const TITLE_LIMIT = 48;
@@ -251,7 +233,7 @@ export const chatService = {
   async sendMessage(options: {
     conversationId: string;
     content: string;
-    confirmedConnectorAction?: boolean;
+    writeApproval?: { requestId: string; originalText: string };
     mediaAsset?: MediaAsset;
     signal: AbortSignal;
     onUserSaved(message: ChatMessage): void | Promise<void>;
@@ -323,34 +305,6 @@ export const chatService = {
       return;
     }
 
-    const identityReply = options.mediaAsset ? null : checkStrictIdentity(content);
-    if (identityReply) {
-      options.onChunk(identityReply);
-      await supabase.from("suly_messages").insert({
-        conversation_id: options.conversationId,
-        user_id: user.id,
-        role: "assistant",
-        content: identityReply,
-        tokens_used: Math.ceil(identityReply.length / 4),
-      });
-      return;
-    }
-
-    // quick-replies-cache: repeated chit-chat answers instantly from the
-    // local cache with zero network calls and zero token spend.
-    const quickReply = options.mediaAsset ? null : getQuickReply(content);
-    if (quickReply) {
-      options.onChunk(quickReply);
-      await supabase.from("suly_messages").insert({
-        conversation_id: options.conversationId,
-        user_id: user.id,
-        role: "assistant",
-        content: quickReply,
-        tokens_used: Math.ceil(quickReply.length / 4),
-      });
-      return;
-    }
-
     const history: ChatRequestBody["messages"] = priorMessages
       .filter((entry): entry is ChatMessage & { role: "user" | "assistant" } => entry.role === "user" || entry.role === "assistant")
       .slice(-19)
@@ -360,11 +314,13 @@ export const chatService = {
       conversation_id: options.conversationId,
       user_message_id: String(inserted.id),
       media_asset_ids: options.mediaAsset ? [options.mediaAsset.id] : undefined,
-      request_id: retryRequestId(String(inserted.id)),
+      request_id: options.writeApproval?.requestId ?? retryRequestId(String(inserted.id)),
       messages: history,
       routing_mode: "auto",
+      execution_mode: "agent",
       stream: true,
-      confirmed_connector_action: options.confirmedConnectorAction === true ? true : undefined,
+      connector_approval_request_id: options.writeApproval?.requestId,
+      connector_approval_original_text: options.writeApproval?.originalText,
     };
     await chatStreamManager.start(requestBody, { onChunk: options.onChunk, onTaskUpdate: options.onTaskUpdate, onDone() {} }, options.signal);
   },
@@ -392,6 +348,7 @@ export const chatService = {
       request_id: options.requestId ?? randomUUID(),
       messages,
       routing_mode: "auto",
+      execution_mode: "agent",
       stream: true,
     }, { onChunk: options.onChunk, onTaskUpdate: options.onTaskUpdate, onDone() {} }, options.signal);
   },
