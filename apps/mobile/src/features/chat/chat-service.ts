@@ -414,6 +414,7 @@ export const chatService = {
       conversationId: options.conversationId,
       history,
       requestId: retryRequestId(options.userMessageId),
+      executionMode: options.executionMode,
       signal: options.signal,
       onChunk: options.onChunk,
       onTaskUpdate: options.onTaskUpdate,

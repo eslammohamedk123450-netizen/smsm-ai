@@ -31,7 +31,7 @@ type RequestedConnectorTask = { toolkit: ToolkitStatus["toolkit"]; intent: "read
 type ExecutionMode = "chat" | "agent";
 
 function requestedConnectorTask(text: string): RequestedConnectorTask | null {
-  const read = /\b(show|search|find|list|get|read|summari[sz]e|check|review|fetch|open|look up)\b|ابحث|دور|هات|جيب|اعرض|أظهر|اظهر|اقرأ|لخص|لخّص|راجع|افحص|تحقق|وريني|شوف|استخرج|آخر|اخر/iu.test(text);
+  const read = /\b(show|search|find|list|get|read|summari[sz]e|check|review|fetch|open|look up|what|which|who|when|latest|recent|name|size|files?)\b|ابحث|دور|هات|جيب|اعرض|أظهر|اظهر|اقرأ|لخص|لخّص|راجع|افحص|تحقق|وريني|شوف|استخرج|آخر|اخر|وصلني|وصلتني|وصل|رسالة|رسائل|محتوى|مين|اسم|حجم|أسماء|اسماء|عدد|ملفات|موجودة|الموجودة/iu.test(text);
   const write = /\b(send|forward|reply|create|update|edit|delete|remove|write|commit|push|merge|star|unstar|invite|upload|share|move|rename|archive|label|schedule|copy|close|reopen|comment|fork|publish)\b|ابعت|ابعث|أرسل|ارسل|اكتب|انشئ|أنشئ|عدّل|عدل|احذف|امسح|ارفع|شارك|غيّر|غير|انقل|ادمج|حوّل|حول|أرشف|ارشف|انسخ|صنّف|صنف|انشر|اعمل.*(?:issue|رسالة|ملف)/iu.test(text);
   if (!read && !write) return null;
   const intent = write ? "write" : "read";

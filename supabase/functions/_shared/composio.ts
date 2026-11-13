@@ -142,7 +142,7 @@ export function publicAccountSummary(account: JsonRecord): JsonRecord {
 
 export function detectComposioToolkitRequest(text: string): { toolkit: ComposioToolkitKey; intent: "read" | "write" } | null {
   const value = text.toLocaleLowerCase();
-  const hasReadRequest = /\b(show|search|find|list|get|read|summari[sz]e|check|review|fetch|open|look up)\b|ابحث|دور|هات|جيب|اعرض|اعرضلي|أظهر|اظهر|اقرأ|لخص|لخّص|راجع|افحص|تحقق|وريني|شوف|استخرج|آخر|اخر/iu.test(value);
+  const hasReadRequest = /\b(show|search|find|list|get|read|summari[sz]e|check|review|fetch|open|look up|what|which|who|when|latest|recent|name|size|files?)\b|ابحث|دور|هات|جيب|اعرض|اعرضلي|أظهر|اظهر|اقرأ|لخص|لخّص|راجع|افحص|تحقق|وريني|شوف|استخرج|آخر|اخر|وصلني|وصلتني|وصل|رسالة|رسائل|محتوى|مين|اسم|حجم|أسماء|اسماء|عدد|ملفات|موجودة|الموجودة/iu.test(value);
   const hasWriteRequest = /\b(send|forward|reply|create|update|edit|delete|remove|write|commit|push|merge|star|unstar|invite|upload|share|move|rename|archive|label|schedule|copy|close|reopen|comment|fork|publish)\b|ابعت|ابعث|أرسل|ارسل|اكتب|انشئ|أنشئ|عدّل|عدل|احذف|امسح|ارفع|شارك|غيّر|غير|انقل|ادمج|حوّل|حول|أرشف|ارشف|انسخ|صنّف|صنف|انشر|اعمل.*(?:issue|رسالة|ملف)|(?:رسالة|بريد|إيميل).*(?:إلى|لـ|لشخص)/iu.test(value);
   const toolkitMentions = [
     /\b(gmail|google mail|inbox|email|e-mail)\b|جيميل|جى ميل|بريدي|البريد|إيميلي|ايميلي|إيميل|ايميل|الايميل|الإيميل|رسائلي/iu.test(value) ? "gmail" : null,
