@@ -10,6 +10,7 @@ export interface ProviderInput {
   api_key: string;
 }
 export interface ComposioStatus { configured: boolean; updated_at: string | null; }
+export interface TavilyStatus { configured: boolean; updated_at: string | null; }
 export interface PricingPlan {
   id: number;
   name: string;
@@ -94,6 +95,20 @@ export const adminService = {
     const value = apiKey.trim();
     if (!value || value.length > 16384) throw new Error("مفتاح Composio غير صالح.");
     const { error } = await supabase.rpc("suly_admin_set_composio_api_key", { p_api_key: value });
+    if (error) throw error;
+  },
+  async getTavilyStatus(): Promise<TavilyStatus> {
+    await requireAdmin();
+    const { data, error } = await supabase.rpc("suly_admin_tavily_status");
+    if (error) throw error;
+    const row = Array.isArray(data) ? data[0] : data;
+    return { configured: row?.configured === true, updated_at: row?.updated_at ?? null };
+  },
+  async saveTavilyApiKey(apiKey: string): Promise<void> {
+    await requireAdmin();
+    const value = apiKey.trim();
+    if (!/^tvly\S+$/i.test(value) || value.length > 16384) throw new Error("مفتاح Tavily غير صالح.");
+    const { error } = await supabase.rpc("suly_admin_set_tavily_api_key", { p_api_key: value });
     if (error) throw error;
   },
   async getHimsActivationCodes(): Promise<HimsActivationCode[]> {

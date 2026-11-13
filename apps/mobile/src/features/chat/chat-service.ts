@@ -251,6 +251,7 @@ export const chatService = {
   async sendMessage(options: {
     conversationId: string;
     content: string;
+    executionMode?: "chat" | "agent";
     confirmedConnectorAction?: boolean;
     mediaAsset?: MediaAsset;
     signal: AbortSignal;
@@ -363,6 +364,7 @@ export const chatService = {
       request_id: retryRequestId(String(inserted.id)),
       messages: history,
       routing_mode: "auto",
+      execution_mode: options.executionMode ?? "chat",
       stream: true,
       confirmed_connector_action: options.confirmedConnectorAction === true ? true : undefined,
     };
@@ -373,6 +375,7 @@ export const chatService = {
     conversationId: string;
     history: ChatMessage[];
     requestId?: string;
+    executionMode?: "chat" | "agent";
     signal: AbortSignal;
     onChunk(text: string): void;
     onTaskUpdate?(task: { task: string; status: "pending" | "running" | "completed" | "failed" }): void;
@@ -392,6 +395,7 @@ export const chatService = {
       request_id: options.requestId ?? randomUUID(),
       messages,
       routing_mode: "auto",
+      execution_mode: options.executionMode ?? "chat",
       stream: true,
     }, { onChunk: options.onChunk, onTaskUpdate: options.onTaskUpdate, onDone() {} }, options.signal);
   },
@@ -399,6 +403,7 @@ export const chatService = {
   async retryAssistant(options: {
     conversationId: string;
     userMessageId: string;
+    executionMode?: "chat" | "agent";
     signal: AbortSignal;
     onChunk(text: string): void;
     onTaskUpdate?(task: { task: string; status: "pending" | "running" | "completed" | "failed" }): void;
@@ -409,6 +414,7 @@ export const chatService = {
       conversationId: options.conversationId,
       history,
       requestId: retryRequestId(options.userMessageId),
+      executionMode: options.executionMode,
       signal: options.signal,
       onChunk: options.onChunk,
       onTaskUpdate: options.onTaskUpdate,
