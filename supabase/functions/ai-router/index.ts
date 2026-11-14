@@ -24,7 +24,7 @@ import { CircuitBreaker } from "./circuit_breaker.ts";
 import { buildIndependentTaskPlan, mapWithConcurrency, mergePartAnswers, probeCandidates, splitTask, validateTaskPlan } from "./resilience.ts";
 import { parseAgentDecision, runAgentLoop, type AgentLoopStep, type AgentTool } from "./agent/orchestrator.ts";
 import { prioritizeModelCandidate } from "./agent/model_routing.ts";
-import { getAgentTools, getRegisteredTool, validateToolInput } from "./agent/tool_registry.ts";
+import { getAgentToolsFromDatabase, getRegisteredTool, validateToolInput } from "./agent/tool_registry.ts";
 
 // Native Android/iOS clients do not require CORS. Web access must set WEB_CORS_ORIGIN
 // explicitly; never fall back to a wildcard in a deployed environment.
@@ -1540,7 +1540,7 @@ async function handleRequest(req: Request): Promise<Response> {
       : null;
     let connectorReadCompleted = false;
     let connectorWriteCompleted = false;
-    const agentTools: AgentTool[] = getAgentTools({
+    const agentTools: AgentTool[] = await getAgentToolsFromDatabase(supabase, {
       "connected_app.status": true,
       "connected_app.read": !multiConnectorRequest && connectorRequest?.intent === "read",
       "connected_app.read_multiple": !multiConnectorRequest && Boolean(requestedMultiReadToolkits),
