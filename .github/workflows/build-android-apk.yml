@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: android-apk-${{ github.ref }}
@@ -78,12 +78,20 @@ jobs:
           cp android/app/build/outputs/apk/release/app-release.apk dist/Suly-Android.apk
           printf 'Variant: standalone release\nSigning: debug key, testing only\nCommit: %s\nRun: %s\nBuilt: %s\n' "$GITHUB_SHA" "$GITHUB_RUN_NUMBER" "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" > dist/build-info.txt
 
-      - name: Upload APK to GitHub Actions
-        uses: actions/upload-artifact@v4
-        with:
-          name: Suly-Android-APK-${{ github.run_number }}
-          path: |
-            apps/mobile/dist/Suly-Android.apk
-            apps/mobile/dist/build-info.txt
-          if-no-files-found: error
-          retention-days: 30
+      - name: Publish APK as a direct download
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="apk-build-${GITHUB_RUN_NUMBER}"
+          APK="apps/mobile/dist/Suly-Android.apk"
+          INFO="apps/mobile/dist/build-info.txt"
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$APK" "$INFO" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" "$APK" "$INFO" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "Suly Android APK (Build #${GITHUB_RUN_NUMBER})" \
+              --notes "Standalone APK for direct installation. Signing: debug key (testing only). Commit: ${GITHUB_SHA}." \
+              --prerelease
+          fi
