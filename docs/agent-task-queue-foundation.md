@@ -30,3 +30,10 @@ This branch introduces an additive durable queue primitive for SULY Agent. It do
 ## Operational note
 
 The existing `agent_workspaces`, `agent_workspace_steps`, and `task_ledger` remain the execution timeline and user-facing history sources for now. The new queue is a job-dispatch layer, not a replacement for those records.
+
+
+## Background Brain execution
+
+The second migration adds a user-scoped claim parameter and `get_agent_task_job_status`. The mobile app submits Brain tasks with `mode: "enqueue"`, then wakes `agent-task-worker` using its normal signed-in session. The worker validates that session and can claim only jobs belonging to that user. It then continues through the trusted internal Brain route and updates the queue result.
+
+The worker uses Supabase Edge Runtime `waitUntil` for post-response execution and renews its lease while running. This is a first production-shaped worker, but not a substitute for a separately hosted long-running worker service: Edge Runtime execution limits can still interrupt very long tasks. Lease expiry and idempotent completed-task recovery protect against duplicate completion. Long-duration tasks, cancellation, and multi-worker throughput remain follow-up hardening.
