@@ -39,8 +39,8 @@ async function processJob(
   supabaseUrl: string,
   serviceRoleKey: string,
   admin: ReturnType<typeof createClient>,
+  workerId: string,
 ): Promise<void> {
-  const workerId = `scheduled-brain-${crypto.randomUUID()}`;
   if (job.job_type !== "brain_task") {
     await finishAgentTask(admin, job.id, workerId, "failed", {
       errorCode: "unsupported_job_type",
@@ -136,8 +136,9 @@ async function processBatch(
   supabaseUrl: string,
   serviceRoleKey: string,
   admin: ReturnType<typeof createClient>,
+  workerId: string,
 ): Promise<void> {
-  await Promise.all(jobs.map((job) => processJob(job, supabaseUrl, serviceRoleKey, admin)));
+  await Promise.all(jobs.map((job) => processJob(job, supabaseUrl, serviceRoleKey, admin, workerId)));
 }
 
 Deno.serve(async (req: Request) => {
@@ -171,6 +172,6 @@ Deno.serve(async (req: Request) => {
   const jobs = (data ?? []) as QueueJob[];
   if (!jobs.length) return json({ accepted: true, claimed: 0, status: "idle" }, 200);
 
-  EdgeRuntime.waitUntil(processBatch(jobs, supabaseUrl, serviceRoleKey, admin));
+  EdgeRuntime.waitUntil(processBatch(jobs, supabaseUrl, serviceRoleKey, admin, workerId));
   return json({ accepted: true, claimed: jobs.length, status: "processing" }, 202);
 });
