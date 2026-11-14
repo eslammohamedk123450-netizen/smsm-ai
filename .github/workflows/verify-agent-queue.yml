@@ -6,9 +6,11 @@ on:
       - "apps/mobile/**"
       - "supabase/functions/ai-router/**"
       - "supabase/functions/brain-router/**"
-      - "supabase/functions/agent-task-worker/**"\n      - "supabase/functions/agent-task-scheduler/**"\n      - "supabase/functions/agent-task-scheduler/**"
+      - "supabase/functions/agent-task-worker/**"
+      - "supabase/functions/agent-task-scheduler/**"
       - "supabase/functions/_shared/agent_task_queue.ts"
       - "supabase/migrations/**"
+      - "supabase/config.toml"
       - ".github/workflows/verify-agent-queue.yml"
   push:
     branches: [release/v1, feat/agent-worker-brain-queue]
@@ -16,9 +18,11 @@ on:
       - "apps/mobile/**"
       - "supabase/functions/ai-router/**"
       - "supabase/functions/brain-router/**"
-      - "supabase/functions/agent-task-worker/**"\n      - "supabase/functions/agent-task-scheduler/**"
+      - "supabase/functions/agent-task-worker/**"
+      - "supabase/functions/agent-task-scheduler/**"
       - "supabase/functions/_shared/agent_task_queue.ts"
       - "supabase/migrations/**"
+      - "supabase/config.toml"
       - ".github/workflows/verify-agent-queue.yml"
   workflow_dispatch:
 
@@ -62,12 +66,15 @@ jobs:
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-      - name: Run Agent orchestration and tool-registry tests
-        run: deno test supabase/functions/ai-router/agent/orchestrator.test.ts
-      - name: Typecheck Agent and Brain runtime
+      - name: Run Agent and scheduler regression tests
+        run: |
+          deno test supabase/functions/ai-router/agent/orchestrator.test.ts
+          deno test supabase/functions/agent-task-scheduler/index.test.ts
+      - name: Typecheck Agent, Brain, and scheduler runtime
         run: |
           deno check --node-modules-dir=auto \
             supabase/functions/agent-task-worker/index.ts \
+            supabase/functions/agent-task-scheduler/index.ts \
             supabase/functions/brain-router/index.ts \
             supabase/functions/ai-router/index.ts \
             supabase/functions/ai-router/agent/orchestrator.test.ts
