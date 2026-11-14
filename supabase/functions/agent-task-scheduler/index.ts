@@ -38,7 +38,7 @@ async function processJob(
   job: QueueJob,
   supabaseUrl: string,
   serviceRoleKey: string,
-  admin: ReturnType<typeof createClient>,
+  admin: any,
   workerId: string,
 ): Promise<void> {
   if (job.job_type !== "brain_task") {
@@ -135,7 +135,7 @@ async function processBatch(
   jobs: QueueJob[],
   supabaseUrl: string,
   serviceRoleKey: string,
-  admin: ReturnType<typeof createClient>,
+  admin: any,
   workerId: string,
 ): Promise<void> {
   await Promise.all(jobs.map((job) => processJob(job, supabaseUrl, serviceRoleKey, admin, workerId)));
