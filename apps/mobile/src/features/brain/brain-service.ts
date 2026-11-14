@@ -30,7 +30,11 @@ export async function runBrainTask(objective: string, taskId?: string): Promise<
   if (!data || data.queued !== true || typeof data.task_id !== "string" || typeof data.job_id !== "string") {
     throw new Error(String(data?.error ?? "تعذر إضافة المهمة إلى قائمة التنفيذ."));
   }
-  // Wake the user-scoped worker. The durable queue remains the source of truth.
-  void supabase.functions.invoke("agent-task-worker", { body: {} });
+  void wakeBrainWorker();
   return data as BrainTaskAccepted;
+}
+
+export function wakeBrainWorker(): void {
+  // Wake only the current user's queue; the Edge Function verifies this session.
+  void supabase.functions.invoke("agent-task-worker", { body: {} });
 }
