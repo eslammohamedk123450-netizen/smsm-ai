@@ -33,12 +33,25 @@ async function processOne(url: string, serviceKey: string, userId: string, userJ
     return;
   }
 
+  const controller = new AbortController();
+  let leaseLost = false;
   const heartbeat = setInterval(() => {
-    void admin.rpc("heartbeat_agent_task_job", {
-      p_job_id: job.id,
-      p_worker_id: workerId,
-      p_lease_seconds: 180,
-    });
+    void (async () => {
+      try {
+        const { data, error } = await admin.rpc("heartbeat_agent_task_job", {
+          p_job_id: job.id,
+          p_worker_id: workerId,
+          p_lease_seconds: 180,
+        });
+        if (error || data !== true) {
+          leaseLost = true;
+          controller.abort();
+        }
+      } catch {
+        leaseLost = true;
+        controller.abort();
+      }
+    })();
   }, 45_000);
 
   try {
@@ -50,7 +63,9 @@ async function processOne(url: string, serviceKey: string, userId: string, userJ
         "x-suly-internal-brain-key": serviceKey,
       },
       body: JSON.stringify({ objective, task_id: taskId, user_id: userId, internal_worker: true }),
+      signal: controller.signal,
     });
+    if (leaseLost) return;
     const result = await response.json().catch(() => ({}));
     if (!response.ok || typeof result?.response !== "string" || !result.response.trim()) {
       await finishAgentTask(admin, job.id, workerId, "failed", {
