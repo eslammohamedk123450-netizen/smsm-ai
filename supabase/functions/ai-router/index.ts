@@ -488,7 +488,7 @@ async function handleRequest(req: Request): Promise<Response> {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(internalUserId)) return jsonResponse({ error: "Invalid internal Brain user context." }, 400);
     user = { id: internalUserId };
   } else {
-    const userJwt = req.headers.get("Authorization")?.match(/^Bearer\\s+(.+)$/i)?.[1];
+    const userJwt = req.headers.get("Authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
     if (!userJwt) return jsonResponse({ error: "A signed-in user's Bearer access token is required." }, 401);
     const { data: authData, error: authError } = await supabase.auth.getUser(userJwt);
     if (authError || !authData.user) return jsonResponse({ error: "Invalid or expired user access token." }, 401);
