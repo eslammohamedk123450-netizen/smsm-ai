@@ -15,30 +15,53 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   verify-bundle:
-    name: Verify ai-router bundle matches source
+    name: Build and verify ai-router bundle
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Check out source
+      - name: Check out the PR branch (or release branch)
         uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          persist-credentials: true
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
+
       - name: Install dependencies
         run: npm ci --ignore-scripts
+
       - name: Rebuild the deployment bundle
         run: npm run bundle:ai-router
-      - name: Fail when the committed artifact is stale
+
+      - name: Commit the regenerated bundle to same-repository PR
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          if [ -z "$(git status --porcelain supabase/deploy-artifacts/ai-router.bundle.js)" ]; then
+            echo "The committed ai-router bundle is already current."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add supabase/deploy-artifacts/ai-router.bundle.js
+          git commit -m "chore(ai-router): regenerate deployment bundle"
+          git push origin "HEAD:${PR_HEAD_REF}"
+
+      - name: Fail when the artifact is stale and cannot be updated
         run: |
           if [ -n "$(git status --porcelain supabase/deploy-artifacts/ai-router.bundle.js)" ]; then
-            echo "The committed ai-router bundle does not match the current source."
-            echo "Run 'npm run bundle:ai-router' locally, commit the artifact, and push again."
+            echo "The ai-router bundle is stale. Same-repository PRs should have committed the generated bundle."
+            echo "For fork PRs or release branch pushes, regenerate it with 'npm run bundle:ai-router'."
             exit 1
           fi
           echo "ai-router bundle matches the current source."
