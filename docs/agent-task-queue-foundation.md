@@ -37,3 +37,8 @@ The existing `agent_workspaces`, `agent_workspace_steps`, and `task_ledger` rema
 The second migration adds a user-scoped claim parameter and `get_agent_task_job_status`. The mobile app submits Brain tasks with `mode: "enqueue"`, then wakes `agent-task-worker` using its normal signed-in session. The worker validates that session and can claim only jobs belonging to that user. It then continues through the trusted internal Brain route and updates the queue result.
 
 The worker uses Supabase Edge Runtime `waitUntil` for post-response execution and renews its lease while running. This is a first production-shaped worker, but not a substitute for a separately hosted long-running worker service: Edge Runtime execution limits can still interrupt very long tasks. Lease expiry and idempotent completed-task recovery protect against duplicate completion. Long-duration tasks, cancellation, and multi-worker throughput remain follow-up hardening.
+
+
+## Tool registry hardening
+
+The Agent runtime now reads the `enabled` flags from `agent_tool_registry` on each request. The database can disable or enable only adapters that are already implemented in the code allowlist. Provider, effect type, write-approval requirement, and input schema remain code-controlled, so a database row cannot turn a write tool into a read tool or invent an executable adapter. Tool inputs are now checked recursively for JSON types, required fields, array bounds, string bounds, enums, patterns, and additional-property rules. Adding a new integration still requires an audited adapter implementation and a matching registry seed.
