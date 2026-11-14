@@ -4,7 +4,7 @@
   * {
     font-family: 'Cairo', 'Inter', system-ui, -apple-system, sans-serif;
   }
-  
+
   body {
     background-color: #000000;
     color: #F5F5F5;
@@ -13,7 +13,33 @@
   }
 
   code, pre, .font-mono {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  }
+}
+
+@keyframes suly-rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.suly-spin {
+  animation: suly-rotate 1.6s linear infinite;
+  will-change: transform;
+}
+
+.suly-spin-slow {
+  animation: suly-rotate 2.4s linear infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .suly-spin,
+  .suly-spin-slow {
+    animation: none;
   }
 }
 

@@ -3,6 +3,7 @@ import {
   COMPOSIO_TOOLKITS,
   createComposioConnectLink,
   disconnectComposioAccount,
+  isComposioAccountActive,
   listComposioAccounts,
   parseComposioToolkit,
   publicAccountSummary,
@@ -63,9 +64,9 @@ Deno.serve(async (req: Request) => {
       const byToolkit: Record<string, JsonRecord | null> = {};
       for (const key of Object.keys(COMPOSIO_TOOLKITS) as (keyof typeof COMPOSIO_TOOLKITS)[]) {
         const match = accounts
-          .filter((account) => asRecord(account.toolkit).slug === COMPOSIO_TOOLKITS[key].slug)
+          .filter((account) => String(asRecord(account.toolkit).slug ?? account.appName ?? "").toLowerCase() === COMPOSIO_TOOLKITS[key].slug)
           .sort((a, b) => String(b.updated_at ?? "").localeCompare(String(a.updated_at ?? "")))[0] ?? null;
-        byToolkit[key] = match ? { ...publicAccountSummary(match), connected: match.status === "ACTIVE" && match.is_disabled !== true } : { connected: false };
+        byToolkit[key] = match ? { ...publicAccountSummary(match), connected: isComposioAccountActive(match) } : { connected: false };
       }
       return jsonResponse({ action, user_id: user.id, service_ready: true, toolkits: byToolkit });
     }
@@ -80,7 +81,7 @@ Deno.serve(async (req: Request) => {
         .sort((a, b) => String(b.updated_at ?? "").localeCompare(String(a.updated_at ?? "")))[0] ?? null;
       const accountExists = Boolean(account);
       const disabled = account?.is_disabled === true;
-      const connected = account?.status === "ACTIVE" && !disabled;
+      const connected = account ? isComposioAccountActive(account) : false;
       return jsonResponse({
         action,
         required: true,
