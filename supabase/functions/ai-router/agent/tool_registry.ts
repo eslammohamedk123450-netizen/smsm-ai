@@ -76,17 +76,68 @@ export function getAgentTools(availability: Partial<Record<string, boolean>> = {
   }));
 }
 
+export async function getAgentToolsFromDatabase(
+  supabase: { from: (table: string) => any },
+  availability: Partial<Record<string, boolean>> = {},
+): Promise<AgentTool[]> {
+  const { data, error } = await supabase.from("agent_tool_registry").select("name,enabled");
+  if (error) throw new Error("agent_tool_registry_unavailable");
+  const enabledByName = new Map<string, boolean>();
+  for (const row of (data ?? []) as Array<{ name?: unknown; enabled?: unknown }>) {
+    if (typeof row.name === "string" && typeof row.enabled === "boolean") enabledByName.set(row.name, row.enabled);
+  }
+  // Database rows can enable/disable known adapters, but cannot grant new
+  // execution code, downgrade write effects, or bypass approval requirements.
+  return getAgentToolRegistry().map((tool) => ({
+    name: tool.name,
+    description: tool.description,
+    effect: tool.effect,
+    available: (enabledByName.get(tool.name) ?? false) && (availability[tool.name] ?? tool.available),
+    inputSchema: tool.inputSchema,
+    requiresApproval: tool.requiresApproval,
+  }));
+}
+
 export function getRegisteredTool(name: string): RegisteredTool | null {
   return getAgentToolRegistry().find((tool) => tool.name === name) ?? null;
 }
 
-export function validateToolInput(tool: RegisteredTool, input: Record<string, unknown>): boolean {
-  const schema = tool.inputSchema;
-  const required = Array.isArray(schema.required) ? schema.required : [];
-  if (required.some((key) => typeof key !== "string" || input[key] === undefined)) return false;
-  if (schema.additionalProperties === false) {
-    const properties = schema.properties && typeof schema.properties === "object" ? Object.keys(schema.properties as Record<string, unknown>) : [];
-    if (Object.keys(input).some((key) => !properties.includes(key))) return false;
+function validateSchemaValue(value: unknown, schemaValue: unknown, depth = 0): boolean {
+  if (!schemaValue || typeof schemaValue !== "object" || Array.isArray(schemaValue) || depth > 8) return false;
+  const schema = schemaValue as Record<string, unknown>;
+  const type = schema.type;
+  if (type === "object") {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+    const record = value as Record<string, unknown>;
+    const properties = schema.properties && typeof schema.properties === "object" && !Array.isArray(schema.properties)
+      ? schema.properties as Record<string, unknown> : {};
+    const required = Array.isArray(schema.required) ? schema.required : [];
+    if (required.some((key) => typeof key !== "string" || record[key] === undefined)) return false;
+    if (schema.additionalProperties === false && Object.keys(record).some((key) => !(key in properties))) return false;
+    return Object.entries(record).every(([key, child]) => key in properties ? validateSchemaValue(child, properties[key], depth + 1) : schema.additionalProperties !== false);
   }
-  return true;
+  if (type === "string") {
+    if (typeof value !== "string") return false;
+    if (typeof schema.minLength === "number" && value.length < schema.minLength) return false;
+    if (typeof schema.maxLength === "number" && value.length > schema.maxLength) return false;
+    if (Array.isArray(schema.enum) && !schema.enum.includes(value)) return false;
+    if (typeof schema.pattern === "string") {
+      try { if (!new RegExp(schema.pattern).test(value)) return false; } catch { return false; }
+    }
+    return true;
+  }
+  if (type === "array") {
+    if (!Array.isArray(value)) return false;
+    if (typeof schema.minItems === "number" && value.length < schema.minItems) return false;
+    if (typeof schema.maxItems === "number" && value.length > schema.maxItems) return false;
+    return schema.items === undefined || value.every((item) => validateSchemaValue(item, schema.items, depth + 1));
+  }
+  if (type === "integer") return typeof value === "number" && Number.isInteger(value);
+  if (type === "number") return typeof value === "number" && Number.isFinite(value);
+  if (type === "boolean") return typeof value === "boolean";
+  return false;
+}
+
+export function validateToolInput(tool: RegisteredTool, input: Record<string, unknown>): boolean {
+  return validateSchemaValue(input, tool.inputSchema);
 }
