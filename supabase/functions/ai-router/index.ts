@@ -24,6 +24,7 @@ import { CircuitBreaker } from "./circuit_breaker.ts";
 import { buildIndependentTaskPlan, mapWithConcurrency, mergePartAnswers, probeCandidates, splitTask, validateTaskPlan } from "./resilience.ts";
 import { parseAgentDecision, runAgentLoop, type AgentLoopStep, type AgentTool } from "./agent/orchestrator.ts";
 import { prioritizeModelCandidate } from "./agent/model_routing.ts";
+import { getAgentTools, getRegisteredTool, validateToolInput } from "./agent/tool_registry.ts";
 
 // Native Android/iOS clients do not require CORS. Web access must set WEB_CORS_ORIGIN
 // explicitly; never fall back to a wildcard in a deployed environment.
@@ -58,6 +59,8 @@ type ModelRow = {
   response_timeout_ms: number;
   restriction_failure_threshold: number;
   restriction_window_minutes: number;
+  allowed_modes?: string[];
+  task_roles?: string[];
 };
 type ProviderRow = {
   id: number;
@@ -185,6 +188,13 @@ type TrustedChatAttachment = { id: string; capability: ModelCapability; url: str
 
 function modelSupportsRequest(model: ModelRow, required: readonly ModelCapability[]): boolean {
   return supportsModelCapabilities(model.capabilities_json, required);
+}
+
+function modelSupportsRole(model: ModelRow, role: "planner" | "worker" | "reviewer" | "summarizer"): boolean {
+  const roles = Array.isArray(model.task_roles) && model.task_roles.length > 0 ? model.task_roles : ["general"];
+  if (roles.includes("general")) return true;
+  if (role === "worker") return roles.includes("worker") || roles.includes("executor");
+  return roles.includes(role);
 }
 
 function providerMessagesForModel(messages: ChatMessage[], attachments: TrustedChatAttachment[]): ProviderChatMessage[] {
@@ -768,6 +778,35 @@ async function handleRequest(req: Request): Promise<Response> {
     }).match({ conversation_id: conversationId, request_id: billingTaskId, task_key: taskKey });
     if (error) console.error("Could not update task ledger:", error.message);
   };
+  const recordToolExecution = async (toolName: string, result: unknown, status: "completed" | "failed" = "completed") => {
+    const registered = getRegisteredTool(toolName);
+    if (!registered) return;
+    let inputHash: string | null = null;
+    try {
+      const bytes = new TextEncoder().encode(JSON.stringify({ tool: toolName, request: billingTaskId }));
+      const digest = await crypto.subtle.digest("SHA-256", bytes);
+      inputHash = Array.from(new Uint8Array(digest)).map((value) => value.toString(16).padStart(2, "0")).join("");
+    } catch { /* logging must never break the user request */ }
+    const resultRecord = result && typeof result === "object" && !Array.isArray(result) ? result as Record<string, unknown> : null;
+    const resultSummary = resultRecord ? {
+      status: typeof resultRecord.status === "string" ? resultRecord.status : status,
+      toolkit: typeof resultRecord.toolkit === "string" ? resultRecord.toolkit : null,
+      tool: typeof resultRecord.tool === "string" ? resultRecord.tool : null,
+    } : { status };
+    const { error } = await supabase.from("agent_tool_execution_log").insert({
+      request_id: billingTaskId,
+      workspace_id: workspaceId,
+      user_id: user.id,
+      tool_name: registered.name,
+      provider: registered.provider,
+      effect: registered.effect,
+      status,
+      input_hash: inputHash,
+      completed_at: new Date().toISOString(),
+      result_summary: resultSummary,
+    });
+    if (error) console.error("Could not persist tool execution:", error.message);
+  };
   const startedAt = Date.now();
   let modelInvocationCount = 0;
   const countModelStarts = (count: number) => { modelInvocationCount += Math.max(0, Math.floor(count)); };
@@ -870,7 +909,7 @@ async function handleRequest(req: Request): Promise<Response> {
 
   const [{ data: settingsRow }, { data: allModels, error: modelsError }, { data: providers, error: providersError }] = await Promise.all([
     supabase.from("ai_router_settings").select("free_race_timeout_ms,paid_fallback_enabled,paid_fallback_timeout_ms,max_parallel_free_models,health_auto_restrict_enabled,preflight_probe_enabled,preflight_probe_timeout_ms,preflight_probe_max_models,task_split_enabled,task_split_max_parts,gmail_task_model_id,agent_planner_model_id,agent_summarizer_model_id").eq("id", 1).maybeSingle(),
-    supabase.from("ai_models").select("id,name,provider_id,model_identifier,enabled,priority,routing_group,allowed_tiers,capabilities_json,response_timeout_ms,restriction_failure_threshold,restriction_window_minutes").eq("enabled", true).order("priority", { ascending: false }).limit(200),
+    supabase.from("ai_models").select("id,name,provider_id,model_identifier,enabled,priority,routing_group,allowed_tiers,capabilities_json,allowed_modes,task_roles,response_timeout_ms,restriction_failure_threshold,restriction_window_minutes").eq("enabled", true).order("priority", { ascending: false }).limit(200),
     supabase.from("ai_providers").select("id,name,provider_type,base_url,enabled,timeout_seconds,api_key_vault_id").limit(100),
   ]);
   if (modelsError || providersError) {
@@ -1454,19 +1493,19 @@ async function handleRequest(req: Request): Promise<Response> {
       : null;
     let connectorReadCompleted = false;
     let connectorWriteCompleted = false;
-    const agentTools: AgentTool[] = [
-      { name: "connected_app.status", description: "التحقق الفوري من حالة الاتصال الحالية بـ Gmail وGoogle Drive وGitHub.", effect: "read", available: true },
-      { name: "connected_app.read", description: "قراءة معلومات من موصل مستخدم واحد نشط عبر إجراء آمن وموسوم.", effect: "read", available: !multiConnectorRequest && connectorRequest?.intent === "read" },
-      { name: "connected_app.read_multiple", description: "قراءة فقط من الخدمات التي ذكرها المستخدم صراحةً؛ لا تنفذ إرسالًا أو تعديلًا.", effect: "read", available: !multiConnectorRequest && Boolean(requestedMultiReadToolkits) },
-      { name: "connected_app.write", description: "إرسال أو إنشاء أو تعديل شيء في موصل واحد؛ يتطلب موافقة المستخدم على نص العملية نفسه.", effect: "write", available: !multiConnectorRequest && connectorRequest?.intent === "write" },
-      { name: "web.search", description: "بحث حي في الويب عند طلب معلومة حديثة أو مصادر خارجية.", effect: "read", available: isWebSearchRequest(latestUserMessage) },
-    ];
+    const agentTools: AgentTool[] = getAgentTools({
+      "connected_app.status": true,
+      "connected_app.read": !multiConnectorRequest && connectorRequest?.intent === "read",
+      "connected_app.read_multiple": !multiConnectorRequest && Boolean(requestedMultiReadToolkits),
+      "connected_app.write": !multiConnectorRequest && connectorRequest?.intent === "write",
+      "web.search": isWebSearchRequest(latestUserMessage),
+    });
     const taskUpdates: Array<{ task: string; status: "pending" | "running" | "completed" | "failed" }> = [];
-    const freePlanPool = raceCandidates;
+    const freePlanPool = raceCandidates.filter((candidate) => modelSupportsRole(candidate.model, "planner"));
     let paidPlanPool: Candidate[] = [];
     if (routingMode === "auto" && settings.paidFallbackEnabled) {
       const paidModels: ModelRow[] = healthyModels
-        .filter((model) => model.routing_group === "paid_fallback" && (model.allowed_tiers ?? []).includes(userTier) && modelSupportsRequest(model, uniqueRequiredCapabilities))
+        .filter((model) => modelSupportsRole(model, "planner") && model.routing_group === "paid_fallback" && (model.allowed_tiers ?? []).includes(userTier) && modelSupportsRequest(model, uniqueRequiredCapabilities))
         .sort((a, b) => Number(b.priority) - Number(a.priority));
       const paidProviderIds = [...new Set(paidModels.map((model) => model.provider_id))];
       await Promise.all(paidProviderIds.map(async (providerId) => {
@@ -1563,6 +1602,13 @@ async function handleRequest(req: Request): Promise<Response> {
     };
 
     const execute = async (tool: string, input: Record<string, unknown>): Promise<unknown> => {
+      const registeredTool = getRegisteredTool(tool);
+      if (!registeredTool || !validateToolInput(registeredTool, input)) {
+        throw new Error("tool_not_registered_or_invalid_input");
+      }
+      if (registeredTool.effect === "write" && registeredTool.requiresApproval && !confirmedWrite) {
+        throw new Error("tool_approval_required");
+      }
       if (tool === "connected_app.status") {
         try {
           const apiKey = await readComposioApiKey(supabase);
@@ -1697,7 +1743,8 @@ async function handleRequest(req: Request): Promise<Response> {
       confirmedWrite,
       plan,
       execute,
-      onToolResult(tool, result) {
+      async onToolResult(tool, result) {
+        await recordToolExecution(tool, result);
         if (!new Set(["connected_app.read", "connected_app.read_multiple", "web.search"]).has(tool)) return;
         let serialized = "null";
         try { serialized = JSON.stringify(result ?? null); } catch { serialized = "[result could not be serialized]"; }
@@ -1765,8 +1812,8 @@ async function handleRequest(req: Request): Promise<Response> {
       const evidenceText = JSON.stringify(agentEvidence);
       const summarizerModelId = settings.agentSummarizerModelId ?? plannerCandidatesUsed.at(-1)?.model.id ?? preferredGmailModelId;
       const summarizerPools = [
-        { candidates: prioritizeModelCandidate(freePlanPool, summarizerModelId), timeoutMs: settings.freeRaceTimeoutMs },
-        { candidates: prioritizeModelCandidate(paidPlanPool, summarizerModelId), timeoutMs: settings.paidFallbackTimeoutMs },
+        { candidates: prioritizeModelCandidate(freePlanPool.filter((candidate) => modelSupportsRole(candidate.model, "summarizer")), summarizerModelId), timeoutMs: settings.freeRaceTimeoutMs },
+        { candidates: prioritizeModelCandidate(paidPlanPool.filter((candidate) => modelSupportsRole(candidate.model, "summarizer")), summarizerModelId), timeoutMs: settings.paidFallbackTimeoutMs },
       ];
       const summaryMessages: ChatMessage[] = [
         {

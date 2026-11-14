@@ -11,6 +11,8 @@ export interface AgentTool {
   name: string;
   description: string;
   effect: AgentToolEffect;
+  inputSchema?: Record<string, unknown>;
+  requiresApproval?: boolean;
   available?: boolean;
 }
 
