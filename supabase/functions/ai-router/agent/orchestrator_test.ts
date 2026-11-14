@@ -9,6 +9,7 @@ Deno.test("parses only bounded provider-neutral JSON decisions", () => {
 
 Deno.test("loops from a tool result back to the planner before responding", async () => {
   const seen: string[] = [];
+  const observedResults: unknown[] = [];
   let plans = 0;
   const result = await runAgentLoop({
     messages: [{ role: "user", content: "Find my latest email" }],
@@ -23,8 +24,10 @@ Deno.test("loops from a tool result back to the planner before responding", asyn
       seen.push(`${tool}:${String(input.toolkit)}`);
       return { subject: "Meeting" };
     },
+    onToolResult(_tool, result) { observedResults.push(result); },
   });
-  if (result.status !== "completed" || plans !== 2 || seen.length !== 1) throw new Error("Expected a two-step plan with one tool execution");
+  if (result.status !== "completed" || plans !== 2 || seen.length !== 1 || observedResults.length !== 1) throw new Error("Expected a two-step plan with one tool execution and one captured result");
+  if ((observedResults[0] as { subject?: string }).subject !== "Meeting") throw new Error("The captured result did not match the tool output");
 });
 
 Deno.test("never executes a write tool before explicit confirmation", async () => {

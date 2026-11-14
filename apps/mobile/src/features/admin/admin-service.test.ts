@@ -73,4 +73,19 @@ describe("adminService tests", () => {
     expect(results).toEqual([{ modelId: 10, status: "success", durationMs: 120, errorCode: null }]);
     expect(fromSpy).not.toHaveBeenCalledWith("ai_models");
   });
+
+  test("updateAgentModels requires admin and saves the two independent model selections", async () => {
+    (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "admin-1" } }, error: null });
+    (supabase.rpc as jest.Mock).mockImplementation((rpcName: string) => {
+      if (rpcName === "suly_is_admin") return Promise.resolve({ data: true, error: null });
+      return Promise.resolve({ data: null, error: null });
+    });
+
+    await adminService.updateAgentModels(10, 5);
+
+    expect(supabase.rpc).toHaveBeenNthCalledWith(2, "suly_set_model_settings", {
+      p_planner_model_id: 10,
+      p_summarizer_model_id: 5,
+    });
+  });
 });

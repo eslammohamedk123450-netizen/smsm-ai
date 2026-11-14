@@ -28,6 +28,7 @@ export interface AgentLoopOptions {
   confirmedWrite?: boolean;
   plan(messages: AgentMessage[], tools: AgentTool[], step: number): Promise<AgentDecision>;
   execute(tool: string, input: Record<string, unknown>): Promise<unknown>;
+  onToolResult?(tool: string, result: unknown): void | Promise<void>;
   onStep?(step: AgentLoopStep): void | Promise<void>;
 }
 
@@ -155,6 +156,7 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
     await options.onStep?.({ index, kind: "tool", tool: tool.name, status: "running" });
     try {
       const result = await options.execute(tool.name, decision.input);
+      await options.onToolResult?.(tool.name, result);
       const step: AgentLoopStep = { index, kind: "tool", tool: tool.name, status: "completed" };
       steps.push(step);
       await options.onStep?.(step);
