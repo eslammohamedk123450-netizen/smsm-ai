@@ -59,6 +59,9 @@ function friendlyIntegrationError(message: string, status?: number): string {
   if (/HTTP 404/i.test(message)) {
     return "لم يعثر مزود الخدمة على الحساب المرتبط. حدّث الحالة ثم أعد الربط.";
   }
+  if (/still reports.*active|disconnect_not_confirmed/i.test(message)) {
+    return "لم يؤكد مزود الخدمة قطع الاتصال بعد. حدّث صفحة التكاملات، ولا تعاود الربط إلا بعد ظهور حالة «الحساب غير مرتبط».";
+  }
   if (/HTTP 5\d\d|timed out|timeout|network|fetch/i.test(message)) {
     return "تعذّر الوصول إلى خدمة التطبيقات المرتبطة حاليًا. حاول مرة أخرى لاحقًا.";
   }

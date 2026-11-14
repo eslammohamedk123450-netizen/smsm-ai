@@ -106,6 +106,17 @@ Deno.serve(async (req: Request) => {
       if (!toolkit) return jsonResponse({ error: "Unsupported toolkit." }, 422);
       if (!accountId || accountId.length > 200) return jsonResponse({ error: "A valid connected account ID is required." }, 422);
       await disconnectComposioAccount(apiKey, user.id, toolkit, accountId);
+      // Verify the provider no longer reports this account as active before
+      // telling the client that disconnect completed. This prevents a stale
+      // or partially accepted revoke from looking like a successful logout.
+      const remainingAccounts = await listComposioAccounts(apiKey, user.id, toolkit);
+      const remaining = remainingAccounts.find((account) => account.id === accountId);
+      if (remaining?.status === "ACTIVE" && remaining.is_disabled !== true) {
+        return jsonResponse({
+          error: "The provider still reports this connected account as active. Refresh the integrations page and try again.",
+          error_code: "disconnect_not_confirmed",
+        }, 502);
+      }
       return jsonResponse({ action, toolkit, disconnected: true });
     }
 
