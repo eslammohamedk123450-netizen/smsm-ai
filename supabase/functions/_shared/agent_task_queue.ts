@@ -98,6 +98,7 @@ export async function enqueueAgentTask(
 export async function claimAgentTasks(
   supabase: SupabaseClient,
   workerId: string,
+  userId: string,
   limit = 1,
   leaseSeconds = 120,
 ): Promise<AgentTaskJob[]> {
@@ -106,6 +107,7 @@ export async function claimAgentTasks(
     p_worker_id: workerId,
     p_limit: clampInteger(limit, 1, 1, 10),
     p_lease_seconds: clampInteger(leaseSeconds, 120, 30, 900),
+    p_user_id: userId,
   });
   if (error) throw new Error(`Could not claim agent tasks: ${error.message}`);
   return (data ?? []) as AgentTaskJob[];
