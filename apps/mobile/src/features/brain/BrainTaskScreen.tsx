@@ -4,7 +4,7 @@ import { useRouter } from "expo-router";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { useToast } from "../../components/ui/Toast";
 import { colors } from "../../theme/colors";
-import { runBrainTask, type BrainTaskResult } from "./brain-service";
+import { runBrainTask, wakeBrainWorker, type BrainTaskResult } from "./brain-service";
 import { getTaskProgress, type TaskSnapshot } from "./task-service";
 
 const TASK_TEMPLATES = [
@@ -55,6 +55,7 @@ export function BrainTaskScreen() {
           show("اكتمل تنفيذ المهمة.", "success");
           return;
         }
+        if (latest?.status === "queued" && attempt > 0 && attempt % 8 === 0) wakeBrainWorker();
         if (latest?.status === "failed" || latest?.status === "cancelled") {
           throw new Error(latest.errorMessage || "تعذر إكمال المهمة.");
         }
