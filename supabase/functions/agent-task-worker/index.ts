@@ -52,7 +52,10 @@ async function processOne(url: string, serviceKey: string, userId: string): Prom
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok || typeof result?.response !== "string" || !result.response.trim()) {
-      // The lease expires and the queue makes the task available for retry.
+      await finishAgentTask(admin, job.id, workerId, "failed", {
+        errorCode: "brain_execution_failed",
+        errorMessage: "Brain could not complete this task. Review the task details and try again.",
+      });
       return;
     }
     await finishAgentTask(admin, job.id, workerId, "completed", {
