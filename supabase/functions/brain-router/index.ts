@@ -38,7 +38,7 @@ async function main(req: Request): Promise<Response> {
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
   let body: Record<string, unknown>;
   try { body = asRecord(await req.json()); } catch { return json({ error: "Request body must be valid JSON" }, 400); }
-  const userJwt = req.headers.get("Authorization")?.match(/^Bearer\\s+(.+)$/i)?.[1];
+  const userJwt = req.headers.get("Authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
   const internalWorker = req.headers.get("x-suly-internal-brain-key") === serviceRoleKey && body.internal_worker === true;
   let userId = "";
   if (internalWorker) {
