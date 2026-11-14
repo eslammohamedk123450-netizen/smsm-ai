@@ -24,10 +24,45 @@ Deno.test("loops from a tool result back to the planner before responding", asyn
       seen.push(`${tool}:${String(input.toolkit)}`);
       return { subject: "Meeting" };
     },
-    onToolResult(_tool, result) { observedResults.push(result); },
+    onToolResult(_tool, _input, result) { observedResults.push(result); },
   });
   if (result.status !== "completed" || plans !== 2 || seen.length !== 1 || observedResults.length !== 1) throw new Error("Expected a two-step plan with one tool execution and one captured result");
   if ((observedResults[0] as { subject?: string }).subject !== "Meeting") throw new Error("The captured result did not match the tool output");
+});
+
+Deno.test("reports the tool lifecycle for start, completion, rejection and failure", async () => {
+  const lifecycle: string[] = [];
+  const inputs: unknown[] = [];
+  let plans = 0;
+  const completed = await runAgentLoop({
+    messages: [{ role: "user", content: "Search" }],
+    tools: [{ name: "web.search", description: "Search", effect: "read" }],
+    async plan(): Promise<AgentDecision> {
+      plans += 1;
+      return plans === 1
+        ? { action: "tool", tool: "web.search", input: { query: "prices" } }
+        : { action: "respond", answer: "done" };
+    },
+    async execute() { return { results: [] }; },
+    onToolStart(tool, input) { lifecycle.push(`start:${tool}`); inputs.push(input); },
+    onToolResult(tool) { lifecycle.push(`result:${tool}`); },
+    onToolError(tool) { lifecycle.push(`error:${tool}`); },
+    onToolRejected(tool, _input, reason) { lifecycle.push(`rejected:${tool}:${reason}`); },
+  });
+  if (completed.status !== "completed") throw new Error("A successful tool step should complete");
+  if (lifecycle.join(",") !== "start:web.search,result:web.search") throw new Error(`Unexpected lifecycle: ${lifecycle.join(",")}`);
+  if ((inputs[0] as { query?: string }).query !== "prices") throw new Error("Tool input was not forwarded to the lifecycle callback");
+
+  const rejected: string[] = [];
+  const unregistered = await runAgentLoop({
+    messages: [{ role: "user", content: "Do something unsafe" }],
+    tools: [{ name: "web.search", description: "Search", effect: "read" }],
+    async plan(): Promise<AgentDecision> { return { action: "tool", tool: "filesystem.delete", input: {} }; },
+    async execute() { return null; },
+    onToolRejected(tool, _input, reason) { rejected.push(`${tool}:${reason}`); },
+  });
+  if (unregistered.status !== "failed" || unregistered.reason !== "unknown_tool") throw new Error("An unregistered tool must fail closed");
+  if (rejected[0] !== "filesystem.delete:tool_not_registered") throw new Error("The rejection was not reported for logging");
 });
 
 Deno.test("never executes a write tool before explicit confirmation", async () => {

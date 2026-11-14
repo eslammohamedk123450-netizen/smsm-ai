@@ -5,6 +5,7 @@ import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { useToast } from "../../components/ui/Toast";
 import { colors } from "../../theme/colors";
 import { runBrainTask, type BrainTaskResult } from "./brain-service";
+import { getTaskProgress, type TaskSnapshot } from "./task-service";
 
 const TASK_TEMPLATES = [
   { title: "تحليل ملف أو بيانات", prompt: "حلّل البيانات التالية واستخرج أهم المؤشرات والمشكلات والتوصيات العملية: " },
@@ -19,6 +20,7 @@ export function BrainTaskScreen() {
   const [result, setResult] = useState<BrainTaskResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<TaskSnapshot | null>(null);
 
   const submit = async () => {
     const value = objective.trim();
@@ -33,9 +35,11 @@ export function BrainTaskScreen() {
     setBusy(true);
     setError(null);
     setResult(null);
+    setProgress(null);
     try {
       const next = await runBrainTask(value);
       setResult(next);
+      void getTaskProgress(next.task_id).then(setProgress);
       show("اكتمل تنفيذ المهمة.", "success");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "تعذر تنفيذ المهمة.");
@@ -102,6 +106,22 @@ export function BrainTaskScreen() {
           <Text style={styles.taskId}>معرف التتبع: {result.task_id}</Text>
         </View>
       ) : null}
+      {progress ? (
+        <View style={styles.panel}>
+          <View style={styles.resultHeader}>
+            <Text style={styles.sectionTitle}>متابعة التنفيذ</Text>
+            <Text style={progress.status === "completed" ? styles.completed : styles.meta}>{progress.status}</Text>
+          </View>
+          <Text style={styles.meta}>الخطوات المكتملة: {progress.steps.filter((step) => step.status === "completed").length} / {progress.estimatedSteps}</Text>
+          {progress.steps.map((step) => (
+            <View key={step.key} style={styles.stepRow}>
+              <Text style={styles.stepStatus}>{step.status}</Text>
+              <Text style={styles.stepText}>{step.description}</Text>
+            </View>
+          ))}
+          {progress.review ? <Text style={styles.review}>المراجعة: {progress.review.verdict}{progress.review.feedback ? ` — ${progress.review.feedback}` : ""}</Text> : null}
+        </View>
+      ) : null}
     </ScrollView>
   );
 }
@@ -135,4 +155,8 @@ const styles = StyleSheet.create({
   meta: { color: colors.textMuted, fontSize: 10 },
   response: { color: colors.textPrimary, fontSize: 13, lineHeight: 23, textAlign: "right" },
   taskId: { color: colors.textMuted, fontSize: 9, textAlign: "right" },
+  stepRow: { flexDirection: "row-reverse", justifyContent: "space-between", gap: 8, borderBottomWidth: 1, borderBottomColor: colors.divider, paddingVertical: 7 },
+  stepText: { flex: 1, color: colors.textSecondary, fontSize: 10, textAlign: "right" },
+  stepStatus: { color: colors.primary, fontSize: 9, fontWeight: "800" },
+  review: { color: colors.textMuted, fontSize: 10, textAlign: "right", lineHeight: 18 },
 });
