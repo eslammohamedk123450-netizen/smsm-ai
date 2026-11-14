@@ -9,7 +9,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "bundle:ai-router": "esbuild supabase/functions/ai-router/index.ts --bundle --format=esm --minify --platform=neutral --external:'https://*' --external:'npm:*' --outfile=supabase/deploy-artifacts/ai-router.bundle.js"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
