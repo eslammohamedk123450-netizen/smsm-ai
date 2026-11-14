@@ -46,8 +46,8 @@ export function BrainTaskScreen() {
           setResult({
             task_id: accepted.task_id,
             complexity: latest.result.complexity === "complex" ? "complex" : "easy",
-            capabilities: [],
-            estimated_steps: Number(latest.result.steps_completed ?? latest.estimatedSteps ?? 1),
+            capabilities: Array.isArray(latest.result.capabilities) ? latest.result.capabilities.filter((item): item is string => typeof item === "string") : [],
+            estimated_steps: Number(latest.result.estimated_steps ?? latest.estimatedSteps ?? 1),
             steps_completed: Number(latest.result.steps_completed ?? 0),
             response: String(latest.result.response),
             route: "brain-router",
