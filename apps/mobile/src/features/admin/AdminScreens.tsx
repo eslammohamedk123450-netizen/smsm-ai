@@ -7,6 +7,7 @@ import { providerPresets, findPreset, type ProviderPreset } from "./provider-pre
 import { confirmAdminAction } from "./admin-confirm";
 import { colors } from "../../theme/colors";
 import { GmailModelPickerCard } from "./GmailModelPickerCard";
+import { AgentModelPickerCard } from "./AgentModelPickerCard";
 
 type ProviderRow = { id: number; name: string; provider_type: string; base_url: string | null; enabled: boolean; last_test_status: string | null };
 type ModelRow = {
@@ -293,6 +294,8 @@ export function ModelsAdminScreen() {
   const [modelFilter, setModelFilter] = useState<"all" | "enabled" | "disabled" | "restricted">("all");
   const [settings, setSettings] = useState<Record<string, unknown> | null>(null);
   const [gmailModelId, setGmailModelId] = useState<number | null>(null);
+  const [plannerModelId, setPlannerModelId] = useState<number | null>(null);
+  const [summarizerModelId, setSummarizerModelId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [testingModelId, setTestingModelId] = useState<number | null>(null);
@@ -344,6 +347,10 @@ export function ModelsAdminScreen() {
       if (config) {
         const configuredGmailModelId = Number(config.gmail_task_model_id);
         setGmailModelId(Number.isSafeInteger(configuredGmailModelId) && configuredGmailModelId > 0 ? configuredGmailModelId : null);
+        const configuredPlannerModelId = Number(config.agent_planner_model_id);
+        setPlannerModelId(Number.isSafeInteger(configuredPlannerModelId) && configuredPlannerModelId > 0 ? configuredPlannerModelId : null);
+        const configuredSummarizerModelId = Number(config.agent_summarizer_model_id);
+        setSummarizerModelId(Number.isSafeInteger(configuredSummarizerModelId) && configuredSummarizerModelId > 0 ? configuredSummarizerModelId : null);
         setFreeTimeout(String(config.free_race_timeout_ms ?? 5000));
         setFallbackTimeout(String(config.paid_fallback_timeout_ms ?? 30000));
         setParallel(String(config.max_parallel_free_models ?? 10));
@@ -420,6 +427,15 @@ export function ModelsAdminScreen() {
     finally { setBusy(false); }
   };
 
+  const saveAgentModels = async () => {
+    setBusy(true); setError(null);
+    try {
+      await adminService.updateAgentModels(plannerModelId, summarizerModelId);
+      await load();
+    } catch { setError("تعذر حفظ نموذجي Planner وSummarizer. تحقق من تطبيق هجرة إعداداتهما وصلاحيات الإدارة."); }
+    finally { setBusy(false); }
+  };
+
   const disable = async (model: ModelRow) => {
     if (!await confirmAdminAction("تعطيل النموذج؟", `سيُزال ${model.name} من التوجيه.`, "تعطيل النموذج")) return;
     setBusy(true);
@@ -487,6 +503,7 @@ export function ModelsAdminScreen() {
           <ErrorText>{error}</ErrorText>
           {!loading ? <>
             {settings && <GmailModelPickerCard models={models} selectedModelId={gmailModelId} onSelect={setGmailModelId} onSave={() => void saveGmailModel()} busy={busy} />}
+            {settings && <Card><View style={styles.settingsHeading}><View style={styles.sectionIcon}><Text style={styles.sectionIconText}>✦</Text></View><View style={styles.settingsHeadingText}><Text style={styles.sectionTitle}>نماذج أدوار Agent</Text><Text style={styles.detail}>اختيار مستقل؛ تغيير هذه القيم لا يغيّر نماذج الدردشة أو اختيار Gmail.</Text></View></View><AgentModelPickerCard role="planner" models={models} selectedModelId={plannerModelId} onSelect={setPlannerModelId} busy={busy} /><AgentModelPickerCard role="summarizer" models={models} selectedModelId={summarizerModelId} onSelect={setSummarizerModelId} busy={busy} /><PrimaryButton label={busy ? "جارٍ الحفظ…" : "حفظ نموذجي Agent"} onPress={() => void saveAgentModels()} disabled={busy} /></Card>}
             <View style={styles.modelsSectionHeader}><View style={styles.modelsHeadingCopy}><Text style={styles.sectionTitle}>كتالوج النماذج</Text><Text style={styles.detail}>إدارة الحالة ومسار التوجيه والقيود وسجل الصحة</Text></View><View style={styles.totalBadge}><Text style={styles.totalBadgeText}>{models.length} نموذج</Text></View></View>
             <View style={styles.searchWrap}><Text style={styles.searchGlyph}>⌕</Text><TextInput style={[styles.input, styles.modelSearchInput]} value={search} onChangeText={setSearch} placeholder="ابحث بالاسم أو المزود أو المسار" placeholderTextColor={colors.textMuted} autoCapitalize="none" /><Pressable accessibilityRole="button" onPress={() => setSearch("")}><Text style={styles.link}>مسح</Text></Pressable></View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>

@@ -236,7 +236,7 @@ export const adminService = {
         .select("model_id,consecutive_scheduled_failures,consecutive_scheduled_successes,last_scheduled_status,last_scheduled_at,last_error_code")
         .limit(1000),
       supabase.from("ai_router_settings")
-        .select("id,free_race_timeout_ms,paid_fallback_enabled,paid_fallback_timeout_ms,max_parallel_free_models,health_auto_restrict_enabled,gmail_task_model_id")
+        .select("id,free_race_timeout_ms,paid_fallback_enabled,paid_fallback_timeout_ms,max_parallel_free_models,health_auto_restrict_enabled,gmail_task_model_id,agent_planner_model_id,agent_summarizer_model_id")
         .eq("id", 1).maybeSingle(),
       this.getProviders(),
     ]);
@@ -294,6 +294,15 @@ export const adminService = {
       updated_by: user?.id,
       updated_at: new Date().toISOString(),
     }).eq("id", 1);
+    if (error) throw error;
+  },
+
+  async updateAgentModels(plannerModelId: number | null, summarizerModelId: number | null) {
+    await requireAdmin();
+    const { error } = await supabase.rpc("suly_set_model_settings", {
+      p_planner_model_id: plannerModelId,
+      p_summarizer_model_id: summarizerModelId,
+    });
     if (error) throw error;
   },
 
