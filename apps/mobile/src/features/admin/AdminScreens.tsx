@@ -8,6 +8,7 @@ import { confirmAdminAction } from "./admin-confirm";
 import { colors } from "../../theme/colors";
 import { GmailModelPickerCard } from "./GmailModelPickerCard";
 import { AgentModelPickerCard } from "./AgentModelPickerCard";
+import { RouteModelChainsCard } from "./RouteModelChainsCard";
 
 type ProviderRow = { id: number; name: string; provider_type: string; base_url: string | null; enabled: boolean; last_test_status: string | null };
 type ModelRow = {
@@ -502,6 +503,7 @@ export function ModelsAdminScreen() {
           <PageHeader title="النماذج والتوجيه" />
           <ErrorText>{error}</ErrorText>
           {!loading ? <>
+            <RouteModelChainsCard models={models} />
             {settings && <GmailModelPickerCard models={models} selectedModelId={gmailModelId} onSelect={setGmailModelId} onSave={() => void saveGmailModel()} busy={busy} />}
             {settings && <Card><View style={styles.settingsHeading}><View style={styles.sectionIcon}><Text style={styles.sectionIconText}>✦</Text></View><View style={styles.settingsHeadingText}><Text style={styles.sectionTitle}>نماذج أدوار Agent</Text><Text style={styles.detail}>اختيار مستقل؛ تغيير هذه القيم لا يغيّر نماذج الدردشة أو اختيار Gmail.</Text></View></View><AgentModelPickerCard role="planner" models={models} selectedModelId={plannerModelId} onSelect={setPlannerModelId} busy={busy} /><AgentModelPickerCard role="summarizer" models={models} selectedModelId={summarizerModelId} onSelect={setSummarizerModelId} busy={busy} /><PrimaryButton label={busy ? "جارٍ الحفظ…" : "حفظ نموذجي Agent"} onPress={() => void saveAgentModels()} disabled={busy} /></Card>}
             <View style={styles.modelsSectionHeader}><View style={styles.modelsHeadingCopy}><Text style={styles.sectionTitle}>كتالوج النماذج</Text><Text style={styles.detail}>إدارة الحالة ومسار التوجيه والقيود وسجل الصحة</Text></View><View style={styles.totalBadge}><Text style={styles.totalBadgeText}>{models.length} نموذج</Text></View></View>
