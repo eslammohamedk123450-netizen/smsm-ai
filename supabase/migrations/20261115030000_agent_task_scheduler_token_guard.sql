@@ -1,8 +1,6 @@
 -- Authenticate the scheduled queue dispatcher without exposing a service-role key.
 -- The scheduler token itself is stored separately in Supabase Vault, never in Git.
-create schema if not exists private;
-
-create or replace function private.verify_agent_task_scheduler_token(p_token text)
+create or replace function public.verify_agent_task_scheduler_token(p_token text)
 returns boolean
 language plpgsql
 stable
@@ -26,6 +24,6 @@ begin
 end;
 $$;
 
-revoke all on function private.verify_agent_task_scheduler_token(text) from public, anon, authenticated;
+revoke all on function public.verify_agent_task_scheduler_token(text) from public, anon, authenticated;
 grant usage on schema private to service_role;
-grant execute on function private.verify_agent_task_scheduler_token(text) to service_role;
+grant execute on function public.verify_agent_task_scheduler_token(text) to service_role;
