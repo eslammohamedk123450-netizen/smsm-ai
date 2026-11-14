@@ -79,6 +79,7 @@ async function main(req: Request): Promise<Response> {
     if (saved?.status === "completed" && savedResponse) {
       return json({ task_id: taskId, complexity: saved.complexity ?? "easy", capabilities: saved.capabilities ?? ["text"], estimated_steps: saved.estimated_steps ?? 1, steps_completed: Array.isArray(savedContext.results) ? savedContext.results.length : 0, response: savedResponse, route: "brain-router" });
     }
+    if (saved?.status === "failed") return json({ error: "Brain task already failed", task_id: taskId }, 409);
     reservation = { allowed: true };
   } else {
     const { data: reservationData, error } = await admin.rpc("brain_reserve_usage", { p_user_id: userId, p_task_id: taskId, p_tokens: reserveEstimate });
