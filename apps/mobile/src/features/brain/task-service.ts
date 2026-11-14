@@ -55,7 +55,7 @@ export async function getTaskProgress(taskId: string, jobId?: string): Promise<T
     .limit(50);
   return {
     taskId: String(context.task_id),
-    status: String(context.status ?? "unknown"),
+    status: String(job?.status ?? context.status ?? "unknown"),
     complexity: context.complexity == null ? null : String(context.complexity),
     estimatedSteps: Number(context.estimated_steps ?? 0),
     updatedAt: context.updated_at == null ? null : String(context.updated_at),
