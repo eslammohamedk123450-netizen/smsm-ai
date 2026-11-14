@@ -15,6 +15,7 @@ export interface EnqueueAgentTaskInput {
 export interface AgentTaskJob {
   id: string;
   user_id: string;
+  task_id?: string | null;
   job_type: string;
   payload: Record<string, unknown>;
   status: AgentTaskStatus;
