@@ -8,10 +8,12 @@ on:
       - "package.json"
       - ".github/workflows/verify-ai-router-bundle.yml"
   push:
-    branches: [release/v1]
+    branches: [release/v1, feat/agent-worker-brain-queue]
     paths:
       - "supabase/functions/ai-router/**"
       - "supabase/deploy-artifacts/ai-router.bundle.js"
+      - "package.json"
+      - ".github/workflows/verify-ai-router-bundle.yml"
   workflow_dispatch:
 
 permissions:
