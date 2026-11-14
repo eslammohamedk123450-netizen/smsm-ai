@@ -35,15 +35,21 @@ async function main(req: Request): Promise<Response> {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl || !serviceRoleKey) return json({ error: "Server configuration is incomplete" }, 500);
-  const userJwt = req.headers.get("Authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
-  if (!userJwt) return json({ error: "A signed-in user's Bearer access token is required" }, 401);
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data: authData, error: authError } = await admin.auth.getUser(userJwt);
-  if (authError || !authData.user) return json({ error: "Invalid or expired user access token" }, 401);
-  const userId = authData.user.id;
-
   let body: Record<string, unknown>;
   try { body = asRecord(await req.json()); } catch { return json({ error: "Request body must be valid JSON" }, 400); }
+  const userJwt = req.headers.get("Authorization")?.match(/^Bearer\\s+(.+)$/i)?.[1];
+  const internalWorker = req.headers.get("x-suly-internal-brain-key") === serviceRoleKey && body.internal_worker === true;
+  let userId = "";
+  if (internalWorker) {
+    userId = cleanText(body.user_id, 64);
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userId)) return json({ error: "Invalid internal user context" }, 400);
+  } else {
+    if (!userJwt) return json({ error: "A signed-in user's Bearer access token is required" }, 401);
+    const { data: authData, error: authError } = await admin.auth.getUser(userJwt);
+    if (authError || !authData.user) return json({ error: "Invalid or expired user access token" }, 401);
+    userId = authData.user.id;
+  }
   const objective = cleanText(body.objective ?? body.message);
   if (!objective || objective.length > 50000) return json({ error: "objective is required and must be <= 50000 characters" }, 400);
   const taskId = cleanText(body.task_id) || crypto.randomUUID();
@@ -62,8 +68,23 @@ async function main(req: Request): Promise<Response> {
     .sort((a, b) => a.priority - b.priority);
   const maxConfigured = Math.max(1024, ...tiers.map((row) => Math.max(128, Number(row.max_tokens_per_task) || 1024)));
   const reserveEstimate = Math.min(100000, Math.max(4096, maxConfigured + maxConfigured + maxConfigured * 8 + maxConfigured));
-  const { data: reservationData, error: reservationError } = await admin.rpc("brain_reserve_usage", { p_user_id: userId, p_task_id: taskId, p_tokens: reserveEstimate });
-  const reservation = Array.isArray(reservationData) ? asRecord(reservationData[0]) : asRecord(reservationData);
+  let reservation: Record<string, unknown> = {};
+  let reservationError: { message: string } | null = null;
+  if (internalWorker) {
+    const { data: saved } = await admin.from("brain_task_contexts")
+      .select("task_id,context,final_response,complexity,capabilities,estimated_steps,status")
+      .eq("task_id", taskId).eq("user_id", userId).maybeSingle();
+    const savedContext = asRecord(saved?.context);
+    const savedResponse = cleanText(saved?.final_response ?? savedContext.final_response);
+    if (saved?.status === "completed" && savedResponse) {
+      return json({ task_id: taskId, complexity: saved.complexity ?? "easy", capabilities: saved.capabilities ?? ["text"], estimated_steps: saved.estimated_steps ?? 1, steps_completed: Array.isArray(savedContext.results) ? savedContext.results.length : 0, response: savedResponse, route: "brain-router" });
+    }
+    reservation = { allowed: true };
+  } else {
+    const { data: reservationData, error } = await admin.rpc("brain_reserve_usage", { p_user_id: userId, p_task_id: taskId, p_tokens: reserveEstimate });
+    reservationError = error ? { message: error.message } : null;
+    reservation = Array.isArray(reservationData) ? asRecord(reservationData[0]) : asRecord(reservationData);
+  }
   if (reservationError) {
     const message = reservationError.message.toLowerCase();
     if (message.includes("task_in_progress") || message.includes("task_id_conflict")) return json({ error: message.includes("task_id_conflict") ? "task_id_conflict" : "task_in_progress" }, 409);
@@ -101,6 +122,19 @@ async function main(req: Request): Promise<Response> {
     return json({ error: reservationReason || "daily_limit_reached" }, 429);
   }
 
+  if (!internalWorker && body.mode === "enqueue") {
+    const objective = cleanText(body.objective ?? body.message);
+    const { data: queued, error: queueError } = await admin.from("agent_task_jobs").insert({
+      user_id: userId, job_type: "brain_task", idempotency_key: `brain:${taskId}`,
+      payload: { user_id: userId, task_id: taskId, objective }, priority: 10, max_attempts: 3,
+    }).select("id,status").single();
+    if (queueError || !queued) {
+      await admin.rpc("brain_finalize_usage", { p_task_id: taskId, p_actual_tokens: 0, p_status: "failed" });
+      return json({ error: "Could not enqueue Brain task" }, 503);
+    }
+    return json({ task_id: taskId, job_id: queued.id, status: queued.status, queued: true, route: "brain-router" }, 202);
+  }
+
   let totalTokens = 0;
   let finalizationAttempted = false;
   const finalizeUsage = async (status: "completed" | "failed"): Promise<void> => {
@@ -125,7 +159,7 @@ async function main(req: Request): Promise<Response> {
       const response = await fetch(`${supabaseUrl}/functions/v1/ai-router`, {
         method: "POST",
         headers: { Authorization: authHeader, "Content-Type": "application/json", "x-suly-internal-brain-key": serviceRoleKey },
-        body: JSON.stringify({ message: prompt, model_id: legacyId, routing_mode: "manual", max_tokens: Math.min(4096, Math.max(128, Number(row.max_tokens_per_task) || 1024)), stream: false, request_id: crypto.randomUUID(), feature_key: "brain_system" }),
+        body: JSON.stringify({ message: prompt, model_id: legacyId, routing_mode: "manual", max_tokens: Math.min(4096, Math.max(128, Number(row.max_tokens_per_task) || 1024)), stream: false, request_id: crypto.randomUUID(), feature_key: "brain_system", user_id: userId }),
       });
       const payload = asRecord(await response.json().catch(() => ({})));
       const responseObject = asRecord(payload.response);
