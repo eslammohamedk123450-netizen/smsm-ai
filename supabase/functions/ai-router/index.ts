@@ -746,12 +746,13 @@ async function handleRequest(req: Request): Promise<Response> {
   let userMetadata = identityContext.userMetadata;
   let systemPrompt = identityContext.systemPrompt;
   let workspaceId: string | null = null;
-  const updateWorkspace = async (status: "planning" | "executing" | "reviewing" | "completed" | "failed", finalResult?: Record<string, unknown>) => {
+  const updateWorkspace = async (status: "planning" | "executing" | "reviewing" | "waiting_approval" | "retrying" | "completed" | "failed" | "cancelled", finalResult?: Record<string, unknown>) => {
     if (!workspaceId) return;
-    const { error } = await supabase.from("agent_workspaces").update({ status, ...(finalResult ? { final_result: finalResult } : {}), updated_at: new Date().toISOString() }).eq("id", workspaceId);
+    const terminal = status === "completed" || status === "failed" || status === "cancelled";
+    const { error } = await supabase.from("agent_workspaces").update({ status, ...(finalResult ? { final_result: finalResult } : {}), ...(terminal ? { completed_at: new Date().toISOString() } : {}), updated_at: new Date().toISOString() }).eq("id", workspaceId);
     if (error) console.error("Could not update agent workspace:", error.message);
   };
-  const updateWorkspaceStep = async (stepKey: string, status: "pending" | "running" | "reviewing" | "retrying" | "completed" | "failed", patch: Record<string, unknown> = {}) => {
+  const updateWorkspaceStep = async (stepKey: string, status: "pending" | "running" | "reviewing" | "waiting_approval" | "retrying" | "completed" | "failed", patch: Record<string, unknown> = {}) => {
     if (!workspaceId) return;
     const timestamp = new Date().toISOString();
     const { error } = await supabase.from("agent_workspace_steps").update({ status, ...(status === "running" ? { started_at: timestamp } : {}), ...(status === "completed" || status === "failed" ? { completed_at: timestamp } : {}), ...patch }).eq("workspace_id", workspaceId).eq("step_key", stepKey);
@@ -1239,43 +1240,54 @@ async function handleRequest(req: Request): Promise<Response> {
   let taskPlan = buildIndependentTaskPlan(proposedParts, settings.taskSplitMaxParts);
   if (!taskPlan || !validateTaskPlan(taskPlan, settings.taskSplitMaxParts)) taskPlan = null;
   const splitParts = taskPlan ? proposedParts : [latestUserMessage];
+  // Every request gets a durable workspace. Compound requests reuse their
+  // deterministic plan; simple and Agent requests get one resumable step.
+  const workspacePlan = taskPlan
+    ? taskPlan.map((step) => ({ ...step }))
+    : [{
+      step_id: executionMode === "agent" ? "agent-loop" : "response",
+      description: executionMode === "agent" ? "حلقة التخطيط والتنفيذ والتحقق للوكيل." : "إنشاء الرد النهائي للطلب.",
+      expected_inputs: { source: "user_request" },
+      completion_criteria: "نتيجة نهائية محفوظة أو سبب فشل تشغيلي واضح.",
+      depends_on: [],
+    }];
+  const { data: workspaceRow, error: workspaceError } = await supabase.from("agent_workspaces").upsert({
+    request_id: billingTaskId,
+    conversation_id: conversationId,
+    user_id: user.id,
+    status: "planning",
+    plan: workspacePlan,
+    metadata: { execution_mode: executionMode, intent: mind.intent },
+  }, { onConflict: "request_id" }).select("id").single();
+  if (workspaceError || !workspaceRow) console.error("Could not create agent workspace:", workspaceError?.message);
+  else workspaceId = String(workspaceRow.id);
+
+  const resultStepKey = taskPlan ? "merge" : "final";
+  const workspaceSteps = [
+    { workspace_id: workspaceId, step_key: "plan", sequence_order: 0, description: "تحديد خطة الطلب ومسار التنفيذ.", depends_on: [] },
+    ...workspacePlan.map((step, index) => ({ workspace_id: workspaceId, step_key: step.step_id, sequence_order: index + 1, description: step.description, depends_on: step.depends_on ?? [] })),
+    { workspace_id: workspaceId, step_key: resultStepKey, sequence_order: workspacePlan.length + 1, description: "حفظ النتيجة النهائية أو سبب الفشل.", depends_on: workspacePlan.map((step) => step.step_id) },
+  ];
+  if (workspaceId) {
+    const { error: stepsError } = await supabase.from("agent_workspace_steps").upsert(workspaceSteps, { onConflict: "workspace_id,step_key" });
+    if (stepsError) console.error("Could not create task workspace steps:", stepsError.message);
+  }
+  const ledgerRows = [
+    { task_key: "plan", task_description: "تحديد خطة الطلب ومسار التنفيذ.", sequence_order: 0 },
+    ...workspacePlan.map((step, index) => ({ task_key: step.step_id, task_description: step.description.slice(0, 240), sequence_order: index + 1 })),
+    { task_key: resultStepKey, task_description: "حفظ النتيجة النهائية أو سبب الفشل.", sequence_order: workspacePlan.length + 1 },
+  ].map((step) => ({ conversation_id: conversationId, request_id: billingTaskId, workspace_id: workspaceId, ...step, status: "pending" }));
+  if (conversationId) {
+    const { error: ledgerError } = await supabase.from("task_ledger").upsert(ledgerRows, { onConflict: "request_id,task_key", ignoreDuplicates: true });
+    if (ledgerError) console.error("Could not create task ledger:", ledgerError.message);
+  }
+  await updateWorkspaceStep("plan", "running");
+  await updateTaskLedger("plan", "running");
+  await updateWorkspaceStep("plan", "completed", { result: { plan_type: taskPlan ? "independent_list" : executionMode === "agent" ? "agent_loop" : "single_response", step_count: workspacePlan.length } });
+  await updateTaskLedger("plan", "completed", { plan_type: taskPlan ? "independent_list" : executionMode === "agent" ? "agent_loop" : "single_response", step_count: workspacePlan.length });
+  await updateWorkspace("executing");
+
   if (splitParts.length > 1) {
-    const planPayload = taskPlan!.map((step) => ({ ...step }));
-    const { data: workspaceRow, error: workspaceError } = await supabase.from("agent_workspaces").upsert({
-      request_id: billingTaskId,
-      conversation_id: conversationId,
-      user_id: user.id,
-      status: "planning",
-      plan: planPayload,
-    }, { onConflict: "request_id" }).select("id").single();
-    if (workspaceError || !workspaceRow) {
-      console.error("Could not create agent workspace:", workspaceError?.message);
-    } else {
-      workspaceId = String(workspaceRow.id);
-    }
-    const workspaceSteps = [
-      { workspace_id: workspaceId, step_key: "plan", sequence_order: 0, description: "خطة حتمية من عناصر مستقلة صريحة، دون استدعاء Planner لغوي." },
-      ...taskPlan!.map((step, index) => ({ workspace_id: workspaceId, step_key: step.step_id, sequence_order: index + 1, description: step.description })),
-      { workspace_id: workspaceId, step_key: "merge", sequence_order: taskPlan!.length + 1, description: "جمع إجابات الأجزاء الناجحة بترتيب القائمة، دون مراجعة وكيل غير منفذة." },
-    ];
-    if (workspaceId) {
-      const { error: stepsError } = await supabase.from("agent_workspace_steps").upsert(workspaceSteps, { onConflict: "workspace_id,step_key" });
-      if (stepsError) console.error("Could not create task workspace steps:", stepsError.message);
-    }
-    const ledgerRows = [
-      { task_key: "plan", task_description: "تحقق من خطة الأجزاء المستقلة", sequence_order: 0 },
-      ...taskPlan!.map((step, index) => ({ task_key: step.step_id, task_description: step.description.slice(0, 240), sequence_order: index + 1 })),
-      { task_key: "merge", task_description: "جمع نتائج الأجزاء المكتملة", sequence_order: taskPlan!.length + 1 },
-    ].map((step) => ({ conversation_id: conversationId, request_id: billingTaskId, workspace_id: workspaceId, ...step, status: "pending" }));
-    if (conversationId) {
-      const { error: ledgerError } = await supabase.from("task_ledger").upsert(ledgerRows, { onConflict: "request_id,task_key", ignoreDuplicates: true });
-      if (ledgerError) console.error("Could not create task ledger:", ledgerError.message);
-    }
-    await updateWorkspaceStep("plan", "running");
-    await updateTaskLedger("plan", "running");
-    await updateWorkspaceStep("plan", "completed", { result: { plan_type: "independent_list", step_count: taskPlan!.length } });
-    await updateTaskLedger("plan", "completed", { plan_type: "independent_list", step_count: taskPlan!.length });
-    await updateWorkspace("executing");
     // This deterministic plan contains no dependencies; each part is executed
     // once, with one limited model fallback, by a pool of at most three workers.
     const systemMessages = messages.filter((message) => message.role === "system");
@@ -1356,23 +1368,23 @@ async function handleRequest(req: Request): Promise<Response> {
     const failedPartCount = splitParts.length - successfulParts.length;
     const bestCandidate = partResultsWithCandidates.find((part) => part.candidate)?.candidate ?? null;
     if (successfulParts.length === 0) {
-      await updateWorkspaceStep("merge", "running");
-      await updateTaskLedger("merge", "running");
+      await updateWorkspaceStep(resultStepKey, "running");
+      await updateTaskLedger(resultStepKey, "running");
       const workerBillingRef = ((): ReadyCandidate | null => workerBillingCandidate)();
       const billingCandidate = workerBillingRef
         ? { ...workerBillingRef, inputTokens: workerInputTokens, outputTokens: workerOutputTokens }
         : null;
       const billing = await finalizeBilling(billingCandidate, "", "worker_failure", Boolean(billingCandidate));
-      await updateWorkspaceStep("merge", "failed", { error_message: "no_worker_results" });
-      await updateTaskLedger("merge", "failed", { error: "no_worker_results" });
+      await updateWorkspaceStep(resultStepKey, "failed", { error_message: "no_worker_results" });
+      await updateTaskLedger(resultStepKey, "failed", { error: "no_worker_results" });
       await updateWorkspace("failed", { parts: splitParts.length, completed: 0, failed: splitParts.length });
       await clearSharedTaskMemory(supabase, billingTaskId);
       await finishAiRequest("failed", null, null, { route: "task_split", parts: splitParts.length, failed_parts: splitParts.length, billing }, "all_workers_failed");
       return jsonResponse({ error: "The compound request could not be completed because every task part failed.", completed_parts: 0, failed_parts: splitParts.length, billing }, 502, req);
     }
 
-    await updateWorkspaceStep("merge", "running");
-    await updateTaskLedger("merge", "running");
+    await updateWorkspaceStep(resultStepKey, "running");
+    await updateTaskLedger(resultStepKey, "running");
     const rawMerged = mergePartAnswers(partResults);
     const limitedMerged = applyFinalOutputLimit(rawMerged, maxOutputChars);
     const merged = limitedMerged.content;
@@ -1398,8 +1410,8 @@ async function handleRequest(req: Request): Promise<Response> {
       : null;
     const billing = await finalizeBilling(billingCandidate, merged, "ai_request", Boolean(billingCandidate));
     const outputGuard = limitedMerged.reason ?? (partResultsWithCandidates.some((part) => part.outputGuard === "repetition") ? "repetition" : null);
-    await updateWorkspaceStep("merge", "completed", { result: { characters: merged.length, completed_parts: successfulParts.length, failed_parts: failedPartCount, output_guard: outputGuard } });
-    await updateTaskLedger("merge", "completed", { characters: merged.length, completed_parts: successfulParts.length, failed_parts: failedPartCount, output_guard: outputGuard });
+    await updateWorkspaceStep(resultStepKey, "completed", { result: { characters: merged.length, completed_parts: successfulParts.length, failed_parts: failedPartCount, output_guard: outputGuard } });
+    await updateTaskLedger(resultStepKey, "completed", { characters: merged.length, completed_parts: successfulParts.length, failed_parts: failedPartCount, output_guard: outputGuard });
     await updateWorkspace("completed", { characters: merged.length, model_id: mergedModel?.model.id ?? null, completed_parts: successfulParts.length, failed_parts: failedPartCount });
     // The task is done, so the shared scratchpad is wiped immediately.
     await clearSharedTaskMemory(supabase, billingTaskId);
@@ -1695,7 +1707,7 @@ async function handleRequest(req: Request): Promise<Response> {
         agentEvidence.push({ tool, result: bounded });
         agentEvidenceChars += bounded.length;
       },
-      onStep(step: AgentLoopStep) {
+      async onStep(step: AgentLoopStep) {
         const labels: Record<string, string> = {
           planning: "تحليل الطلب واختيار الخطوة",
           "connected_app.status": "التحقق من حالة الاتصال بالتطبيقات",
@@ -1710,6 +1722,9 @@ async function handleRequest(req: Request): Promise<Response> {
         if (step.status === "running" || step.status === "requires_confirmation") taskUpdates.push({ task, status: "running" });
         else if (step.status === "completed") taskUpdates.push({ task, status: "completed" });
         else if (step.status === "failed") taskUpdates.push({ task, status: "failed" });
+        const persistedStatus = step.status === "requires_confirmation" ? "waiting_approval" : step.status === "running" ? "running" : step.status;
+        await updateWorkspaceStep("agent-loop", persistedStatus as "running" | "reviewing" | "waiting_approval" | "retrying" | "completed" | "failed", { current_step: step.kind, tool: step.tool ?? null });
+        await updateTaskLedger("agent-loop", persistedStatus === "waiting_approval" ? "running" : persistedStatus as "running" | "completed" | "failed", { kind: step.kind, tool: step.tool ?? null });
       },
     });
 
@@ -1798,6 +1813,12 @@ async function handleRequest(req: Request): Promise<Response> {
       taskUpdates.push({ task: summarizerTask, status: summarizerCandidateUsed ? "completed" : "failed" });
     }
     content = applyFinalOutputLimit(content, maxOutputChars).content;
+    const agentWorkspaceStatus = loopResult.status === "needs_confirmation" ? "waiting_approval" : loopResult.status === "completed" ? "completed" : "failed";
+    await updateWorkspaceStep("agent-loop", agentWorkspaceStatus === "waiting_approval" ? "waiting_approval" : agentWorkspaceStatus, { result: { status: loopResult.status, characters: content.length } });
+    await updateTaskLedger("agent-loop", agentWorkspaceStatus === "completed" ? "completed" : "failed", { status: loopResult.status, characters: content.length });
+    await updateWorkspaceStep("final", agentWorkspaceStatus === "completed" ? "completed" : agentWorkspaceStatus, { result: { status: loopResult.status, characters: content.length } });
+    await updateTaskLedger("final", agentWorkspaceStatus === "completed" ? "completed" : "failed", { status: loopResult.status, characters: content.length });
+    await updateWorkspace(agentWorkspaceStatus, { status: loopResult.status, characters: content.length });
     const plannerSelected = plannerCandidatesUsed.at(-1) ?? null;
     const selected = summarizerCandidateUsed ?? plannerSelected;
     const billingCandidate: Candidate | null = selected
