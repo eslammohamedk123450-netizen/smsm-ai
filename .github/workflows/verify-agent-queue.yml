@@ -1,0 +1,70 @@
+name: Verify Agent task runtime
+
+on:
+  pull_request:
+    paths:
+      - "apps/mobile/**"
+      - "supabase/functions/ai-router/**"
+      - "supabase/functions/brain-router/**"
+      - "supabase/functions/agent-task-worker/**"
+      - "supabase/functions/_shared/agent_task_queue.ts"
+      - "supabase/migrations/**"
+      - ".github/workflows/verify-agent-queue.yml"
+  push:
+    branches: [release/v1, feat/agent-worker-brain-queue]
+    paths:
+      - "apps/mobile/**"
+      - "supabase/functions/ai-router/**"
+      - "supabase/functions/brain-router/**"
+      - "supabase/functions/agent-task-worker/**"
+      - "supabase/functions/_shared/agent_task_queue.ts"
+      - "supabase/migrations/**"
+      - ".github/workflows/verify-agent-queue.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-agent-runtime-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mobile-typecheck:
+    name: Expo TypeScript typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Typecheck mobile application
+        run: npm run typecheck
+
+  edge-function-typecheck:
+    name: Deno Edge Function typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Typecheck Agent and Brain runtime
+        run: |
+          deno check \
+            supabase/functions/agent-task-worker/index.ts \
+            supabase/functions/brain-router/index.ts \
+            supabase/functions/ai-router/index.ts
