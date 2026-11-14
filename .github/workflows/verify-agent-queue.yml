@@ -62,9 +62,12 @@ jobs:
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
+      - name: Run Agent orchestration and tool-registry tests
+        run: deno test supabase/functions/ai-router/agent/orchestrator.test.ts
       - name: Typecheck Agent and Brain runtime
         run: |
           deno check \
             supabase/functions/agent-task-worker/index.ts \
             supabase/functions/brain-router/index.ts \
-            supabase/functions/ai-router/index.ts
+            supabase/functions/ai-router/index.ts \
+            supabase/functions/ai-router/agent/orchestrator.test.ts
