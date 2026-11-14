@@ -1,4 +1,4 @@
-import { composioToolCatalogParams, connectorSearchQuery, detectComposioToolkitRequest, hasExplicitComposioExecutionSuccess, hasVerifiableComposioReadResult, isComposioToolAllowed, isGmailTaglessToolAllowlisted, isMultiToolkitComposioRequest } from "./composio.ts";
+import { composioToolCatalogParams, connectorSearchQuery, detectComposioToolkitRequest, detectComposioToolkitRequestFromConversation, hasExplicitComposioExecutionSuccess, hasVerifiableComposioReadResult, isComposioToolAllowed, isGmailTaglessToolAllowlisted, isMultiToolkitComposioRequest } from "./composio.ts";
 
 Deno.test("allows only the exact Gmail fallback tool names without Composio tags", () => {
   if (!isGmailTaglessToolAllowlisted("GMAIL_GET_MESSAGE", "read")) throw new Error("GMAIL_GET_MESSAGE should be allowed as a tagless read");
@@ -25,7 +25,9 @@ Deno.test("requests GMAIL_FETCH_EMAILS directly from the Composio catalog", () =
   const gmail = composioToolCatalogParams("gmail", "Tell me the latest email from Mim");
   if (gmail.tool_slugs !== "GMAIL_FETCH_EMAILS") throw new Error(`Expected direct Gmail slug lookup, got ${JSON.stringify(gmail)}`);
   if (gmail.query !== undefined) throw new Error("Gmail catalog lookup must not depend on a free-text query");
-  if (gmail.limit !== "1") throw new Error("Direct Gmail lookup should request only the named action");
+  if (gmail.limit !== "1") throw new Error("A singular Gmail lookup should request one result");
+  const many = composioToolCatalogParams("gmail", "هات آخر 10 رسائل فاشلة");
+  if (many.limit !== "10" || !many.query?.includes("up to 10")) throw new Error(`Expected ten Gmail results, got ${JSON.stringify(many)}`);
 
   const drive = composioToolCatalogParams("googledrive", "Find the latest file");
   if (drive.tool_slugs !== undefined || !drive.query?.includes("googledrive")) {
@@ -65,6 +67,11 @@ Deno.test("rejects one action that targets multiple connected-app toolkits", () 
   const text = "Find an email in Gmail and create an issue on GitHub";
   if (!isMultiToolkitComposioRequest(text)) throw new Error("Expected a multi-toolkit request");
   if (detectComposioToolkitRequest(text) !== null) throw new Error("A multi-toolkit request must not dispatch to one connector");
+});
+
+Deno.test("inherits Gmail for a follow-up that says use the same tool", () => {
+  const request = detectComposioToolkitRequestFromConversation("استخدم نفس الأداة وهات آخر 5 رسائل", ["شوف آخر رسالة على Gmail"]);
+  if (request?.toolkit !== "gmail" || request.intent !== "read") throw new Error(`Expected contextual Gmail read, got ${JSON.stringify(request)}`);
 });
 
 Deno.test("requires an explicit successful tool result, not only an HTTP-shaped response", () => {

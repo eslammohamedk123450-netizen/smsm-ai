@@ -1,4 +1,4 @@
-export type ModelCapability = "chat" | "vision" | "pdf" | "word" | "video";
+export type ModelCapability = "chat" | "vision" | "pdf" | "word" | "video" | "gmail" | "google_drive" | "github";
 
 export interface ModelCapabilities {
   chat: boolean;
@@ -6,6 +6,9 @@ export interface ModelCapabilities {
   pdf: boolean;
   word: boolean;
   video: boolean;
+  gmail: boolean;
+  google_drive: boolean;
+  github: boolean;
 }
 
 const DEFAULT_CAPABILITIES: ModelCapabilities = {
@@ -14,6 +17,9 @@ const DEFAULT_CAPABILITIES: ModelCapabilities = {
   pdf: false,
   word: false,
   video: false,
+  gmail: false,
+  google_drive: false,
+  github: false,
 };
 
 export function parseModelCapabilities(value: unknown): ModelCapabilities {
@@ -34,6 +40,9 @@ export function parseModelCapabilities(value: unknown): ModelCapabilities {
     pdf: parsed.pdf === true,
     word: parsed.word === true,
     video: parsed.video === true,
+    gmail: parsed.gmail === true,
+    google_drive: parsed.google_drive === true,
+    github: parsed.github === true,
   };
 }
 

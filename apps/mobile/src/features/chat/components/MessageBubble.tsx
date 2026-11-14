@@ -100,6 +100,7 @@ export function MessageBubble({
   const { show } = useToast();
   const [copied, setCopied] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
   const [draft, setDraft] = useState(content);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -120,6 +121,20 @@ export function MessageBubble({
       }
     } catch {
       show("تعذّر النسخ", "error");
+    }
+  };
+
+  const saveEdit = async () => {
+    const trimmed = draft.trim();
+    if (!trimmed || !onEditSave || savingEdit) return;
+    setSavingEdit(true);
+    try {
+      await onEditSave(trimmed);
+      setEditing(false);
+    } catch (cause) {
+      show(cause instanceof Error ? cause.message : "تعذّر حفظ تعديل الرسالة. حاول مرة أخرى.", "error");
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -175,8 +190,8 @@ export function MessageBubble({
                     accessibilityLabel="تعديل الرسالة"
                   />
                   <View style={styles.editButtons}>
-                    <Pressable style={styles.cancelEditButton} onPress={() => { setDraft(content); setEditing(false); }} accessibilityRole="button"><Text style={styles.cancelEditText}>إلغاء</Text></Pressable>
-                    <Pressable style={styles.saveEditButton} onPress={async () => { if (!draft.trim() || !onEditSave) return; await onEditSave(draft); setEditing(false); }} accessibilityRole="button"><Text style={styles.saveEditText}>حفظ</Text></Pressable>
+                    <Pressable disabled={savingEdit} style={styles.cancelEditButton} onPress={() => { setDraft(content); setEditing(false); }} accessibilityRole="button"><Text style={styles.cancelEditText}>إلغاء</Text></Pressable>
+                    <Pressable disabled={savingEdit} style={styles.saveEditButton} onPress={() => void saveEdit()} accessibilityRole="button"><Text style={styles.saveEditText}>{savingEdit ? "جارٍ الحفظ…" : "حفظ"}</Text></Pressable>
                   </View>
                 </>
               ) : content.trim() ? <View style={styles.paragraph}>{renderContent(content)}</View> : null}
