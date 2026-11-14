@@ -32,18 +32,13 @@ function corsHeadersFor(req: Request): Record<string, string> {
   const requestOrigin = req.headers.get("origin")?.trim() ?? "";
   const trustedPreviewOrigin = /^https:\/\/[a-z0-9-]+\.manus\.computer$/i.test(requestOrigin)
     || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(requestOrigin);
-  const origin = configuredCorsOrigin || (trustedPreviewOrigin ? requestOrigin : "https://8081-iaoy3lkpkvsmck8vuiukc-5cd4efc3.sg2.manus.computer");
+  const origin = configuredCorsOrigin || (trustedPreviewOrigin ? requestOrigin : "");
   return {
     ...(origin ? { "Access-Control-Allow-Origin": origin, "Vary": "Origin" } : {}),
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, cache-control",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
   };
 }
-const corsHeaders = {
-  ...(configuredCorsOrigin ? { "Access-Control-Allow-Origin": configuredCorsOrigin, "Vary": "Origin" } : { "Access-Control-Allow-Origin": "https://8081-iaoy3lkpkvsmck8vuiukc-5cd4efc3.sg2.manus.computer", "Vary": "Origin" }),
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, cache-control",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
 const activeAiClaims = new WeakMap<Request, { supabase: any; requestId: string; userId: string }>();
 
 type ChatRole = "system" | "user" | "assistant";
@@ -452,7 +447,7 @@ async function persistAssistant(
 }
 
 async function handleRequest(req: Request): Promise<Response> {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeadersFor(req) });
   if (req.method !== "POST") return jsonResponse({ error: "Method not allowed; use POST." }, 405);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -1446,6 +1441,7 @@ async function handleRequest(req: Request): Promise<Response> {
     let connectorReadCompleted = false;
     let connectorWriteCompleted = false;
     const agentTools: AgentTool[] = [
+      { name: "connected_app.status", description: "التحقق الفوري من حالة الاتصال الحالية بـ Gmail وGoogle Drive وGitHub.", effect: "read", available: true },
       { name: "connected_app.read", description: "قراءة معلومات من موصل مستخدم واحد نشط عبر إجراء آمن وموسوم.", effect: "read", available: !multiConnectorRequest && connectorRequest?.intent === "read" },
       { name: "connected_app.read_multiple", description: "قراءة فقط من الخدمات التي ذكرها المستخدم صراحةً؛ لا تنفذ إرسالًا أو تعديلًا.", effect: "read", available: !multiConnectorRequest && Boolean(requestedMultiReadToolkits) },
       { name: "connected_app.write", description: "إرسال أو إنشاء أو تعديل شيء في موصل واحد؛ يتطلب موافقة المستخدم على نص العملية نفسه.", effect: "write", available: !multiConnectorRequest && connectorRequest?.intent === "write" },
@@ -1551,6 +1547,29 @@ async function handleRequest(req: Request): Promise<Response> {
     };
 
     const execute = async (tool: string, input: Record<string, unknown>): Promise<unknown> => {
+      if (tool === "connected_app.status") {
+        try {
+          const apiKey = await readComposioApiKey(supabase);
+          const composioStatus = await getComposioConnectionStatus(apiKey, user.id);
+          const gmail = composioStatus.gmail;
+          return {
+            status: "executed",
+            gmail: {
+              ...gmail,
+              source: gmail.connected ? "composio" : "none",
+              composio: gmail,
+            },
+            googledrive: composioStatus.googledrive,
+            github: composioStatus.github,
+          };
+        } catch {
+          return {
+            status: "executed",
+            gmail: { connected: false, source: "none", email: null },
+            composio_configured: false,
+          };
+        }
+      }
       if (tool === "connected_app.read_multiple") {
         const requested = requestedMultiReadToolkits ?? [];
         const inputToolkits = Array.isArray(input.toolkits) ? input.toolkits.map(parseComposioToolkit) : [];
@@ -1665,6 +1684,7 @@ async function handleRequest(req: Request): Promise<Response> {
       onStep(step: AgentLoopStep) {
         const labels: Record<string, string> = {
           planning: "تحليل الطلب واختيار الخطوة",
+          "connected_app.status": "التحقق من حالة الاتصال بالتطبيقات",
           "connected_app.read": `قراءة ${connectorRequest?.toolkit ?? "التطبيق المتصل"}`,
           "connected_app.read_multiple": "قراءة الخدمات المتصلة المطلوبة",
           "connected_app.write": `تنفيذ الإجراء الموافق عليه في ${connectorRequest?.toolkit ?? "التطبيق المتصل"}`,
@@ -1943,7 +1963,7 @@ async function handleRequest(req: Request): Promise<Response> {
     });
     return new Response(stream, {
       status: 200,
-      headers: { ...corsHeaders, "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", "Connection": "keep-alive" },
+      headers: { ...corsHeadersFor(req), "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", "Connection": "keep-alive" },
     });
   }
 
@@ -2004,6 +2024,7 @@ import {
   buildConnectorAnalysisContext,
   detectComposioMultiReadRequest,
   detectComposioToolkitRequestFromConversation,
+  getComposioConnectionStatus,
   hasVerifiableComposioReadResult,
   isMultiToolkitComposioRequest,
   parseComposioToolkit,

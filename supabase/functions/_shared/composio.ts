@@ -266,12 +266,36 @@ export function publicAccountSummary(account: JsonRecord): JsonRecord {
   };
 }
 
+export function isComposioAccountActive(account: JsonRecord): boolean {
+  const status = typeof account.status === "string" ? account.status.toUpperCase() : "";
+  return status === "ACTIVE" && account.is_disabled !== true;
+}
+
+export async function getComposioConnectionStatus(
+  apiKey: string,
+  userId: string,
+): Promise<Record<ComposioToolkitKey, { connected: boolean; accountId: string | null; status: string | null }>> {
+  const accounts = await listComposioAccounts(apiKey, userId);
+  const result = {} as Record<ComposioToolkitKey, { connected: boolean; accountId: string | null; status: string | null }>;
+  for (const key of TOOLKIT_KEYS) {
+    const match = accounts
+      .filter((acc) => String(asRecord(acc.toolkit).slug ?? acc.appName ?? "").toLowerCase() === COMPOSIO_TOOLKITS[key].slug)
+      .sort((a, b) => String(b.updated_at ?? "").localeCompare(String(a.updated_at ?? "")))[0] ?? null;
+    result[key] = {
+      connected: match ? isComposioAccountActive(match) : false,
+      accountId: match && typeof match.id === "string" ? match.id : null,
+      status: match && typeof match.status === "string" ? match.status : null,
+    };
+  }
+  return result;
+}
+
 export function detectComposioToolkitRequest(text: string): { toolkit: ComposioToolkitKey; intent: "read" | "write" } | null {
   const value = text.toLocaleLowerCase();
-  const hasReadRequest = /\b(show|search|find|list|get|read|summari[sz]e|check|review|fetch|open|look up|what|which|who|when|latest|recent|name|size|files?)\b|ابحث|دور|هات|جيب|اعرض|اعرضلي|أظهر|اظهر|اقرأ|لخص|لخّص|راجع|افحص|تحقق|وريني|شوف|استخرج|آخر|اخر|وصلني|وصلتني|وصل|رسالة|رسائل|محتوى|مين|اسم|حجم|أسماء|اسماء|عدد|ملفات|موجودة|الموجودة/iu.test(value);
+  const hasReadRequest = /\b(show|search|find|list|get|read|summari[sz]e|check|review|fetch|open|look up|what|which|who|when|latest|recent|name|size|files?|connected|status|linked)\b|ابحث|دور|هات|جيب|اعرض|اعرضلي|أظهر|اظهر|اقرأ|لخص|لخّص|راجع|افحص|تحقق|وريني|شوف|استخرج|آخر|اخر|وصلني|وصلتني|وصل|رسالة|رسائل|محتوى|مين|اسم|حجم|أسماء|اسماء|عدد|ملفات|موجودة|الموجودة|متصل|مرتبط|مربوط|حالة/iu.test(value);
   const hasWriteRequest = /\b(send|forward|reply|create|update|edit|delete|remove|write|commit|push|merge|star|unstar|invite|upload|share|move|rename|archive|label|schedule|copy|close|reopen|comment|fork|publish)\b|ابعت|ابعث|أرسل|ارسل|اكتب|انشئ|أنشئ|عدّل|عدل|احذف|امسح|ارفع|شارك|غيّر|غير|انقل|ادمج|حوّل|حول|أرشف|ارشف|انسخ|صنّف|صنف|انشر|اعمل.*(?:issue|رسالة|ملف)|(?:رسالة|بريد|إيميل).*(?:إلى|لـ|لشخص)/iu.test(value);
   const toolkitMentions = [
-    /\b(gmail|google mail|inbox|email|e-mail)\b|جيميل|جى ميل|بريدي|البريد|إيميلي|ايميلي|إيميل|ايميل|الايميل|الإيميل|رسائلي/iu.test(value) ? "gmail" : null,
+    /\b(gmail|google mail|inbox|email|e-mail)\b|جيميل|جى ميل|جميل|بريدي|البريد|إيميلي|ايميلي|إيميل|ايميل|الايميل|الإيميل|رسائلي/iu.test(value) ? "gmail" : null,
     /\b(google drive|googledrive|drive|my drive)\b|جوجل درايف|غوغل درايف|درايف|ملفاتي على جوجل/iu.test(value) ? "googledrive" : null,
     /\b(github|git hub|repository|repo|pull request|issue)\b|جيت هاب|مستودع(?:ي|ات)?|ريبو|طلبات السحب/iu.test(value) ? "github" : null,
   ].filter((toolkit): toolkit is ComposioToolkitKey => toolkit !== null);
@@ -282,11 +306,11 @@ export function detectComposioToolkitRequest(text: string): { toolkit: ComposioT
 
 export function detectComposioMultiReadRequest(text: string): ComposioToolkitKey[] | null {
   const value = text.toLocaleLowerCase();
-  const hasReadRequest = /\b(show|search|find|list|get|read|summari[sz]e|check|review|fetch|open|look up|what|which|who|when|latest|recent|name|size|files?)\b|ابحث|دور|هات|جيب|اعرض|اعرضلي|أظهر|اظهر|اقرأ|لخص|لخّص|راجع|افحص|تحقق|وريني|شوف|استخرج|آخر|اخر|وصلني|وصلتني|وصل|رسالة|رسائل|محتوى|مين|اسم|حجم|أسماء|اسماء|عدد|ملفات|موجودة|الموجودة/iu.test(value);
+  const hasReadRequest = /\b(show|search|find|list|get|read|summari[sz]e|check|review|fetch|open|look up|what|which|who|when|latest|recent|name|size|files?|connected|status|linked)\b|ابحث|دور|هات|جيب|اعرض|اعرضلي|أظهر|اظهر|اقرأ|لخص|لخّص|راجع|افحص|تحقق|وريني|شوف|استخرج|آخر|اخر|وصلني|وصلتني|وصل|رسالة|رسائل|محتوى|مين|اسم|حجم|أسماء|اسماء|عدد|ملفات|موجودة|الموجودة|متصل|مرتبط|مربوط|حالة/iu.test(value);
   const hasWriteRequest = /\b(send|forward|reply|create|update|edit|delete|remove|write|commit|push|merge|star|unstar|invite|upload|share|move|rename|archive|label|schedule|copy|close|reopen|comment|fork|publish)\b|ابعت|ابعث|أرسل|ارسل|اكتب|انشئ|أنشئ|عدّل|عدل|احذف|امسح|ارفع|شارك|غيّر|غير|انقل|ادمج|حوّل|حول|أرشف|ارشف|انسخ|صنّف|صنف|انشر|اعمل.*(?:issue|رسالة|ملف)|(?:رسالة|بريد|إيميل).*(?:إلى|لـ|لشخص)/iu.test(value);
   if (!hasReadRequest || hasWriteRequest) return null;
   const toolkits: ComposioToolkitKey[] = [];
-  if (/\b(gmail|google mail|inbox|email|e-mail)\b|جيميل|جى ميل|بريدي|البريد|إيميلي|ايميلي|إيميل|ايميل|الايميل|الإيميل|رسائلي/iu.test(value)) toolkits.push("gmail");
+  if (/\b(gmail|google mail|inbox|email|e-mail)\b|جيميل|جى ميل|جميل|بريدي|البريد|إيميلي|ايميلي|إيميل|ايميل|الايميل|الإيميل|رسائلي/iu.test(value)) toolkits.push("gmail");
   if (/\b(google drive|googledrive|drive|my drive)\b|جوجل درايف|غوغل درايف|درايف|ملفاتي على جوجل/iu.test(value)) toolkits.push("googledrive");
   if (/\b(github|git hub|repository|repo|pull request|issue)\b|جيت هاب|مستودع(?:ي|ات)?|ريبو|طلبات السحب/iu.test(value)) toolkits.push("github");
   return toolkits.length > 1 ? toolkits : null;
@@ -313,7 +337,7 @@ export function isMultiToolkitComposioRequest(text: string): boolean {
   const hasAction = /\b(show|search|find|list|get|read|summari[sz]e|check|review|fetch|open|look up|send|forward|reply|create|update|edit|delete|remove|write|commit|push|merge|star|unstar|invite|upload|share|move|rename|archive|label|schedule|copy|close|reopen|comment|fork|publish)\b|ابحث|دور|هات|جيب|اعرض|اعرضلي|أظهر|اظهر|اقرأ|لخص|لخّص|راجع|افحص|تحقق|وريني|شوف|استخرج|آخر|اخر|ابعت|ابعث|أرسل|ارسل|اكتب|انشئ|أنشئ|عدّل|عدل|احذف|امسح|ارفع|شارك|غيّر|غير|انقل|ادمج|حوّل|حول|أرشف|ارشف|انسخ|صنّف|صنف|انشر/iu.test(value);
   if (!hasAction) return false;
   const mentions = [
-    /\b(gmail|google mail|inbox|email|e-mail)\b|جيميل|جى ميل|بريدي|البريد|إيميلي|ايميلي|إيميل|ايميل|الايميل|الإيميل|رسائلي/iu.test(value),
+    /\b(gmail|google mail|inbox|email|e-mail)\b|جيميل|جى ميل|جميل|بريدي|البريد|إيميلي|ايميلي|إيميل|ايميل|الايميل|الإيميل|رسائلي/iu.test(value),
     /\b(google drive|googledrive|drive|my drive)\b|جوجل درايف|غوغل درايف|درايف|ملفاتي على جوجل/iu.test(value),
     /\b(github|git hub|repository|repo|pull request|issue)\b|جيت هاب|مستودع(?:ي|ات)?|ريبو|طلبات السحب/iu.test(value),
   ].filter(Boolean).length;
@@ -369,8 +393,8 @@ function safeWriteSlug(toolkit: ComposioToolkitKey, slug: unknown): slug is stri
 export function connectorSearchQuery(toolkit: ComposioToolkitKey, request: string): string {
   const value = request.toLocaleLowerCase();
   if (toolkit === "gmail") {
-    const sent = /sent|مبعوث|مبعت|مُرسَل|أرسلت|ارسلت|المُرسلة|المرسلة/iu.test(value);
-    const received = /received|inbox|واردة|الواردة|وصلت|استلمت/iu.test(value);
+    const sent = /sent|أرسلت|ارسلت|المُرسلة|المرسلة|بعتها/iu.test(value);
+    const received = /received|inbox|واردة|الواردة|وصلت|استلمت|مبعوتة\s*من\s*مين/iu.test(value);
     const latest = /latest|newest|recent|آخر|اخر|الأخيرة|الاخيرة/iu.test(value);
     const task = request.replace(/\s+/g, " ").trim().slice(0, 300);
     const count = requestedGmailResultLimit(request);
@@ -409,8 +433,8 @@ export async function runComposioReadOnlyTask(
   naturalLanguageTask: string,
 ): Promise<{ toolSlug: string; result: unknown } | { unavailable: "not_connected" | "no_read_tool" }> {
   const accounts = await listComposioAccounts(apiKey, userId, toolkit);
-  const connected = accounts.some((account) => account.status === "ACTIVE" && account.is_disabled !== true);
-  if (!connected) return { unavailable: "not_connected" };
+  const activeAccount = accounts.find((account) => isComposioAccountActive(account));
+  if (!activeAccount) return { unavailable: "not_connected" };
 
   const query = new URLSearchParams(composioToolCatalogParams(toolkit, naturalLanguageTask));
   const catalog = await composioRequest(apiKey, `/v3.1/tools?${query.toString()}`);
@@ -420,9 +444,20 @@ export async function runComposioReadOnlyTask(
     ?? tools.find((item) => isComposioToolAllowed(toolkit, item.slug, "read"));
   if (!selected || typeof selected.slug !== "string") return { unavailable: "no_read_tool" };
 
+  const connectedAccountId = typeof activeAccount.id === "string" ? activeAccount.id : undefined;
+  const gmailArgs = toolkit === "gmail" && selected.slug.toUpperCase() === "GMAIL_FETCH_EMAILS"
+    ? { max_results: requestedGmailResultLimit(naturalLanguageTask) }
+    : undefined;
+
   const executed = await composioRequest(apiKey, `/v3.1/tools/execute/${encodeURIComponent(selected.slug)}`, {
     method: "POST",
-    body: JSON.stringify({ user_id: userId, text: `${connectorSearchQuery(toolkit, naturalLanguageTask)}. Use the native mailbox search filter where supported and return sender, subject, date, and body content.`, toolkit_versions: "latest" }),
+    body: JSON.stringify({
+      user_id: userId,
+      ...(connectedAccountId ? { connected_account_id: connectedAccountId } : {}),
+      ...(gmailArgs ? { arguments: gmailArgs } : {}),
+      text: `${connectorSearchQuery(toolkit, naturalLanguageTask)}. Use the native mailbox search filter where supported and return sender, subject, date, and body content.`,
+      toolkit_versions: "latest",
+    }),
   });
   if (!hasExplicitComposioExecutionSuccess(executed)) throw new Error("The connected-app read response did not confirm successful tool execution.");
   return { toolSlug: selected.slug, result: shapeComposioReadResult(toolkit, naturalLanguageTask, executed.data ?? executed) };
@@ -435,7 +470,7 @@ export async function runComposioWriteTask(
   naturalLanguageTask: string,
 ): Promise<{ toolSlug: string; result: unknown } | { unavailable: "not_connected" | "no_write_tool" | "ambiguous_account" }> {
   const accounts = await listComposioAccounts(apiKey, userId, toolkit);
-  const activeAccounts = accounts.filter((account) => account.status === "ACTIVE" && account.is_disabled !== true);
+  const activeAccounts = accounts.filter((account) => isComposioAccountActive(account));
   if (activeAccounts.length === 0) return { unavailable: "not_connected" };
   if (activeAccounts.length > 1) return { unavailable: "ambiguous_account" };
 
@@ -451,9 +486,16 @@ export async function runComposioWriteTask(
     && (hasWriteTag(item) || (toolkit === "gmail" && isGmailTaglessToolAllowlisted(item.slug, "write"))));
   if (!selected || typeof selected.slug !== "string") return { unavailable: "no_write_tool" };
 
+  const connectedAccountId = typeof activeAccounts[0].id === "string" ? activeAccounts[0].id : undefined;
+
   const executed = await composioRequest(apiKey, `/v3.1/tools/execute/${encodeURIComponent(selected.slug)}`, {
     method: "POST",
-    body: JSON.stringify({ user_id: userId, text: naturalLanguageTask.slice(0, 1500), ...(typeof selected.version === "string" ? { version: selected.version } : {}) }),
+    body: JSON.stringify({
+      user_id: userId,
+      ...(connectedAccountId ? { connected_account_id: connectedAccountId } : {}),
+      text: naturalLanguageTask.slice(0, 1500),
+      ...(typeof selected.version === "string" ? { version: selected.version } : {}),
+    }),
   });
   if (!hasExplicitComposioExecutionSuccess(executed)) throw new Error("The connected-app write response did not confirm successful tool execution.");
   return { toolSlug: selected.slug, result: executed.data ?? executed };
