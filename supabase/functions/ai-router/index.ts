@@ -476,13 +476,24 @@ async function handleRequest(req: Request): Promise<Response> {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl || !serviceRoleKey) return jsonResponse({ error: "Server database configuration is incomplete." }, 500);
 
-  const userJwt = req.headers.get("Authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
-  if (!userJwt) return jsonResponse({ error: "A signed-in user's Bearer access token is required." }, 401);
   const supabase = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
-
-  const { data: authData, error: authError } = await supabase.auth.getUser(userJwt);
-  if (authError || !authData.user) return jsonResponse({ error: "Invalid or expired user access token." }, 401);
-  const user = authData.user;
+  let body: Record<string, unknown>;
+  try { body = asRecord(await req.json()); }
+  catch { return jsonResponse({ error: "Request body must be valid JSON." }, 400); }
+  const internalBrainCall = req.headers.get("x-suly-internal-brain-key") === serviceRoleKey
+    && normalizeFeatureKey(body.feature_key) === "brain_system";
+  let user: { id: string };
+  if (internalBrainCall) {
+    const internalUserId = typeof body.user_id === "string" ? body.user_id : "";
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(internalUserId)) return jsonResponse({ error: "Invalid internal Brain user context." }, 400);
+    user = { id: internalUserId };
+  } else {
+    const userJwt = req.headers.get("Authorization")?.match(/^Bearer\\s+(.+)$/i)?.[1];
+    if (!userJwt) return jsonResponse({ error: "A signed-in user's Bearer access token is required." }, 401);
+    const { data: authData, error: authError } = await supabase.auth.getUser(userJwt);
+    if (authError || !authData.user) return jsonResponse({ error: "Invalid or expired user access token." }, 401);
+    user = { id: authData.user.id };
+  }
   const { data: maintenanceSetting, error: maintenanceError } = await supabase
     .from("system_settings").select("value").eq("key", "maintenance_mode").maybeSingle();
   if (maintenanceError) {
@@ -517,12 +528,6 @@ async function handleRequest(req: Request): Promise<Response> {
   // 402 when their balance is insufficient. The daily rate-limit RPC remains
   // available for future media-generation endpoints.
 
-  let body: Record<string, unknown>;
-  try { body = asRecord(await req.json()); }
-  catch { return jsonResponse({ error: "Request body must be valid JSON." }, 400); }
-
-  const internalBrainCall = req.headers.get("x-suly-internal-brain-key") === serviceRoleKey
-    && normalizeFeatureKey(body.feature_key) === "brain_system";
   const conversationId = typeof body.conversation_id === "string" ? body.conversation_id : null;
   const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   const billingTaskId = typeof body.request_id === "string" ? body.request_id : crypto.randomUUID();
