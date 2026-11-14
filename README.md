@@ -1,4 +1,4 @@
-# SMSM AI
+# suly AI
 
 This project was originally built with Flutter/Dart and has been converted to Expo (React Native + TypeScript + Expo Router) for a unified codebase across Android, iOS, and Web.
 
