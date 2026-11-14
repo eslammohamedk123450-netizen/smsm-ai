@@ -64,6 +64,8 @@ async function processOne(url: string, serviceKey: string, userId: string): Prom
         response: result.response,
         complexity: result.complexity,
         steps_completed: result.steps_completed,
+        estimated_steps: result.estimated_steps,
+        capabilities: result.capabilities,
       },
     });
   } finally {
