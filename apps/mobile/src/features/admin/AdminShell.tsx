@@ -1,6 +1,6 @@
 import { Slot, usePathname, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Modal, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { supabase } from "../../lib/supabase/client";
 import { colors } from "../../theme/colors";
@@ -67,6 +67,7 @@ export function AdminShell() {
   const [checking, setChecking] = useState(false);
   const [adminName, setAdminName] = useState("A");
   const [openGroups, setOpenGroups] = useState<string[]>(DEFAULT_OPEN_GROUPS);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -98,17 +99,17 @@ export function AdminShell() {
     setOpenGroups((current) => current.includes(key) ? current.filter((item) => item !== key) : [...current, key]);
   };
 
-  const renderNavItem = (item: NavItem, compact = false) => {
+  const renderNavItem = (item: NavItem) => {
     const active = isActive(item.path);
-    return <Pressable key={item.path} accessibilityRole="button" accessibilityState={{ selected: active }} onPress={() => router.push(item.path)} style={[compact ? styles.tabItem : styles.navItem, active && styles.navItemActive]}>
-      <View style={compact ? styles.tabContent : styles.navContent}>
-        <Text style={[compact ? styles.tabIcon : styles.navIcon, active && styles.navIconActive]}>{item.icon}</Text>
-        <Text style={[compact ? styles.tabLabel : styles.navLabel, active && styles.navLabelActive]}>{item.label}</Text>
+    return <Pressable key={item.path} accessibilityRole="button" accessibilityState={{ selected: active }} onPress={() => router.push(item.path)} style={[styles.navItem, active && styles.navItemActive]}>
+      <View style={styles.navContent}>
+        <Text style={[styles.navIcon, active && styles.navIconActive]}>{item.icon}</Text>
+        <Text style={[styles.navLabel, active && styles.navLabelActive]}>{item.label}</Text>
       </View>
     </Pressable>;
   };
 
-  const navItems = useMemo(() => NAV_GROUPS.flatMap((group) => group.items.map((item) => renderNavItem(item, true))), [pathname, router, wide]);
+  const activeItem = NAV_GROUPS.flatMap((group) => group.items).find((item) => isActive(item.path));
 
   const submitSearch = () => {
     const value = query.trim();
@@ -147,7 +148,18 @@ export function AdminShell() {
           <View style={styles.adminAvatar}><Text style={styles.avatarText}>{adminName}</Text></View>
         </View>
       </View>
-      {!wide ? <><View style={styles.mobileTitleRow}><Text style={styles.mobileTitle}>مركز تحكم الأدمن</Text><View style={styles.healthPill}><View style={[styles.healthDot, systemOk === false && styles.healthDotBad, systemOk === null && styles.healthDotUnknown]} /><Text style={styles.healthText}>{systemOk === null ? "غير متاح" : systemOk ? "سليم" : "مراجعة"}</Text></View></View><ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabs} contentContainerStyle={styles.tabsContent}>{navItems}</ScrollView></> : null}
+      {!wide ? <>
+        <View style={styles.mobileTitleRow}>
+          <View style={styles.mobileTitleCopy}><Text style={styles.mobileTitle}>مركز تحكم الأدمن</Text><Text style={styles.mobileSubtitle}>{activeItem?.label ?? "نظرة عامة"}</Text></View>
+          <View style={styles.mobileTitleActions}><View style={styles.healthPill}><View style={[styles.healthDot, systemOk === false && styles.healthDotBad, systemOk === null && styles.healthDotUnknown]} /><Text style={styles.healthText}>{systemOk === null ? "غير متاح" : systemOk ? "سليم" : "مراجعة"}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="فتح قائمة الإدارة" onPress={() => setMobileMenuOpen(true)} style={styles.menuButton}><Text style={styles.menuButtonText}>☰</Text><Text style={styles.menuButtonLabel}>القائمة</Text></Pressable></View>
+        </View>
+        <Modal visible={mobileMenuOpen} transparent animationType="slide" onRequestClose={() => setMobileMenuOpen(false)}>
+          <View style={styles.modalBackdrop}><View style={styles.mobileMenuCard}>
+            <View style={styles.mobileMenuHeader}><View><Text style={styles.mobileMenuTitle}>مساحة الإدارة</Text><Text style={styles.mobileMenuHint}>اختر القسم أو الصفحة المطلوبة</Text></View><Pressable accessibilityRole="button" accessibilityLabel="إغلاق القائمة" onPress={() => setMobileMenuOpen(false)}><Text style={styles.modalCloseText}>×</Text></Pressable></View>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.mobileMenuContent}>{NAV_GROUPS.map((group) => <View key={group.key} style={styles.mobileGroup}><Text style={styles.mobileGroupLabel}>{group.label}</Text><Text style={styles.mobileGroupHint}>{group.hint}</Text>{group.items.map((item) => { const active = isActive(item.path); return <Pressable key={item.path} accessibilityRole="button" accessibilityState={{ selected: active }} onPress={() => { setMobileMenuOpen(false); router.push(item.path); }} style={[styles.mobileMenuItem, active && styles.mobileMenuItemActive]}><Text style={[styles.mobileMenuIcon, active && styles.mobileMenuTextActive]}>{item.icon}</Text><Text style={[styles.mobileMenuText, active && styles.mobileMenuTextActive]}>{item.label}</Text><Text style={styles.mobileMenuArrow}>‹</Text></Pressable>; })}</View>)}</ScrollView>
+          </View></View>
+        </Modal>
+      </> : null}
       <View style={styles.page}><Slot /></View>
     </View>
   </View>;
@@ -166,5 +178,5 @@ const styles = StyleSheet.create({
   main: { flex: 1, minWidth: 0 }, topbar: { minHeight: 62, borderBottomWidth: 1, borderBottomColor: colors.divider, backgroundColor: colors.surface, paddingHorizontal: 18, flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", gap: 14 },
   appLink: { flexDirection: "row-reverse", alignItems: "center", gap: 5, borderWidth: 1, borderColor: colors.primary, borderRadius: 9, paddingHorizontal: 10, paddingVertical: 7 }, appLinkIcon: { color: colors.primary, fontSize: 15 }, appLinkText: { color: colors.primary, fontSize: 12, fontWeight: "800" },
   searchBox: { flex: 1, maxWidth: 560, height: 38, borderRadius: 9, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.background, flexDirection: "row-reverse", alignItems: "center", paddingHorizontal: 10, gap: 8 }, searchGlyph: { color: colors.textMuted, fontSize: 20 }, searchInput: { flex: 1, minWidth: 0, color: colors.textPrimary, textAlign: "right", fontSize: 12, paddingVertical: 0 }, searchAction: { color: colors.primary, fontSize: 11, fontWeight: "700" }, topActions: { flexDirection: "row-reverse", alignItems: "center", gap: 10 }, healthPill: { flexDirection: "row-reverse", alignItems: "center", gap: 6, borderRadius: 20, borderWidth: 1, borderColor: colors.divider, paddingHorizontal: 9, paddingVertical: 6 }, healthDot: { width: 7, height: 7, borderRadius: 5, backgroundColor: colors.success }, healthDotBad: { backgroundColor: colors.error }, healthDotUnknown: { backgroundColor: colors.textMuted }, healthText: { color: colors.textSecondary, fontSize: 10 }, refreshButton: { width: 34, height: 34, borderRadius: 9, borderWidth: 1, borderColor: colors.divider, alignItems: "center", justifyContent: "center" }, refreshGlyph: { color: colors.textPrimary, fontSize: 18 }, adminAvatar: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.divider, alignItems: "center", justifyContent: "center" }, avatarText: { color: colors.primary, fontSize: 12, fontWeight: "800" },
-  page: { flex: 1, minHeight: 0 }, mobileTitleRow: { paddingHorizontal: 14, paddingTop: 8, paddingBottom: 2, flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center" }, mobileTitle: { color: colors.textPrimary, fontSize: 14, fontWeight: "800" }, tabs: { flexGrow: 0, borderBottomWidth: 1, borderBottomColor: colors.divider, backgroundColor: colors.surface }, tabsContent: { flexDirection: "row-reverse", gap: 6, paddingHorizontal: 10, paddingVertical: 8 }, tabItem: { paddingHorizontal: 9, paddingVertical: 7, borderRadius: 8, backgroundColor: colors.surfaceElevated }, tabContent: { flexDirection: "row-reverse", alignItems: "center", gap: 5 }, tabIcon: { color: colors.textMuted, fontSize: 12 }, tabLabel: { color: colors.textSecondary, fontSize: 10 },
+  page: { flex: 1, minHeight: 0 }, mobileTitleRow: { paddingHorizontal: 14, paddingTop: 10, paddingBottom: 8, flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center", gap: 10, borderBottomWidth: 1, borderBottomColor: colors.divider, backgroundColor: colors.surface }, mobileTitleCopy: { flex: 1, alignItems: "flex-end", gap: 2 }, mobileTitle: { color: colors.textPrimary, fontSize: 14, fontWeight: "800", textAlign: "right" }, mobileSubtitle: { color: colors.textMuted, fontSize: 10, textAlign: "right" }, mobileTitleActions: { flexDirection: "row-reverse", alignItems: "center", gap: 7 }, menuButton: { flexDirection: "row-reverse", alignItems: "center", gap: 5, borderWidth: 1, borderColor: colors.primary, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 7 }, menuButtonText: { color: colors.primary, fontSize: 15, fontWeight: "900" }, menuButtonLabel: { color: colors.primary, fontSize: 10, fontWeight: "800" }, modalBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.58)" }, mobileMenuCard: { maxHeight: "86%", borderTopLeftRadius: 18, borderTopRightRadius: 18, backgroundColor: colors.surface, paddingTop: 16, paddingHorizontal: 14, paddingBottom: 24 }, mobileMenuHeader: { flexDirection: "row-reverse", alignItems: "flex-start", justifyContent: "space-between", gap: 12, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.divider }, mobileMenuTitle: { color: colors.textPrimary, fontSize: 17, fontWeight: "900", textAlign: "right" }, mobileMenuHint: { color: colors.textMuted, fontSize: 10, textAlign: "right", marginTop: 3 }, modalCloseText: { color: colors.textSecondary, fontSize: 30, lineHeight: 30 }, mobileMenuContent: { paddingVertical: 12, gap: 16 }, mobileGroup: { gap: 5 }, mobileGroupLabel: { color: colors.primary, fontSize: 12, fontWeight: "900", textAlign: "right" }, mobileGroupHint: { color: colors.textMuted, fontSize: 9, textAlign: "right", marginBottom: 3 }, mobileMenuItem: { minHeight: 46, borderRadius: 10, paddingHorizontal: 12, flexDirection: "row-reverse", alignItems: "center", gap: 10, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.divider }, mobileMenuItemActive: { borderColor: colors.primary, backgroundColor: colors.surfaceElevated }, mobileMenuIcon: { minWidth: 22, color: colors.textMuted, fontSize: 15, textAlign: "center" }, mobileMenuText: { flex: 1, color: colors.textSecondary, fontSize: 12, textAlign: "right" }, mobileMenuTextActive: { color: colors.primary, fontWeight: "800" }, mobileMenuArrow: { color: colors.textMuted, fontSize: 18 },
 });
