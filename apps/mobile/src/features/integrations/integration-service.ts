@@ -21,6 +21,7 @@ export type ConnectorPreflight = {
 
 interface IntegrationResponse {
   error?: string;
+  error_code?: string;
   redirect_url?: string;
   service_ready?: boolean;
   toolkit?: ToolkitStatus["toolkit"];
@@ -39,16 +40,52 @@ const TOOLKIT_LABELS: Record<ToolkitStatus["toolkit"], string> = {
   github: "GitHub",
 };
 
+function friendlyIntegrationError(message: string, status?: number): string {
+  if (status === 401 || /authentication required|jwt|session/i.test(message)) {
+    return "انتهت جلسة الدخول. سجّل الدخول مجددًا ثم أعد المحاولة.";
+  }
+  if (/not configured|configuration is incomplete/i.test(message)) {
+    return "خدمة التطبيقات المرتبطة غير مهيأة على الخادم. أضف إعداد Composio ثم أعد المحاولة.";
+  }
+  if (/not active|not connected|no active/i.test(message)) {
+    return "الحساب غير نشط أو لم يعد مرتبطًا. حدّث الحالة أو أعد ربط التطبيق.";
+  }
+  if (/disabled/i.test(message)) {
+    return "الحساب مرتبط لكنه معطّل لدى مزود الخدمة. أعد تفعيل الحساب ثم حدّث الحالة.";
+  }
+  if (/HTTP 401|HTTP 403/i.test(message)) {
+    return "رفض مزود الخدمة الطلب. أعد ربط التطبيق لتجديد الصلاحيات.";
+  }
+  if (/HTTP 404/i.test(message)) {
+    return "لم يعثر مزود الخدمة على الحساب المرتبط. حدّث الحالة ثم أعد الربط.";
+  }
+  if (/HTTP 5\d\d|timed out|timeout|network|fetch/i.test(message)) {
+    return "تعذّر الوصول إلى خدمة التطبيقات المرتبطة حاليًا. حاول مرة أخرى لاحقًا.";
+  }
+  return message && !/connected-apps service could not complete/i.test(message)
+    ? message
+    : "تعذّر تنفيذ العملية في خدمة التطبيقات المرتبطة. حاول مرة أخرى لاحقًا.";
+}
+
 async function callIntegration(body: Record<string, unknown>): Promise<IntegrationResponse> {
   const { data, error } = await supabase.functions.invoke("composito-integration", { body });
+  let payload = (data ?? {}) as IntegrationResponse;
   if (error) {
-    const context = (error as { context?: { status?: number } }).context;
+    const context = (error as { context?: { status?: number; response?: Response } }).context;
+    if (!payload.error && context?.response) {
+      try {
+        const responseBody = await context.response.clone().json() as unknown;
+        if (responseBody && typeof responseBody === "object") payload = responseBody as IntegrationResponse;
+      } catch {
+        // Keep the status-based fallback below when the function returned no JSON.
+      }
+    }
     if (context?.status === 401) throw new Error("سجّل الدخول مجددًا لإدارة التطبيقات المرتبطة.");
-    if (typeof context?.status === "number" && context.status >= 500) throw new Error("تعذّر الوصول إلى خدمة التطبيقات المرتبطة. حاول لاحقًا.");
-    throw new Error("تعذّر تنفيذ العملية. تحقق من الاتصال وحاول مجددًا.");
+    if (payload.error) throw new Error(friendlyIntegrationError(payload.error, context?.status));
+    if (typeof context?.status === "number" && context.status >= 500) throw new Error("تعذّر الوصول إلى خدمة التطبيقات المرتبطة حاليًا. حاول لاحقًا.");
+    throw new Error(friendlyIntegrationError(error.message || "", context?.status));
   }
-  const payload = (data ?? {}) as IntegrationResponse;
-  if (payload.error) throw new Error("تعذّر تنفيذ العملية. تحقق من الاتصال وحاول مجددًا.");
+  if (payload.error) throw new Error(friendlyIntegrationError(payload.error));
   return payload;
 }
 

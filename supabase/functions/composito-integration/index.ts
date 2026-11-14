@@ -125,6 +125,10 @@ Deno.serve(async (req: Request) => {
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);
     console.error("composito-integration failed:", message);
-    return jsonResponse({ error: "The connected-apps service could not complete this request." }, 502);
+    // composio.ts deliberately never includes upstream response bodies, so its
+    // operational messages are safe to return and let the client distinguish
+    // configuration, account-state, and provider failures.
+    const safeMessage = message.length <= 240 ? message : "The connected-apps service could not complete this request.";
+    return jsonResponse({ error: safeMessage, error_code: "integration_operation_failed" }, 502);
   }
 });
