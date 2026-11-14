@@ -42,3 +42,6 @@ The worker uses Supabase Edge Runtime `waitUntil` for post-response execution an
 ## Tool registry hardening
 
 The Agent runtime now reads the `enabled` flags from `agent_tool_registry` on each request. The database can disable or enable only adapters that are already implemented in the code allowlist. Provider, effect type, write-approval requirement, and input schema remain code-controlled, so a database row cannot turn a write tool into a read tool or invent an executable adapter. Tool inputs are now checked recursively for JSON types, required fields, array bounds, string bounds, enums, patterns, and additional-property rules. Adding a new integration still requires an audited adapter implementation and a matching registry seed.
+
+
+The task-status read path uses a narrow column grant plus an owner-only RLS policy and a SECURITY INVOKER RPC. Clients can read status/result for their own task, but cannot read queue payloads, worker lease data, or other users' jobs.
