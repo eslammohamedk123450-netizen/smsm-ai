@@ -1,4 +1,4 @@
-import { composioToolCatalogParams, connectorSearchQuery, detectComposioToolkitRequest, hasExplicitComposioExecutionSuccess, hasVerifiableComposioReadResult, isComposioToolAllowed, isGmailTaglessToolAllowlisted, isMultiToolkitComposioRequest } from "./composio.ts";
+import { composioToolCatalogParams, connectorSearchQuery, detectComposioMultiReadRequest, detectComposioToolkitRequest, detectComposioToolkitRequestFromConversation, hasExplicitComposioExecutionSuccess, hasVerifiableComposioReadResult, isComposioToolAllowed, isGmailTaglessToolAllowlisted, isMultiToolkitComposioRequest, shapeComposioReadResult } from "./composio.ts";
 
 Deno.test("allows only the exact Gmail fallback tool names without Composio tags", () => {
   if (!isGmailTaglessToolAllowlisted("GMAIL_GET_MESSAGE", "read")) throw new Error("GMAIL_GET_MESSAGE should be allowed as a tagless read");
@@ -13,7 +13,7 @@ Deno.test("allows only the exact Gmail fallback tool names without Composio tags
 
 Deno.test("searches Composio for the canonical Gmail email-fetch action", () => {
   const query = connectorSearchQuery("gmail", "Tell me about the latest email from Mim");
-  if (!query.includes("GMAIL_FETCH_EMAILS") || !query.toLowerCase().includes("fetch emails")) {
+  if (!query.includes("GMAIL_FETCH_EMAILS") || !query.toLowerCase().includes("fetch up to")) {
     throw new Error(`Expected canonical Gmail fetch action in catalog query, got ${query}`);
   }
   if (!query.includes("latest email from Mim")) throw new Error("The original Gmail request should be preserved in the tool-search query");
@@ -25,7 +25,11 @@ Deno.test("requests GMAIL_FETCH_EMAILS directly from the Composio catalog", () =
   const gmail = composioToolCatalogParams("gmail", "Tell me the latest email from Mim");
   if (gmail.tool_slugs !== "GMAIL_FETCH_EMAILS") throw new Error(`Expected direct Gmail slug lookup, got ${JSON.stringify(gmail)}`);
   if (gmail.query !== undefined) throw new Error("Gmail catalog lookup must not depend on a free-text query");
-  if (gmail.limit !== "1") throw new Error("Direct Gmail lookup should request only the named action");
+  if (gmail.limit !== "20") throw new Error("The Gmail tool catalog page should keep a fixed page limit, independent of message count");
+  const many = composioToolCatalogParams("gmail", "هات آخر 10 رسائل فاشلة");
+  if (many.limit !== "20" || !connectorSearchQuery("gmail", "هات آخر 10 رسائل فاشلة").includes("no more than 10")) {
+    throw new Error(`The catalog limit must not be confused with the requested message count: ${JSON.stringify(many)}`);
+  }
 
   const drive = composioToolCatalogParams("googledrive", "Find the latest file");
   if (drive.tool_slugs !== undefined || !drive.query?.includes("googledrive")) {
@@ -65,6 +69,40 @@ Deno.test("rejects one action that targets multiple connected-app toolkits", () 
   const text = "Find an email in Gmail and create an issue on GitHub";
   if (!isMultiToolkitComposioRequest(text)) throw new Error("Expected a multi-toolkit request");
   if (detectComposioToolkitRequest(text) !== null) throw new Error("A multi-toolkit request must not dispatch to one connector");
+});
+
+Deno.test("allows multi-toolkit reads only and rejects mixed read/write requests", () => {
+  const toolkits = detectComposioMultiReadRequest("Find the latest email in Gmail, the latest file in Google Drive, and recent issues in GitHub");
+  if (JSON.stringify(toolkits) !== JSON.stringify(["gmail", "googledrive", "github"])) {
+    throw new Error(`Expected the three explicitly mentioned read sources, got ${JSON.stringify(toolkits)}`);
+  }
+  if (detectComposioMultiReadRequest("Find an email in Gmail and create an issue on GitHub") !== null) {
+    throw new Error("Mixed multi-toolkit reads and writes must not be dispatched as a multi-read");
+  }
+  if (detectComposioMultiReadRequest("Send an email from Gmail and upload a file to Drive") !== null) {
+    throw new Error("Multi-toolkit writes must remain unsupported");
+  }
+});
+
+Deno.test("normalizes Gmail read output, enforces requested result count, and filters returned failure records", () => {
+  const shaped = shapeComposioReadResult("gmail", "Find the last 2 failed emails", {
+    messages: [
+      { from: "ops@example.com", subject: "Delivery failure", date: "2026-11-13", body: "The message failed." },
+      { from: "team@example.com", subject: "Weekly update", date: "2026-11-12", body: "All systems are well." },
+      { from: "alerts@example.com", subject: "Failure notice", date: "2026-11-11", body: "A failure was detected." },
+    ],
+  });
+  const records = shaped.records as Array<Record<string, string>>;
+  if (records.length !== 2 || shaped.requested_limit !== 2) throw new Error(`Expected at most two filtered records, got ${JSON.stringify(shaped)}`);
+  if (records[0].sender !== "ops@example.com" || records[0].title !== "Delivery failure" || records[0].date !== "2026-11-13" || !records[0].content.includes("failed")) {
+    throw new Error(`Expected normalized sender, title, date, and content fields, got ${JSON.stringify(records[0])}`);
+  }
+  if (shaped.filter_scope !== "returned records only") throw new Error("The result must not imply filtering beyond records actually returned by Composio");
+});
+
+Deno.test("inherits Gmail for a follow-up that says use the same tool", () => {
+  const request = detectComposioToolkitRequestFromConversation("استخدم نفس الأداة وهات آخر 5 رسائل", ["شوف آخر رسالة على Gmail"]);
+  if (request?.toolkit !== "gmail" || request.intent !== "read") throw new Error(`Expected contextual Gmail read, got ${JSON.stringify(request)}`);
 });
 
 Deno.test("requires an explicit successful tool result, not only an HTTP-shaped response", () => {

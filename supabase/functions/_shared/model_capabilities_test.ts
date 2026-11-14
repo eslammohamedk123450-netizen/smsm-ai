@@ -14,6 +14,12 @@ Deno.test("multimodal routing requires every declared capability", () => {
   if (supportsModelCapabilities(null, ["vision"])) throw new Error("Legacy text models must not receive image requests.");
 });
 
+Deno.test("connector routing requires the explicitly assigned connector capability", () => {
+  const gmailModel = '{"chat":true,"gmail":true}';
+  if (!supportsModelCapabilities(gmailModel, ["chat", "gmail"])) throw new Error("Expected Gmail-capable model.");
+  if (supportsModelCapabilities(gmailModel, ["chat", "github"])) throw new Error("A Gmail-only model must not receive GitHub data.");
+});
+
 Deno.test("file MIME/name identifies its routing capability", () => {
   const cases: Array<[string, string, string | null]> = [
     ["image/jpeg", "photo.jpg", "vision"],

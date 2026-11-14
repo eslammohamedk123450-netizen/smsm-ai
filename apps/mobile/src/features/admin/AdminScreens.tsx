@@ -33,14 +33,14 @@ type ProbeLogRow = { run_type: "manual" | "scheduled"; status: "success" | "erro
 type UserRow = { id: string; email: string; full_name: string | null; subscription_tier: string | null; is_banned: boolean; balance: number; reserved_balance: number };
 type TransactionRow = { id?: string; user_id?: string; event_type: string; amount: number; balance_delta?: number; balance_after: number; actual_cost?: number | null; input_tokens?: number; output_tokens?: number; model_id?: number | null; source?: string; reason?: string | null; created_at: string };
 
-type ModelCapabilityKey = "chat" | "vision" | "pdf" | "word" | "video";
+type ModelCapabilityKey = "chat" | "vision" | "pdf" | "word" | "video" | "gmail" | "google_drive" | "github";
 type ModelCapabilityState = Record<ModelCapabilityKey, boolean>;
-const MODEL_CAPABILITY_OPTIONS: Array<[ModelCapabilityKey, string]> = [["chat", "نص"], ["vision", "قراءة الصور"], ["pdf", "PDF"], ["word", "Word / DOCX"], ["video", "فيديو"]];
+const MODEL_CAPABILITY_OPTIONS: Array<[ModelCapabilityKey, string]> = [["chat", "نص"], ["vision", "قراءة الصور"], ["pdf", "PDF"], ["word", "Word / DOCX"], ["video", "فيديو"], ["gmail", "Gmail"], ["google_drive", "Google Drive"], ["github", "GitHub"]];
 function parseModelCapabilityState(value: unknown): ModelCapabilityState {
   let parsed: Record<string, unknown> = {};
   if (typeof value === "string") { try { const result = JSON.parse(value); if (result && typeof result === "object" && !Array.isArray(result)) parsed = result as Record<string, unknown>; } catch { /* Use safe text-only defaults. */ } }
   else if (value && typeof value === "object" && !Array.isArray(value)) parsed = value as Record<string, unknown>;
-  return { chat: parsed.chat !== false, vision: parsed.vision === true, pdf: parsed.pdf === true, word: parsed.word === true, video: parsed.video === true };
+  return { chat: parsed.chat !== false, vision: parsed.vision === true, pdf: parsed.pdf === true, word: parsed.word === true, video: parsed.video === true, gmail: parsed.gmail === true, google_drive: parsed.google_drive === true, github: parsed.github === true };
 }
 
 function PageHeader({ title }: { title: string }) {
@@ -331,7 +331,7 @@ export function ModelsAdminScreen() {
   const [editTimeout, setEditTimeout] = useState("30000");
   const [editThreshold, setEditThreshold] = useState("3");
   const [editWindow, setEditWindow] = useState("15");
-  const [editCapabilities, setEditCapabilities] = useState<ModelCapabilityState>({ chat: true, vision: false, pdf: false, word: false, video: false });
+  const [editCapabilities, setEditCapabilities] = useState<ModelCapabilityState>({ chat: true, vision: false, pdf: false, word: false, video: false, gmail: false, google_drive: false, github: false });
 
   const load = async (showInitialLoader = false) => {
     if (showInitialLoader) setLoading(true);
