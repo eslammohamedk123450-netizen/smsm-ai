@@ -6,7 +6,7 @@ on:
       - "apps/mobile/**"
       - "supabase/functions/ai-router/**"
       - "supabase/functions/brain-router/**"
-      - "supabase/functions/agent-task-worker/**"
+      - "supabase/functions/agent-task-worker/**"\n      - "supabase/functions/agent-task-scheduler/**"
       - "supabase/functions/_shared/agent_task_queue.ts"
       - "supabase/migrations/**"
       - ".github/workflows/verify-agent-queue.yml"
