@@ -6,7 +6,7 @@ function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 }
 
-async function processOne(url: string, serviceKey: string, userId: string): Promise<void> {
+async function processOne(url: string, serviceKey: string, userId: string, userJwt: string): Promise<void> {
   const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const workerId = `brain-worker-${crypto.randomUUID()}`;
   const jobs = await claimAgentTasks(admin, workerId, userId, 1, 180);
@@ -45,7 +45,7 @@ async function processOne(url: string, serviceKey: string, userId: string): Prom
     const response = await fetch(`${url}/functions/v1/brain-router`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${serviceKey}`,
+        Authorization: `Bearer ${userJwt}`,
         "Content-Type": "application/json",
         "x-suly-internal-brain-key": serviceKey,
       },
@@ -90,6 +90,6 @@ Deno.serve(async (req: Request) => {
 
   // Supabase EdgeRuntime keeps this work alive after the HTTP response. If the
   // runtime stops it, the lease expires and a later app wake can retry safely.
-  EdgeRuntime.waitUntil(processOne(url, serviceKey, userId).catch(() => undefined));
+  EdgeRuntime.waitUntil(processOne(url, serviceKey, userId, userJwt).catch(() => undefined));
   return json({ accepted: true, status: "processing", scope: "current_user" }, 202);
 });
