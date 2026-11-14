@@ -1,0 +1,44 @@
+name: Verify ai-router deployment artifact
+
+on:
+  pull_request:
+    paths:
+      - "supabase/functions/ai-router/**"
+      - "supabase/deploy-artifacts/ai-router.bundle.js"
+      - "package.json"
+      - ".github/workflows/verify-ai-router-bundle.yml"
+  push:
+    branches: [release/v1]
+    paths:
+      - "supabase/functions/ai-router/**"
+      - "supabase/deploy-artifacts/ai-router.bundle.js"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-bundle:
+    name: Verify ai-router bundle matches source
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Rebuild the deployment bundle
+        run: npm run bundle:ai-router
+      - name: Fail when the committed artifact is stale
+        run: |
+          if [ -n "$(git status --porcelain supabase/deploy-artifacts/ai-router.bundle.js)" ]; then
+            echo "The committed ai-router bundle does not match the current source."
+            echo "Run 'npm run bundle:ai-router' locally, commit the artifact, and push again."
+            exit 1
+          fi
+          echo "ai-router bundle matches the current source."
