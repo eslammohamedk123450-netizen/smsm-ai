@@ -1553,33 +1553,16 @@ async function handleRequest(req: Request): Promise<Response> {
 
     const execute = async (tool: string, input: Record<string, unknown>): Promise<unknown> => {
       if (tool === "connected_app.status") {
-        const directGmailToken = req.headers.get("x-gmail-token")?.trim();
-        let directGmailConnected = false;
-        let directGmailEmail: string | null = null;
-        if (directGmailToken) {
-          try {
-            const profileRes = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/profile", {
-              headers: { Authorization: `Bearer ${directGmailToken}` },
-            });
-            if (profileRes.ok) {
-              const profile = asRecord(await profileRes.json());
-              directGmailConnected = true;
-              directGmailEmail = typeof profile.emailAddress === "string" ? profile.emailAddress : null;
-            }
-          } catch {
-            // Keep non-fatal direct Gmail check failure isolated
-          }
-        }
         try {
           const apiKey = await readComposioApiKey(supabase);
           const composioStatus = await getComposioConnectionStatus(apiKey, user.id);
+          const gmail = composioStatus.gmail;
           return {
             status: "executed",
             gmail: {
-              connected: directGmailConnected || composioStatus.gmail.connected,
-              source: directGmailConnected ? "gmail_oauth" : composioStatus.gmail.connected ? "composio" : "none",
-              email: directGmailEmail,
-              composio: composioStatus.gmail,
+              ...gmail,
+              source: gmail.connected ? "composio" : "none",
+              composio: gmail,
             },
             googledrive: composioStatus.googledrive,
             github: composioStatus.github,
@@ -1587,7 +1570,7 @@ async function handleRequest(req: Request): Promise<Response> {
         } catch {
           return {
             status: "executed",
-            gmail: { connected: directGmailConnected, source: directGmailConnected ? "gmail_oauth" : "none", email: directGmailEmail },
+            gmail: { connected: false, source: "none", email: null },
             composio_configured: false,
           };
         }

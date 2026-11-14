@@ -6,5 +6,3 @@ coverage/
 *.log
 .env*
 !.env.example
-.suly-admin-config.json
-firebase-applet-config.json

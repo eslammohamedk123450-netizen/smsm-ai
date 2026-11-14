@@ -74,7 +74,7 @@ export function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
 
 const styles = StyleSheet.create({
   container: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "#000000",
     justifyContent: "center",
     alignItems: "center",
