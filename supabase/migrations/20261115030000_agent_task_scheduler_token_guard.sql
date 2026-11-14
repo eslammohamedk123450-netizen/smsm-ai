@@ -25,5 +25,4 @@ end;
 $$;
 
 revoke all on function public.verify_agent_task_scheduler_token(text) from public, anon, authenticated;
-grant usage on schema private to service_role;
 grant execute on function public.verify_agent_task_scheduler_token(text) to service_role;
