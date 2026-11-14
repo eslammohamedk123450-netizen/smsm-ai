@@ -32,18 +32,13 @@ function corsHeadersFor(req: Request): Record<string, string> {
   const requestOrigin = req.headers.get("origin")?.trim() ?? "";
   const trustedPreviewOrigin = /^https:\/\/[a-z0-9-]+\.manus\.computer$/i.test(requestOrigin)
     || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(requestOrigin);
-  const origin = configuredCorsOrigin || (trustedPreviewOrigin ? requestOrigin : "https://8081-iaoy3lkpkvsmck8vuiukc-5cd4efc3.sg2.manus.computer");
+  const origin = configuredCorsOrigin || (trustedPreviewOrigin ? requestOrigin : "");
   return {
     ...(origin ? { "Access-Control-Allow-Origin": origin, "Vary": "Origin" } : {}),
     "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, cache-control",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
   };
 }
-const corsHeaders = {
-  ...(configuredCorsOrigin ? { "Access-Control-Allow-Origin": configuredCorsOrigin, "Vary": "Origin" } : { "Access-Control-Allow-Origin": "https://8081-iaoy3lkpkvsmck8vuiukc-5cd4efc3.sg2.manus.computer", "Vary": "Origin" }),
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, cache-control",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
 const activeAiClaims = new WeakMap<Request, { supabase: any; requestId: string; userId: string }>();
 
 type ChatRole = "system" | "user" | "assistant";
@@ -452,7 +447,7 @@ async function persistAssistant(
 }
 
 async function handleRequest(req: Request): Promise<Response> {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeadersFor(req) });
   if (req.method !== "POST") return jsonResponse({ error: "Method not allowed; use POST." }, 405);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -1968,7 +1963,7 @@ async function handleRequest(req: Request): Promise<Response> {
     });
     return new Response(stream, {
       status: 200,
-      headers: { ...corsHeaders, "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", "Connection": "keep-alive" },
+      headers: { ...corsHeadersFor(req), "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", "Connection": "keep-alive" },
     });
   }
 
