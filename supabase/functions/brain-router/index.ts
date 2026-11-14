@@ -126,7 +126,7 @@ async function main(req: Request): Promise<Response> {
   if (!internalWorker && body.mode === "enqueue") {
     const objective = cleanText(body.objective ?? body.message);
     const { data: queued, error: queueError } = await admin.from("agent_task_jobs").insert({
-      user_id: userId, job_type: "brain_task", idempotency_key: `brain:${taskId}`,
+      user_id: userId, task_id: taskId, job_type: "brain_task", idempotency_key: `brain:${taskId}`,
       payload: { user_id: userId, task_id: taskId, objective }, priority: 10, max_attempts: 3,
     }).select("id,status").single();
     if (queueError || !queued) {
