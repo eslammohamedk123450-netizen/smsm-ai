@@ -17,6 +17,7 @@ export interface ChatMessage {
   role: MessageRole;
   content: string;
   createdAt: string;
+  editedAt?: string | null;
   modelId: string | null;
   status: "sent" | "streaming" | "error";
   generationState?: "pending" | "failed";
@@ -48,6 +49,7 @@ interface MessageRow {
   role: MessageRole;
   content: string;
   created_at: string;
+  edited_at?: string | null;
   model_id: number | null;
 }
 
@@ -66,6 +68,7 @@ function mapMessage(row: MessageRow): ChatMessage {
     role: row.role,
     content: row.content,
     createdAt: row.created_at,
+    editedAt: row.edited_at ?? null,
     modelId: row.model_id === null ? null : String(row.model_id),
     status: "sent",
   };
@@ -125,7 +128,7 @@ export const chatService = {
 
   async getMessages(conversationId: string): Promise<ChatMessage[]> {
     const { data, error } = await supabase.from("suly_messages")
-      .select("id,conversation_id,role,content,model_id,created_at")
+      .select("id,conversation_id,role,content,model_id,created_at,edited_at")
       .eq("conversation_id", conversationId)
       .order("created_at", { ascending: false })
       .limit(500);
@@ -163,6 +166,19 @@ export const chatService = {
       attachmentsByMessage.set(messageId, [...(attachmentsByMessage.get(messageId) ?? []), attachment]);
     }
     return messages.map((message) => ({ ...message, attachments: attachmentsByMessage.get(message.id) }));
+  },
+
+  async updateUserMessage(messageId: string, content: string): Promise<ChatMessage> {
+    const trimmed = content.trim();
+    if (!trimmed) throw new Error("لا يمكن حفظ رسالة فارغة.");
+    const { data, error } = await supabase.from("suly_messages")
+      .update({ content: trimmed, tokens_used: Math.ceil(trimmed.length / 4), edited_at: new Date().toISOString() })
+      .eq("id", messageId)
+      .eq("role", "user")
+      .select("id,conversation_id,role,content,model_id,created_at,edited_at")
+      .single();
+    if (error || !data) throw new Error("تعذر حفظ تعديل الرسالة.");
+    return mapMessage(data as MessageRow);
   },
 
   /** Most recently active conversations first, scoped to the signed-in user by RLS. */
