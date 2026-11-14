@@ -723,8 +723,9 @@ async function handleRequest(req: Request): Promise<Response> {
     await finishAiRequest("failed", null, null, {}, errorCode);
     return response;
   };
+  const previousUserMessages = messages.filter((message) => message.role === "user").slice(0, -1).map((message) => message.content);
   const requestedConnector = executionMode === "agent" && !internalBrainCall
-    ? detectComposioToolkitRequest(originalUserInstruction)
+    ? detectComposioToolkitRequestFromConversation(originalUserInstruction, previousUserMessages)
     : null;
   const connectorCapability: ModelCapability | null = requestedConnector?.toolkit === "googledrive"
     ? "google_drive"
@@ -1424,7 +1425,7 @@ async function handleRequest(req: Request): Promise<Response> {
   }
 
   if (executionMode === "agent" && !internalBrainCall) {
-    const connectorRequest = detectComposioToolkitRequest(latestUserMessage);
+    const connectorRequest = requestedConnector;
     const multiConnectorRequest = isMultiToolkitComposioRequest(latestUserMessage);
     // Bind the explicit user confirmation to this exact immutable request. A
     // separate atomic database claim consumes the approval before any write.
@@ -1953,7 +1954,7 @@ Deno.serve(async (req: Request) => {
 });
 import {
   buildConnectorAnalysisContext,
-  detectComposioToolkitRequest,
+  detectComposioToolkitRequestFromConversation,
   hasVerifiableComposioReadResult,
   isMultiToolkitComposioRequest,
   parseComposioToolkit,
