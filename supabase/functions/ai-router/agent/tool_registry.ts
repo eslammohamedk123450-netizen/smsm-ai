@@ -77,7 +77,7 @@ export function getAgentTools(availability: Partial<Record<string, boolean>> = {
 }
 
 export async function getAgentToolsFromDatabase(
-  supabase: { from: (table: string) => any },
+  supabase: any,
   availability: Partial<Record<string, boolean>> = {},
 ): Promise<AgentTool[]> {
   const { data, error } = await supabase.from("agent_tool_registry").select("name,enabled");
