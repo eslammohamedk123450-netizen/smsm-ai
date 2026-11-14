@@ -727,12 +727,14 @@ async function handleRequest(req: Request): Promise<Response> {
   const requestedConnector = executionMode === "agent" && !internalBrainCall
     ? detectComposioToolkitRequestFromConversation(originalUserInstruction, previousUserMessages)
     : null;
-  const connectorCapability: ModelCapability | null = requestedConnector?.toolkit === "googledrive"
-    ? "google_drive"
-    : requestedConnector?.toolkit ?? null;
+  const requestedMultiReadToolkits = executionMode === "agent" && !internalBrainCall
+    ? detectComposioMultiReadRequest(originalUserInstruction)
+    : null;
+  const connectorCapabilities: ModelCapability[] = (requestedMultiReadToolkits ?? (requestedConnector ? [requestedConnector.toolkit] : []))
+    .map((toolkit) => toolkit === "googledrive" ? "google_drive" : toolkit);
   const requiredCapabilities: ModelCapability[] = [
     "chat",
-    ...(connectorCapability ? [connectorCapability] : []),
+    ...connectorCapabilities,
     ...trustedAttachments.map((asset) => asset.capability),
   ];
   const uniqueRequiredCapabilities = [...new Set(requiredCapabilities)];
@@ -911,7 +913,7 @@ async function handleRequest(req: Request): Promise<Response> {
     && modelSupportsRequest(model, uniqueRequiredCapabilities));
   if (routingMode === "auto" && !anyCapabilityEligible) {
     const labels = [...new Set([
-      ...(connectorCapability ? [capabilityLabel(connectorCapability)] : []),
+      ...connectorCapabilities.map(capabilityLabel),
       ...trustedAttachments.map((asset) => capabilityLabel(asset.capability)),
     ])].join(" و");
     return await failedResponse(jsonResponse({ error: labels ? `لا يوجد نموذج مفعّل بقدرات ${labels} لهذا الطلب. فعّل القدرة المناسبة من إعدادات النموذج ثم أعد المحاولة.` : "لا يوجد نموذج نصي مؤهل حاليًا." }, 422, req), "no_eligible_model");
@@ -1426,7 +1428,7 @@ async function handleRequest(req: Request): Promise<Response> {
 
   if (executionMode === "agent" && !internalBrainCall) {
     const connectorRequest = requestedConnector;
-    const multiConnectorRequest = isMultiToolkitComposioRequest(latestUserMessage);
+    const multiConnectorRequest = isMultiToolkitComposioRequest(latestUserMessage) && !requestedMultiReadToolkits;
     // Bind the explicit user confirmation to this exact immutable request. A
     // separate atomic database claim consumes the approval before any write.
     const confirmedWrite = Boolean(
@@ -1439,12 +1441,13 @@ async function handleRequest(req: Request): Promise<Response> {
       )
     );
     let operationalReply: string | null = multiConnectorRequest
-      ? "أستطيع معالجة خدمة متصلة واحدة في كل طلب. لم أنفذ أي إجراء؛ أعد الطلب لخدمة واحدة فقط."
+      ? "لم أنفذ الطلب المختلط بين الخدمات؛ القراءة من عدة خدمات مدعومة فقط إذا كان الطلب قراءةً بحتة، أما الإرسال أو التعديل فيجب أن يكون طلبًا منفصلًا مع موافقة صريحة."
       : null;
     let connectorReadCompleted = false;
     let connectorWriteCompleted = false;
     const agentTools: AgentTool[] = [
       { name: "connected_app.read", description: "قراءة معلومات من موصل مستخدم واحد نشط عبر إجراء آمن وموسوم.", effect: "read", available: !multiConnectorRequest && connectorRequest?.intent === "read" },
+      { name: "connected_app.read_multiple", description: "قراءة فقط من الخدمات التي ذكرها المستخدم صراحةً؛ لا تنفذ إرسالًا أو تعديلًا.", effect: "read", available: !multiConnectorRequest && Boolean(requestedMultiReadToolkits) },
       { name: "connected_app.write", description: "إرسال أو إنشاء أو تعديل شيء في موصل واحد؛ يتطلب موافقة المستخدم على نص العملية نفسه.", effect: "write", available: !multiConnectorRequest && connectorRequest?.intent === "write" },
       { name: "web.search", description: "بحث حي في الويب عند طلب معلومة حديثة أو مصادر خارجية.", effect: "read", available: isWebSearchRequest(latestUserMessage) },
     ];
@@ -1466,7 +1469,7 @@ async function handleRequest(req: Request): Promise<Response> {
       paidPlanPool = makeCandidates(paidModels);
     }
 
-    const preferredGmailModelId = connectorRequest?.toolkit === "gmail" ? settings.gmailTaskModelId : null;
+    const preferredGmailModelId = connectorRequest?.toolkit === "gmail" || requestedMultiReadToolkits?.includes("gmail") ? settings.gmailTaskModelId : null;
     const plannerPools = [
       prioritizeModelCandidate(freePlanPool, preferredGmailModelId),
       prioritizeModelCandidate(paidPlanPool, preferredGmailModelId),
@@ -1479,6 +1482,9 @@ async function handleRequest(req: Request): Promise<Response> {
     const plan = async (history: Array<{ role: string; content: string }>, tools: AgentTool[], step: number) => {
       if (multiConnectorRequest) return { action: "respond" as const, answer: operationalReply! };
       if (operationalReply) return { action: "respond" as const, answer: operationalReply };
+      if (step === 0 && requestedMultiReadToolkits) {
+        return { action: "tool" as const, tool: "connected_app.read_multiple", input: { toolkits: requestedMultiReadToolkits } };
+      }
       if (step === 0 && connectorRequest) {
         return {
           action: "tool" as const,
@@ -1545,6 +1551,47 @@ async function handleRequest(req: Request): Promise<Response> {
     };
 
     const execute = async (tool: string, input: Record<string, unknown>): Promise<unknown> => {
+      if (tool === "connected_app.read_multiple") {
+        const requested = requestedMultiReadToolkits ?? [];
+        const inputToolkits = Array.isArray(input.toolkits) ? input.toolkits.map(parseComposioToolkit) : [];
+        const inputMatches = inputToolkits.length === requested.length
+          && inputToolkits.every((toolkit, index) => toolkit === requested[index]);
+        if (requested.length < 2 || requested.length > 3 || !inputMatches) {
+          operationalReply = "لم أنفذ القراءة متعددة الخدمات لأن قائمة الخدمات لم تطابق الخدمات التي ذكرتها في الطلب.";
+          return { status: "rejected", reason: "multi_read_toolkit_mismatch" };
+        }
+        try {
+          const apiKey = await readComposioApiKey(supabase);
+          const sources: Array<Record<string, unknown>> = [];
+          let completedReads = 0;
+          for (const toolkit of requested) {
+            try {
+              const outcome = await runComposioReadOnlyTask(apiKey, user.id, toolkit, latestUserMessage);
+              if ("unavailable" in outcome) {
+                sources.push({ toolkit, status: "unavailable", reason: outcome.unavailable });
+                continue;
+              }
+              const result = outcome.result ?? null;
+              if (!hasVerifiableComposioReadResult(result)) {
+                sources.push({ toolkit, status: "unverified", tool: outcome.toolSlug, reason: "unverifiable_read_result" });
+                continue;
+              }
+              completedReads += 1;
+              sources.push({ toolkit, status: "read", tool: outcome.toolSlug, result, analysis_context: buildConnectorAnalysisContext(toolkit, latestUserMessage, result) });
+            } catch (error) {
+              console.error(`Agent multi-connector read failed for ${toolkit}:`, error instanceof Error ? error.message : String(error));
+              sources.push({ toolkit, status: "failed", reason: "connector_operational_error" });
+            }
+          }
+          connectorReadCompleted = completedReads > 0;
+          if (completedReads === 0) operationalReply = "لم أتمكن من التحقق من نتائج قراءة أي خدمة من الخدمات المطلوبة. تحقق من ربط الحسابات ثم أعد المحاولة.";
+          return { status: completedReads === requested.length ? "executed" : completedReads > 0 ? "partial" : "failed", sources };
+        } catch (error) {
+          console.error("Agent multi-connector setup failed:", error instanceof Error ? error.message : String(error));
+          operationalReply = "تعذر تهيئة قراءة الخدمات المتصلة. لم أتمكن من تأكيد الوصول إلى أي مصدر.";
+          return { status: "failed", reason: "connector_operational_error" };
+        }
+      }
       if (tool === "connected_app.read" || tool === "connected_app.write") {
         const expectedIntent = tool === "connected_app.read" ? "read" : "write";
         const toolkit = parseComposioToolkit(input.toolkit);
@@ -1619,6 +1666,7 @@ async function handleRequest(req: Request): Promise<Response> {
         const labels: Record<string, string> = {
           planning: "تحليل الطلب واختيار الخطوة",
           "connected_app.read": `قراءة ${connectorRequest?.toolkit ?? "التطبيق المتصل"}`,
+          "connected_app.read_multiple": "قراءة الخدمات المتصلة المطلوبة",
           "connected_app.write": `تنفيذ الإجراء الموافق عليه في ${connectorRequest?.toolkit ?? "التطبيق المتصل"}`,
           "web.search": "البحث في الويب",
           final: "إنهاء المهمة",
@@ -1954,6 +2002,7 @@ Deno.serve(async (req: Request) => {
 });
 import {
   buildConnectorAnalysisContext,
+  detectComposioMultiReadRequest,
   detectComposioToolkitRequestFromConversation,
   hasVerifiableComposioReadResult,
   isMultiToolkitComposioRequest,

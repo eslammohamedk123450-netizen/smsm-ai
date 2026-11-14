@@ -48,7 +48,7 @@ Deno.test("builds and validates an acyclic independent plan", () => {
 
 Deno.test("rejects a plan above the hard step limit", () => {
   const parts = Array.from({ length: 6 }, (_, index) => `مهمة ${index + 1}`);
-  assertEquals(buildIndependentTaskPlan(parts, 4, null), null);
+  assertEquals(buildIndependentTaskPlan(parts, 4), null);
 });
 
 Deno.test("detects duplicate ids and dependency cycles", () => {
