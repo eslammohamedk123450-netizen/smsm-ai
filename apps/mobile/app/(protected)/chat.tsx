@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, TouchableOpacity, View, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { PremiumText as Text } from "../../src/components/ui/PremiumText";
 import { Ionicons } from "@expo/vector-icons";
@@ -28,6 +28,32 @@ import { randomUUID } from "expo-crypto";
 const STREAMING_ID = "local-streaming-assistant";
 const TASK_SUGGESTIONS = getRotatingSuggestions(Date.now(), 4);
 
+type DisplayMessage = ChatMessage & {
+  responseVariants?: Array<{ id: string; content: string }>;
+  responseIndex?: number;
+  responseOwnerId?: string;
+};
+
+function buildDisplayMessages(source: ChatMessage[], selectedByUser: Record<string, number>): DisplayMessage[] {
+  const result: DisplayMessage[] = [];
+  let index = 0;
+  while (index < source.length) {
+    const current = source[index];
+    if (current.role !== "user") { result.push(current); index += 1; continue; }
+    result.push(current);
+    let next = index + 1;
+    while (next < source.length && source[next].role === "assistant") next += 1;
+    const variants = source.slice(index + 1, next).filter((message) => message.role === "assistant");
+    if (variants.length) {
+      const selected = Math.min(variants.length - 1, Math.max(0, selectedByUser[current.id] ?? variants.length - 1));
+      const active = variants[selected];
+      result.push({ ...active, responseVariants: variants.map((variant) => ({ id: variant.id, content: variant.content })), responseIndex: selected, responseOwnerId: current.id });
+    }
+    index = next;
+  }
+  return result;
+}
+
 type RequestedConnectorTask = { toolkit: ToolkitStatus["toolkit"]; intent: "read" | "write" };
 type ConnectorWriteApproval = { requestId: string; originalText: string };
 
@@ -52,6 +78,7 @@ export default function ChatPage() {
   const params = useLocalSearchParams<{ conversationId?: string | string[] }>();
   const routeConversationId = Array.isArray(params.conversationId) ? params.conversationId[0] : params.conversationId;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [responseIndexByUser, setResponseIndexByUser] = useState<Record<string, number>>({});
   const [conversationId, setConversationId] = useState<string | null>(routeConversationId || null);
   const [isSending, setIsSending] = useState(false);
   const [activeTaskLabel, setActiveTaskLabel] = useState<string | null>(null);
@@ -83,6 +110,7 @@ export default function ChatPage() {
   const optimisticMessageIdRef = useRef<string | null>(null);
   const streamedTextRef = useRef("");
   const isAdmin = Boolean(user?.id && adminAccess.userId === user.id && adminAccess.allowed);
+  const displayMessages = useMemo(() => buildDisplayMessages(messages, responseIndexByUser), [messages, responseIndexByUser]);
 
   const refreshCreditBalance = useCallback(async () => {
     if (!user?.id) {
@@ -141,6 +169,7 @@ export default function ChatPage() {
     setShowScrollToBottom(false);
     setConversationId(routeConversationId || null);
     setMessages([]);
+    setResponseIndexByUser({});
     setFeedbackByMessage({});
     setError(null);
     setRetryFailure(null);
@@ -531,6 +560,46 @@ export default function ChatPage() {
     }
   };
 
+  const editMessageAndRegenerate = async (messageId: string, content: string) => {
+    if (!conversationId || isSending) return;
+    const userIndex = messages.findIndex((message) => message.id === messageId && message.role === "user");
+    if (userIndex < 0) throw new Error("تعذر العثور على الرسالة المطلوب تعديلها.");
+    const updatedUser = await chatService.updateUserMessage(messageId, content);
+    const history = messages.slice(0, userIndex + 1).map((message) => message.id === messageId ? updatedUser : message);
+    setMessages((current) => current.map((message) => message.id === messageId ? updatedUser : message));
+    setResponseIndexByUser((current) => { const next = { ...current }; delete next[messageId]; return next; });
+    setError(null);
+    setIsSending(true);
+    setActiveTaskLabel("جارٍ إعادة الرد على الرسالة المعدلة…");
+    const controller = new AbortController();
+    abortRef.current = controller;
+    streamedTextRef.current = "";
+    try {
+      await chatService.regenerateAssistant({
+        conversationId,
+        history,
+        signal: controller.signal,
+        onChunk(text) {
+          streamedTextRef.current += text;
+          setMessages((current) => {
+            const existing = current.find((item) => item.id === STREAMING_ID);
+            if (existing) return current.map((item) => item.id === STREAMING_ID ? { ...item, content: item.content + text } : item);
+            return [...current, { id: STREAMING_ID, conversationId, role: "assistant", content: text, createdAt: new Date().toISOString(), modelId: null, status: "streaming" }];
+          });
+        },
+      });
+      await reloadMessages(conversationId);
+    } catch (cause) {
+      setMessages((current) => current.filter((item) => item.id !== STREAMING_ID));
+      throw cause instanceof Error ? cause : new Error("تعذرت إعادة توليد الرد بعد التعديل.");
+    } finally {
+      abortRef.current = null;
+      void refreshCreditBalance();
+      setIsSending(false);
+      setActiveTaskLabel(null);
+    }
+  };
+
   const regenerate = async (messageId: string) => {
     if (!conversationId || isSending) return;
     const answerIndex = messages.findIndex((message) => message.id === messageId);
@@ -570,7 +639,7 @@ export default function ChatPage() {
     }
   };
 
-  const renderMessage = ({ item }: { item: ChatMessage }) => (
+  const renderMessage = ({ item }: { item: DisplayMessage }) => (
     <MessageBubble
       messageId={item.id}
       role={item.role === "user" ? "user" : "assistant"}
@@ -579,7 +648,11 @@ export default function ChatPage() {
       isStreaming={item.status === "streaming"}
       generationState={item.generationState}
       feedback={feedbackByMessage[item.id] ?? null}
-      onEdit={item.role === "user" ? (content) => composerRef.current?.editMessage(content) : undefined}
+      edited={Boolean(item.editedAt)}
+      responseVariants={item.responseVariants}
+      responseIndex={item.responseIndex}
+      onResponseIndexChange={(index) => { if (item.responseOwnerId) setResponseIndexByUser((current) => ({ ...current, [item.responseOwnerId!]: index })); }}
+      onEditSave={item.role === "user" ? (content) => editMessageAndRegenerate(item.id, content) : undefined}
       onFeedback={item.role === "assistant" && item.status !== "streaming" ? (value) => updateFeedback(item.id, value) : undefined}
     />
   );
@@ -642,7 +715,7 @@ export default function ChatPage() {
               ref={listRef}
               style={styles.messages}
               contentContainerStyle={styles.messageContent}
-              data={messages}
+              data={displayMessages}
               renderItem={renderMessage}
               keyExtractor={(item) => item.id}
               keyboardShouldPersistTaps="handled"

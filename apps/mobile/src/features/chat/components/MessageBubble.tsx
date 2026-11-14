@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Animated, Image, Platform, Pressable, StyleSheet, TouchableOpacity, View, Modal } from "react-native";
+import { ActivityIndicator, Animated, Image, Platform, Pressable, StyleSheet, TextInput, TouchableOpacity, View, Modal } from "react-native";
 import { PremiumText as Text } from "../../../components/ui/PremiumText";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
@@ -18,6 +18,11 @@ export interface MessageBubbleProps {
   feedback?: Feedback;
   onFeedback?(value: Feedback): void | Promise<void>;
   onEdit?(content: string): void;
+  onEditSave?(content: string): void | Promise<void>;
+  edited?: boolean;
+  responseVariants?: Array<{ id: string; content: string }>;
+  responseIndex?: number;
+  onResponseIndexChange?(index: number): void;
 }
 
 export type Feedback = "like" | "dislike" | null;
@@ -85,15 +90,25 @@ export function MessageBubble({
   feedback = null,
   onFeedback,
   onEdit,
+  onEditSave,
+  edited = false,
+  responseVariants = [],
+  responseIndex = 0,
+  onResponseIndexChange,
 }: MessageBubbleProps) {
   const isUser = role === "user";
   const { show } = useToast();
   const [copied, setCopied] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(content);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => () => {
     if (copiedTimer.current) clearTimeout(copiedTimer.current);
   }, []);
+  useEffect(() => {
+    if (!editing) setDraft(content);
+  }, [content, editing]);
 
   const copyToClipboard = async (text: string, showCheck = false) => {
     try {
@@ -147,7 +162,24 @@ export function MessageBubble({
         <View style={[styles.bubble, isUser ? styles.userBubble : styles.assistantBubble]}>
           {isUser ? (
             <>
-              {content.trim() ? <View style={styles.paragraph}>{renderContent(content)}</View> : null}
+              {editing ? (
+                <>
+                  <TextInput
+                    value={draft}
+                    onChangeText={setDraft}
+                    multiline
+                    autoFocus
+                    textAlign="right"
+                    textAlignVertical="top"
+                    style={styles.editInput}
+                    accessibilityLabel="تعديل الرسالة"
+                  />
+                  <View style={styles.editButtons}>
+                    <Pressable style={styles.cancelEditButton} onPress={() => { setDraft(content); setEditing(false); }} accessibilityRole="button"><Text style={styles.cancelEditText}>إلغاء</Text></Pressable>
+                    <Pressable style={styles.saveEditButton} onPress={async () => { if (!draft.trim() || !onEditSave) return; await onEditSave(draft); setEditing(false); }} accessibilityRole="button"><Text style={styles.saveEditText}>حفظ</Text></Pressable>
+                  </View>
+                </>
+              ) : content.trim() ? <View style={styles.paragraph}>{renderContent(content)}</View> : null}
               {attachments.length ? <View style={styles.attachments}>{attachments.map((asset) => {
                 const isImage = asset.kind === "image" || asset.mimeType?.toLowerCase().startsWith("image/");
                 const isVideo = asset.kind === "video" || asset.mimeType?.toLowerCase().startsWith("video/");
@@ -176,6 +208,13 @@ export function MessageBubble({
                   <Ionicons name={copied ? "checkmark" : "copy-outline"} size={14} color={copied ? "#0EA5E9" : "#A1A1AA"} />
                 </TouchableOpacity> : null}
               </View>
+              {responseVariants.length > 1 ? (
+                <View style={styles.variantNav} accessibilityLabel={`نسخة الرد ${responseIndex + 1} من ${responseVariants.length}`}>
+                  <Pressable onPress={() => onResponseIndexChange?.(Math.max(0, responseIndex - 1))} disabled={responseIndex === 0} style={styles.variantArrow} accessibilityLabel="الرد القديم"><Text style={[styles.variantArrowText, responseIndex === 0 && styles.variantDisabled]}>&gt;</Text></Pressable>
+                  <Text style={styles.variantCount}>{responseIndex + 1} / {responseVariants.length}</Text>
+                  <Pressable onPress={() => onResponseIndexChange?.(Math.min(responseVariants.length - 1, responseIndex + 1))} disabled={responseIndex === responseVariants.length - 1} style={styles.variantArrow} accessibilityLabel="الرد الجديد"><Text style={[styles.variantArrowText, responseIndex === responseVariants.length - 1 && styles.variantDisabled]}>&lt;</Text></Pressable>
+                </View>
+              ) : null}
 
               {generationState ? (
                 <View style={styles.generationCard} accessibilityRole="progressbar" accessibilityLabel={generationState === "pending" ? "جاري توليد الصورة" : "تعذر توليد الصورة"}>
@@ -213,12 +252,13 @@ export function MessageBubble({
         </Modal>
 
         {/* Action icons */}
-        {canShowActions && (
+        {canShowActions && !editing && (
           <View style={[styles.actions, isUser ? styles.userActions : styles.assistantActions]}>
             {isUser ? (
               <>
+                {edited ? <Text style={styles.editedLabel}>تم التعديل</Text> : null}
                 <MessageAction kind="copy" label="نسخ" copied={copied} showLabel onPress={() => void copyToClipboard(content, true)} />
-                <MessageAction kind="edit" label="تعديل" onPress={() => onEdit?.(content)} />
+                <MessageAction kind="edit" label="تعديل" onPress={() => { setDraft(content); setEditing(true); onEdit?.(content); }} />
               </>
             ) : (
               <>
@@ -273,6 +313,11 @@ const styles = StyleSheet.create({
   assistantBrand: { flexDirection: "row", alignItems: "center", gap: 6 },
   sulySmallIcon: { width: 18, height: 18, borderRadius: 4 },
   assistantTitle: { color: "#F5F5F5", fontSize: 13, fontWeight: "700" },
+  variantNav: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 10, marginBottom: 8 },
+  variantArrow: { minWidth: 24, minHeight: 24, alignItems: "center", justifyContent: "center", borderRadius: 6, backgroundColor: "#1F2937" },
+  variantArrowText: { color: "#F5F5F5", fontSize: 18, lineHeight: 22, fontWeight: "700" },
+  variantDisabled: { color: "#4B5563" },
+  variantCount: { color: "#A1A1AA", fontSize: 12, fontWeight: "700" },
   headerCopyBtn: { padding: 4, borderRadius: 6 },
   paragraph: { flexDirection: "row", flexWrap: "wrap", alignItems: "center" },
   userText: { fontSize: 16, lineHeight: 26, color: "#000000", fontWeight: "400", textAlign: "right", writingDirection: "rtl" },
@@ -296,6 +341,13 @@ const styles = StyleSheet.create({
   action: { flexDirection: "row", alignItems: "center", minHeight: 28 },
   actionIcon: { alignItems: "center", justifyContent: "center" },
   actionLabel: { color: "#A1A1AA", fontSize: 11, marginRight: 4 },
+  editInput: { minHeight: 96, maxHeight: 220, borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, color: "#111827", backgroundColor: "#FFFFFF", fontSize: 16, lineHeight: 25, writingDirection: "rtl" },
+  editButtons: { flexDirection: "row-reverse", justifyContent: "flex-start", gap: 8, marginTop: 10 },
+  saveEditButton: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, backgroundColor: "#2563EB" },
+  saveEditText: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
+  cancelEditButton: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: "#E5E7EB" },
+  cancelEditText: { color: "#374151", fontSize: 13, fontWeight: "700" },
+  editedLabel: { color: "#64748B", fontSize: 10, marginRight: 4 },
   glyphText: { color: "#A1A1AA", fontSize: 14, textAlign: "center" },
   markdown: { width: "100%" },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0, 0, 0, 0.9)", justifyContent: "center", alignItems: "center" },
