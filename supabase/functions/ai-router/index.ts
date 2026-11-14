@@ -1869,6 +1869,7 @@ async function handleRequest(req: Request): Promise<Response> {
     let summarizerCandidateUsed: ReadyCandidate | null = null;
     let summarizerInputTokens = 0;
     let summarizerOutputTokens = 0;
+    // Shared with the reviewer retry below, including when initial summarization is skipped.
     const summarizerModelId = settings.agentSummarizerModelId ?? plannerCandidatesUsed.at(-1)?.model.id ?? preferredGmailModelId;
     const summarizerPools = [
       { candidates: prioritizeModelCandidate(freeSummarizerPool, summarizerModelId), timeoutMs: settings.freeRaceTimeoutMs },
