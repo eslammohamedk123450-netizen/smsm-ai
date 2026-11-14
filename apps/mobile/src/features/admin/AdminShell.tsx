@@ -5,24 +5,57 @@ import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { supabase } from "../../lib/supabase/client";
 import { colors } from "../../theme/colors";
 
-const NAV = [
-  { path: "/admin", label: "نظرة عامة", icon: "⌂" },
-  { path: "/admin/users", label: "المستخدمون", icon: "♙" },
-  { path: "/admin/conversations", label: "المحادثات", icon: "▤" },
-  { path: "/admin/models", label: "النماذج والتوجيه", icon: "◈" },
-  { path: "/admin/brain", label: "العقول والقدرات", icon: "✧" },
-  { path: "/admin/agents", label: "المساعدون", icon: "✦" },
-  { path: "/admin/credit-management", label: "الرصيد", icon: "◉" },
-  { path: "/admin/pricing", label: "الباقات", icon: "▧" },
-  { path: "/admin/api-keys", label: "مفاتيح API", icon: "⌘" },
-  { path: "/admin/composio", label: "Composio", icon: "C" },
-  { path: "/admin/tavily", label: "Tavily بحث الويب", icon: "T" },
-  { path: "/admin/image-generation", label: "توليد الصور", icon: "▣" },
-  { path: "/admin/storage", label: "التخزين", icon: "↥" },
-  { path: "/admin/audit", label: "سجل النشاط", icon: "≡" },
-  { path: "/admin/circuit-breaker", label: "إعدادات النظام", icon: "⚙" },
+type NavItem = { path: string; label: string; icon: string };
+type NavGroup = { key: string; label: string; hint: string; items: readonly NavItem[] };
+
+const NAV_GROUPS: readonly NavGroup[] = [
+  {
+    key: "operations",
+    label: "التشغيل",
+    hint: "المتابعة اليومية",
+    items: [
+      { path: "/admin", label: "نظرة عامة", icon: "⌂" },
+      { path: "/admin/users", label: "المستخدمون", icon: "♙" },
+      { path: "/admin/conversations", label: "المحادثات", icon: "▤" },
+      { path: "/admin/audit", label: "سجل النشاط", icon: "≡" },
+    ],
+  },
+  {
+    key: "intelligence",
+    label: "الذكاء والتوجيه",
+    hint: "النماذج والأدوار",
+    items: [
+      { path: "/admin/models", label: "النماذج والتوجيه", icon: "◈" },
+      { path: "/admin/agents", label: "الأدوار والمساعدون", icon: "✦" },
+      { path: "/admin/brain", label: "العقول والقدرات", icon: "✧" },
+    ],
+  },
+  {
+    key: "accounts",
+    label: "الحسابات",
+    hint: "الرصيد والباقات",
+    items: [
+      { path: "/admin/credit-management", label: "الرصيد", icon: "◉" },
+      { path: "/admin/pricing", label: "الباقات", icon: "▧" },
+    ],
+  },
+  {
+    key: "infrastructure",
+    label: "البنية والتكاملات",
+    hint: "الإعدادات المتقدمة",
+    items: [
+      { path: "/admin/api-keys", label: "مفاتيح API", icon: "⌘" },
+      { path: "/admin/composio", label: "Composio", icon: "C" },
+      { path: "/admin/tavily", label: "Tavily · بحث الويب", icon: "T" },
+      { path: "/admin/image-generation", label: "توليد الصور", icon: "▣" },
+      { path: "/admin/storage", label: "التخزين", icon: "↥" },
+      { path: "/admin/circuit-breaker", label: "إعدادات النظام", icon: "⚙" },
+    ],
+  },
 ] as const;
+
 const WIDE_BREAKPOINT = 900;
+const DEFAULT_OPEN_GROUPS = ["operations", "intelligence"];
 
 export function AdminShell() {
   const { width } = useWindowDimensions();
@@ -33,6 +66,7 @@ export function AdminShell() {
   const [systemOk, setSystemOk] = useState<boolean | null>(null);
   const [checking, setChecking] = useState(false);
   const [adminName, setAdminName] = useState("A");
+  const [openGroups, setOpenGroups] = useState<string[]>(DEFAULT_OPEN_GROUPS);
 
   useEffect(() => {
     let active = true;
@@ -54,15 +88,27 @@ export function AdminShell() {
   useEffect(() => { void refreshHealth(); }, []);
 
   const isActive = (path: string) => path === "/admin" ? pathname === path : pathname === path || pathname.startsWith(path);
-  const navItems = useMemo(() => NAV.map((item) => {
+  const activeGroupKey = NAV_GROUPS.find((group) => group.items.some((item) => isActive(item.path)))?.key ?? "operations";
+
+  useEffect(() => {
+    if (!openGroups.includes(activeGroupKey)) setOpenGroups((current) => [...current, activeGroupKey]);
+  }, [activeGroupKey, openGroups]);
+
+  const toggleGroup = (key: string) => {
+    setOpenGroups((current) => current.includes(key) ? current.filter((item) => item !== key) : [...current, key]);
+  };
+
+  const renderNavItem = (item: NavItem, compact = false) => {
     const active = isActive(item.path);
-    return <Pressable key={item.path} accessibilityRole="button" accessibilityState={{ selected: active }} onPress={() => router.push(item.path)} style={[wide ? styles.navItem : styles.tabItem, active && styles.navItemActive]}>
-      <View style={wide ? styles.navContent : styles.tabContent}>
-        <Text style={[wide ? styles.navIcon : styles.tabIcon, active && styles.navIconActive]}>{item.icon}</Text>
-        <Text style={[wide ? styles.navLabel : styles.tabLabel, active && styles.navLabelActive]}>{item.label}</Text>
+    return <Pressable key={item.path} accessibilityRole="button" accessibilityState={{ selected: active }} onPress={() => router.push(item.path)} style={[compact ? styles.tabItem : styles.navItem, active && styles.navItemActive]}>
+      <View style={compact ? styles.tabContent : styles.navContent}>
+        <Text style={[compact ? styles.tabIcon : styles.navIcon, active && styles.navIconActive]}>{item.icon}</Text>
+        <Text style={[compact ? styles.tabLabel : styles.navLabel, active && styles.navLabelActive]}>{item.label}</Text>
       </View>
     </Pressable>;
-  }), [pathname, wide, router]);
+  };
+
+  const navItems = useMemo(() => NAV_GROUPS.flatMap((group) => group.items.map((item) => renderNavItem(item, true))), [pathname, router, wide]);
 
   const submitSearch = () => {
     const value = query.trim();
@@ -76,13 +122,25 @@ export function AdminShell() {
     {wide ? <View style={styles.rail}>
       <View style={styles.brand}><View style={styles.brandBadge}><Text style={styles.brandMark}>S</Text></View><View style={styles.brandCopy}><Text style={styles.brandName}>Suly</Text><Text style={styles.brandSub}>ADMIN COMMAND CENTER</Text></View></View>
       <Text style={styles.navCaption}>مساحة الإدارة</Text>
-      <ScrollView style={styles.nav} showsVerticalScrollIndicator={false}>{navItems}</ScrollView>
+      <ScrollView style={styles.nav} showsVerticalScrollIndicator={false}>
+        {NAV_GROUPS.map((group) => {
+          const expanded = openGroups.includes(group.key);
+          const active = group.key === activeGroupKey;
+          return <View key={group.key} style={styles.group}>
+            <Pressable accessibilityRole="button" accessibilityState={{ expanded }} onPress={() => toggleGroup(group.key)} style={[styles.groupHeader, active && styles.groupHeaderActive]}>
+              <View style={styles.groupCopy}><Text style={[styles.groupLabel, active && styles.groupLabelActive]}>{group.label}</Text><Text style={styles.groupHint}>{group.hint}</Text></View>
+              <Text style={[styles.groupChevron, active && styles.groupLabelActive]}>{expanded ? "⌃" : "⌄"}</Text>
+            </Pressable>
+            {expanded ? <View style={styles.groupItems}>{group.items.map((item) => renderNavItem(item))}</View> : null}
+          </View>;
+        })}
+      </ScrollView>
       <View style={styles.railFooter}><View style={styles.secureDot} /><Text style={styles.secureText}>جلسة مشرف محمية</Text></View>
     </View> : null}
     <View style={styles.main}>
       <View style={styles.topbar}>
         <Pressable accessibilityRole="button" accessibilityLabel="الانتقال إلى التطبيق" onPress={() => router.replace("/(protected)/chat")} style={styles.appLink}><Text style={styles.appLinkIcon}>⌂</Text><Text style={styles.appLinkText}>التطبيق</Text></Pressable>
-        <View style={styles.searchBox}><Text style={styles.searchGlyph}>⌕</Text><TextInput value={query} onChangeText={setQuery} onSubmitEditing={submitSearch} returnKeyType="search" style={styles.searchInput} placeholder="بحث شامل: اسم، بريد، UUID، نموذج…" placeholderTextColor={colors.textMuted} autoCapitalize="none" /><Pressable accessibilityRole="button" onPress={submitSearch}><Text style={styles.searchAction}>بحث</Text></Pressable></View>
+        <View style={styles.searchBox}><Text style={styles.searchGlyph}>⌕</Text><TextInput value={query} onChangeText={setQuery} onSubmitEditing={submitSearch} returnKeyType="search" style={styles.searchInput} placeholder="بحث: مستخدم، نموذج، UUID…" placeholderTextColor={colors.textMuted} autoCapitalize="none" /><Pressable accessibilityRole="button" onPress={submitSearch}><Text style={styles.searchAction}>بحث</Text></Pressable></View>
         <View style={styles.topActions}>
           <View style={styles.healthPill}><View style={[styles.healthDot, systemOk === false && styles.healthDotBad, systemOk === null && styles.healthDotUnknown]} /><Text style={styles.healthText}>{systemOk === null ? "الحالة غير متاحة" : systemOk ? "النظام سليم" : "يحتاج مراجعة"}</Text></View>
           <Pressable accessibilityRole="button" accessibilityLabel="تحديث الصفحة" onPress={refreshPage} style={styles.refreshButton}><Text style={styles.refreshGlyph}>{checking ? "…" : "↻"}</Text></Pressable>
@@ -102,7 +160,8 @@ const styles = StyleSheet.create({
   brandBadge: { width: 34, height: 34, borderRadius: 10, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
   brandMark: { color: "#06110D", fontSize: 20, fontWeight: "900" }, brandCopy: { flex: 1, alignItems: "flex-end", gap: 2 }, brandName: { color: colors.textPrimary, fontSize: 16, fontWeight: "800" }, brandSub: { color: colors.textMuted, fontSize: 8, letterSpacing: 1.1 },
   navCaption: { color: colors.textMuted, fontSize: 10, textAlign: "right", paddingHorizontal: 11, paddingBottom: 8, letterSpacing: 0.6 }, nav: { flex: 1 },
-  navItem: { minHeight: 40, borderRadius: 9, paddingHorizontal: 10, justifyContent: "center", marginBottom: 3 }, navItemActive: { backgroundColor: colors.surfaceElevated, borderRightWidth: 3, borderRightColor: colors.primary }, navContent: { flexDirection: "row-reverse", alignItems: "center", gap: 10 }, navIcon: { minWidth: 20, color: colors.textMuted, fontSize: 15, textAlign: "center" }, navIconActive: { color: colors.primary }, navLabel: { color: colors.textSecondary, fontSize: 12, textAlign: "right" }, navLabelActive: { color: colors.textPrimary, fontWeight: "700" },
+  group: { marginBottom: 7 }, groupHeader: { minHeight: 49, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7, flexDirection: "row-reverse", alignItems: "center", gap: 8 }, groupHeaderActive: { backgroundColor: colors.background }, groupCopy: { flex: 1, alignItems: "flex-end", gap: 2 }, groupLabel: { color: colors.textSecondary, fontSize: 12, fontWeight: "800", textAlign: "right" }, groupLabelActive: { color: colors.primary }, groupHint: { color: colors.textMuted, fontSize: 9, textAlign: "right" }, groupChevron: { color: colors.textMuted, fontSize: 15, width: 18, textAlign: "center" }, groupItems: { paddingTop: 3, paddingRight: 7 },
+  navItem: { minHeight: 37, borderRadius: 8, paddingHorizontal: 10, justifyContent: "center", marginBottom: 2 }, navItemActive: { backgroundColor: colors.surfaceElevated, borderRightWidth: 3, borderRightColor: colors.primary }, navContent: { flexDirection: "row-reverse", alignItems: "center", gap: 10 }, navIcon: { minWidth: 20, color: colors.textMuted, fontSize: 14, textAlign: "center" }, navIconActive: { color: colors.primary }, navLabel: { color: colors.textSecondary, fontSize: 11, textAlign: "right" }, navLabelActive: { color: colors.textPrimary, fontWeight: "700" },
   railFooter: { borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 12, flexDirection: "row-reverse", alignItems: "center", gap: 7, justifyContent: "flex-start" }, secureDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.success }, secureText: { color: colors.textMuted, fontSize: 10 },
   main: { flex: 1, minWidth: 0 }, topbar: { minHeight: 62, borderBottomWidth: 1, borderBottomColor: colors.divider, backgroundColor: colors.surface, paddingHorizontal: 18, flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", gap: 14 },
   appLink: { flexDirection: "row-reverse", alignItems: "center", gap: 5, borderWidth: 1, borderColor: colors.primary, borderRadius: 9, paddingHorizontal: 10, paddingVertical: 7 }, appLinkIcon: { color: colors.primary, fontSize: 15 }, appLinkText: { color: colors.primary, fontSize: 12, fontWeight: "800" },
