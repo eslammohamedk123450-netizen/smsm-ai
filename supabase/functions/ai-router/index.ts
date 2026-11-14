@@ -62,6 +62,7 @@ type ModelRow = {
   allowed_modes?: string[];
   task_roles?: string[];
 };
+type RouteModelAssignment = { route_role: "chat" | "planner" | "worker" | "reviewer" | "summarizer"; model_id: number; priority: number; enabled: boolean };
 type ProviderRow = {
   id: number;
   name: string;
@@ -195,6 +196,17 @@ function modelSupportsRole(model: ModelRow, role: "planner" | "worker" | "review
   if (roles.includes("general")) return true;
   if (role === "worker") return roles.includes("worker") || roles.includes("executor");
   return roles.includes(role);
+}
+
+function orderModelsByRoute(models: ModelRow[], assignments: RouteModelAssignment[], role: RouteModelAssignment["route_role"]): ModelRow[] {
+  const priority = new Map(assignments.filter((assignment) => assignment.route_role === role && assignment.enabled).map((assignment) => [assignment.model_id, assignment.priority]));
+  return [...models].sort((a, b) => (priority.get(a.id) ?? 100000) - (priority.get(b.id) ?? 100000) || Number(b.priority) - Number(a.priority) || a.id - b.id);
+}
+
+function orderCandidatesByRoute(candidates: Candidate[], assignments: RouteModelAssignment[], role: RouteModelAssignment["route_role"]): Candidate[] {
+  const ordered = orderModelsByRoute(candidates.map((candidate) => candidate.model), assignments, role);
+  const byId = new Map(candidates.map((candidate) => [candidate.model.id, candidate]));
+  return ordered.map((model) => byId.get(model.id)).filter((candidate): candidate is Candidate => Boolean(candidate));
 }
 
 function providerMessagesForModel(messages: ChatMessage[], attachments: TrustedChatAttachment[]): ProviderChatMessage[] {
@@ -934,13 +946,14 @@ async function handleRequest(req: Request): Promise<Response> {
     output_credits_per_1k_tokens: Math.max(0, Math.floor(Number(pricingRow.output_credits_per_1k_tokens) || 0)),
   };
 
-  const [{ data: settingsRow }, { data: allModels, error: modelsError }, { data: providers, error: providersError }] = await Promise.all([
+  const [{ data: settingsRow }, { data: allModels, error: modelsError }, { data: providers, error: providersError }, { data: routeAssignments, error: routeAssignmentsError }] = await Promise.all([
     supabase.from("ai_router_settings").select("free_race_timeout_ms,paid_fallback_enabled,paid_fallback_timeout_ms,max_parallel_free_models,health_auto_restrict_enabled,preflight_probe_enabled,preflight_probe_timeout_ms,preflight_probe_max_models,task_split_enabled,task_split_max_parts,gmail_task_model_id,agent_planner_model_id,agent_summarizer_model_id").eq("id", 1).maybeSingle(),
     supabase.from("ai_models").select("id,name,provider_id,model_identifier,enabled,priority,routing_group,allowed_tiers,capabilities_json,allowed_modes,task_roles,response_timeout_ms,restriction_failure_threshold,restriction_window_minutes").eq("enabled", true).order("priority", { ascending: false }).limit(200),
     supabase.from("ai_providers").select("id,name,provider_type,base_url,enabled,timeout_seconds,api_key_vault_id").limit(100),
+    supabase.from("ai_route_model_assignments").select("route_role,model_id,priority,enabled").order("route_role").order("priority").limit(2500),
   ]);
-  if (modelsError || providersError) {
-    console.error("Could not load routing catalog:", modelsError?.message ?? providersError?.message);
+  if (modelsError || providersError || routeAssignmentsError) {
+    console.error("Could not load routing catalog:", modelsError?.message ?? providersError?.message ?? routeAssignmentsError?.message);
     return await failedResponse(jsonResponse({ error: "Could not load the model routing catalog." }, 500, req), "model_catalog_unavailable");
   }
   const { data: healthRows, error: healthError } = await supabase
@@ -963,13 +976,14 @@ async function handleRequest(req: Request): Promise<Response> {
     agentPlannerModelId: Number.isSafeInteger(Number(settingsRow?.agent_planner_model_id)) && Number(settingsRow?.agent_planner_model_id) > 0 ? Number(settingsRow?.agent_planner_model_id) : null,
     agentSummarizerModelId: Number.isSafeInteger(Number(settingsRow?.agent_summarizer_model_id)) && Number(settingsRow?.agent_summarizer_model_id) > 0 ? Number(settingsRow?.agent_summarizer_model_id) : null,
     maxParallelFreeModels: Math.max(1, Math.min(50, Number(settingsRow?.max_parallel_free_models) || 10)),
-    preflightProbeEnabled: settingsRow?.preflight_probe_enabled !== false,
+    preflightProbeEnabled: settingsRow?.preflight_probe_enabled === true,
     preflightProbeTimeoutMs: Math.max(300, Math.min(10000, Number(settingsRow?.preflight_probe_timeout_ms) || 1500)),
     preflightProbeMaxModels: Math.max(1, Math.min(20, Number(settingsRow?.preflight_probe_max_models) || 6)),
     taskSplitEnabled: settingsRow?.task_split_enabled !== false,
     taskSplitMaxParts: Math.max(2, Math.min(5, Number(settingsRow?.task_split_max_parts) || 4)),
   };
   const providerById = new Map<number, ProviderRow>((providers ?? []).map((p: ProviderRow) => [p.id, p]));
+  const orderedRouteAssignments = (routeAssignments ?? []) as RouteModelAssignment[];
   const healthyModels = (allModels ?? []).filter((model: ModelRow) => !healthByModel.get(model.id)?.auto_restricted);
   const anyCapabilityEligible = healthyModels.some((model: ModelRow) => model.enabled
     && (model.allowed_tiers ?? []).includes(userTier)
@@ -994,7 +1008,8 @@ async function handleRequest(req: Request): Promise<Response> {
     // Auto routing always starts with the free race. Paid models are selected only
     // after every free candidate has failed or no usable free candidate exists.
     const tierFiltered = healthyModels.filter((m: ModelRow) => (m.allowed_tiers ?? []).includes(userTier) && modelSupportsRequest(m, uniqueRequiredCapabilities));
-    candidatesFrom = tierFiltered.filter(m => m.routing_group === "free_race").sort((a,b) => b.priority - a.priority);
+    const routeRole: RouteModelAssignment["route_role"] = executionMode === "agent" ? "planner" : "chat";
+    candidatesFrom = orderModelsByRoute(tierFiltered.filter(m => m.routing_group === "free_race"), orderedRouteAssignments, routeRole);
   }
 
   if (routingMode === "manual" && candidatesFrom.length === 0) return await failedResponse(jsonResponse({ error: manuallyRequested ? "النموذج المحدد لا يملك القدرات المطلوبة لهذا المرفق." : "Model not found or disabled." }, manuallyRequested ? 422 : 404, req), "manual_model_unavailable");
@@ -1528,14 +1543,15 @@ async function handleRequest(req: Request): Promise<Response> {
       "web.search": isWebSearchRequest(latestUserMessage),
     });
     const taskUpdates: Array<{ task: string; status: "pending" | "running" | "completed" | "failed" }> = [];
-    const freePlanPool = raceCandidates.filter((candidate) => modelSupportsRole(candidate.model, "planner"));
-    const freeSummarizerPool = raceCandidates.filter((candidate) => modelSupportsRole(candidate.model, "summarizer"));
-    const freeReviewerPool = raceCandidates.filter((candidate) => modelSupportsRole(candidate.model, "reviewer"));
+    const freePlanPool = orderCandidatesByRoute(raceCandidates.filter((candidate) => modelSupportsRole(candidate.model, "planner")), orderedRouteAssignments, "planner");
+    const freeSummarizerPool = orderCandidatesByRoute(raceCandidates.filter((candidate) => modelSupportsRole(candidate.model, "summarizer")), orderedRouteAssignments, "summarizer");
+    const freeReviewerPool = orderCandidatesByRoute(raceCandidates.filter((candidate) => modelSupportsRole(candidate.model, "reviewer")), orderedRouteAssignments, "reviewer");
     let paidPlanPool: Candidate[] = [];
     if (routingMode === "auto" && settings.paidFallbackEnabled) {
       const paidModels: ModelRow[] = healthyModels
         .filter((model) => modelSupportsRole(model, "planner") && model.routing_group === "paid_fallback" && (model.allowed_tiers ?? []).includes(userTier) && modelSupportsRequest(model, uniqueRequiredCapabilities))
-        .sort((a, b) => Number(b.priority) - Number(a.priority));
+        ;
+      const orderedPaidModels = orderModelsByRoute(paidModels, orderedRouteAssignments, "planner");
       const paidProviderIds = [...new Set(paidModels.map((model) => model.provider_id))];
       await Promise.all(paidProviderIds.map(async (providerId) => {
         const provider = providerById.get(providerId);
@@ -1543,8 +1559,8 @@ async function handleRequest(req: Request): Promise<Response> {
         const { data, error } = await supabase.rpc("suly_service_get_provider_api_key", { p_provider_id: providerId });
         if (!error && typeof data === "string" && data.length > 0) providerKeys.set(providerId, data);
       }));
-      await recordPreflightProblems(paidModels);
-      paidPlanPool = makeCandidates(paidModels);
+      await recordPreflightProblems(orderedPaidModels);
+      paidPlanPool = makeCandidates(orderedPaidModels);
     }
 
     const preferredGmailModelId = connectorRequest?.toolkit === "gmail" || requestedMultiReadToolkits?.includes("gmail") ? settings.gmailTaskModelId : null;
@@ -2050,25 +2066,27 @@ async function handleRequest(req: Request): Promise<Response> {
     return jsonResponse({ ...info, response: { choices: [{ message: { role: "assistant", content } }] } }, 200, req);
   }
 
-  if (routingMode === "manual") {
-    winner = await firstReady(raceCandidates, settings.paidFallbackTimeoutMs, recordAttempt, countModelStarts);
-  } else {
-    winner = await firstReady(raceCandidates, settings.freeRaceTimeoutMs, recordAttempt, countModelStarts);
+  const freeDeadline = Date.now() + (routingMode === "manual" ? settings.paidFallbackTimeoutMs : settings.freeRaceTimeoutMs);
+  for (const candidate of raceCandidates) {
+    const remaining = freeDeadline - Date.now();
+    if (remaining <= 0) break;
+    winner = await firstReady([candidate], remaining, recordAttempt, countModelStarts);
+    if (winner) break;
   }
 
   if (!winner && routingMode === "auto" && settings.paidFallbackEnabled) {
     const paidModels: ModelRow[] = healthyModels
       .filter((m: ModelRow) => m.routing_group === "paid_fallback" && (m.allowed_tiers ?? []).includes(userTier) && modelSupportsRequest(m, uniqueRequiredCapabilities))
-      .sort((a: ModelRow, b: ModelRow) => Number(b.priority) - Number(a.priority));
-    const paidProviderIds: number[] = [...new Set<number>(paidModels.map((m: ModelRow) => m.provider_id))];
+    const orderedPaidModels = orderModelsByRoute(paidModels, orderedRouteAssignments, executionMode === "agent" ? "planner" : "chat");
+    const paidProviderIds: number[] = [...new Set<number>(orderedPaidModels.map((m: ModelRow) => m.provider_id))];
     await Promise.all(paidProviderIds.map(async (providerId) => {
       const provider = providerById.get(providerId);
       if (!provider || !provider.enabled || !safeChatEndpoint(provider.base_url) || providerKeys.has(providerId)) return;
       const { data, error } = await supabase.rpc("suly_service_get_provider_api_key", { p_provider_id: providerId });
       if (!error && typeof data === "string" && data.length > 0) providerKeys.set(providerId, data);
     }));
-    await recordPreflightProblems(paidModels);
-    const paidCandidates = makeCandidates(paidModels);
+    await recordPreflightProblems(orderedPaidModels);
+    const paidCandidates = makeCandidates(orderedPaidModels);
     providerCandidateAvailable ||= paidCandidates.length > 0;
     const fallbackDeadline = Date.now() + settings.paidFallbackTimeoutMs;
     for (const candidate of paidCandidates) {

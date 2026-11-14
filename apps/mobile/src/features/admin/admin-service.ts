@@ -306,6 +306,34 @@ export const adminService = {
     if (error) throw error;
   },
 
+  async getRouteModelAssignments(): Promise<Array<{ route_role: string; model_id: number; priority: number; enabled: boolean }>> {
+    await requireAdmin();
+    const { data, error } = await supabase
+      .from("ai_route_model_assignments")
+      .select("route_role,model_id,priority,enabled")
+      .order("route_role")
+      .order("priority")
+      .limit(2500);
+    if (error) throw error;
+    return (data ?? []) as Array<{ route_role: string; model_id: number; priority: number; enabled: boolean }>;
+  },
+
+  async saveRouteModelAssignments(routeRole: "chat" | "planner" | "worker" | "reviewer" | "summarizer", modelIds: number[]) {
+    await requireAdmin();
+    const ids = [...new Set(modelIds)].filter((id) => Number.isSafeInteger(id) && id > 0).slice(0, 500);
+    const { error: deleteError } = await supabase.from("ai_route_model_assignments").delete().eq("route_role", routeRole);
+    if (deleteError) throw deleteError;
+    if (!ids.length) return;
+    const { error: insertError } = await supabase.from("ai_route_model_assignments").insert(ids.map((model_id, index) => ({
+      route_role: routeRole,
+      model_id,
+      priority: index + 1,
+      enabled: true,
+      updated_at: new Date().toISOString(),
+    })));
+    if (insertError) throw insertError;
+  },
+
   async resetModelHealth(modelId: number) {
     await requireAdmin();
     const { data, error } = await supabase.rpc("suly_admin_reset_model_health", { p_model_id: modelId });
