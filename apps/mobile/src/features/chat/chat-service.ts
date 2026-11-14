@@ -127,10 +127,10 @@ export const chatService = {
     const { data, error } = await supabase.from("suly_messages")
       .select("id,conversation_id,role,content,model_id,created_at")
       .eq("conversation_id", conversationId)
-      .order("created_at", { ascending: true })
+      .order("created_at", { ascending: false })
       .limit(500);
     if (error) throw new Error("تعذر تحميل رسائل المحادثة.");
-    const messages = (data ?? []).map((row) => mapMessage(row as MessageRow));
+    const messages = (data ?? []).slice().reverse().map((row) => mapMessage(row as MessageRow));
     const messageIds = messages.map((message) => message.id);
     if (!messageIds.length) return messages;
     const { data: assetRows, error: assetError } = await supabase.from("global_media_assets")

@@ -6,6 +6,7 @@ import { adminService, type AgentConfig, type PricingPlan, type PricingFeature }
 import { providerPresets, findPreset, type ProviderPreset } from "./provider-presets";
 import { confirmAdminAction } from "./admin-confirm";
 import { colors } from "../../theme/colors";
+import { GmailModelPickerCard } from "./GmailModelPickerCard";
 
 type ProviderRow = { id: number; name: string; provider_type: string; base_url: string | null; enabled: boolean; last_test_status: string | null };
 type ModelRow = {
@@ -154,10 +155,10 @@ export function ProvidersAdminScreen() {
       const result = await adminService.testModel(model.id);
       setTestResults((current) => ({
         ...current,
-        [model.id]: result.status === "success" ? `نجح · ${result.duration_ms}ms` : probeErrorLabel(result.error_code),
+        [model.id]: result.status === "success" ? `نجح الطلب · ${result.duration_ms}ms` : `فشل الطلب · ${probeErrorLabel(result.error_code)}`,
       }));
     } catch (cause) {
-      setTestResults((current) => ({ ...current, [model.id]: cause instanceof Error ? cause.message : "تعذر تشغيل الاختبار." }));
+      setTestResults((current) => ({ ...current, [model.id]: `فشل الطلب · ${cause instanceof Error ? cause.message : "تعذر تشغيل الاختبار."}` }));
     } finally { setTestingModelId(null); }
   };
 
@@ -291,6 +292,7 @@ export function ModelsAdminScreen() {
   const [search, setSearch] = useState(typeof q === "string" ? q : "");
   const [modelFilter, setModelFilter] = useState<"all" | "enabled" | "disabled" | "restricted">("all");
   const [settings, setSettings] = useState<Record<string, unknown> | null>(null);
+  const [gmailModelId, setGmailModelId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [testingModelId, setTestingModelId] = useState<number | null>(null);
@@ -340,6 +342,8 @@ export function ModelsAdminScreen() {
       const config = result.settings as Record<string, unknown> | null;
       setSettings(config);
       if (config) {
+        const configuredGmailModelId = Number(config.gmail_task_model_id);
+        setGmailModelId(Number.isSafeInteger(configuredGmailModelId) && configuredGmailModelId > 0 ? configuredGmailModelId : null);
         setFreeTimeout(String(config.free_race_timeout_ms ?? 5000));
         setFallbackTimeout(String(config.paid_fallback_timeout_ms ?? 30000));
         setParallel(String(config.max_parallel_free_models ?? 10));
@@ -407,6 +411,15 @@ export function ModelsAdminScreen() {
     finally { setBusy(false); }
   };
 
+  const saveGmailModel = async () => {
+    setBusy(true); setError(null);
+    try {
+      await adminService.updateGmailTaskModel(gmailModelId);
+      await load();
+    } catch { setError("تعذر حفظ نموذج Gmail. تحقق من ترحيل قاعدة البيانات وصلاحيات الإدارة."); }
+    finally { setBusy(false); }
+  };
+
   const disable = async (model: ModelRow) => {
     if (!await confirmAdminAction("تعطيل النموذج؟", `سيُزال ${model.name} من التوجيه.`, "تعطيل النموذج")) return;
     setBusy(true);
@@ -437,11 +450,11 @@ export function ModelsAdminScreen() {
       const result = await adminService.testModel(model.id);
       setTestResults((current) => ({
         ...current,
-        [model.id]: result.status === "success" ? `نجح الاختبار · ${result.duration_ms}ms` : probeErrorLabel(result.error_code),
+        [model.id]: result.status === "success" ? `نجح الطلب · ${result.duration_ms}ms` : `فشل الطلب · ${probeErrorLabel(result.error_code)}`,
       }));
       await load();
     } catch (cause) {
-      setTestResults((current) => ({ ...current, [model.id]: cause instanceof Error ? cause.message : "تعذر تشغيل الاختبار." }));
+      setTestResults((current) => ({ ...current, [model.id]: `فشل الطلب · ${cause instanceof Error ? cause.message : "تعذر تشغيل الاختبار."}` }));
     } finally { setTestingModelId(null); }
   };
 
@@ -451,7 +464,7 @@ export function ModelsAdminScreen() {
     try {
       await adminService.testModelsBatch(filteredModels.map((model) => model.id), (result) => {
         setBatchResults((current) => ({ ...current, [result.modelId]: result }));
-        setTestResults((current) => ({ ...current, [result.modelId]: result.status === "success" ? `نجح الاختبار · ${result.durationMs}ms · أُضيف للتشغيل` : probeErrorLabel(result.errorCode) }));
+        setTestResults((current) => ({ ...current, [result.modelId]: result.status === "success" ? `نجح الطلب · ${result.durationMs}ms · أُضيف للتشغيل` : `فشل الطلب · ${probeErrorLabel(result.errorCode)}` }));
       });
       await load();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر إكمال الاختبار الشامل."); }
@@ -473,6 +486,7 @@ export function ModelsAdminScreen() {
           <PageHeader title="النماذج والتوجيه" />
           <ErrorText>{error}</ErrorText>
           {!loading ? <>
+            {settings && <GmailModelPickerCard models={models} selectedModelId={gmailModelId} onSelect={setGmailModelId} onSave={() => void saveGmailModel()} busy={busy} />}
             <View style={styles.modelsSectionHeader}><View style={styles.modelsHeadingCopy}><Text style={styles.sectionTitle}>كتالوج النماذج</Text><Text style={styles.detail}>إدارة الحالة ومسار التوجيه والقيود وسجل الصحة</Text></View><View style={styles.totalBadge}><Text style={styles.totalBadgeText}>{models.length} نموذج</Text></View></View>
             <View style={styles.searchWrap}><Text style={styles.searchGlyph}>⌕</Text><TextInput style={[styles.input, styles.modelSearchInput]} value={search} onChangeText={setSearch} placeholder="ابحث بالاسم أو المزود أو المسار" placeholderTextColor={colors.textMuted} autoCapitalize="none" /><Pressable accessibilityRole="button" onPress={() => setSearch("")}><Text style={styles.link}>مسح</Text></Pressable></View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
@@ -507,6 +521,7 @@ export function ModelsAdminScreen() {
             <View style={styles.modelsTableActions}>
               <Pressable accessibilityRole="button" onPress={() => void openModelDetails(model)} style={styles.detailsAction}><Text style={styles.link}>⚙  القيود وسجل الفحوص</Text></Pressable>
               <PrimaryButton label={testingModelId === model.id ? "جارٍ الفحص…" : "اختبار فوري"} onPress={() => void testModel(model)} disabled={busy || testingModelId !== null} />
+              {testResults[model.id] ? <Text accessibilityRole="text" style={testResults[model.id].startsWith("نجح الطلب") ? styles.success : styles.warning}>{testResults[model.id]}</Text> : null}
               {model.health?.auto_restricted ? <PrimaryButton label="مراجعة وإعادة تفعيل" onPress={() => void resetHealth(model)} disabled={busy || testingModelId !== null} /> : providerIsOff ? <Link href="/admin/api-keys" asChild><Pressable style={styles.detailsAction}><Text style={styles.link}>اذهب لتفعيل المفتاح</Text></Pressable></Link> : isManuallyOff ? <><PrimaryButton label="تفعيل ضمن سباق مجاني" onPress={() => void assignRoute(model, "free_race")} disabled={busy || testingModelId !== null} /><PrimaryButton label="تفعيل كبديل مدفوع" onPress={() => void assignRoute(model, "paid_fallback")} disabled={busy || testingModelId !== null} /></> : <PrimaryButton label="تعطيل" onPress={() => void disable(model)} disabled={busy || testingModelId !== null} />}
             </View>
           </View></ScrollView>;

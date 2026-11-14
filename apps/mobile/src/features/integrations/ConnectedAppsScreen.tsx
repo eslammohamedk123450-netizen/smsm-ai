@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { ActivityIndicator, Modal, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
@@ -52,6 +52,32 @@ export default function ConnectedAppsScreen() {
       await load();
     } catch (cause) {
       show(cause instanceof Error ? cause.message : "تعذّر بدء ربط التطبيق.", "error");
+    } finally {
+      setConnecting(null);
+    }
+  };
+
+  const disconnect = (status: ToolkitStatus) => {
+    if (!status.accountId) { show("تعذر تحديد حساب الاتصال. حدّث الحالة وحاول مجددًا.", "error"); return; }
+    Alert.alert(
+      `قطع اتصال ${status.label}؟`,
+      "سيُحذف الاتصال من Suly ويُطلب إلغاء صلاحية التطبيق لدى الخدمة. ستحتاج إلى ربطه مجددًا لاستخدامه لاحقًا.",
+      [
+        { text: "إلغاء", style: "cancel" },
+        { text: "قطع الاتصال", style: "destructive", onPress: () => void performDisconnect(status) },
+      ],
+    );
+  };
+
+  const performDisconnect = async (status: ToolkitStatus) => {
+    if (!status.accountId) return;
+    setConnecting(status.toolkit);
+    try {
+      await integrationService.disconnect(status.toolkit, status.accountId);
+      show(`تم قطع اتصال ${status.label}.`, "success");
+      await load();
+    } catch (cause) {
+      show(cause instanceof Error ? cause.message : "تعذّر قطع اتصال التطبيق.", "error");
     } finally {
       setConnecting(null);
     }
@@ -113,7 +139,9 @@ export default function ConnectedAppsScreen() {
               {status.updatedAt ? <Text style={styles.updated}>آخر تحديث: {new Date(status.updatedAt).toLocaleString("ar-EG")}</Text> : null}
             </View>
             {status.connected ? (
-              <View style={styles.badge}><Text style={styles.badgeText}>مرتبط</Text></View>
+              <TouchableOpacity activeOpacity={0.7} style={styles.disconnectButton} disabled={connecting !== null} onPress={() => disconnect(status)} accessibilityRole="button" accessibilityLabel={`قطع اتصال ${status.label}`}>
+                {connecting === status.toolkit ? <ActivityIndicator size="small" color={colors.error} /> : <Text style={styles.disconnectText}>قطع الاتصال</Text>}
+              </TouchableOpacity>
             ) : (
               <TouchableOpacity
                 activeOpacity={0.7}
@@ -193,6 +221,8 @@ const styles = StyleSheet.create({
   badgeText: { color: colors.success, fontSize: 12, fontWeight: "700" },
   connectButton: { paddingHorizontal: 18, paddingVertical: 9, borderRadius: 12, backgroundColor: colors.primary, minWidth: 74, alignItems: "center", justifyContent: "center" },
   connectText: { color: colors.background, fontWeight: "800", fontSize: 13 },
+  disconnectButton: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 12, backgroundColor: colors.surface, borderColor: colors.error, borderWidth: 1, minWidth: 94, alignItems: "center", justifyContent: "center" },
+  disconnectText: { color: colors.error, fontWeight: "800", fontSize: 11 },
   note: { color: colors.textMuted, fontSize: 12, lineHeight: 20, textAlign: "right", marginTop: 18 },
   modalBackdrop: { flex: 1, justifyContent: "center", alignItems: "center", padding: 22, backgroundColor: "rgba(0,0,0,0.72)" },
   addSheet: { width: "100%", maxWidth: 520, borderRadius: 20, padding: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider },

@@ -236,7 +236,7 @@ export const adminService = {
         .select("model_id,consecutive_scheduled_failures,consecutive_scheduled_successes,last_scheduled_status,last_scheduled_at,last_error_code")
         .limit(1000),
       supabase.from("ai_router_settings")
-        .select("id,free_race_timeout_ms,paid_fallback_enabled,paid_fallback_timeout_ms,max_parallel_free_models,health_auto_restrict_enabled")
+        .select("id,free_race_timeout_ms,paid_fallback_enabled,paid_fallback_timeout_ms,max_parallel_free_models,health_auto_restrict_enabled,gmail_task_model_id")
         .eq("id", 1).maybeSingle(),
       this.getProviders(),
     ]);
@@ -283,6 +283,17 @@ export const adminService = {
     await requireAdmin();
     const { data: { user } } = await supabase.auth.getUser();
     const { error } = await supabase.from("ai_router_settings").update({ ...changes, updated_by: user?.id, updated_at: new Date().toISOString() }).eq("id", 1);
+    if (error) throw error;
+  },
+
+  async updateGmailTaskModel(modelId: number | null) {
+    await requireAdmin();
+    const { data: { user } } = await supabase.auth.getUser();
+    const { error } = await supabase.from("ai_router_settings").update({
+      gmail_task_model_id: modelId,
+      updated_by: user?.id,
+      updated_at: new Date().toISOString(),
+    }).eq("id", 1);
     if (error) throw error;
   },
 

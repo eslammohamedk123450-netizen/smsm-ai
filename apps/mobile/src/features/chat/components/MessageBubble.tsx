@@ -184,7 +184,9 @@ export function MessageBubble({
                 </View>
               ) : <>
                 {!isStreaming ? (
-                  <View style={styles.markdown}>{renderContent(content)}</View>
+                  <View style={styles.markdown}>
+                    <MarkdownView content={content} onCopyCode={(code) => void copyToClipboard(code)} />
+                  </View>
                 ) : (
                   <Text style={styles.assistantText}>{content}</Text>
                 )}

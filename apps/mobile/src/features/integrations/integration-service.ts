@@ -3,6 +3,7 @@ import { supabase } from "../../lib/supabase/client";
 export interface ToolkitStatus {
   toolkit: "gmail" | "googledrive" | "github";
   label: string;
+  accountId: string | null;
   connected: boolean;
   accountExists: boolean;
   disabled: boolean;
@@ -28,7 +29,8 @@ interface IntegrationResponse {
   connected?: boolean;
   account_exists?: boolean;
   disabled?: boolean;
-  toolkits?: Record<string, { connected?: boolean; is_disabled?: boolean; status?: string | null; updated_at?: string | null }>;
+  disconnected?: boolean;
+  toolkits?: Record<string, { id?: string | null; connected?: boolean; is_disabled?: boolean; status?: string | null; updated_at?: string | null }>;
 }
 
 const TOOLKIT_LABELS: Record<ToolkitStatus["toolkit"], string> = {
@@ -61,6 +63,7 @@ export const integrationService = {
         return {
           toolkit,
           label: TOOLKIT_LABELS[toolkit],
+          accountId: typeof entry.id === "string" ? entry.id : null,
           connected: entry.connected === true,
           accountExists: typeof entry.status === "string" || entry.is_disabled === true,
           disabled: entry.is_disabled === true,
@@ -89,5 +92,10 @@ export const integrationService = {
     const result = await WebBrowser.openAuthSessionAsync(payload.redirect_url, "suly-agent-ai://auth/callback");
     await WebBrowser.dismissBrowser();
     return result.type === "success" || result.type === "locked";
+  },
+
+  async disconnect(toolkit: ToolkitStatus["toolkit"], accountId: string): Promise<void> {
+    const payload = await callIntegration({ action: "disconnect", toolkit, account_id: accountId });
+    if (payload.disconnected !== true) throw new Error("لم يؤكد الخادم قطع اتصال التطبيق.");
   },
 };
