@@ -45,3 +45,7 @@ The Agent runtime now reads the `enabled` flags from `agent_tool_registry` on ea
 
 
 The task-status read path uses a narrow column grant plus an owner-only RLS policy and a SECURITY INVOKER RPC. Clients can read status/result for their own task, but cannot read queue payloads, worker lease data, or other users' jobs.
+
+
+## Authentication handoff
+The authenticated worker validates the caller's JWT before claiming work, then forwards that same short-lived user JWT to Brain Router. Brain Router uses the service-role secret only as a private internal-call proof, while its nested ai-router model calls still receive the verified user JWT required by ai-router authentication. The service-role key is never returned to or stored by the mobile client.
