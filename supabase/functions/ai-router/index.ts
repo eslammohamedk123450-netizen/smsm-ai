@@ -1869,15 +1869,15 @@ async function handleRequest(req: Request): Promise<Response> {
     let summarizerCandidateUsed: ReadyCandidate | null = null;
     let summarizerInputTokens = 0;
     let summarizerOutputTokens = 0;
+    const summarizerModelId = settings.agentSummarizerModelId ?? plannerCandidatesUsed.at(-1)?.model.id ?? preferredGmailModelId;
+    const summarizerPools = [
+      { candidates: prioritizeModelCandidate(freeSummarizerPool, summarizerModelId), timeoutMs: settings.freeRaceTimeoutMs },
+      { candidates: prioritizeModelCandidate(paidPlanPool.filter((candidate) => modelSupportsRole(candidate.model, "summarizer")), summarizerModelId), timeoutMs: settings.paidFallbackTimeoutMs },
+    ];
     if (loopResult.status === "completed" && !operationalReply && !connectorWriteCompleted && agentEvidence.length > 0) {
       const summarizerTask = "مراجعة نتائج القراءة وصياغة الإجابة";
       taskUpdates.push({ task: summarizerTask, status: "running" });
       const evidenceText = JSON.stringify(agentEvidence);
-      const summarizerModelId = settings.agentSummarizerModelId ?? plannerCandidatesUsed.at(-1)?.model.id ?? preferredGmailModelId;
-      const summarizerPools = [
-        { candidates: prioritizeModelCandidate(freeSummarizerPool, summarizerModelId), timeoutMs: settings.freeRaceTimeoutMs },
-        { candidates: prioritizeModelCandidate(paidPlanPool.filter((candidate) => modelSupportsRole(candidate.model, "summarizer")), summarizerModelId), timeoutMs: settings.paidFallbackTimeoutMs },
-      ];
       const summaryMessages: ChatMessage[] = [
         {
           role: "system",
