@@ -36,6 +36,17 @@ function supportsChat(value: ModelChoice["capabilities_json"]): boolean {
   return capabilities.chat !== false;
 }
 
+function supportsGmail(value: ModelChoice["capabilities_json"]): boolean {
+  let capabilities: Record<string, unknown> = {};
+  if (typeof value === "string") {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) capabilities = parsed as Record<string, unknown>;
+    } catch { return false; }
+  } else if (value && typeof value === "object" && !Array.isArray(value)) capabilities = value;
+  return capabilities.gmail === true;
+}
+
 export function GmailModelPickerCard({ models, selectedModelId, busy, onSelect, onSave }: Props) {
   const [search, setSearch] = useState("");
   const eligibleModels = useMemo(() => {
@@ -43,6 +54,7 @@ export function GmailModelPickerCard({ models, selectedModelId, busy, onSelect, 
     return models.filter((model) => model.provider_enabled !== false && model.enabled
       && model.routing_group !== "disabled" && !model.health?.auto_restricted
       && supportsChat(model.capabilities_json)
+      && supportsGmail(model.capabilities_json)
       && `${model.name} ${model.model_identifier} ${model.provider_name}`.toLocaleLowerCase().includes(query));
   }, [models, search]);
   const selectedModel = models.find((model) => model.id === selectedModelId);

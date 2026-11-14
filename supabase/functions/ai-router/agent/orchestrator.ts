@@ -39,7 +39,9 @@ export type AgentLoopResult =
 
 const MAX_DECISION_CHARS = 6000;
 const MAX_TOOL_INPUT_CHARS = 12000;
-const MAX_TOOL_RESULT_CHARS = 6000;
+// Connector payloads can contain sender, subject, headers, and a long body.
+// Keep a bounded but useful evidence window for the follow-up planner.
+const MAX_TOOL_RESULT_CHARS = 16000;
 const MAX_STEPS = 5;
 
 function asRecord(value: unknown): Record<string, unknown> | null {
