@@ -1,9 +1,19 @@
+import 'dotenv/config';
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import { createClient } from '@supabase/supabase-js';
+import {
+  createModelConfig,
+  getAdminCatalogState,
+  updateModelConfig,
+  updateRouterPolicy,
+} from './server/modelStore.ts';
+import { checkLiveConnections } from './server/gmailBridge.ts';
+import { runRouterStream } from './server/agentEngine.ts';
+import type { ExecutionMode, PlanTier } from './src/types.ts';
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT || 3000);
 
 app.use(express.json({ limit: '10mb' }));
 
@@ -18,202 +28,148 @@ function getSupabaseFromRequest(req: express.Request) {
   });
 }
 
+// Live integrations connection check (Gmail OAuth Bearer + Composio)
+app.get('/api/integrations/status', async (req, res) => {
+  const gmailToken = req.header('x-gmail-token')?.trim() || null;
+  const composioKey = process.env.COMPOSIO_API_KEY?.trim() || undefined;
+  const report = await checkLiveConnections(gmailToken, composioKey);
+  return res.json(report);
+});
+
+// Admin model & capability matrix endpoints
+app.get('/api/admin/models', (_req, res) => {
+  return res.json(getAdminCatalogState());
+});
+
+app.put('/api/admin/models/:id', (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    return res.status(400).json({ error: 'معرّف النموذج غير صالح.' });
+  }
+  const updated = updateModelConfig(id, req.body ?? {});
+  if (!updated) {
+    return res.status(404).json({ error: 'النموذج غير موجود.' });
+  }
+  return res.json({ model: updated });
+});
+
+app.post('/api/admin/models', (req, res) => {
+  const body = req.body ?? {};
+  if (!body.name || !body.modelIdentifier) {
+    return res.status(400).json({ error: 'اسم النموذج والمعرف التقني مطلوبان.' });
+  }
+  const created = createModelConfig({
+    name: String(body.name),
+    provider: String(body.provider || 'google-genai'),
+    modelIdentifier: String(body.modelIdentifier),
+    enabled: body.enabled !== false,
+    priority: Number(body.priority || 75),
+    routingGroup: body.routingGroup || 'free_race',
+    allowedModes: Array.isArray(body.allowedModes) ? body.allowedModes : ['chat', 'agent'],
+    taskRoles: Array.isArray(body.taskRoles) ? body.taskRoles : ['general'],
+    allowedTiers: Array.isArray(body.allowedTiers) ? body.allowedTiers : ['Free', 'Business Pro', 'Enterprise'],
+    capabilities: body.capabilities || {
+      chat: true,
+      read: true,
+      write: false,
+      vision: false,
+      audio: false,
+      convert: false,
+      tools: false,
+      pdf: false,
+      word: false,
+      video: false,
+      gmail: false,
+      google_drive: false,
+      github: false,
+    },
+    responseTimeoutMs: Number(body.responseTimeoutMs || 20000),
+    description: typeof body.description === 'string' ? body.description : undefined,
+  });
+  return res.status(201).json({ model: created });
+});
+
+app.put('/api/admin/policy', (req, res) => {
+  const policy = updateRouterPolicy(req.body ?? {});
+  return res.json({ policy });
+});
+
+// Supabase Composio Vault status / update (preserved for Supabase-linked deployments)
 app.get('/api/admin/composio', async (req, res) => {
   const supabase = getSupabaseFromRequest(req);
-  if (!supabase) return res.status(401).json({ error: 'جلسة المدير غير موجودة أو إعداد Supabase ناقص.' });
+  if (!supabase) {
+    return res.json({
+      configured: Boolean(process.env.COMPOSIO_API_KEY),
+      updated_at: null,
+      mode: 'local_preview',
+    });
+  }
   const { data, error } = await supabase.rpc('suly_admin_composio_status');
-  if (error) return res.status(error.code === '42501' ? 403 : 500).json({ error: 'لا يمكن قراءة حالة إعداد Composio لهذه الجلسة.' });
+  if (error) {
+    return res
+      .status(error.code === '42501' ? 403 : 500)
+      .json({ error: 'لا يمكن قراءة حالة إعداد Composio لهذه الجلسة.' });
+  }
   const row = Array.isArray(data) ? data[0] : data;
   return res.json({ configured: row?.configured === true, updated_at: row?.updated_at ?? null });
 });
 
 app.put('/api/admin/composio', async (req, res) => {
   const supabase = getSupabaseFromRequest(req);
-  if (!supabase) return res.status(401).json({ error: 'جلسة المدير غير موجودة أو إعداد Supabase ناقص.' });
+  if (!supabase) {
+    return res.status(401).json({ error: 'جلسة المدير في Supabase غير متصلة في هذه المعاينة.' });
+  }
   const apiKey = typeof req.body?.apiKey === 'string' ? req.body.apiKey.trim() : '';
-  if (!apiKey || apiKey.length > 16384) return res.status(400).json({ error: 'مفتاح Composio غير صالح.' });
+  if (!apiKey || apiKey.length > 16384) {
+    return res.status(400).json({ error: 'مفتاح Composio غير صالح.' });
+  }
   const { error } = await supabase.rpc('suly_admin_set_composio_api_key', { p_api_key: apiKey });
-  if (error) return res.status(error.code === '42501' ? 403 : 400).json({ error: 'تعذر حفظ مفتاح Composio داخل Vault.' });
+  if (error) {
+    return res
+      .status(error.code === '42501' ? 403 : 400)
+      .json({ error: 'تعذر حفظ مفتاح Composio داخل Vault.' });
+  }
   return res.json({ ok: true, updated_at: new Date().toISOString() });
 });
 
-// Suly Chat API
-app.post('/api/chat', async (req, res) => {
-  return res.status(410).json({ error: 'This legacy chat endpoint is retired. Use the authenticated AI router.' });
-  /* Legacy implementation retained only for migration history; unreachable. */
-  /*
-  const { message, isFirstMessage } = req.body;
-  if (!message || typeof message !== 'string') {
-    return res.status(400).json({ error: 'الرجاء إرسال رسالة صالحة' });
-  }
+// Streaming SSE AI Router (supports Chat Mode & Agent Mode)
+app.post('/api/ai-router', async (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
 
-  const cleanQuery = message.trim();
-
-  // Calculate points cost (dynamic between 8 and 18 points)
-  const cost = Math.floor(Math.random() * 8) + 10;
-
-  // 1. Strict Identity Handlers (Pre-check for exact fixed answers)
-  const identityResponse = checkStrictIdentity(cleanQuery);
-  if (identityResponse) {
-    return res.json({ reply: identityResponse, cost });
-  }
-
-  // 2. If no AI client available, use direct enterprise fallback
-  if (!aiClient) {
-    const rawReply = generateFallbackResponse(cleanQuery);
-    const reply = formatDirectReply(rawReply, !!isFirstMessage);
-    return res.json({ reply, cost });
-  }
+  const body = req.body ?? {};
+  const executionMode: ExecutionMode = body.execution_mode === 'chat' ? 'chat' : 'agent';
+  const planTier: PlanTier =
+    body.plan_tier === 'Business Pro' || body.plan_tier === 'Enterprise'
+      ? body.plan_tier
+      : 'Free';
+  const messages = Array.isArray(body.messages) ? body.messages : [];
+  const gmailToken = req.header('x-gmail-token')?.trim() || null;
+  const composioApiKey = process.env.COMPOSIO_API_KEY?.trim() || undefined;
 
   try {
-    const response = await aiClient.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: cleanQuery,
-      config: {
-        systemInstruction: `أنت Suly، مساعد ذكي. رد مباشرة على سؤال المستخدم بدون أي مقدمة تعريفية عن نفسك، وبدون تحية متكررة. ابدأ بالإجابة فورا.
-الأسلوب: مباشر، احترافي، يرد على السؤال فقط. لا تشرح نفسك ولا تمدح نفسك.
-ممنوع تماماً أن تبدأ أي رد عادي بعبارات مثل: "مرحبا بك، بصفتي Suly" أو "أنا Suly" أو "يسعدني أن أضع بين يديك" أو "كمستشارك" أو "سؤال ممتاز" أو "بالتأكيد" أو أي مقدمة تعريفية.
-${isFirstMessage ? 'هذه الرسالة الأولى في المحادثة، يمكنك البدء بسطر تحية قصير واحد فقط مثل "أهلاً بك" ثم الدخول في الإجابة مباشرة.' : 'هذه ليست الرسالة الأولى، ادخل في الإجابة مباشرة دون أي تحية ودون أي مقدمة.'}
-
-قواعد الهوية الصارمة (تظهر فقط عند السؤال الصريح عنها):
-- لا تعرف بنفسك تلقائياً إلا إذا سألك المستخدم صراحة عن هويتك.
-- عندما يسأل المستخدم "انت مين؟" أو "من أنت؟" أو "عرف بنفسك":
-  الرد الثابت: "أنا Suly، مساعد ذكي تم تطويري بواسطة شركة Suly-Technologies."
-- عندما يسأل المستخدم "مين اللي عملك؟" أو "مين طورك؟":
-  الرد الثابت: "تم تطويري بواسطة شركة Suly-Technologies."
-- عندما يسأل المستخدم عن الشركة "ايه هي Suly-Technologies؟" أو "كلمني عن الشركة":
-  الرد الثابت: "شركة Suly-Technologies هي شركة مصرية تدعم الابتكار والخدمات الإلكترونية والبرمجة، تم تأسيسها على يد المهندس: إسلام محمد البدوي."
-- ممنوع إضافة أي معلومات أخرى عن الشركة أو المؤسس من تأليفك، وممنوع اختراع تاريخ تأسيس أو مقر أو خدمات غير المكتوبة هنا.
-- استخدم جداول وقوائم نقطية بتنسيق Markdown متوافق مع RTL.
-- ممنوع استخدام كلمة Flex أو أي اسم موديل تقني آخر.`,
+    await runRouterStream(
+      {
+        messages,
+        executionMode,
+        planTier,
+        gmailToken,
+        composioApiKey,
+        confirmAction: body.confirm_action,
       },
-    });
-
-    const rawReply = response.text || generateFallbackResponse(cleanQuery);
-    const reply = formatDirectReply(rawReply, !!isFirstMessage);
-    return res.json({ reply, cost });
-  } catch (error: any) {
-    console.error('Chat error:', error);
-    const rawReply = generateFallbackResponse(cleanQuery);
-    const reply = formatDirectReply(rawReply, !!isFirstMessage);
-    return res.json({ reply, cost });
+      (event) => {
+        res.write(`data: ${JSON.stringify(event)}\n\n`);
+      }
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'حدث خطأ غير متوقع في معالجة الطلب.';
+    res.write(`data: ${JSON.stringify({ type: 'error', error: message })}\n\n`);
+  } finally {
+    res.end();
   }
-  */
 });
 
-// Check strict identity queries to guarantee exact wording
-function checkStrictIdentity(query: string): string | null {
-  const q = query.replace(/[؟?.,!]/g, '').trim().toLowerCase();
-
-  // Pattern 1: انت مين؟ / من أنت؟ / عرف بنفسك
-  const whoAreYouPattern = /^(انت مين|من انت|من أنت|عرف بنفسك|عرف عن نفسك|عرفنا بنفسك|ما هو سولي|ما هو suly|مين سولي|مين suly|انت ايه)$/i;
-  if (whoAreYouPattern.test(q)) {
-    return 'أنا Suly، مساعد ذكي تم تطويري بواسطة شركة Suly-Technologies.';
-  }
-
-  // Pattern 2: مين اللي عملك؟ / مين طورك؟
-  const whoMadeYouPattern = /^(مين اللي عملك|مين عملك|مين طورك|مين اللي طورك|من طورك|من صنعك|مين صنعك|مين برمجك|من برمجك|من انشاك|مين انشاك)$/i;
-  if (whoMadeYouPattern.test(q)) {
-    return 'تم تطويري بواسطة شركة Suly-Technologies.';
-  }
-
-  // Pattern 3: ايه هي Suly-Technologies؟ / كلمني عن الشركة
-  const companyPattern = /(suly-technologies|suly technologies|سولي تكنولوجي|كلمني عن الشرك[ةه]|ايه هي الشرك[ةه]|ما هي الشرك[ةه]|عن الشرك[ةه]|مين الشرك[ةه]|ما هي suly|معلومات عن الشرك[ةه])/i;
-  if (companyPattern.test(q)) {
-    return 'شركة Suly-Technologies هي شركة مصرية تدعم الابتكار والخدمات الإلكترونية والبرمجة، تم تأسيسها على يد المهندس: إسلام محمد البدوي.';
-  }
-
-  return null;
-}
-
-// Clean any accidental introductory boilerplate from LLM outputs
-function formatDirectReply(text: string, isFirstMessage: boolean): string {
-  let cleaned = text.trim();
-
-  // Strip banned introductory phrases
-  const bannedPrefixes = [
-    /^مرحبا\s*بك،?\s*بصفتي\s*Suly[.:،\- ]*/i,
-    /^مرحباً\s*بك،?\s*بصفتي\s*Suly[.:،\- ]*/i,
-    /^أنا\s*Suly[.:،\- ]*/i,
-    /^بصفتي\s*Suly[.:،\- ]*/i,
-    /^يسعدني\s*أن\s*أضع\s*بين\s*يديك[.:،\- ]*/i,
-    /^كمستشارك[.:،\- ]*/i,
-    /^سؤال\s*ممتاز[.:،! \- ]*/i,
-    /^بالتأكيد[.:،! \- ]*/i,
-    /^بالتأكيد،?\s*/i,
-    /^أهلاً\s*وسهلاً\s*بك[.:،! \- ]*/i,
-    /^أهلاً\s*بك[.:،! \- ]*/i,
-    /^مرحباً\s*بك[.:،! \- ]*/i,
-    /^شكراً\s*لتواصلك\s*مع\s*\*{0,2}Suly\*{0,2}[.:،! \- ]*/i,
-  ];
-
-  for (const regex of bannedPrefixes) {
-    cleaned = cleaned.replace(regex, '').trim();
-  }
-
-  if (isFirstMessage) {
-    // Only first response has a short one-line greeting
-    return `أهلاً بك.\n\n${cleaned}`;
-  }
-
-  // Subsequent responses jump straight into the answer
-  return cleaned;
-}
-
-function generateFallbackResponse(query: string): string {
-  const q = query.toLowerCase();
-
-  if (q.includes('حفلات') || q.includes('موسيقية')) {
-    return `أبرز الفعاليات الموسيقية لهذا الشهر:
-
-| الفعالية | التاريخ | المكان | الفئة |
-| :--- | :--- | :--- | :--- |
-| أوركسترا السيمفونية العربية | 15 نوفمبر 2026 | مسرح دار الأوبرا | كلاسيكي وطربي |
-| ليلة العود التراثية | 20 نوفمبر 2026 | مركز المؤتمرات الكبرى | موسيقى شرقية |
-| ملتقى الإيقاعات العالمية | 28 نوفمبر 2026 | الساحة الثقافية المفتوحة | فيوجن ومعاصر |
-
-* حجز التذاكر متاح إلكترونياً عبر البوابة الرسمية.`;
-  }
-
-  if (q.includes('عطلة') || q.includes('خطط لي') || q.includes('الويكند')) {
-    return `جدول عطلة نهاية الأسبوع المقترح:
-
-| اليوم | الفترة | النشاط الموصى به | الهدف |
-| :--- | :--- | :--- | :--- |
-| الجمعة | الصباح | قراءة واسترخاء خفيف | تصفية الذهن |
-| الجمعة | المساء | لقاء اجتماعي في مطعم هادئ | التواصل الاجتماعي |
-| السبت | الصباح | رياضة مشي في الهواء الطلق | النشاط البدني |
-| السبت | بعد الظهر | مراجعة أولويات الأسبوع القادم | الجاهزية للعمل |`;
-  }
-
-  if (q.includes('أخبار') || q.includes('تحديثات')) {
-    return `ملخص التحديثات الاقتصادية والتجارية اليوم:
-
-1. **الأسواق المالية:** ارتفاع مؤشر قطاع التقنية والخدمات بنسبة 1.8%.
-2. **الاستثمار المؤسسي:** إطلاق حوافز جديدة للشركات والمنشآت الرقمية.
-3. **الخدمات اللوجستية:** تعديل أوقات الشحن السريع وسلاسل الإمداد.
-
-| القطاع | التغير اليومي | الاتجاه |
-| :--- | :--- | :--- |
-| التقنية | +1.8% | صعود |
-| الطاقة المتجددة | +0.9% | استقرار |
-| العقارات التجارية | +0.4% | متوازن |`;
-  }
-
-  return `خطة العمل المقترحة:
-
-1. **التحليل الأولي:** مراجعة المتطلبات الأساسية وتحديد الأهداف.
-2. **التنفيذ المباشر:** توزيع المهام وفق الأولويات المعتمدة.
-3. **المراجعة والتقييم:** التحقق من مطابقة المخرجات مع مؤشرات الأداء.
-
-| المرحلة | الإجراء المطلوب | المدة المقدرة |
-| :--- | :--- | :--- |
-| الأولى | جمع البيانات والتدقيق | 3 أيام |
-| الثانية | الصياغة والتنفيذ المبدئي | 5 أيام |
-| الثالثة | الاعتماد والتقييم النهائي | يومان |`;
-}
-
-// Development and production Vite mounting
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
@@ -228,8 +184,8 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, () => {
-    console.log(`Suly Corporate App running on http://localhost:${PORT}`);
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Suly AI App running on http://0.0.0.0:${PORT}`);
   });
 }
 

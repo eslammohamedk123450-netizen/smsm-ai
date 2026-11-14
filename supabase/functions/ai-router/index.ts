@@ -1446,6 +1446,7 @@ async function handleRequest(req: Request): Promise<Response> {
     let connectorReadCompleted = false;
     let connectorWriteCompleted = false;
     const agentTools: AgentTool[] = [
+      { name: "connected_app.status", description: "التحقق الفوري من حالة الاتصال الحالية بـ Gmail وGoogle Drive وGitHub.", effect: "read", available: true },
       { name: "connected_app.read", description: "قراءة معلومات من موصل مستخدم واحد نشط عبر إجراء آمن وموسوم.", effect: "read", available: !multiConnectorRequest && connectorRequest?.intent === "read" },
       { name: "connected_app.read_multiple", description: "قراءة فقط من الخدمات التي ذكرها المستخدم صراحةً؛ لا تنفذ إرسالًا أو تعديلًا.", effect: "read", available: !multiConnectorRequest && Boolean(requestedMultiReadToolkits) },
       { name: "connected_app.write", description: "إرسال أو إنشاء أو تعديل شيء في موصل واحد؛ يتطلب موافقة المستخدم على نص العملية نفسه.", effect: "write", available: !multiConnectorRequest && connectorRequest?.intent === "write" },
@@ -1551,6 +1552,46 @@ async function handleRequest(req: Request): Promise<Response> {
     };
 
     const execute = async (tool: string, input: Record<string, unknown>): Promise<unknown> => {
+      if (tool === "connected_app.status") {
+        const directGmailToken = req.headers.get("x-gmail-token")?.trim();
+        let directGmailConnected = false;
+        let directGmailEmail: string | null = null;
+        if (directGmailToken) {
+          try {
+            const profileRes = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/profile", {
+              headers: { Authorization: `Bearer ${directGmailToken}` },
+            });
+            if (profileRes.ok) {
+              const profile = asRecord(await profileRes.json());
+              directGmailConnected = true;
+              directGmailEmail = typeof profile.emailAddress === "string" ? profile.emailAddress : null;
+            }
+          } catch {
+            // Keep non-fatal direct Gmail check failure isolated
+          }
+        }
+        try {
+          const apiKey = await readComposioApiKey(supabase);
+          const composioStatus = await getComposioConnectionStatus(apiKey, user.id);
+          return {
+            status: "executed",
+            gmail: {
+              connected: directGmailConnected || composioStatus.gmail.connected,
+              source: directGmailConnected ? "gmail_oauth" : composioStatus.gmail.connected ? "composio" : "none",
+              email: directGmailEmail,
+              composio: composioStatus.gmail,
+            },
+            googledrive: composioStatus.googledrive,
+            github: composioStatus.github,
+          };
+        } catch {
+          return {
+            status: "executed",
+            gmail: { connected: directGmailConnected, source: directGmailConnected ? "gmail_oauth" : "none", email: directGmailEmail },
+            composio_configured: false,
+          };
+        }
+      }
       if (tool === "connected_app.read_multiple") {
         const requested = requestedMultiReadToolkits ?? [];
         const inputToolkits = Array.isArray(input.toolkits) ? input.toolkits.map(parseComposioToolkit) : [];
@@ -1665,6 +1706,7 @@ async function handleRequest(req: Request): Promise<Response> {
       onStep(step: AgentLoopStep) {
         const labels: Record<string, string> = {
           planning: "تحليل الطلب واختيار الخطوة",
+          "connected_app.status": "التحقق من حالة الاتصال بالتطبيقات",
           "connected_app.read": `قراءة ${connectorRequest?.toolkit ?? "التطبيق المتصل"}`,
           "connected_app.read_multiple": "قراءة الخدمات المتصلة المطلوبة",
           "connected_app.write": `تنفيذ الإجراء الموافق عليه في ${connectorRequest?.toolkit ?? "التطبيق المتصل"}`,
@@ -2004,6 +2046,7 @@ import {
   buildConnectorAnalysisContext,
   detectComposioMultiReadRequest,
   detectComposioToolkitRequestFromConversation,
+  getComposioConnectionStatus,
   hasVerifiableComposioReadResult,
   isMultiToolkitComposioRequest,
   parseComposioToolkit,

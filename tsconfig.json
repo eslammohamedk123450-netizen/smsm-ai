@@ -24,16 +24,5 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "include": [
-    "src",
-    "server.ts",
-    "vite.config.ts"
-  ],
-  "exclude": [
-    "dist",
-    "supabase",
-    "apps",
-    "scripts",
-    "docs"
-  ]
+  "exclude": ["dist", "supabase", "mobile-patches"]
 }
