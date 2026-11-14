@@ -778,12 +778,36 @@ async function handleRequest(req: Request): Promise<Response> {
     }).match({ conversation_id: conversationId, request_id: billingTaskId, task_key: taskKey });
     if (error) console.error("Could not update task ledger:", error.message);
   };
-  const recordToolExecution = async (toolName: string, result: unknown, status: "completed" | "failed" = "completed") => {
+  const redactToolPayload = (value: unknown, depth = 0): unknown => {
+    if (depth > 4) return "[truncated]";
+    if (typeof value === "string") {
+      return safeOperationalSummary(value, 500);
+    }
+    if (Array.isArray(value)) return value.slice(0, 20).map((item) => redactToolPayload(item, depth + 1));
+    if (value && typeof value === "object") {
+      const output: Record<string, unknown> = {};
+      for (const [key, item] of Object.entries(value as Record<string, unknown>).slice(0, 40)) {
+        output[key] = /token|secret|password|authorization|api[_ -]?key|body|content/i.test(key)
+          ? "[redacted]"
+          : redactToolPayload(item, depth + 1);
+      }
+      return output;
+    }
+    return value ?? null;
+  };
+  const recordToolExecution = async (
+    toolName: string,
+    input: Record<string, unknown> = {},
+    result: unknown = null,
+    status: "pending" | "approved" | "rejected" | "running" | "completed" | "failed" = "completed",
+    errorCode: string | null = null,
+  ) => {
     const registered = getRegisteredTool(toolName);
     if (!registered) return;
     let inputHash: string | null = null;
     try {
-      const bytes = new TextEncoder().encode(JSON.stringify({ tool: toolName, request: billingTaskId }));
+      const safeInput = redactToolPayload(input);
+      const bytes = new TextEncoder().encode(JSON.stringify({ tool: toolName, request: billingTaskId, input: safeInput }));
       const digest = await crypto.subtle.digest("SHA-256", bytes);
       inputHash = Array.from(new Uint8Array(digest)).map((value) => value.toString(16).padStart(2, "0")).join("");
     } catch { /* logging must never break the user request */ }
@@ -792,6 +816,7 @@ async function handleRequest(req: Request): Promise<Response> {
       status: typeof resultRecord.status === "string" ? resultRecord.status : status,
       toolkit: typeof resultRecord.toolkit === "string" ? resultRecord.toolkit : null,
       tool: typeof resultRecord.tool === "string" ? resultRecord.tool : null,
+      reason: typeof resultRecord.reason === "string" ? safeOperationalSummary(resultRecord.reason, 180) : null,
     } : { status };
     const { error } = await supabase.from("agent_tool_execution_log").insert({
       request_id: billingTaskId,
@@ -802,8 +827,10 @@ async function handleRequest(req: Request): Promise<Response> {
       effect: registered.effect,
       status,
       input_hash: inputHash,
-      completed_at: new Date().toISOString(),
-      result_summary: resultSummary,
+      ...(status === "completed" || status === "failed" || status === "rejected" ? { completed_at: new Date().toISOString() } : {}),
+      error_code: errorCode ? safeOperationalSummary(errorCode, 120) : null,
+      input_summary: redactToolPayload(input),
+      result_summary: redactToolPayload(resultSummary),
     });
     if (error) console.error("Could not persist tool execution:", error.message);
   };
@@ -1502,6 +1529,8 @@ async function handleRequest(req: Request): Promise<Response> {
     });
     const taskUpdates: Array<{ task: string; status: "pending" | "running" | "completed" | "failed" }> = [];
     const freePlanPool = raceCandidates.filter((candidate) => modelSupportsRole(candidate.model, "planner"));
+    const freeSummarizerPool = raceCandidates.filter((candidate) => modelSupportsRole(candidate.model, "summarizer"));
+    const freeReviewerPool = raceCandidates.filter((candidate) => modelSupportsRole(candidate.model, "reviewer"));
     let paidPlanPool: Candidate[] = [];
     if (routingMode === "auto" && settings.paidFallbackEnabled) {
       const paidModels: ModelRow[] = healthyModels
@@ -1743,8 +1772,21 @@ async function handleRequest(req: Request): Promise<Response> {
       confirmedWrite,
       plan,
       execute,
-      async onToolResult(tool, result) {
-        await recordToolExecution(tool, result);
+      async onToolStart(tool, input) {
+        if (getRegisteredTool(tool)?.effect === "write") {
+          await recordToolExecution(tool, input, { status: "approved" }, "approved");
+        }
+        await recordToolExecution(tool, input, null, "running");
+      },
+      async onToolRejected(tool, input, reason) {
+        const status = reason === "approval_required" ? "pending" : "rejected";
+        await recordToolExecution(tool, input, { status, reason }, status, reason);
+      },
+      async onToolError(tool, input, reason) {
+        await recordToolExecution(tool, input, { status: "failed", reason }, "failed", "tool_execution_failed");
+      },
+      async onToolResult(tool, input, result) {
+        await recordToolExecution(tool, input, result, "completed");
         if (!new Set(["connected_app.read", "connected_app.read_multiple", "web.search"]).has(tool)) return;
         let serialized = "null";
         try { serialized = JSON.stringify(result ?? null); } catch { serialized = "[result could not be serialized]"; }
@@ -1812,7 +1854,7 @@ async function handleRequest(req: Request): Promise<Response> {
       const evidenceText = JSON.stringify(agentEvidence);
       const summarizerModelId = settings.agentSummarizerModelId ?? plannerCandidatesUsed.at(-1)?.model.id ?? preferredGmailModelId;
       const summarizerPools = [
-        { candidates: prioritizeModelCandidate(freePlanPool.filter((candidate) => modelSupportsRole(candidate.model, "summarizer")), summarizerModelId), timeoutMs: settings.freeRaceTimeoutMs },
+        { candidates: prioritizeModelCandidate(freeSummarizerPool, summarizerModelId), timeoutMs: settings.freeRaceTimeoutMs },
         { candidates: prioritizeModelCandidate(paidPlanPool.filter((candidate) => modelSupportsRole(candidate.model, "summarizer")), summarizerModelId), timeoutMs: settings.paidFallbackTimeoutMs },
       ];
       const summaryMessages: ChatMessage[] = [
@@ -1859,8 +1901,91 @@ async function handleRequest(req: Request): Promise<Response> {
       }
       taskUpdates.push({ task: summarizerTask, status: summarizerCandidateUsed ? "completed" : "failed" });
     }
+    // Independent quality gate: the reviewer never executes tools and can only
+    // approve, request one bounded revision, or reject an unsupported answer.
+    let reviewerCandidateUsed: ReadyCandidate | null = null;
+    let reviewVerdict: "approved" | "retry" | "rejected" = "approved";
+    let reviewFeedback = "";
+    const reviewerPools = [
+      { candidates: prioritizeModelCandidate(freeReviewerPool, settings.agentPlannerModelId), timeoutMs: settings.freeRaceTimeoutMs },
+      { candidates: prioritizeModelCandidate(paidPlanPool.filter((candidate) => modelSupportsRole(candidate.model, "reviewer")), settings.agentPlannerModelId), timeoutMs: settings.paidFallbackTimeoutMs },
+    ];
+    const reviewTask = "مراجعة جودة النتيجة قبل التسليم";
+    if (loopResult.status === "completed" && !operationalReply) {
+      taskUpdates.push({ task: reviewTask, status: "running" });
+      for (let reviewAttempt = 0; reviewAttempt < 2; reviewAttempt += 1) {
+        const reviewMessages: ChatMessage[] = [
+          { role: "system", content: "You are an independent quality reviewer. Return only JSON: {\"verdict\":\"approved\"|\"retry\"|\"rejected\",\"feedback\":\"short reason\"}. Approve only when the answer addresses the original request, does not invent facts, and respects tool evidence. Request retry when a bounded revision can fix a material omission. Reject unsupported or unsafe output." },
+          { role: "user", content: `Original request:\n${latestUserMessage}\n\nDraft answer:\n${content}\n\nTool evidence:\n${JSON.stringify(agentEvidence).slice(0, 16000)}${reviewFeedback ? `\n\nPrevious review feedback:\n${reviewFeedback}` : ""}` },
+        ];
+        let reviewed = false;
+        for (const pool of reviewerPools) {
+          for (const baseCandidate of pool.candidates) {
+            const candidate: Candidate = { ...baseCandidate, requestMessages: providerMessagesForModel(reviewMessages, []), temperature: 0, maxTokens: 500, inputTokens: 0, outputTokens: 0 };
+            const ready = await firstReady([candidate], pool.timeoutMs, recordAttempt, countModelStarts);
+            if (!ready) continue;
+            const collected = await collectCandidate(ready, 2000);
+            try {
+              const parsed = JSON.parse(collected.content.trim().replace(/^```json\s*/i, "").replace(/\s*```$/, "")) as Record<string, unknown>;
+              const verdict = parsed.verdict === "retry" || parsed.verdict === "rejected" ? parsed.verdict : parsed.verdict === "approved" ? "approved" : null;
+              if (!verdict) throw new Error("invalid_reviewer_verdict");
+              reviewVerdict = verdict;
+              reviewFeedback = typeof parsed.feedback === "string" ? safeOperationalSummary(parsed.feedback, 500) : "";
+              reviewerCandidateUsed = ready;
+              await recordAttempt(ready, "success", Date.now() - ready.startedAtMs);
+              reviewed = true;
+              break;
+            } catch {
+              await recordAttempt(ready, "error", Date.now() - ready.startedAtMs, "invalid_reviewer_verdict", "Reviewer did not return the required JSON verdict.");
+            }
+          }
+          if (reviewed) break;
+        }
+        if (!reviewed || reviewVerdict === "approved" || reviewVerdict === "rejected") break;
+        await updateWorkspace("retrying", { review_feedback: reviewFeedback });
+        await updateWorkspaceStep("agent-loop", "retrying", { review_feedback: reviewFeedback });
+        // One bounded revision using the summarizer pool; no new tools are run.
+        const revisionMessages: ChatMessage[] = [
+          { role: "system", content: "Revise the draft answer using the review feedback. Return only the final answer in the user's language. Do not invent facts or perform new actions." },
+          { role: "user", content: `Request:\n${latestUserMessage}\n\nDraft:\n${content}\n\nReviewer feedback:\n${reviewFeedback}\n\nEvidence:\n${JSON.stringify(agentEvidence).slice(0, 16000)}` },
+        ];
+        let revised = false;
+        for (const pool of summarizerPools) {
+          for (const baseCandidate of pool.candidates) {
+            const candidate: Candidate = { ...baseCandidate, requestMessages: providerMessagesForModel(revisionMessages, []), temperature: 0.1, maxTokens: Math.min(1800, Math.max(256, maxTokens)), inputTokens: 0, outputTokens: 0 };
+            const ready = await firstReady([candidate], pool.timeoutMs, recordAttempt, countModelStarts);
+            if (!ready) continue;
+            const collected = await collectCandidate(ready, 8000);
+            if (collected.content.trim().length < 1 || collected.content.trim().length > 6000) continue;
+            content = collected.content.trim();
+            summarizerCandidateUsed = ready;
+            revised = true;
+            break;
+          }
+          if (revised) break;
+        }
+        if (!revised) {
+          reviewVerdict = "rejected";
+          break;
+        }
+      }
+      await supabase.from("agent_workspace_reviews").insert({
+        workspace_id: workspaceId,
+        step_id: null,
+        reviewer_agent_id: null,
+        model_id: reviewerCandidateUsed?.model.id ?? null,
+        verdict: reviewVerdict,
+        feedback: reviewFeedback || null,
+        attempt_no: reviewVerdict === "retry" ? 2 : 1,
+        metadata: { bounded_retry: true, agent_status: loopResult.status },
+      });
+      taskUpdates.push({ task: reviewTask, status: reviewVerdict === "rejected" ? "failed" : "completed" });
+      if (reviewVerdict === "rejected") {
+        content = "تعذر اعتماد النتيجة بعد المراجعة المستقلة؛ لم أقدّم إجابة غير موثوقة. أعد المحاولة بطلب أوضح.";
+      }
+    }
     content = applyFinalOutputLimit(content, maxOutputChars).content;
-    const agentWorkspaceStatus = loopResult.status === "needs_confirmation" ? "waiting_approval" : loopResult.status === "completed" ? "completed" : "failed";
+    const agentWorkspaceStatus = loopResult.status === "needs_confirmation" ? "waiting_approval" : loopResult.status === "completed" && reviewVerdict !== "rejected" ? "completed" : "failed";
     await updateWorkspaceStep("agent-loop", agentWorkspaceStatus === "waiting_approval" ? "waiting_approval" : agentWorkspaceStatus, { result: { status: loopResult.status, characters: content.length } });
     await updateTaskLedger("agent-loop", agentWorkspaceStatus === "completed" ? "completed" : "failed", { status: loopResult.status, characters: content.length });
     await updateWorkspaceStep("final", agentWorkspaceStatus === "completed" ? "completed" : agentWorkspaceStatus, { result: { status: loopResult.status, characters: content.length } });
@@ -1900,6 +2025,9 @@ async function handleRequest(req: Request): Promise<Response> {
       provider: selected?.provider.provider_type ?? "agent",
       planner_model_id: plannerSelected?.model.id ?? null,
       summarizer_model_id: summarizerCandidateUsed?.model.id ?? null,
+      reviewer_model_id: reviewerCandidateUsed?.model.id ?? null,
+      review_verdict: reviewVerdict,
+      review_feedback: reviewFeedback || null,
       route: "agent",
       agent_status: loopResult.status,
       agent_steps: loopResult.steps,
