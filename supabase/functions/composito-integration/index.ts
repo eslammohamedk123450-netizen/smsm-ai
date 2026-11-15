@@ -14,7 +14,6 @@ import {
 } from "../_shared/composio.ts";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
@@ -150,6 +149,11 @@ Deno.serve(async (request: Request) => {
   const configuredOrigins = Deno.env.get("WEB_CORS_ORIGIN") ?? "";
   const preflight = handleCorsPreflight(request, configuredOrigins);
   if (preflight) return preflight;
-  const response = await handleCompositoIntegrationRequest(request);
+  let response: Response;
+  try {
+    response = await handleCompositoIntegrationRequest(request);
+  } catch {
+    response = jsonResponse({ error: "The connected-apps service could not complete this request." }, 500);
+  }
   return withCors(request, response, configuredOrigins);
 });
