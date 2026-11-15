@@ -24,7 +24,14 @@ export async function settleTerminalAgentTaskUsage(
     p_task_id: input.taskId,
     p_user_id: input.userId,
   });
-  if (error) throw new Error(`Agent usage settlement failed: ${error.message}`);
+  if (error) {
+    const reason = error instanceof Error
+      ? error.message
+      : typeof error === "object" && error !== null && "message" in error && typeof error.message === "string"
+        ? error.message
+        : "database_error";
+    throw new Error(`Agent usage settlement failed: ${reason}`);
+  }
 
   const settlement = asRecord(data);
   if (settlement.finalized !== true) return settlement;
