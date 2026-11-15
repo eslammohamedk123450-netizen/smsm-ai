@@ -56,21 +56,17 @@ alter table public.suly_media_generation_models enable row level security;
 alter table public.suly_media_generation_prices enable row level security;
 
 drop policy if exists suly_media_generation_models_public_read on public.suly_media_generation_models;
-create policy suly_media_generation_models_public_read on public.suly_media_generation_models
-  for select to authenticated using (is_active = true or public.suly_is_admin());
+drop policy if exists suly_media_generation_models_admin_read on public.suly_media_generation_models;
+create policy suly_media_generation_models_admin_read on public.suly_media_generation_models
+  for select to authenticated using (public.suly_is_admin());
 drop policy if exists suly_media_generation_models_admin_write on public.suly_media_generation_models;
 create policy suly_media_generation_models_admin_write on public.suly_media_generation_models
   for all to authenticated using (public.suly_is_admin()) with check (public.suly_is_admin());
 
 drop policy if exists suly_media_generation_prices_public_read on public.suly_media_generation_prices;
-create policy suly_media_generation_prices_public_read on public.suly_media_generation_prices
-  for select to authenticated using (
-    enabled = true and exists (
-      select 1 from public.suly_media_generation_models model
-      where model.id = generation_model_id and model.is_active = true
-    )
-    or public.suly_is_admin()
-  );
+drop policy if exists suly_media_generation_prices_admin_read on public.suly_media_generation_prices;
+create policy suly_media_generation_prices_admin_read on public.suly_media_generation_prices
+  for select to authenticated using (public.suly_is_admin());
 drop policy if exists suly_media_generation_prices_admin_write on public.suly_media_generation_prices;
 create policy suly_media_generation_prices_admin_write on public.suly_media_generation_prices
   for all to authenticated using (public.suly_is_admin()) with check (public.suly_is_admin());
@@ -86,5 +82,54 @@ alter table public.suly_company_cost_ledger
 
 create index if not exists suly_company_cost_ledger_generation_model_idx
   on public.suly_company_cost_ledger(generation_model_id, created_at desc);
+
+-- Expose only customer-safe model names and selling/reservation prices. Provider
+-- endpoints, identifiers, FX rates, provider cost and margin stay admin-only.
+create or replace function public.suly_list_public_image_models()
+returns table (
+  id uuid,
+  display_name text,
+  supported_qualities text[],
+  is_default boolean,
+  prices jsonb
+)
+language plpgsql
+stable
+security definer
+set search_path = public, pg_temp
+as $
+declare
+  v_user_id uuid := auth.uid();
+  v_tier text;
+  v_tier_rank integer;
+begin
+  if v_user_id is null then
+    raise exception 'authentication required' using errcode = '42501';
+  end if;
+  select coalesce(subscription_tier, 'free') into v_tier
+  from public.suly_profiles where id = v_user_id;
+  v_tier_rank := coalesce(array_position(array['free','lite','pro','max']::text[], v_tier), 1);
+
+  return query
+  select model.id, model.display_name, model.supported_qualities, model.is_default,
+    coalesce(jsonb_agg(jsonb_build_object(
+      'quality', price.quality, 'price_credits', price.price_credits, 'resolution', price.resolution
+    ) order by price.quality) filter (where price.id is not null), '[]'::jsonb) as prices
+  from public.suly_media_generation_models model
+  left join public.suly_media_generation_prices price
+    on price.generation_model_id = model.id and price.enabled = true
+  where model.service_type = 'image' and model.is_active = true
+    and (public.suly_is_admin() or exists (
+      select 1 from unnest(model.allowed_tiers) as allowed_tier
+      where array_position(array['free','lite','pro','max']::text[], allowed_tier) <= v_tier_rank
+    ))
+  group by model.id, model.display_name, model.supported_qualities, model.is_default
+  having count(price.id) > 0
+  order by model.is_default desc, model.display_name;
+end;
+$;
+
+revoke all on function public.suly_list_public_image_models() from public, anon;
+grant execute on function public.suly_list_public_image_models() to authenticated;
 
 commit;
