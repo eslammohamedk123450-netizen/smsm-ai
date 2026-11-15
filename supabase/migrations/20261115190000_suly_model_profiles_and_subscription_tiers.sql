@@ -99,7 +99,7 @@ values
    '{"chat":true,"quick_tasks":true,"web_search":true,"multi_step_agent":true,"advanced_reasoning":true}',
    true),
   ('max', 'SULY Max', 'للمهام المعقدة والتحليل العميق',
-   'للتخطيط متعدد الخطوات والتحليل العميق والبرمجة المتقدمة والمهام التي تحتاج إلى أدوات وميزانية تنفيذ أوسع.',
+   'للتخطيط متعدد الخطوات والتحليل العميق والبرمجة المتقدمة، مع سياق أطول عند توفر نموذج يدعمه.',
    'diamond', 3, 'max',
    '{"chat":true,"quick_tasks":true,"web_search":true,"multi_step_agent":true,"advanced_reasoning":true,"extended_context":true}',
    true)
