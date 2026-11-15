@@ -168,8 +168,9 @@ Deno.serve(async (req: Request) => {
   const prompt = typeof body.prompt === "string" ? body.prompt.trim() : "";
   const requestedModelId = typeof body.generation_model_id === "string" ? body.generation_model_id : "";
   const quality = typeof body.quality === "string" ? body.quality : "standard";
-  const requestId = typeof body.request_id === "string" && UUID_RE.test(body.request_id) ? body.request_id : userMessageId;
-  if (!UUID_RE.test(conversationId) || !UUID_RE.test(userMessageId) || !UUID_RE.test(requestId)) return json(400, { error: "معرّف المحادثة أو الرسالة أو الطلب غير صالح." });
+  const requestId = typeof body.request_id === "string" && UUID_RE.test(body.request_id) ? body.request_id : crypto.randomUUID();
+  const studioRequest = body.source === "image_studio" && !conversationId && !userMessageId;
+  if (!UUID_RE.test(requestId) || (!studioRequest && (!UUID_RE.test(conversationId) || !UUID_RE.test(userMessageId)))) return json(400, { error: "معرّف المحادثة أو الرسالة أو الطلب غير صالح." });
   if (!prompt || prompt.length > 2048) return json(400, { error: "اكتب وصفًا للصورة بين حرف واحد و2048 حرفًا." });
   if (!["economy","standard","high","ultra"].includes(quality)) return json(400, { error: "جودة الصورة المحددة غير مدعومة." });
 
@@ -178,11 +179,19 @@ Deno.serve(async (req: Request) => {
   if (profile.is_banned) return json(403, { error: "هذا الحساب موقوف." });
   const userTier = ["free","lite","pro","max"].includes(String(profile.subscription_tier)) ? String(profile.subscription_tier) : "free";
 
-  const { data: conversation, error: conversationError } = await service.from("suly_conversations").select("id").eq("id", conversationId).eq("user_id", userId).maybeSingle();
-  if (conversationError || !conversation) return json(404, { error: "المحادثة غير موجودة أو لا تملك صلاحية الوصول إليها." });
-  const { data: userMessage, error: messageError } = await service.from("suly_messages").select("id,content").eq("id", userMessageId).eq("conversation_id", conversationId).eq("user_id", userId).eq("role", "user").maybeSingle();
-  if (messageError || !userMessage) return json(404, { error: "رسالة الطلب غير موجودة أو لا تخص هذه المحادثة." });
-  if (String(userMessage.content ?? "").trim() !== prompt) return json(400, { error: "وصف الصورة يجب أن يطابق رسالة الطلب المحفوظة." });
+  if (!studioRequest) {
+    const { data: conversation, error: conversationError } = await service.from("suly_conversations").select("id").eq("id", conversationId).eq("user_id", userId).maybeSingle();
+    if (conversationError || !conversation) return json(404, { error: "المحادثة غير موجودة أو لا تملك صلاحية الوصول إليها." });
+    const { data: userMessage, error: messageError } = await service.from("suly_messages").select("id,content").eq("id", userMessageId).eq("conversation_id", conversationId).eq("user_id", userId).eq("role", "user").maybeSingle();
+    if (messageError || !userMessage) return json(404, { error: "رسالة الطلب غير موجودة أو لا تخص هذه المحادثة." });
+    if (String(userMessage.content ?? "").trim() !== prompt) return json(400, { error: "وصف الصورة يجب أن يطابق رسالة الطلب المحفوظة." });
+  }
+  const { data: existingAsset } = await service.from("global_media_assets").select("id,message_id,metadata")
+    .eq("user_id", userId).contains("metadata", { request_id: requestId }).maybeSingle();
+  if (existingAsset) return json(200, {
+    success: true, request_id: requestId, media_id: existingAsset.id, message_id: existingAsset.message_id ?? null,
+    already_completed: true, metadata: existingAsset.metadata ?? {},
+  });
 
   let modelQuery = service.from("suly_media_generation_models")
     .select("id,service_type,display_name,provider_id,model_identifier,protocol,endpoint_url,allowed_tiers,supported_qualities")
@@ -238,7 +247,7 @@ Deno.serve(async (req: Request) => {
     assistantMessageId = String(assistantMessage.id);
 
     const { error: assetError } = await service.from("global_media_assets").insert({
-      id: imageId, user_id: userId, feature_key: "chat", storage_provider: "supabase",
+      id: imageId, user_id: userId, feature_key: studioRequest ? "general" : "chat", storage_provider: "supabase",
       bucket: MEDIA_BUCKET, object_key: objectKey, public_url: null, mime_type: format.mimeType,
       size_bytes: generated.bytes.byteLength, original_filename: `suly-image.${format.extension}`,
       metadata: {
@@ -247,9 +256,10 @@ Deno.serve(async (req: Request) => {
         model_identifier: typedModel.model_identifier, quality, resolution: typedPrice.resolution,
         estimated_credits: typedPrice.price_credits, charged_credits: actualCredits,
         provider_cost_usd: generated.costUsd, provider_cost_status: generated.costConfirmed ? "confirmed" : "estimated",
-        provider_request_id: generated.providerRequestId, price_version: typedPrice.price_version,
+        provider_request_id: generated.providerRequestId, price_version: typedPrice.price_version, request_id: requestId,
+        source: studioRequest ? "image_studio" : "chat",
       },
-      delivery_type: "authenticated", conversation_id: conversationId, message_id: assistantMessageId, support_ticket_id: null,
+      delivery_type: "authenticated", conversation_id: studioRequest ? null : conversationId, message_id: assistantMessageId, support_ticket_id: null,
     });
     if (assetError) throw new ServiceError(500, "تم إنشاء الصورة لكن تعذر حفظها في المكتبة.");
 
@@ -268,7 +278,7 @@ Deno.serve(async (req: Request) => {
     });
     if (ledgerError && ledgerError.code !== "23505") console.error("Company cost ledger insert failed.", ledgerError.code ?? "database_error");
 
-    await service.from("suly_conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId).eq("user_id", userId);
+    if (!studioRequest) await service.from("suly_conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId).eq("user_id", userId);
     return json(200, {
       success: true, request_id: requestId, message_id: assistantMessageId, media_id: imageId,
       model: typedModel.display_name, model_identifier: typedModel.model_identifier,
