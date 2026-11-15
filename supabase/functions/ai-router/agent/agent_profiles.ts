@@ -5,6 +5,7 @@ export type AgentProfile = {
   name: string;
   role: AgentRole;
   systemPrompt: string;
+  modelFallbackChain: string[];
 };
 
 const VALID_ROLES = new Set<AgentRole>(["planner", "thinker", "worker", "reviewer", "summarizer", "coordinator"]);
@@ -26,7 +27,10 @@ export function normalizeAgentProfiles(rows: unknown): AgentProfile[] {
     const systemPrompt = row.system_prompt.trim().slice(0, MAX_PROMPT_CHARS);
     if (name.length < 2 || systemPrompt.length < 10) continue;
     seen.add(row.id);
-    profiles.push({ id: row.id, name, role: row.role as AgentRole, systemPrompt });
+    const modelFallbackChain = Array.isArray(row.model_fallback_chain)
+      ? row.model_fallback_chain.map((item) => String(item).trim()).filter((item) => /^\\d{1,10}$/.test(item)).slice(0, 20)
+      : [];
+    profiles.push({ id: row.id, name, role: row.role as AgentRole, systemPrompt, modelFallbackChain });
   }
   return profiles;
 }
@@ -42,6 +46,25 @@ export function selectAgentProfile(
   return eligible[safeIndex % Math.min(MAX_PROFILES_PER_ROLE, eligible.length)] ?? null;
 }
 
+/** Reorder only candidates that have already passed server-side model/tier/role eligibility. */
+export function prioritizeAgentProfileCandidates<T extends { model: { id: number } }>(
+  candidates: T[],
+  profiles: AgentProfile | AgentProfile[] | null,
+): T[] {
+  const selected = profiles ? (Array.isArray(profiles) ? profiles : [profiles]) : [];
+  const priority = new Map<number, number>();
+  for (const profile of selected) {
+    for (const rawId of profile.modelFallbackChain) {
+      const id = Number(rawId);
+      if (Number.isSafeInteger(id) && id > 0 && !priority.has(id)) priority.set(id, priority.size);
+    }
+  }
+  return candidates
+    .map((candidate, index) => ({ candidate, index, rank: priority.get(candidate.model.id) ?? Number.MAX_SAFE_INTEGER }))
+    .sort((a, b) => a.rank - b.rank || a.index - b.index)
+    .map((item) => item.candidate);
+}
+
 /** Admin guidance is additive only; central routing, safety and tool policy remain authoritative. */
 export function buildAgentRoleGuidance(profile: AgentProfile | null): string {
   if (!profile) return "";
@@ -55,7 +78,7 @@ export function buildAgentRoleGuidance(profile: AgentProfile | null): string {
 export async function loadAgentProfiles(supabase: any): Promise<AgentProfile[]> {
   try {
     const { data, error } = await supabase.from("agent_registry")
-      .select("id,name,role,system_prompt,is_active")
+      .select("id,name,role,system_prompt,model_fallback_chain,is_active")
       .eq("is_active", true)
       .order("updated_at", { ascending: false })
       .limit(18);
