@@ -28,7 +28,7 @@ import { isModelEligibleForRequest, modelSupportsRole as supportsModelRole } fro
 import { resolveExecutionMode } from "./execution_mode.ts";
 import { isSubscriptionTierEligible, resolveSulyProfileKey } from "./agent/suly_profile_routing.ts";
 import { getAgentReservationCallCount } from "./agent/agent_budget_policy.ts";
-import { buildAgentRoleGuidance, loadAgentProfiles, selectAgentProfile } from "./agent/agent_profiles.ts";
+import { buildAgentRoleGuidance, loadAgentProfiles, prioritizeAgentProfileCandidates, selectAgentProfile } from "./agent/agent_profiles.ts";
 import { getAgentToolsFromDatabase, getRegisteredTool, validateToolInput } from "./agent/tool_registry.ts";
 
 // Native Android/iOS clients do not require CORS. Web access must set WEB_CORS_ORIGIN
@@ -1547,6 +1547,12 @@ async function handleRequest(req: Request): Promise<Response> {
     if (error) console.error("Could not persist message model log:", error.message);
   };
 
+  const agentProfiles = executionMode === "agent" ? await loadAgentProfiles(supabase) : [];
+  const routedWorkerCandidates = prioritizeAgentProfileCandidates(
+    workerCandidates,
+    [selectAgentProfile(agentProfiles, "worker"), selectAgentProfile(agentProfiles, "thinker")].filter((profile) => profile !== null),
+  );
+
   // Long or multi-question prompts are decomposed: each part is answered by the
   // fastest healthy model, failed parts fall back to other models, and the
   // answers are merged so a single provider hiccup never fails the request.
@@ -1562,7 +1568,7 @@ async function handleRequest(req: Request): Promise<Response> {
   let taskPlannerUsage: { candidate: ReadyCandidate; inputTokens: number; outputTokens: number } | null = null;
   if (!taskPlan && proposedParts.length === 1 && executionMode === "agent" && mind.intent === "complex_task" && workerCandidates.length > 0) {
     const dagPlannerCandidates = orderCandidatesByRoute(
-      workerCandidates.filter((candidate) => modelSupportsRole(candidate.model, "planner")),
+      routedWorkerCandidates.filter((candidate) => modelSupportsRole(candidate.model, "planner")),
       orderedRouteAssignments,
       "planner",
     ).slice(0, 2);
@@ -1602,9 +1608,7 @@ async function handleRequest(req: Request): Promise<Response> {
   }
   if (!taskPlan || !validateTaskPlan(taskPlan, settings.taskSplitMaxParts)) taskPlan = null;
   const splitParts = taskPlan ? proposedParts : [latestUserMessage];
-  const agentProfiles = executionMode === "agent"
-    ? await loadAgentProfiles(supabase)
-    : [];
+
   // Every request gets a durable workspace. Compound requests reuse their
   // deterministic plan; simple and Agent requests get one resumable step.
   const workspacePlan = taskPlan
@@ -1725,7 +1729,7 @@ async function handleRequest(req: Request): Promise<Response> {
         ...(dependencyBrief ? [{ role: "system" as const, content: `مخرجات الاعتماديات السابقة التي يجب البناء عليها:\n${dependencyBrief}` }] : []),
         { role: "user", content: splitParts[index] },
       ];
-      let remaining = workerCandidates.slice(0, 3).map((candidate) => ({ ...candidate, requestMessages: partMessages }));
+      let remaining = routedWorkerCandidates.slice(0, 3).map((candidate) => ({ ...candidate, requestMessages: partMessages }));
       for (let attempt = 0; attempt < Math.min(2, remaining.length); attempt += 1) {
         const partWinner = await firstReady(remaining, settings.freeRaceTimeoutMs, recordAttempt, countModelStarts);
         if (!partWinner) break;
