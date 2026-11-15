@@ -44,6 +44,6 @@ Deno.test("Brain task payload rejects empty and oversized objectives", () => {
 });
 
 Deno.test("Brain task payload rejects arrays and non-object payloads", () => {
-  assertEquals(readBrainTaskPayload({ user_id: owner, payload: [] }), null);
-  assertEquals(readBrainTaskPayload({ user_id: owner, payload: null }), null);
+  assertEquals(readBrainTaskPayload({ id: jobId, user_id: owner, payload: [] }), null);
+  assertEquals(readBrainTaskPayload({ id: jobId, user_id: owner, payload: null }), null);
 });
