@@ -103,6 +103,10 @@ A model may support multiple capabilities, roles, and plans through relations/co
 
 ## Performance policy
 
+- Mobile chat sends `execution_mode: "auto"`. The server preserves explicit `chat` and `agent` modes and resolves `auto` using the deterministic intent classifier.
+- Auto requests classified as chat or single-reply tasks use the direct streaming model path. Complex tasks, connected-app operations, live web search, attachments, and internal Brain calls remain on the Agent path.
+- Legacy clients that omit the execution mode remain Agent-compatible.
+- Direct chat does not create an Agent workspace or task-ledger rows; request/message/usage records remain in place. Durable workspace tracking is reserved for Agent and split-task execution.
 - Simple chat: no planner, worker queue, or merger hop. Select a chat-eligible model and stream its first token as soon as possible.
 - Tool request: use the Agent decision loop only when tools are needed; keep tool count and payloads bounded.
 - Complex task: create a durable plan and execute independent steps concurrently where dependencies allow.
