@@ -1911,6 +1911,8 @@ async function handleRequest(req: Request): Promise<Response> {
         `Loop step ${step + 1}. Available tools: ${JSON.stringify(tools)}.`,
         buildAgentRoleGuidance(selectAgentProfile(agentProfiles, "planner", step)),
         buildAgentRoleGuidance(selectAgentProfile(agentProfiles, "coordinator", step)),
+        buildAgentRoleGuidance(selectAgentProfile(agentProfiles, "planner", step)),
+        buildAgentRoleGuidance(selectAgentProfile(agentProfiles, "coordinator", step)),
       ].join("\n");
       const planningMessages: ChatMessage[] = [
         { role: "system", content: plannerPolicy },
