@@ -123,7 +123,7 @@ export function ImageStudioScreen() {
       await chatService.sendMessage({
         conversationId: conversation.id,
         content: "حلّل الصورة التي أنشأتها للتو. صف عناصرها وأسلوبها، واذكر اقتراحات عملية لتحسينها أو تطويرها.",
-        modelProfileKey: selectedModelProfile,
+        modelProfileKey: "auto",
         mediaAsset: attachment,
         signal: new AbortController().signal,
         onUserSaved: () => undefined,
