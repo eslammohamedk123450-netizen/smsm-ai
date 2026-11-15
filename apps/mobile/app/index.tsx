@@ -7,7 +7,11 @@ import { colors } from "../src/theme/colors";
 export default function HomeRoute() {
   const { user, status, configurationError } = useAuth();
   if (status === "loading") {
-    return <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>;
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="small" color={colors.primary} style={styles.loader} />
+      </View>
+    );
   }
   if (status === "misconfigured") {
     return <View style={styles.center}><Text style={styles.errorTitle}>إعداد التطبيق غير مكتمل</Text><Text style={styles.text}>{configurationError}</Text></View>;
@@ -16,7 +20,8 @@ export default function HomeRoute() {
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: colors.background },
+  center: { flex: 1, width: "100%", minHeight: "100%", alignSelf: "stretch", justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: colors.background },
+  loader: { width: 24, height: 24, flexGrow: 0 },
   errorTitle: { color: colors.error, fontSize: 20, fontWeight: "700", marginBottom: 12, textAlign: "center" },
   text: { color: colors.textSecondary, textAlign: "center", maxWidth: 500 },
 });
