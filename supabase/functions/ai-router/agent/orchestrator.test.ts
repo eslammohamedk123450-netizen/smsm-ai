@@ -149,3 +149,48 @@ Deno.test("tool registry database failure is fail-closed", async () => {
   }
   assert(thrown, "registry read failure must prevent Agent execution");
 });
+
+
+Deno.test("Agent cancellation before planning starts no model or tool work", async () => {
+  let planCalls = 0;
+  const result = await runAgentLoop({
+    messages: [{ role: "user", content: "do work" }],
+    tools: [],
+    isCancelled: async () => true,
+    plan: async () => { planCalls += 1; return { action: "respond", answer: "should not run" }; },
+    execute: async () => null,
+  });
+  assertEqual(result.status, "cancelled", "cancelled task status");
+  assertEqual(planCalls, 0, "no planner call after cancellation");
+});
+
+Deno.test("Agent cancellation during planning waits for the provider result and starts no tool", async () => {
+  let checks = 0;
+  let executions = 0;
+  const result = await runAgentLoop({
+    messages: [{ role: "user", content: "do work" }],
+    tools: [{ name: "web.search", description: "search", effect: "read", available: true }],
+    isCancelled: async () => { checks += 1; return checks >= 2; },
+    plan: async () => ({ action: "tool", tool: "web.search", input: { query: "x" } }),
+    execute: async () => { executions += 1; return {}; },
+  });
+  assertEqual(result.status, "cancelled", "cancelled task status");
+  assertEqual(executions, 0, "tool must not start after planner finishes under cancellation");
+});
+
+Deno.test("Agent cancellation during a tool finishes that tool then starts no next step", async () => {
+  let checks = 0;
+  let executions = 0;
+  const result = await runAgentLoop({
+    messages: [{ role: "user", content: "do work" }],
+    tools: [{ name: "web.search", description: "search", effect: "read", available: true }],
+    isCancelled: async () => { checks += 1; return checks >= 3; },
+    plan: async (_history, _tools, index) => index === 0
+      ? { action: "tool", tool: "web.search", input: { query: "x" } }
+      : { action: "respond", answer: "done" },
+    execute: async () => { executions += 1; return { ok: true }; },
+  });
+  assertEqual(result.status, "cancelled", "cancelled task status");
+  assertEqual(executions, 1, "in-flight tool is allowed to finish exactly once");
+  assertEqual(result.steps.filter((step) => step.status === "completed").length, 1, "completed tool step is retained");
+});
