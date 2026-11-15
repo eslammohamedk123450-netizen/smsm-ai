@@ -1,5 +1,5 @@
 const DEFAULT_WEB_ORIGIN = "https://eslammohamedk123450-netizen.github.io";
-const DEFAULT_ALLOWED_HEADERS = "authorization, x-client-info, apikey, content-type, cache-control, x-suly-internal-brain-key, x-suly-health-check-secret";
+const DEFAULT_ALLOWED_HEADERS = "authorization, x-client-info, apikey, content-type, cache-control";
 const DEFAULT_ALLOWED_METHODS = "POST, OPTIONS";
 
 function normalizeOrigin(value: string): string | null {
