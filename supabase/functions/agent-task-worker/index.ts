@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { claimAgentTasks, finishAgentTask } from "../_shared/agent_task_queue.ts";
+import { readBrainTaskPayload } from "../_shared/brain_task_payload.ts";
 
 declare const EdgeRuntime: {
   waitUntil(promise: Promise<unknown>): void;
@@ -25,17 +26,15 @@ async function processOne(url: string, serviceKey: string, userId: string, userJ
     return;
   }
 
-  const payload = job.payload ?? {};
-  const payloadUserId = typeof payload.user_id === "string" ? payload.user_id : "";
-  const taskId = typeof payload.task_id === "string" ? payload.task_id : "";
-  const objective = typeof payload.objective === "string" ? payload.objective : "";
-  if (payloadUserId !== userId || !taskId || !objective) {
+  const task = readBrainTaskPayload(job);
+  if (!task || task.userId !== userId) {
     await finishAgentTask(admin, job.id, workerId, "failed", {
       errorCode: "invalid_brain_payload",
       errorMessage: "The queued Brain task payload is incomplete or user-mismatched.",
     });
     return;
   }
+  const { taskId, objective } = task;
 
   const controller = new AbortController();
   let leaseLost = false;
