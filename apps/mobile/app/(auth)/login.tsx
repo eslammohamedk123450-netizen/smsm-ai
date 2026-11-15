@@ -84,7 +84,7 @@ export default function LoginPage() {
         const hasSession = await register(cleanEmail, password, fullName);
         if (!hasSession) recordEmailAttempt();
         if (hasSession) router.replace("/chat");
-        else setConfirmation("تم إرسال طلب إنشاء الحساب. إذا كان تأكيد البريد مفعّلًا، افتح رسالة التأكيد ثم ارجع وسجّل الدخول. إذا لم تصلك الرسالة، افحص مجلد الرسائل غير المرغوب فيها.");
+        else setConfirmation("أرسلنا رسالة تأكيد إلى بريدك الإلكتروني. افتح الرسالة واضغط «تأكيد البريد» من هذا الهاتف؛ سيفتح SULY ويكمل تسجيل دخولك تلقائيًا، ولن تحتاج إلى كتابة بياناتك مرة أخرى. إذا لم تجد الرسالة، افحص مجلد Spam.");
       } else if (method === "password") {
         const session = await signInWithPassword(cleanEmail, password);
         if (!session.user) throw new Error("Password authentication did not return a user session.");
