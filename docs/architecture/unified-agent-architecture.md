@@ -154,7 +154,8 @@ Daily and monthly budgets must be enforced server-side, not only displayed in th
 - [x] Execute explicit dependency-ordered user lists as a validated DAG: prerequisite steps run first, completed outputs are passed to dependent workers, and a failed prerequisite blocks only its descendants.
 - [ ] Add model-generated general DAG planning with branching/merging dependencies; current inferred DAGs are intentionally limited to explicit ordered lists (up to three concurrent workers).
 - [x] Add bounded exponential backoff for expired leases and preserve terminal failure after maximum attempts.
-- [ ] Implement end-to-end cancellation only after queue state, Brain task context, active worker abort, and usage finalization can be committed consistently.
+- [x] Add owner-checked, atomic cancellation for tasks still queued; the unused Brain token reservation is released exactly once and progress rows are marked cancelled.
+- [ ] Add cooperative cancellation for running tasks after provider abort propagation and partial-token accounting are proven; running jobs are intentionally not mutated by the queued-only RPC.
 - [ ] Add authenticated end-to-end tests for duplicate enqueue, lease expiry, worker interruption, cross-user isolation, and usage finalization.
 - Keep worker execution separate from orchestration policy.
 
