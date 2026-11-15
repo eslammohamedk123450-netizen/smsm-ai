@@ -9,6 +9,13 @@ const PROFILE_MINIMUM_TIER: Record<SulyProfileKey, SulyTier> = {
   max: "max",
 };
 
+/** Enforce the minimum subscription tier configured on the active profile row. */
+export function isSubscriptionTierEligible(userTier: string, minimumSubscriptionTier: string): boolean {
+  const userRank = TIER_RANK[userTier as SulyTier];
+  const minimumRank = TIER_RANK[minimumSubscriptionTier as SulyTier];
+  return Number.isInteger(userRank) && Number.isInteger(minimumRank) && userRank >= minimumRank;
+}
+
 export interface SulyProfileResolution {
   profileKey: SulyProfileKey;
   mode: "auto" | "manual";

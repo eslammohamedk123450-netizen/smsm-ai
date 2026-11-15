@@ -26,7 +26,7 @@ import { parseAgentDecision, runAgentLoop, type AgentLoopStep, type AgentTool } 
 import { prioritizeModelCandidate } from "./agent/model_routing.ts";
 import { isModelEligibleForRequest, modelSupportsRole as supportsModelRole } from "./agent/model_eligibility.ts";
 import { resolveExecutionMode } from "./execution_mode.ts";
-import { resolveSulyProfileKey } from "./agent/suly_profile_routing.ts";
+import { isSubscriptionTierEligible, resolveSulyProfileKey } from "./agent/suly_profile_routing.ts";
 import { getAgentReservationCallCount } from "./agent/agent_budget_policy.ts";
 import { getAgentToolsFromDatabase, getRegisteredTool, validateToolInput } from "./agent/tool_registry.ts";
 
@@ -679,10 +679,6 @@ async function handleRequest(req: Request): Promise<Response> {
   const requestedProfileKey = ["auto", "lite", "pro", "max"].includes(rawProfileKey) ? rawProfileKey : null;
   const hasManualProfile = requestedProfileKey === "lite" || requestedProfileKey === "pro" || requestedProfileKey === "max";
   const routingMode = hasManualProfile || body.routing_mode === "manual" || (hasExplicitModel && body.routing_mode !== "auto") ? "manual" : "auto";
-  if (hasManualProfile) {
-    const access = resolveSulyProfileKey({ requestedProfileKey, userTier, intent: "chat" });
-    if (!access.allowed) return jsonResponse({ error: `يتطلب اختيار ${requestedProfileKey === "pro" ? "SULY Pro" : "SULY Max"} اشتراكًا أعلى. لم يتم تغيير اختيارك.`, required_profile: requestedProfileKey }, 403, req);
-  }
   // New clients select Chat or Agent explicitly. Legacy clients remain Agent
   // compatible so existing connected-app requests do not silently lose tools.
   let executionMode: "chat" | "agent" = body.execution_mode === "chat" ? "chat" : "agent";
@@ -1092,6 +1088,17 @@ async function handleRequest(req: Request): Promise<Response> {
     : {};
   if (selectedProfileKey && profileDefinitionResult.data?.is_active !== true) {
     return await failedResponse(jsonResponse({ error: "مستوى SULY المحدد غير مفعّل حاليًا. لم يتم اختيار مستوى بديل تلقائيًا." }, 503, req), "suly_profile_disabled");
+  }
+  const configuredMinimumTier = profileDefinitionResult.data?.minimum_subscription_tier;
+  if (selectedProfileKey && (
+    typeof configuredMinimumTier !== "string"
+    || !isSubscriptionTierEligible(userTier, configuredMinimumTier)
+  )) {
+    return await failedResponse(jsonResponse({
+      error: `اشتراكك الحالي لا يتيح مستوى ${selectedProfileKey.toUpperCase()} وفق إعدادات الباقة. لم يتم تغيير اختيارك.`,
+      selected_profile: selectedProfileKey,
+      required_subscription_tier: typeof configuredMinimumTier === "string" ? configuredMinimumTier : null,
+    }, 403, req), "profile_subscription_unavailable");
   }
   const profileModelIds = selectedProfileKey
     ? new Set((selectedProfileAssignments ?? []).filter((item: { route_role: string }) => item.route_role === routeRole).map((item: { model_id: number }) => Number(item.model_id)))
