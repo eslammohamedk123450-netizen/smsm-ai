@@ -16,7 +16,7 @@ type Profile = {
   capabilities_json: Record<string, boolean>;
   is_active: boolean;
 };
-type Model = { id: number; name: string; model_identifier: string; provider_id: number; enabled: boolean; task_roles: string[] | null; allowed_tiers: string[] | null; capabilities_json: Record<string, boolean> | null; context_window: number | null };
+type Model = { id: number; name: string; model_identifier: string; provider_id: number; enabled: boolean; routing_group: string; task_roles: string[] | null; allowed_tiers: string[] | null; capabilities_json: Record<string, boolean> | string | null; context_window: number | null };
 type Mapping = { profile_key: string; model_id: number; route_role: string; enabled: boolean };
 
 function rolesForModel(model: Model): string[] {
@@ -45,7 +45,7 @@ export function SulyModelProfilesAdminCard() {
     setLoading(true); setError(null);
     const [profileResult, modelResult, mappingResult, providerRows] = await Promise.all([
       supabase.from("suly_model_profiles").select("profile_key,display_name,tagline,description,icon_key,sort_order,minimum_subscription_tier,capabilities_json,is_active").order("sort_order"),
-      supabase.from("ai_models").select("id,name,model_identifier,provider_id,enabled,task_roles,allowed_tiers,capabilities_json,context_window").eq("enabled", true).order("priority", { ascending: false }).limit(500),
+      supabase.from("ai_models").select("id,name,model_identifier,provider_id,enabled,routing_group,task_roles,allowed_tiers,capabilities_json,context_window").eq("enabled", true).order("priority", { ascending: false }).limit(500),
       supabase.from("suly_model_profile_models").select("profile_key,model_id,route_role,enabled").limit(2000),
       adminService.getProviders(),
     ]);
@@ -54,7 +54,7 @@ export function SulyModelProfilesAdminCard() {
     } else {
       const enabledProviderIds = new Set((providerRows as Array<{ id: number; enabled: boolean }>).filter((provider) => provider.enabled === true).map((provider) => Number(provider.id)));
       setProfiles((profileResult.data ?? []) as Profile[]);
-      setModels(((modelResult.data ?? []) as Model[]).filter((model) => enabledProviderIds.has(Number(model.provider_id))));
+      setModels(((modelResult.data ?? []) as Model[]).filter((model) => enabledProviderIds.has(Number(model.provider_id)) && model.routing_group !== "disabled"));
       setMappings((mappingResult.data ?? []) as Mapping[]);
     }
     setLoading(false);
