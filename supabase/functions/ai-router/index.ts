@@ -1363,6 +1363,7 @@ async function handleRequest(req: Request): Promise<Response> {
       completion_criteria: "نتيجة نهائية محفوظة أو سبب فشل تشغيلي واضح.",
       depends_on: [],
     }];
+  const resultStepKey = taskPlan ? "merge" : "final";
   // Direct chat avoids workspace/ledger writes; durable tracking is reserved for Agent and split tasks.
   if (executionMode === "agent" || splitParts.length > 1) {
     const { data: workspaceRow, error: workspaceError } = await supabase.from("agent_workspaces").upsert({
@@ -1376,7 +1377,6 @@ async function handleRequest(req: Request): Promise<Response> {
     if (workspaceError || !workspaceRow) console.error("Could not create agent workspace:", workspaceError?.message);
     else workspaceId = String(workspaceRow.id);
   
-    const resultStepKey = taskPlan ? "merge" : "final";
     const workspaceSteps = [
       { workspace_id: workspaceId, step_key: "plan", sequence_order: 0, description: "تحديد خطة الطلب ومسار التنفيذ.", depends_on: [] },
       ...workspacePlan.map((step, index) => ({ workspace_id: workspaceId, step_key: step.step_id, sequence_order: index + 1, description: step.description, depends_on: step.depends_on ?? [] })),
@@ -1391,7 +1391,7 @@ async function handleRequest(req: Request): Promise<Response> {
       ...workspacePlan.map((step, index) => ({ task_key: step.step_id, task_description: step.description.slice(0, 240), sequence_order: index + 1 })),
       { task_key: resultStepKey, task_description: "حفظ النتيجة النهائية أو سبب الفشل.", sequence_order: workspacePlan.length + 1 },
     ].map((step) => ({ conversation_id: conversationId, request_id: billingTaskId, workspace_id: workspaceId, ...step, status: "pending" }));
-    if (conversationId) {
+    if (conversationId && workspaceId) {
       const { error: ledgerError } = await supabase.from("task_ledger").upsert(ledgerRows, { onConflict: "request_id,task_key", ignoreDuplicates: true });
       if (ledgerError) console.error("Could not create task ledger:", ledgerError.message);
     }
