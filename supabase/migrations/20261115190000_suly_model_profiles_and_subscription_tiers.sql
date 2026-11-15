@@ -85,7 +85,8 @@ set name = case tier_key
     else description
   end,
   updated_at = now()
-where tier_key in ('free','lite','pro','max');
+where tier_key in ('free','lite','pro','max')
+  and not (is_active = false and lower(name) = 'ultra');
 
 update public.subscription_plans
 set name = 'SULY Ultra (Retired)', updated_at = now()
