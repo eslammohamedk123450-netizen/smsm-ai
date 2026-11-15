@@ -1,4 +1,4 @@
-import { prioritizeModelCandidate } from "./model_routing.ts";
+import { prioritizeModelCandidate, restrictModelsToAssignedRoute } from "./model_routing.ts";
 
 const candidate = (id: number) => ({ model: { id } });
 
@@ -25,7 +25,6 @@ Deno.test("does not reorder when no custom model is configured", () => {
 });
 
 
-import { restrictModelsToAssignedRoute } from "./model_routing.ts";
 
 Deno.test("configured route assignments restrict the eligible pool to selected models", () => {
   const pool = [candidate(1), candidate(2), candidate(3)];
