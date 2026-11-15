@@ -5,6 +5,7 @@ import { useRouter } from "expo-router";
 import { supabase } from "../../lib/supabase/client";
 import { colors } from "../../theme/colors";
 import { confirmAdminAction } from "./admin-confirm";
+import { AgentTaskQueueCard } from "./AgentTaskQueueCard";
 
 type Model = { id: number; enabled: boolean; health?: { auto_restricted?: boolean; last_status?: string | null; total_attempts?: number; successful_attempts?: number; average_latency_ms?: number | null } | null };
 type Tx = { amount: number | null; event_type: string; created_at: string };
@@ -104,6 +105,7 @@ export function AdminDashboardScreen() {
       <Pressable onPress={() => router.push("/admin/users")} style={styles.quickAction}><Text style={styles.quickIcon}>＋</Text><Text style={styles.quickText}>شحن رصيد</Text></Pressable>
       <Pressable onPress={() => router.push("/admin/models")} style={[styles.quickAction, styles.quickPrimary]}><Text style={[styles.quickIcon, styles.quickPrimaryText]}>✓</Text><Text style={[styles.quickText, styles.quickPrimaryText]}>اختبار شامل للنماذج</Text></Pressable>
     </View>
+    <AgentTaskQueueCard />
     <View style={styles.lowerGrid}>
       <View style={styles.panel}><View style={styles.panelHeading}><Text style={styles.sectionTitle}>استهلاك آخر 7 أيام</Text><Pressable onPress={() => router.push("/admin/credit-management")}><Text style={styles.link}>التفاصيل ←</Text></Pressable></View><View style={styles.chart}>{chart.map((item) => <Pressable key={item.key} onPress={() => router.push("/admin/credit-management")} style={styles.barColumn}><Text style={styles.barValue}>{item.total ? valueText(item.total) : "0"}</Text><View style={styles.barTrack}><View style={[styles.bar, { height: `${Math.max(5, item.total / maxChart * 100)}%` }]} /></View><Text style={styles.barLabel}>{item.label}</Text></Pressable>)}</View><Text style={styles.chartFootnote}>تقدير مبني على معاملات `settle` المحمّلة؛ اضغط للانتقال إلى تفاصيل الرصيد.</Text></View>
       <View style={styles.panel}><View style={styles.panelHeading}><Text style={styles.sectionTitle}>آخر أحداث سجل النشاط</Text><Pressable onPress={() => router.push("/admin/audit")}><Text style={styles.link}>عرض السجل ←</Text></Pressable></View>{audit.length ? audit.map((item) => <Pressable key={item.id} onPress={() => router.push("/admin/audit")} style={styles.auditRow}><View style={styles.auditBullet} /><View style={styles.auditCopy}><Text style={styles.auditAction}>{item.action}</Text><Text style={styles.auditMeta}>{item.target_table ?? "—"} · {new Date(item.created_at).toLocaleString("ar-EG")}</Text></View></Pressable>) : <Text style={styles.emptyText}>لا توجد أحداث حديثة أو تعذر تحميلها.</Text>}</View>
