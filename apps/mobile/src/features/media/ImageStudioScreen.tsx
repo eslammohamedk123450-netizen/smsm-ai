@@ -70,7 +70,7 @@ export function ImageStudioScreen() {
   const selectedPrice = selectedModel?.prices.find((price) => price.quality === effectiveQuality) ?? null;
   const estimatedCredits = Number(selectedPrice?.price_credits ?? 0);
   const remainingAfterReserve = balance === null ? null : balance - estimatedCredits;
-  const canGenerate = Boolean(selectedModel && selectedPrice && prompt.trim() && !generating && balance !== null && balance >= estimatedCredits);
+  const canGenerate = Boolean(selectedModel && selectedPrice && prompt.trim() && !generating && balance !== null);
 
   const waitForGenerationJob = async (jobId: string) => {
     for (let attempt = 0; attempt < 60; attempt += 1) {
@@ -210,7 +210,7 @@ export function ImageStudioScreen() {
       <Pressable disabled={!canGenerate} onPress={() => void generate()} style={{ backgroundColor: colors.primary, borderRadius: 12, padding: 14, opacity: canGenerate ? 1 : 0.45, alignItems: "center" }}>
         <Text style={{ color: colors.background, fontWeight: "900" }}>{generating ? "جاري تجهيز طلبك…" : result ? "إعادة توليد الصورة" : "تأكيد وإنشاء الصورة"}</Text>
       </Pressable>
-      {balance !== null && selectedPrice && balance < estimatedCredits ? <Text style={{ color: colors.error, textAlign: "right", fontSize: 11 }}>رصيدك غير كافٍ لهذا الطلب. اشحن رصيدك للمتابعة.</Text> : null}
+      <Text style={{ color: colors.textMuted, textAlign: "right", fontSize: 10, lineHeight: 17 }}>قد يسمح النظام ببدء المهمة ضمن حد الرصيد السالب الذي يحدده المشرف. سيتم التحقق من الحد الفعلي عند تأكيد الطلب.</Text>
     </View>
 
     {generating ? <Animated.View style={{ backgroundColor: "#17150D", borderColor: "#D4AF37", borderWidth: 1, borderRadius: 16, padding: 24, alignItems: "center", gap: 12, transform: [{ scale: breathingScale }] }}>
