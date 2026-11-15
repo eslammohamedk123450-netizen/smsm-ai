@@ -72,6 +72,21 @@ export function ImageStudioScreen() {
   const remainingAfterReserve = balance === null ? null : balance - estimatedCredits;
   const canGenerate = Boolean(selectedModel && selectedPrice && prompt.trim() && !generating && balance !== null && balance >= estimatedCredits);
 
+  const waitForGenerationJob = async (jobId: string) => {
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      const { data, error: jobError } = await supabase.rpc("suly_get_my_media_generation_job", { p_job_id: jobId });
+      if (jobError) throw new Error("تعذر متابعة حالة المهمة. يمكنك متابعة النتيجة من مكتبتي.");
+      const job = Array.isArray(data) ? data[0] : data;
+      if (!job) throw new Error("لم يتم العثور على مهمة التوليد.");
+      if (job.status === "completed") return job as { status: string; output_asset_id: string | null; charged_credits: number; metadata: Record<string, unknown> | null };
+      if (job.status === "failed" || job.status === "cancelled") {
+        throw new Error(typeof job.error_message === "string" ? job.error_message : "تعذر إكمال توليد الصورة.");
+      }
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+    return null;
+  };
+
   const generate = async () => {
     if (!selectedModel || !selectedPrice || !prompt.trim()) return;
     setGenerating(true); setError(null); setNotice(null); setResult(null);
@@ -86,13 +101,29 @@ export function ImageStudioScreen() {
           quality: effectiveQuality,
         },
       });
-      if (invokeError || !data?.success || typeof data.media_id !== "string") {
+      if (invokeError || !data?.success) {
         const message = typeof data?.error === "string" ? data.error : "تعذر إنشاء الصورة. حاول مرة أخرى.";
         throw new Error(message);
       }
-      const url = await getMediaDeliveryUrl(data.media_id);
-      setResult({ id: data.media_id, url, prompt: prompt.trim(), modelName: selectedModel.display_name, quality: effectiveQuality, credits: Number(data.charged_credits ?? estimatedCredits), billingStatus: String(data.billing_status ?? "settled") });
-      setNotice(data.billing_status === "pending_reconciliation"
+      let mediaId = typeof data.media_id === "string" ? data.media_id : "";
+      let chargedCredits = Number(data.charged_credits ?? estimatedCredits);
+      let billingStatus = String(data.billing_status ?? "settled");
+      if (!mediaId && typeof data.job_id === "string" && (data.status === "running" || data.status === "queued")) {
+        setNotice("تم تسجيل المهمة. ستستمر في الخلفية ويمكنك إغلاق التطبيق ومتابعتها من مكتبتي.");
+        const completedJob = await waitForGenerationJob(data.job_id);
+        if (!completedJob) {
+          setNotice("المهمة ما زالت تعمل في الخلفية. يمكنك متابعة حالتها ونتيجتها من مكتبتي.");
+          return;
+        }
+        if (!completedJob.output_asset_id) throw new Error("اكتملت المهمة دون العثور على ملف الصورة.");
+        mediaId = completedJob.output_asset_id;
+        chargedCredits = Number(completedJob.charged_credits ?? estimatedCredits);
+        billingStatus = String(completedJob.metadata?.billing_status ?? "settled");
+      }
+      if (!mediaId) throw new Error("لم يرجع محرك الصور نتيجة صالحة.");
+      const url = await getMediaDeliveryUrl(mediaId);
+      setResult({ id: mediaId, url, prompt: prompt.trim(), modelName: selectedModel.display_name, quality: effectiveQuality, credits: chargedCredits, billingStatus });
+      setNotice(billingStatus === "pending_reconciliation"
         ? "تم إنشاء الصورة وحفظها. تسوية الرصيد قيد المراجعة؛ لا تعاود إرسال الطلب نفسه."
         : "تم إنشاء الصورة وحفظها تلقائيًا في مكتبتك.");
       setBalance(await getCurrentCreditBalance().catch(() => null));
