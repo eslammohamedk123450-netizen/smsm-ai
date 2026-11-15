@@ -86,11 +86,14 @@ begin
     null, 'regression-provider', null, null, null,
     'unknown', 'unavailable', '{"fixture":true}'::jsonb
   );
-  -- Exercise the real owner-checked queued-cancellation RPC and its settlement trigger.
+  -- Running cancellation only requests a stop; the worker terminalizes after its safe boundary.
   perform set_config('request.jwt.claim.role', 'authenticated', true);
   perform set_config('request.jwt.claim.sub', v_user::text, true);
   perform public.cancel_agent_task_job(v_job);
   perform set_config('request.jwt.claim.role', 'service_role', true);
+  update public.agent_task_jobs
+     set status = 'cancelled', completed_at = now()
+   where id = v_job;
 
   select * into v_hold from public.suly_credit_holds where task_id = v_task;
   select * into v_event from public.brain_usage_events where task_id = v_task;
@@ -126,9 +129,11 @@ begin
   insert into public.agent_task_jobs(user_id, task_id, job_type, payload, idempotency_key, status)
   values (v_user, v_task, 'brain_task', '{}'::jsonb, 'exact-usage-queued-cancel-' || gen_random_uuid()::text, 'queued')
   returning id into v_job;
-  update public.agent_task_jobs
-     set status = 'cancelled', completed_at = now()
-   where id = v_job;
+  -- Exercise the real queued-cancellation RPC as the task owner.
+  perform set_config('request.jwt.claim.role', 'authenticated', true);
+  perform set_config('request.jwt.claim.sub', v_user::text, true);
+  perform public.cancel_agent_task_job(v_job);
+  perform set_config('request.jwt.claim.role', 'service_role', true);
 
   select * into v_hold from public.suly_credit_holds where task_id = v_task;
   select * into v_event from public.brain_usage_events where task_id = v_task;
