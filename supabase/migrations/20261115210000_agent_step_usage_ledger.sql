@@ -107,7 +107,18 @@ begin
     p_output_tokens, p_actual_cost, p_usage_status, p_usage_source,
     case when jsonb_typeof(p_metadata) = 'object' then p_metadata else '{}'::jsonb end
   )
-  on conflict (task_id, step_key, attempt_no, model_call_key) do nothing
+  on conflict (task_id, step_key, attempt_no, model_call_key) do update
+    set model_id = coalesce(excluded.model_id, public.agent_step_usage.model_id),
+        provider_type = coalesce(nullif(excluded.provider_type, ''), public.agent_step_usage.provider_type),
+        input_tokens = excluded.input_tokens,
+        output_tokens = excluded.output_tokens,
+        actual_cost = excluded.actual_cost,
+        usage_status = excluded.usage_status,
+        usage_source = excluded.usage_source,
+        metadata = public.agent_step_usage.metadata || excluded.metadata
+    where public.agent_step_usage.usage_status in ('unknown', 'partial')
+      and excluded.usage_status in ('partial', 'completed')
+      and (excluded.usage_status = 'completed' or public.agent_step_usage.usage_status = 'unknown')
   returning id into v_id;
 
   v_inserted := v_id is not null;
