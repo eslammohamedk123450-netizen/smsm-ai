@@ -157,6 +157,9 @@ begin
   if not found then
     raise exception 'agent_job_not_found' using errcode = 'P0002';
   end if;
+  if v_job.status not in ('completed', 'failed', 'cancelled') then
+    return jsonb_build_object('finalized', false, 'status', 'billing_pending', 'reason', 'job_not_terminal');
+  end if;
 
   select count(*) filter (where usage_status = 'unknown'),
          coalesce(sum(input_tokens), 0),
@@ -184,7 +187,7 @@ begin
   -- Never call finalize_credits unless this task actually owns an active credit hold.
   select exists (
     select 1 from public.suly_credit_holds
-     where task_id = p_task_id and user_id = p_user_id and status = 'reserved'
+     where task_id = p_task_id and user_id = p_user_id and status in ('reserved', 'settled')
   ) into v_hold_exists;
   if not v_hold_exists then
     return jsonb_build_object(
