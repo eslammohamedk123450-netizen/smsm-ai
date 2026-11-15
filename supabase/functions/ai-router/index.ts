@@ -21,7 +21,7 @@ import {
   upsertSharedTaskMemory,
 } from "../_shared/shared_task_memory.ts";
 import { CircuitBreaker } from "./circuit_breaker.ts";
-import { buildIndependentTaskPlan, executeTaskPlan, mergePartAnswers, probeCandidates, splitTask, validateTaskPlan } from "./resilience.ts";
+import { buildIndependentTaskPlan, buildTaskPlan, executeTaskPlan, hasExplicitDependencyLanguage, mergePartAnswers, probeCandidates, splitTask, validateTaskPlan } from "./resilience.ts";
 import { parseAgentDecision, runAgentLoop, type AgentLoopStep, type AgentTool } from "./agent/orchestrator.ts";
 import { prioritizeModelCandidate } from "./agent/model_routing.ts";
 import { isModelEligibleForRequest, modelSupportsRole as supportsModelRole } from "./agent/model_eligibility.ts";
@@ -1277,7 +1277,7 @@ async function handleRequest(req: Request): Promise<Response> {
     const proposedReservationParts = canDelegateReservation
       ? splitTask(latestUserMessage, settings.taskSplitMaxParts)
       : [latestUserMessage];
-    const reservationPlan = buildIndependentTaskPlan(proposedReservationParts, settings.taskSplitMaxParts);
+    const reservationPlan = buildTaskPlan(proposedReservationParts, settings.taskSplitMaxParts, hasExplicitDependencyLanguage(latestUserMessage));
     const boundedWorkerCalls = getAgentReservationCallCount({
       executionMode,
       splitPartCount: reservationPlan && validateTaskPlan(reservationPlan, settings.taskSplitMaxParts)
@@ -1556,7 +1556,7 @@ async function handleRequest(req: Request): Promise<Response> {
   const proposedParts = executionMode === "agent" && workerCandidates.length > 0
     ? splitTask(latestUserMessage, settings.taskSplitMaxParts)
     : [latestUserMessage];
-  let taskPlan = buildIndependentTaskPlan(proposedParts, settings.taskSplitMaxParts);
+  let taskPlan = buildTaskPlan(proposedParts, settings.taskSplitMaxParts, hasExplicitDependencyLanguage(latestUserMessage));
   if (!taskPlan || !validateTaskPlan(taskPlan, settings.taskSplitMaxParts)) taskPlan = null;
   const splitParts = taskPlan ? proposedParts : [latestUserMessage];
   // Every request gets a durable workspace. Compound requests reuse their
