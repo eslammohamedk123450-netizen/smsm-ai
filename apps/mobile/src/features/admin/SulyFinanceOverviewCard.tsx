@@ -4,8 +4,9 @@ import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { supabase } from "../../lib/supabase/client";
 import { colors } from "../../theme/colors";
 
-type CostRow = { service_type: string; provider_cost_usd: number; cost_status: string; user_credits_charged: number; revenue_egp: number; provider_cost_egp: number; gross_profit_egp: number; created_at: string };
+type CostRow = { service_type: string; provider_cost_usd: number | null; cost_status: string; user_credits_charged: number; revenue_egp: number | null; provider_cost_egp: number | null; gross_profit_egp: number | null; created_at: string };
 const money = (value: number, currency: string) => `${value.toLocaleString("en-US", { maximumFractionDigits: 2 })} ${currency}`;
+const moneyOrUnknown = (value: number | null, currency: string) => value === null ? "غير متاح" : money(value, currency);
 
 export function SulyFinanceOverviewCard() {
   const [rows, setRows] = useState<CostRow[]>([]);
@@ -23,12 +24,18 @@ export function SulyFinanceOverviewCard() {
   }, []);
   useEffect(() => { void load(); }, [load]);
   const total = rows.reduce((sum, row) => ({
-    costUsd: sum.costUsd + Number(row.provider_cost_usd || 0),
-    revenue: sum.revenue + Number(row.revenue_egp || 0),
-    providerCost: sum.providerCost + Number(row.provider_cost_egp || 0),
-    profit: sum.profit + Number(row.gross_profit_egp || 0),
+    costUsd: sum.costUsd + (row.provider_cost_usd === null ? 0 : Number(row.provider_cost_usd)),
+    usdCount: sum.usdCount + (row.provider_cost_usd === null ? 0 : 1),
+    revenue: sum.revenue + (row.revenue_egp === null ? 0 : Number(row.revenue_egp)),
+    revenueCount: sum.revenueCount + (row.revenue_egp === null ? 0 : 1),
+    providerCost: sum.providerCost + (row.provider_cost_egp === null ? 0 : Number(row.provider_cost_egp)),
+    providerCostCount: sum.providerCostCount + (row.provider_cost_egp === null ? 0 : 1),
+    profit: sum.profit + (row.gross_profit_egp === null ? 0 : Number(row.gross_profit_egp)),
+    profitCount: sum.profitCount + (row.gross_profit_egp === null ? 0 : 1),
     estimated: sum.estimated + (row.cost_status === "estimated" ? 1 : 0),
-  }), { costUsd: 0, revenue: 0, providerCost: 0, profit: 0, estimated: 0 });
+    unknown: sum.unknown + (row.cost_status === "unknown" ? 1 : 0),
+    confirmedEgp: sum.confirmedEgp + (row.cost_status === "confirmed_egp" ? 1 : 0),
+  }), { costUsd: 0, usdCount: 0, revenue: 0, revenueCount: 0, providerCost: 0, providerCostCount: 0, profit: 0, profitCount: 0, estimated: 0, unknown: 0, confirmedEgp: 0 });
   return <View style={{ backgroundColor: colors.surface, borderColor: colors.divider, borderWidth: 1, borderRadius: 14, padding: 14, gap: 10 }}>
     <View style={{ flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between" }}>
       <View style={{ flex: 1, gap: 3 }}>
@@ -42,17 +49,22 @@ export function SulyFinanceOverviewCard() {
       : <>
         <View style={{ flexDirection: "row-reverse", flexWrap: "wrap", gap: 8 }}>
           {[
-            ["تكلفة المزود", money(total.costUsd, "USD")],
-            ["إيراد الخدمة", money(total.revenue, "EGP")],
-            ["تكلفة المزود بالجنيه", money(total.providerCost, "EGP")],
-            ["الربح الإجمالي", money(total.profit, "EGP")],
+            ["تكلفة المزود", total.usdCount ? money(total.costUsd, "USD") : "غير متاح"],
+            ["إيراد الخدمة", total.revenueCount ? money(total.revenue, "EGP") : "غير محسوب"],
+            ["تكلفة المزود بالجنيه", total.providerCostCount ? money(total.providerCost, "EGP") : "غير متاح"],
+            ["الربح الإجمالي", total.profitCount ? money(total.profit, "EGP") : "غير محسوب"],
           ].map(([label, value]) => <View key={label} style={{ flexGrow: 1, flexBasis: 140, backgroundColor: colors.surfaceElevated, borderRadius: 10, padding: 10, gap: 4 }}>
             <Text style={{ color: colors.textMuted, fontSize: 10, textAlign: "right" }}>{label}</Text>
             <Text style={{ color: colors.textPrimary, fontSize: 15, fontWeight: "900", textAlign: "right" }}>{value}</Text>
           </View>)}
         </View>
-        <Text style={{ color: total.estimated ? colors.warning : colors.textMuted, fontSize: 10, textAlign: "right" }}>
-          {total.estimated ? `${total.estimated} عملية بتكلفة تقديرية تحتاج مطابقة مع فاتورة المزود.` : "كل التكاليف المسجلة مؤكدة أو تمت تسويتها."}
+        <Text style={{ color: total.estimated || total.unknown ? colors.warning : colors.textMuted, fontSize: 10, textAlign: "right" }}>
+          {[
+            total.unknown ? `${total.unknown} عملية لم يُرجع مزودها تكلفة مؤكدة.` : "",
+            total.confirmedEgp ? `${total.confirmedEgp} تكلفة مؤكدة بالجنيه دون تحويل USD.` : "",
+            total.estimated ? `${total.estimated} عملية بتكلفة تقديرية تحتاج مطابقة.` : "",
+            total.profitCount < rows.length ? "الإيراد والربح غير محسوبين للعمليات التي لم تُضبط لها قيمة Credit وسعر صرف." : "",
+          ].filter(Boolean).join(" ")}
         </Text>
       </>}
   </View>;
