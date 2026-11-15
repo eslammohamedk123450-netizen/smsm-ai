@@ -108,6 +108,10 @@ export function MediaScreen() {
           : <Image source={{ uri: asset.url }} style={styles.thumb} resizeMode="cover" accessibilityLabel={asset.filename ?? "صورة"}/>}
         <Text numberOfLines={1} style={styles.filename}>{asset.filename ?? "ملف"}</Text>
         <Text style={styles.meta}>{asset.kind === "video" ? "فيديو" : asset.kind === "image" ? "صورة" : "ملف"} · {formatBytes(asset.sizeBytes)}</Text>
+        {typeof asset.metadata.prompt === "string" ? <Text numberOfLines={2} style={styles.promptMeta}>{asset.metadata.prompt}</Text> : null}
+        {typeof asset.metadata.public_model_name === "string" ? <Text style={styles.meta}>{asset.metadata.public_model_name} · {String(asset.metadata.quality ?? "")}</Text> : null}
+        {typeof asset.metadata.charged_credits === "number" ? <Text style={styles.meta}>{asset.metadata.charged_credits.toLocaleString("ar-EG")} Credits</Text> : null}
+        {typeof asset.metadata.provider_cost_usd === "number" ? <Text style={styles.meta}>تكلفة المزود: ${asset.metadata.provider_cost_usd.toFixed(4)} · {String(asset.metadata.provider_cost_status ?? "estimated")}</Text> : null}
         <Pressable onPress={() => void copy(asset.url)}><Text style={styles.link}>نسخ الرابط</Text></Pressable>
       </View>) : null}
     </View>
@@ -145,5 +149,6 @@ const styles = StyleSheet.create({
   fileIcon: { color: colors.textMuted, fontWeight: "800" },
   filename: { color: colors.textPrimary, fontSize: 13, fontWeight: "700", textAlign: "right" },
   meta: { color: colors.textSecondary, fontSize: 12, textAlign: "right" },
+  promptMeta: { color: colors.textMuted, fontSize: 10, textAlign: "right", lineHeight: 15 },
   link: { color: colors.accent, fontWeight: "700", textAlign: "right" },
 });
