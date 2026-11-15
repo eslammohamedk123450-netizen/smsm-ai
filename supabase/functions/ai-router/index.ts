@@ -782,8 +782,12 @@ async function handleRequest(req: Request): Promise<Response> {
     requiresLiveSearch: isWebSearchRequest(latestUserMessage),
     internalBrainCall,
   });
+  const profileIntent = mind.intent === "complex_task" || isWebSearchRequest(latestUserMessage)
+    || Boolean(requestedConnector || requestedMultiReadToolkits || internalBrainCall)
+    ? "complex_task"
+    : mind.intent;
   let selectedProfileKey = requestedProfileKey
-    ? resolveSulyProfileKey({ requestedProfileKey, userTier, intent: mind.intent }).profileKey
+    ? resolveSulyProfileKey({ requestedProfileKey, userTier, intent: profileIntent }).profileKey
     : null;
   const maxOutputChars = outputLimitForRequest(mind.intent, latestUserMessage, maxTokens);
   const streamRequested = body.stream === true;
@@ -1031,28 +1035,56 @@ async function handleRequest(req: Request): Promise<Response> {
   });
   const requiredModelRole = executionMode === "agent" ? "planner" : "chat";
   const routeRole: RouteModelAssignment["route_role"] = executionMode === "agent" ? "planner" : "chat";
-  const { data: selectedProfileAssignments, error: profileAssignmentsError } = selectedProfileKey
-    ? await supabase.from("suly_model_profile_models")
-      .select("model_id,route_role,priority,enabled")
-      .eq("profile_key", selectedProfileKey)
-      .eq("enabled", true)
-      .limit(500)
-    : { data: [], error: null };
+  const [profileAssignmentsResult, profileDefinitionResult] = selectedProfileKey
+    ? await Promise.all([
+      supabase.from("suly_model_profile_models")
+        .select("model_id,route_role,priority,enabled")
+        .eq("profile_key", selectedProfileKey)
+        .eq("enabled", true)
+        .limit(500),
+      supabase.from("suly_model_profiles")
+        .select("capabilities_json,is_active,minimum_subscription_tier")
+        .eq("profile_key", selectedProfileKey)
+        .maybeSingle(),
+    ])
+    : [{ data: [], error: null }, { data: null, error: null }];
+  const profileAssignmentsError = profileAssignmentsResult.error ?? profileDefinitionResult.error;
   if (selectedProfileKey && profileAssignmentsError) {
-    console.error("Could not load SULY profile model assignments:", profileAssignmentsError.message);
+    console.error("Could not load SULY profile configuration:", profileAssignmentsError.message);
     if (requestedProfileKey === "auto") {
       // Keep existing clients usable until the additive profile migration is applied.
       selectedProfileKey = null;
     } else {
-      return await failedResponse(jsonResponse({ error: "تعذر تحميل نماذج مستوى SULY المحدد. لم يتم تغيير اختيارك." }, 503, req), "suly_profile_unavailable");
+      return await failedResponse(jsonResponse({ error: "تعذر تحميل إعدادات مستوى SULY المحدد. لم يتم تغيير اختيارك." }, 503, req), "suly_profile_unavailable");
     }
   }
+  const selectedProfileAssignments = profileAssignmentsResult.data ?? [];
+  const profileCapabilities = selectedProfileKey
+    ? (profileDefinitionResult.data?.capabilities_json ?? {}) as Record<string, unknown>
+    : {};
   const profileModelIds = selectedProfileKey
     ? new Set((selectedProfileAssignments ?? []).filter((item: { route_role: string }) => item.route_role === routeRole).map((item: { model_id: number }) => Number(item.model_id)))
     : null;
   const workerProfileModelIds = selectedProfileKey
     ? new Set((selectedProfileAssignments ?? []).filter((item: { route_role: string }) => item.route_role === "worker").map((item: { model_id: number }) => Number(item.model_id)))
     : null;
+  if (selectedProfileKey && requestedProfileKey && requestedProfileKey !== "auto") {
+    const needsWebSearch = isWebSearchRequest(latestUserMessage);
+    const needsComplexExecution = mind.intent === "complex_task";
+    if (needsWebSearch && profileCapabilities.web_search !== true) {
+      return await failedResponse(jsonResponse({ error: `${selectedProfileKey.toUpperCase()} لا يتضمن البحث على الويب. اختر مستوى أعلى أو غيّر اختيارك يدويًا.` }, 403, req), "profile_capability_unavailable");
+    }
+    if (needsComplexExecution && (profileCapabilities.multi_step_agent !== true || profileCapabilities.advanced_reasoning !== true)) {
+      return await failedResponse(jsonResponse({ error: `${selectedProfileKey.toUpperCase()} لا يملك القدرات المطلوبة لتنفيذ هذه المهمة المعقدة. اختر مستوى أعلى أو استخدم Auto.` }, 403, req), "profile_capability_unavailable");
+    }
+  } else if (selectedProfileKey && requestedProfileKey === "auto") {
+    if (isWebSearchRequest(latestUserMessage) && profileCapabilities.web_search !== true) {
+      return await failedResponse(jsonResponse({ error: "البحث على الويب غير متاح في المستوى المؤهل ضمن اشتراكك الحالي. يمكنك ترقية الاشتراك للوصول إلى Pro." }, 403, req), "profile_capability_unavailable");
+    }
+    if (mind.intent === "complex_task" && (profileCapabilities.multi_step_agent !== true || profileCapabilities.advanced_reasoning !== true)) {
+      return await failedResponse(jsonResponse({ error: "هذه المهمة تحتاج قدرات أعلى من المتاحة في اشتراكك الحالي. يمكنك الترقية إلى Pro أو Max." }, 403, req), "profile_capability_unavailable");
+    }
+  }
   const profileEligibleModels = profileModelIds
     ? healthyModels.filter((model: ModelRow) => profileModelIds.has(model.id))
     : healthyModels;
