@@ -1623,7 +1623,7 @@ async function handleRequest(req: Request): Promise<Response> {
     }];
   const resultStepKey = taskPlan ? "merge" : "final";
   const taskPlanType = taskPlan
-    ? taskPlan.some((step) => step.depends_on.length > 0) ? "dependency_dag" : "independent_list"
+    ? taskPlannerUsage ? "model_generated_dependency_dag" : taskPlan.some((step) => step.depends_on.length > 0) ? "dependency_dag" : "independent_list"
     : executionMode === "agent" ? "agent_loop" : "single_response";
   // Direct chat avoids workspace/ledger writes; durable tracking is reserved for Agent and split tasks.
   if (executionMode === "agent" || splitParts.length > 1) {
