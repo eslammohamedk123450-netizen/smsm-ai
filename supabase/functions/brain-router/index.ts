@@ -1,36 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { parseCentralAgentResult, toBrainTaskStepRows } from "./central_agent_result.ts";
-import { shouldLoadLegacyBrainTiers } from "./route_policy.ts";
-
-const CAPABILITIES = ["text", "coding", "image", "video", "vision", "audio", "reasoning", "web_search"] as const;
-type Capability = typeof CAPABILITIES[number];
-type Tier = "router" | "worker" | "planner" | "merger";
-type TierRow = { tier_name: Tier; priority: number; model_id: string; max_tokens_per_task: number; model: { id: string; name: string; legacy_ai_model_id: number | null; is_active: boolean; model_capabilities?: Array<{ capability_key: Capability }> } | null };
-type Step = { step_index: number; capability: Capability; description: string; expected_inputs: Record<string, unknown> };
-type InvocationResult = { text: string; tokens: number; usedEstimate: boolean };
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 }
 function asRecord(value: unknown): Record<string, unknown> { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
 function cleanText(value: unknown, max = 50000): string { return typeof value === "string" ? value.trim().slice(0, max) : ""; }
-function estimateTokens(value: unknown): number { return Math.max(1, Math.ceil(cleanText(value).length / 4)); }
-function numericTokens(value: unknown): number | null {
-  const parsed = typeof value === "number" ? value : typeof value === "string" && value.trim() ? Number(value) : NaN;
-  return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : null;
-}
-function parseJsonObject(text: string): Record<string, unknown> | null {
-  const trimmed = text.trim().replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
-  try { const parsed = JSON.parse(trimmed); return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : null; } catch { return null; }
-}
-function normalizeCapability(value: unknown): Capability { return CAPABILITIES.includes(String(value) as Capability) ? String(value) as Capability : "text"; }
-function normalizeSteps(value: unknown): Step[] {
-  if (!Array.isArray(value)) return [];
-  return value.slice(0, 100).map((item, index) => {
-    const row = asRecord(item);
-    return { step_index: index + 1, capability: normalizeCapability(row.capability ?? row.capability_key), description: cleanText(row.description, 5000) || `تنفيذ الجزء ${index + 1} من المهمة`, expected_inputs: asRecord(row.expected_inputs ?? row.inputs) };
-  });
-}
 
 async function main(req: Request): Promise<Response> {
   if (req.method !== "POST") return json({ error: "POST required" }, 405);
@@ -62,16 +37,13 @@ async function main(req: Request): Promise<Response> {
   if (!internalWorker && body.mode !== "enqueue") {
     return json({ error: "legacy_brain_route_disabled", message: "أرسل المهمة عبر مسار الوكيل المركزي." }, 410);
   }
-  const loadLegacyTiers = shouldLoadLegacyBrainTiers(body.mode, internalWorker);
-  const [{ data: profile, error: profileError }, { data: tierRows, error: tiersError }] = await Promise.all([
-    admin.from("suly_profiles").select("subscription_tier,is_banned").eq("id", userId).maybeSingle(),
-    loadLegacyTiers
-      ? admin.from("brain_tiers").select("tier_name,priority,model_id,max_tokens_per_task,model:models(id,name,legacy_ai_model_id,is_active,model_capabilities(capability_key))").eq("is_active", true).order("tier_name").order("priority").limit(100)
-      : Promise.resolve({ data: [], error: null }),
-  ]);
+  const { data: profile, error: profileError } = await admin
+    .from("suly_profiles")
+    .select("is_banned")
+    .eq("id", userId)
+    .maybeSingle();
   if (profileError || !profile) return json({ error: "Application profile is missing" }, 403);
   if (profile.is_banned) return json({ error: "This account is suspended" }, 403);
-  if (loadLegacyTiers && tiersError) return json({ error: "Brain tiers could not be loaded" }, 500);
 
   if (internalWorker) {
     const workerId = cleanText(body.worker_id, 120);
@@ -151,7 +123,6 @@ async function main(req: Request): Promise<Response> {
     });
     const centralResult = parseCentralAgentResult(await response.json().catch(() => ({})));
     const finalResponse = centralResult?.response ?? "";
-    const actualTokens = (centralResult?.inputTokens ?? 0) + (centralResult?.outputTokens ?? 0);
     const agentSteps = centralResult?.agentSteps ?? [];
     const completedSteps = centralResult?.completedSteps ?? 0;
     const estimatedSteps = centralResult?.estimatedSteps ?? 1;
@@ -258,12 +229,8 @@ async function main(req: Request): Promise<Response> {
       route: "central-agent",
     });
   }
-  const tiers = (tierRows ?? []) as unknown as TierRow[];
-  const byTier = (name: Tier, requiredCapability: Capability = "text") => tiers
-    .filter((row) => row.tier_name === name && row.model?.is_active && row.model.model_capabilities?.some((item) => item.capability_key === requiredCapability))
-    .sort((a, b) => a.priority - b.priority);
-  const maxConfigured = Math.max(1024, ...tiers.map((row) => Math.max(128, Number(row.max_tokens_per_task) || 1024)));
-  const reserveEstimate = Math.min(100000, Math.max(4096, maxConfigured + maxConfigured + maxConfigured * 8 + maxConfigured));
+  // Fixed bounded reservation; the central Agent enforces its own runtime budget.
+  const reserveEstimate = 11_264;
   const { data: reservationData, error: reservationRpcError } = await admin.rpc("brain_reserve_usage", {
     p_user_id: userId,
     p_task_id: taskId,
@@ -475,56 +442,8 @@ async function main(req: Request): Promise<Response> {
       return json({ error: "Router models failed", task_id: taskId }, 502);
     }
     const routerJson = parseJsonObject(routerResult.text) ?? {};
-    const complexity = routerJson.complexity === "complex" ? "complex" : "easy";
-    const capabilities = Array.isArray(routerJson.capabilities) ? routerJson.capabilities.map(normalizeCapability).filter((value, index, list) => list.indexOf(value) === index).slice(0, CAPABILITIES.length) : ["text"] as Capability[];
-    const estimatedSteps = Math.max(1, Math.min(100, Number(routerJson.estimated_steps) || 1));
-
-    const context = { objective, complexity, capabilities, estimated_steps: estimatedSteps, router: routerJson, steps: [], results: [] };
-    const { error: contextError } = await admin.from("brain_task_contexts").upsert({ task_id: taskId, user_id: userId, objective, complexity, capabilities, estimated_steps: estimatedSteps, context, status: "running", updated_at: new Date().toISOString() });
-    if (contextError) throw new Error("task_context_write_failed");
-
-    let steps: Step[] = [];
-    if (complexity === "complex") {
-      const plannerResult = await invokeTier("planner", `أنت Planner. قسّم المهمة التالية إلى عدد عادل من الخطوات، لا تستخدم عددًا ثابتًا ولا تقسّم الطلب الصغير بلا داع. أعد JSON فقط بالشكل {"steps":[{"capability":"...","description":"...","expected_inputs":{}}]}. يجب أن تكون كل capability من: ${CAPABILITIES.join(", ")}. المهمة: ${objective}\nالقدرات المطلوبة: ${capabilities.join(", ")}`);
-      if (plannerResult) steps = normalizeSteps(parseJsonObject(plannerResult.text)?.steps);
-    }
-    if (steps.length === 0) steps = [{ step_index: 1, capability: capabilities[0] ?? "text", description: objective, expected_inputs: { objective } }];
-    const stepRows = steps.map((step) => ({ task_id: taskId, step_index: step.step_index, capability_key: step.capability, description: step.description, expected_inputs: step.expected_inputs }));
-    const { error: stepsError } = await admin.from("brain_task_steps").upsert(stepRows, { onConflict: "task_id,step_index" });
-    if (stepsError) throw new Error("task_steps_write_failed");
-
-    const results: Array<{ step_index: number; capability: Capability; result: string }> = [];
-    for (const step of steps) {
-      const workerPrompt = `أنت Worker. نفّذ خطوة واحدة فقط من task_context التالي. إذا كانت الخطوة أكبر من قدرتك، حاول تنظيمها داخليًا أو أعد صياغة نتيجة قابلة للتنفيذ بدل الرفض. أعد النتيجة النصية فقط دون وصف داخلي.\nالمهمة الأصلية: ${objective}\nالخطوة ${step.step_index}: ${step.description}\nالقدرة: ${step.capability}\nالمدخلات المتوقعة: ${JSON.stringify(step.expected_inputs)}\nالسياق المشترك: ${JSON.stringify(results).slice(-12000)}`;
-      const workerResult = await invokeTier("worker", workerPrompt, step.capability);
-      if (!workerResult) {
-        const { error } = await admin.from("brain_task_steps").update({ status: "failed" }).eq("task_id", taskId).eq("step_index", step.step_index);
-        if (error) throw new Error("task_step_update_failed");
-        continue;
-      }
-      results.push({ step_index: step.step_index, capability: step.capability, result: workerResult.text });
-      const { error } = await admin.from("brain_task_steps").update({ status: "completed", result: { text: workerResult.text } }).eq("task_id", taskId).eq("step_index", step.step_index);
-      if (error) throw new Error("task_step_update_failed");
-    }
-    if (results.length === 0) {
-      await admin.from("brain_task_contexts").update({ status: "failed", updated_at: new Date().toISOString() }).eq("task_id", taskId).eq("user_id", userId);
-      await markFailed();
-      return json({ error: "All worker models failed", task_id: taskId }, 502);
-    }
-
-    const mergerResult = await invokeTier("merger", `أنت Merger. اجمع نتائج الخطوات من task_context وأخرج إجابة نهائية واضحة للمستخدم. لا تذكر العقول أو الـfallback أو البنية الداخلية. إذا كانت نتيجة خطوة ناقصة، استخدم أفضل ما توفر ولا تخترع حقائق. المهمة الأصلية: ${objective}\nنتائج الخطوات: ${JSON.stringify(results).slice(-30000)}`);
-    const finalText = mergerResult?.text ?? results.map((item) => item.result).join("\n\n");
-    const completedContext = { ...context, steps, results, final_response: finalText };
-    const { error: completionWriteError } = await admin.from("brain_task_contexts").update({ context: completedContext, final_response: finalText, status: "completed", updated_at: new Date().toISOString() }).eq("task_id", taskId).eq("user_id", userId);
-    if (completionWriteError) throw new Error("task_completion_write_failed");
-    await finalizeUsage("completed");
-    return json({ task_id: taskId, complexity, capabilities, estimated_steps: estimatedSteps, steps_completed: results.length, response: finalText, route: "brain-router" });
-  } catch {
-    await markFailed();
-    return json({ error: "Brain task failed", task_id: taskId }, 500);
-  }
+    return json({ error: "legacy_brain_route_disabled" }, 410);
 }
-
 Deno.serve(async (req) => {
   try { return await main(req); } catch { return json({ error: "Internal brain-router error" }, 500); }
 });
