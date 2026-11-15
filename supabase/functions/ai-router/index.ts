@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { buildAgentUsageLedgerRecord } from "./agent_usage_ledger.ts";
 import { prepareAgentMemory, saveAgentMemory } from "./agent/memory.ts";
 import { activationOutcomeMessage, parseActivationCommand, shouldReportActivationFailure } from "../_shared/activation_command.ts";
 import { activateFeatureByCode, buildFeatureSystemContext, getFeatureContext } from "../_shared/feature_flags.ts";
@@ -1263,14 +1264,15 @@ async function handleRequest(req: Request): Promise<Response> {
         if (!state || state.lease_valid !== true) throw new Error("agent_worker_lease_lost");
         if (state.cancel_requested === true) throw new Error("agent_task_cancel_requested");
       }
-      const hasProviderUsage = candidate.usageReported === true
-        && Number.isSafeInteger(candidate.inputTokens) && candidate.inputTokens >= 0
-        && Number.isSafeInteger(candidate.outputTokens) && candidate.outputTokens >= 0;
-      const usageStatus = stage === "started" ? "unknown" : hasProviderUsage ? status === "success" ? "completed" : "partial" : "unknown";
-      const usageSource = usageStatus === "completed" ? "provider_reported" : usageStatus === "partial" ? "provider_reported_partial" : "unavailable";
-      const actualCost = hasProviderUsage && stage !== "started"
-        ? Math.ceil((candidate.inputTokens * creditPricing.input_credits_per_1k_tokens + candidate.outputTokens * creditPricing.output_credits_per_1k_tokens) / 1000)
-        : null;
+      const usageRecord = buildAgentUsageLedgerRecord({
+        stage,
+        status,
+        usageReported: candidate.usageReported === true,
+        inputTokens: candidate.inputTokens,
+        outputTokens: candidate.outputTokens,
+        inputCreditsPer1k: Number(creditPricing.input_credits_per_1k_tokens) || 0,
+        outputCreditsPer1k: Number(creditPricing.output_credits_per_1k_tokens) || 0,
+      });
       const { error: usageError } = await supabase.rpc("record_agent_step_usage", {
         p_job_id: agentJobId,
         p_task_id: billingTaskId,
@@ -1280,11 +1282,11 @@ async function handleRequest(req: Request): Promise<Response> {
         p_model_call_key: candidate.usageCallKey,
         p_model_id: candidate.model.id,
         p_provider_type: candidate.provider.provider_type,
-        p_input_tokens: stage === "started" || !Number.isSafeInteger(candidate.inputTokens) ? null : candidate.inputTokens,
-        p_output_tokens: stage === "started" || !Number.isSafeInteger(candidate.outputTokens) ? null : candidate.outputTokens,
-        p_actual_cost: actualCost,
-        p_usage_status: usageStatus,
-        p_usage_source: usageSource,
+        p_input_tokens: usageRecord.inputTokens,
+        p_output_tokens: usageRecord.outputTokens,
+        p_actual_cost: usageRecord.actualCost,
+        p_usage_status: usageRecord.usageStatus,
+        p_usage_source: usageRecord.usageSource,
         p_metadata: { attempt_status: stage === "started" ? "started" : status, duration_ms: Math.max(0, Math.floor(durationMs)), error_code: errorCode, error_summary: safeReason || null },
       });
       if (usageError) {
