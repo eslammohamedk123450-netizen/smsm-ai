@@ -96,3 +96,42 @@ export function actualChargeCredits(
   if (Number.isSafeInteger(computed) && computed >= 0) return Math.min(1000000000, computed);
   return price.price_credits;
 }
+
+export function providerEndpointAllowed(endpointUrl: string, providerBaseUrl: string): boolean {
+  try {
+    const endpoint = new URL(endpointUrl);
+    const base = new URL(providerBaseUrl);
+    if (
+      endpoint.protocol !== "https:" ||
+      base.protocol !== "https:" ||
+      endpoint.origin !== base.origin ||
+      endpoint.username ||
+      endpoint.password ||
+      base.username ||
+      base.password ||
+      endpoint.search ||
+      endpoint.hash ||
+      base.search ||
+      base.hash
+    ) {
+      return false;
+    }
+
+    const host = base.hostname.toLowerCase();
+    if (
+      host === "localhost" ||
+      host.endsWith(".localhost") ||
+      host.endsWith(".local") ||
+      host === "metadata.google.internal" ||
+      host.includes(":") ||
+      /^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)
+    ) {
+      return false;
+    }
+
+    const basePath = base.pathname.replace(/\/+$/, "");
+    return endpoint.pathname === `${basePath}/images/generations`;
+  } catch {
+    return false;
+  }
+}
