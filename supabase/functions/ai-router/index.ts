@@ -1372,7 +1372,18 @@ async function handleRequest(req: Request): Promise<Response> {
       return { status: "pending", task_id: billingTaskId, requested_cost: actualCost };
     }
     const result = asRecord(data);
-    if (result.success !== true) return { status: "pending", task_id: billingTaskId, requested_cost: actualCost };
+    const settledCharged = Number(result.charged ?? 0);
+    const settledActual = Number(result.actual_cost ?? 0);
+    if (result.success !== true
+      || !Number.isSafeInteger(settledCharged) || settledCharged !== actualCost
+      || !Number.isSafeInteger(settledActual) || settledActual !== actualCost) {
+      return {
+        status: "pending",
+        task_id: billingTaskId,
+        requested_cost: actualCost,
+        settled_charged: Number.isFinite(settledCharged) ? settledCharged : null,
+      };
+    }
 
     if (candidate && billForAttempt) {
       // A single chat call can be reconciled from the provider's billing
