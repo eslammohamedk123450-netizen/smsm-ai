@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { claimAgentTasks, finishAgentTask } from "../_shared/agent_task_queue.ts";
 import { readBrainTaskPayload } from "../_shared/brain_task_payload.ts";
+import { handleCorsPreflight, withCors } from "../_shared/cors.ts";
 
 declare const EdgeRuntime: {
   waitUntil(promise: Promise<unknown>): void;
@@ -93,21 +94,39 @@ async function processOne(url: string, serviceKey: string, userId: string, userJ
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method !== "POST") return json({ error: "POST required" }, 405);
+  const configuredOrigins = Deno.env.get("WEB_CORS_ORIGIN") ?? "";
+  const preflight = handleCorsPreflight(req, configuredOrigins);
+  if (preflight) return preflight;
+
+  let response: Response;
+  if (req.method !== "POST") {
+    response = json({ error: "POST required" }, 405);
+    return withCors(req, response, configuredOrigins);
+  }
   const url = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!url || !serviceKey) return json({ error: "Worker configuration is incomplete" }, 500);
+  if (!url || !serviceKey) {
+    response = json({ error: "Worker configuration is incomplete" }, 500);
+    return withCors(req, response, configuredOrigins);
+  }
 
   // A normal authenticated user can wake only their own queued work.
-  const userJwt = req.headers.get("Authorization")?.replace(/^Bearer\s+/i, "");
-  if (!userJwt) return json({ error: "Authentication required" }, 401);
+  const userJwt = req.headers.get("Authorization")?.replace(/^Bearer\\s+/i, "");
+  if (!userJwt) {
+    response = json({ error: "Authentication required" }, 401);
+    return withCors(req, response, configuredOrigins);
+  }
   const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const { data: authData, error: authError } = await admin.auth.getUser(userJwt);
-  if (authError || !authData.user) return json({ error: "Invalid access token" }, 401);
+  if (authError || !authData.user) {
+    response = json({ error: "Invalid access token" }, 401);
+    return withCors(req, response, configuredOrigins);
+  }
   const userId = authData.user.id;
 
   // Supabase EdgeRuntime keeps this work alive after the HTTP response. If the
   // runtime stops it, the lease expires and a later app wake can retry safely.
   EdgeRuntime.waitUntil(processOne(url, serviceKey, userId, userJwt).catch(() => undefined));
-  return json({ accepted: true, status: "processing", scope: "current_user" }, 202);
+  response = json({ accepted: true, status: "processing", scope: "current_user" }, 202);
+  return withCors(req, response, configuredOrigins);
 });
