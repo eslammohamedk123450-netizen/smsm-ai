@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { parseCentralAgentResult } from "./central_agent_result.ts";
+import { parseCentralAgentResult, toBrainTaskStepRows } from "./central_agent_result.ts";
 
 const CAPABILITIES = ["text", "coding", "image", "video", "vision", "audio", "reasoning", "web_search"] as const;
 type Capability = typeof CAPABILITIES[number];
@@ -107,6 +107,7 @@ async function main(req: Request): Promise<Response> {
         status: "failed",
         updated_at: new Date().toISOString(),
       }, { onConflict: "task_id" });
+      await admin.from("brain_task_steps").upsert(toBrainTaskStepRows(taskId, agentSteps), { onConflict: "task_id,step_index" });
       await admin.rpc("brain_finalize_usage", { p_task_id: taskId, p_actual_tokens: actualTokens, p_status: "failed" });
       return json({ error: "Central Agent could not complete this task", task_id: taskId }, response.status >= 400 ? response.status : 502);
     }
@@ -136,6 +137,13 @@ async function main(req: Request): Promise<Response> {
     if (contextError) {
       await admin.rpc("brain_finalize_usage", { p_task_id: taskId, p_actual_tokens: actualTokens, p_status: "failed" });
       return json({ error: "Could not persist the central Agent result", task_id: taskId }, 500);
+    }
+    const { error: stepPersistenceError } = await admin.from("brain_task_steps")
+      .upsert(toBrainTaskStepRows(taskId, agentSteps), { onConflict: "task_id,step_index" });
+    if (stepPersistenceError) {
+      await admin.from("brain_task_contexts").update({ status: "failed", updated_at: new Date().toISOString() }).eq("task_id", taskId).eq("user_id", userId);
+      await admin.rpc("brain_finalize_usage", { p_task_id: taskId, p_actual_tokens: actualTokens, p_status: "failed" });
+      return json({ error: "Could not persist central Agent progress", task_id: taskId }, 500);
     }
     const { error: finalizationError } = await admin.rpc("brain_finalize_usage", {
       p_task_id: taskId,
