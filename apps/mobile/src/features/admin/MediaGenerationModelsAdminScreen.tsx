@@ -44,17 +44,20 @@ export function MediaGenerationModelsAdminScreen() {
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
-    const [providerRows, modelResult, priceResult] = await Promise.all([
-      adminService.getProviders(),
-      supabase.from("suly_media_generation_models").select("id,display_name,provider_id,model_identifier,endpoint_url,allowed_tiers,supported_qualities,is_default,is_active").eq("service_type", "image").order("created_at", { ascending: false }),
-      supabase.from("suly_media_generation_prices").select("generation_model_id,quality,price_credits,estimated_provider_cost_usd,target_margin,credit_value_egp,usd_to_egp,resolution,enabled").limit(500),
-    ]);
-    if (modelResult.error || priceResult.error) setError("تعذر تحميل نماذج الصور الخارجية أو الأسعار. تأكد من تطبيق ترحيل مزود الصور وصلاحيات الأدمن.");
-    else {
-      setProviders((providerRows ?? []) as Provider[]);
-      setModels((modelResult.data ?? []) as MediaModel[]);
-    }
-    setLoading(false);
+    try {
+      const [providerRows, modelResult, priceResult] = await Promise.all([
+        adminService.getProviders(),
+        supabase.from("suly_media_generation_models").select("id,display_name,provider_id,model_identifier,endpoint_url,allowed_tiers,supported_qualities,is_default,is_active").eq("service_type", "image").order("created_at", { ascending: false }),
+        supabase.from("suly_media_generation_prices").select("generation_model_id,quality,price_credits,estimated_provider_cost_usd,target_margin,credit_value_egp,usd_to_egp,resolution,enabled").limit(500),
+      ]);
+      if (modelResult.error || priceResult.error) setError("تعذر تحميل نماذج الصور الخارجية أو الأسعار. تأكد من تطبيق ترحيل مزود الصور وصلاحيات الأدمن.");
+      else {
+        setProviders((providerRows ?? []) as Provider[]);
+        setModels((modelResult.data ?? []) as MediaModel[]);
+      }
+    } catch {
+      setError("تعذر تحميل قائمة مزودي الصور. تأكد من صلاحيات المشرف.");
+    } finally { setLoading(false); }
   }, []);
   useEffect(() => { void load(); }, [load]);
 
