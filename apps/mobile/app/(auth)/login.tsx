@@ -84,7 +84,7 @@ export default function LoginPage() {
         const hasSession = await register(cleanEmail, password, fullName);
         if (!hasSession) recordEmailAttempt();
         if (hasSession) router.replace("/chat");
-        else setConfirmation("لم يتم تسجيل الدخول تلقائيًا. إذا كان هذا البريد مرتبطًا بحساب، سجّل الدخول أو استخدم رمز البريد. وإذا كان بريدًا جديدًا، تحقّق من رسالة التأكيد.");
+        else setConfirmation("تم إرسال طلب إنشاء الحساب. إذا كان تأكيد البريد مفعّلًا، افتح رسالة التأكيد ثم ارجع وسجّل الدخول. إذا لم تصلك الرسالة، افحص مجلد الرسائل غير المرغوب فيها.");
       } else if (method === "password") {
         const session = await signInWithPassword(cleanEmail, password);
         if (!session.user) throw new Error("Password authentication did not return a user session.");
