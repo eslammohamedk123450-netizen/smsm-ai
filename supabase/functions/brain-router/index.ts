@@ -160,24 +160,13 @@ async function main(req: Request): Promise<Response> {
     .sort((a, b) => a.priority - b.priority);
   const maxConfigured = Math.max(1024, ...tiers.map((row) => Math.max(128, Number(row.max_tokens_per_task) || 1024)));
   const reserveEstimate = Math.min(100000, Math.max(4096, maxConfigured + maxConfigured + maxConfigured * 8 + maxConfigured));
-  let reservation: Record<string, unknown> = {};
-  let reservationError: { message: string } | null = null;
-  if (internalWorker) {
-    const { data: saved } = await admin.from("brain_task_contexts")
-      .select("task_id,context,final_response,complexity,capabilities,estimated_steps,status")
-      .eq("task_id", taskId).eq("user_id", userId).maybeSingle();
-    const savedContext = asRecord(saved?.context);
-    const savedResponse = cleanText(saved?.final_response ?? savedContext.final_response);
-    if (saved?.status === "completed" && savedResponse) {
-      return json({ task_id: taskId, complexity: saved.complexity ?? "easy", capabilities: saved.capabilities ?? ["text"], estimated_steps: saved.estimated_steps ?? 1, steps_completed: Array.isArray(savedContext.results) ? savedContext.results.length : 0, response: savedResponse, route: "brain-router" });
-    }
-    if (saved?.status === "failed") return json({ error: "Brain task already failed", task_id: taskId }, 409);
-    reservation = { allowed: true };
-  } else {
-    const { data: reservationData, error } = await admin.rpc("brain_reserve_usage", { p_user_id: userId, p_task_id: taskId, p_tokens: reserveEstimate });
-    reservationError = error ? { message: error.message } : null;
-    reservation = Array.isArray(reservationData) ? asRecord(reservationData[0]) : asRecord(reservationData);
-  }
+  const { data: reservationData, error: reservationRpcError } = await admin.rpc("brain_reserve_usage", {
+    p_user_id: userId,
+    p_task_id: taskId,
+    p_tokens: reserveEstimate,
+  });
+  const reservationError = reservationRpcError ? { message: reservationRpcError.message } : null;
+  const reservation = Array.isArray(reservationData) ? asRecord(reservationData[0]) : asRecord(reservationData);
   if (reservationError) {
     const message = reservationError.message.toLowerCase();
     if (message.includes("task_in_progress") || message.includes("task_id_conflict")) return json({ error: message.includes("task_id_conflict") ? "task_id_conflict" : "task_in_progress" }, 409);
