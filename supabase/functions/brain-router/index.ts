@@ -164,12 +164,6 @@ async function main(req: Request): Promise<Response> {
       const { error: cancelledStepsError } = await admin.from("brain_task_steps")
         .upsert(toBrainTaskStepRows(taskId, agentSteps, "cancelled"), { onConflict: "task_id,step_index" });
       if (cancelledStepsError) return json({ error: "Could not persist cancelled Agent steps", task_id: taskId }, 500);
-      const { error: cancelledUsageError } = await admin.rpc("brain_finalize_usage", {
-        p_task_id: taskId,
-        p_actual_tokens: actualTokens,
-        p_status: "cancelled",
-      });
-      if (cancelledUsageError) return json({ error: "Could not finalize cancelled Brain usage", task_id: taskId }, 500);
       return json({
         task_id: taskId,
         status: "cancelled",
@@ -196,7 +190,6 @@ async function main(req: Request): Promise<Response> {
         updated_at: new Date().toISOString(),
       }, { onConflict: "task_id" });
       await admin.from("brain_task_steps").upsert(toBrainTaskStepRows(taskId, agentSteps, "failed"), { onConflict: "task_id,step_index" });
-      await admin.rpc("brain_finalize_usage", { p_task_id: taskId, p_actual_tokens: actualTokens, p_status: "failed" });
       return json({ error: "Central Agent could not complete this task", task_id: taskId }, response.status >= 400 ? response.status : 502);
     }
 
@@ -223,22 +216,14 @@ async function main(req: Request): Promise<Response> {
       updated_at: new Date().toISOString(),
     }, { onConflict: "task_id" });
     if (contextError) {
-      await admin.rpc("brain_finalize_usage", { p_task_id: taskId, p_actual_tokens: actualTokens, p_status: "failed" });
       return json({ error: "Could not persist the central Agent result", task_id: taskId }, 500);
     }
     const { error: stepPersistenceError } = await admin.from("brain_task_steps")
       .upsert(toBrainTaskStepRows(taskId, agentSteps), { onConflict: "task_id,step_index" });
     if (stepPersistenceError) {
       await admin.from("brain_task_contexts").update({ status: "failed", updated_at: new Date().toISOString() }).eq("task_id", taskId).eq("user_id", userId);
-      await admin.rpc("brain_finalize_usage", { p_task_id: taskId, p_actual_tokens: actualTokens, p_status: "failed" });
       return json({ error: "Could not persist central Agent progress", task_id: taskId }, 500);
     }
-    const { error: finalizationError } = await admin.rpc("brain_finalize_usage", {
-      p_task_id: taskId,
-      p_actual_tokens: actualTokens,
-      p_status: "completed",
-    });
-    if (finalizationError) return json({ error: "Could not finalize Brain task usage", task_id: taskId }, 500);
 
     return json({
       task_id: taskId,
@@ -302,6 +287,55 @@ async function main(req: Request): Promise<Response> {
 
   if (!internalWorker && body.mode === "enqueue") {
     const objective = cleanText(body.objective ?? body.message);
+    // Reserve the maximum credit exposure before the queue can execute any provider call.
+    // Final settlement later uses provider-reported tokens from agent_step_usage.
+    const { data: creditPricing, error: creditPricingError } = await admin
+      .from("suly_credit_pricing")
+      .select("enabled,minimum_request_credits,input_credits_per_1k_tokens,output_credits_per_1k_tokens")
+      .eq("id", 1)
+      .maybeSingle();
+    if (creditPricingError || !creditPricing || creditPricing.enabled !== true) {
+      await admin.rpc("brain_finalize_usage", { p_task_id: taskId, p_actual_tokens: 0, p_status: "failed" });
+      return json({ error: "Agent credit pricing is unavailable" }, 503);
+    }
+    const inputRate = Math.max(0, Math.floor(Number(creditPricing.input_credits_per_1k_tokens) || 0));
+    const outputRate = Math.max(0, Math.floor(Number(creditPricing.output_credits_per_1k_tokens) || 0));
+    const minimumCredits = Math.max(1, Math.floor(Number(creditPricing.minimum_request_credits) || 0));
+    const walletReservation = Math.max(minimumCredits, Math.ceil(reserveEstimate * Math.max(inputRate, outputRate) / 1000));
+    if (!Number.isSafeInteger(walletReservation) || walletReservation <= 0 || walletReservation > 1000000000) {
+      await admin.rpc("brain_finalize_usage", { p_task_id: taskId, p_actual_tokens: 0, p_status: "failed" });
+      return json({ error: "Agent credit reservation exceeds the safe limit" }, 422);
+    }
+    const { data: creditReservationData, error: creditReservationError } = await admin.rpc("reserve_credits", {
+      p_user_id: userId,
+      p_task_id: taskId,
+      p_amount: walletReservation,
+      p_conversation_id: null,
+    });
+    const creditReservation = asRecord(creditReservationData);
+    if (creditReservationError || creditReservation.success !== true) {
+      await admin.rpc("brain_finalize_usage", { p_task_id: taskId, p_actual_tokens: 0, p_status: "failed" });
+      const insufficient = creditReservation.error === "insufficient_credits";
+      return json({
+        error: insufficient ? "insufficient_credits" : "Agent credit reservation failed",
+        required: creditReservation.required ?? walletReservation,
+        balance: creditReservation.balance ?? null,
+      }, insufficient ? 402 : 503);
+    }
+
+    const releaseEnqueueReservations = async () => {
+      await admin.rpc("finalize_credits", {
+        p_user_id: userId,
+        p_task_id: taskId,
+        p_actual_cost: 0,
+        p_input_tokens: 0,
+        p_output_tokens: 0,
+        p_model_id: null,
+        p_source: "brain_enqueue_rollback",
+      });
+      await admin.rpc("brain_finalize_usage", { p_task_id: taskId, p_actual_tokens: 0, p_status: "failed" });
+    };
+
     const idempotencyKey = `brain:${taskId}`;
     const { data: queued, error: queueError } = await admin.from("agent_task_jobs").insert({
       user_id: userId, task_id: taskId, job_type: "brain_task", idempotency_key: idempotencyKey,
@@ -323,11 +357,11 @@ async function main(req: Request): Promise<Response> {
         return json({ error: "Could not recover the existing Brain task" }, 503);
       }
       // A different active job already occupies this user's queue slot.
-      await admin.rpc("brain_finalize_usage", { p_task_id: taskId, p_actual_tokens: 0, p_status: "failed" });
+      await releaseEnqueueReservations();
       return json({ error: "task_in_progress" }, 409);
     }
     if (queueError || !queued) {
-      await admin.rpc("brain_finalize_usage", { p_task_id: taskId, p_actual_tokens: 0, p_status: "failed" });
+      await releaseEnqueueReservations();
       return json({ error: "Could not enqueue Brain task" }, 503);
     }
     return json({ task_id: taskId, job_id: queued.id, status: queued.status, queued: true, route: "brain-router" }, 202);
