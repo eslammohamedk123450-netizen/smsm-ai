@@ -39,3 +39,20 @@ export function wakeBrainWorker(): void {
   // Wake only the current user's queue; the Edge Function verifies this session.
   void supabase.functions.invoke("agent-task-worker", { body: {} });
 }
+
+
+/** Cancel only work that is still queued; running provider work is not mutated. */
+export async function cancelBrainTask(jobId: string): Promise<void> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(jobId)) {
+    throw new Error("معرّف المهمة غير صالح.");
+  }
+  const { data, error } = await supabase.rpc("cancel_agent_task_job", { p_job_id: jobId });
+  if (error) throw new Error("تعذر إلغاء المهمة الآن.");
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result || typeof result !== "object" || (result as Record<string, unknown>).success !== true) {
+    const reason = (result as Record<string, unknown> | null)?.reason;
+    if (reason === "already_running") throw new Error("بدأ تنفيذ المهمة بالفعل؛ لم يتم إيقافها أو تغيير حجزها.");
+    if (reason === "not_found") throw new Error("المهمة غير موجودة أو لا تملك صلاحية إلغائها.");
+    throw new Error("المهمة انتهت بالفعل ولا تحتاج إلى إلغاء.");
+  }
+}
