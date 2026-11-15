@@ -81,6 +81,7 @@ export function MediaGenerationModelsAdminScreen() {
       setError("اختر مزودًا مفعّلًا أولًا."); return;
     }
     if (!displayName.trim() || !modelIdentifier.trim()) { setError("أدخل الاسم الظاهر ومعرّف النموذج لدى المزود."); return; }
+    if (allowedTiers.length === 0) { setError("اختر اشتراكًا واحدًا على الأقل لاستخدام النموذج."); return; }
     let endpoint: URL;
     try { endpoint = new URL(endpointUrl.trim()); if (endpoint.protocol !== "https:" || endpoint.username || endpoint.password) throw new Error(); }
     catch { setError("أدخل رابط HTTPS صالحًا لنقطة OpenAI Images المتوافقة."); return; }
