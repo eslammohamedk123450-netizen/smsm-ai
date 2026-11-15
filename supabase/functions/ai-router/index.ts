@@ -1560,6 +1560,49 @@ async function handleRequest(req: Request): Promise<Response> {
     : [latestUserMessage];
   let taskPlan = buildTaskPlan(proposedParts, settings.taskSplitMaxParts, hasExplicitDependencyLanguage(latestUserMessage));
   if (!taskPlan || !validateTaskPlan(taskPlan, settings.taskSplitMaxParts)) taskPlan = null;
+  let taskPlannerUsage: { candidate: ReadyCandidate; inputTokens: number; outputTokens: number } | null = null;
+  if (!taskPlan && proposedParts.length === 1 && executionMode === "agent" && mind.intent === "complex_task" && workerCandidates.length > 0) {
+    const dagPlannerCandidates = orderCandidatesByRoute(
+      workerCandidates.filter((candidate) => modelSupportsRole(candidate.model, "planner")),
+      orderedRouteAssignments,
+      "planner",
+    ).slice(0, 2);
+    const dagMessages: ChatMessage[] = [
+      { role: "system", content: [
+        "You are the task decomposition planner for the single central SULY Agent.",
+        "Return only JSON with a root object containing a steps array. Each step has step_id, description, expected_inputs, completion_criteria, and depends_on.",
+        "Create 2 to 5 executable steps only when decomposition materially improves the result.",
+        "Use a directed acyclic graph with branching and merging where useful. Dependencies reference existing step IDs; IDs are unique.",
+        "Do not include tools, provider names, model names, credentials, or instructions to bypass approvals. Do not invent actions the user did not request.",
+        "If decomposition is unnecessary or unsafe, return an empty steps array.",
+        "Descriptions must be self-contained. expected_inputs must be a small JSON object. completion_criteria must be observable.",
+      ].join("\n") },
+      { role: "user", content: latestUserMessage.slice(0, 12000) },
+    ];
+    const dagRequestMessages = providerMessagesForModel(dagMessages, []);
+    for (const baseCandidate of dagPlannerCandidates) {
+      const candidate: Candidate = { ...baseCandidate, requestMessages: dagRequestMessages, temperature: 0, maxTokens: 1200, inputTokens: 0, outputTokens: 0 };
+      const ready = await firstReady([candidate], settings.freeRaceTimeoutMs, recordAttempt, countModelStarts);
+      if (!ready) continue;
+      const planned = await collectCandidate(ready, 12000);
+      const inputTokens = ready.inputTokens > 0 ? ready.inputTokens : estimateTokens(dagRequestMessages.map((message) => message.content).join("\n"));
+      const outputTokens = ready.outputTokens > 0 ? ready.outputTokens : estimateTokens(planned.content);
+      const parsedPlan = parseModelGeneratedTaskPlan(planned.content, settings.taskSplitMaxParts);
+      if (!parsedPlan) {
+        await recordAttempt(ready, "error", Date.now() - ready.startedAtMs, "invalid_task_dag", "Planner output failed DAG schema or cycle validation.");
+        continue;
+      }
+      await recordAttempt(ready, "success", Date.now() - ready.startedAtMs);
+      if (parsedPlan.length >= 2) {
+        taskPlan = parsedPlan;
+        proposedParts = parsedPlan.map((step) => step.description);
+        taskPlanSource = "model_generated";
+        taskPlannerUsage = { candidate: ready, inputTokens, outputTokens };
+      }
+      break;
+    }
+  }
+  if (!taskPlan || !validateTaskPlan(taskPlan, settings.taskSplitMaxParts)) taskPlan = null;
   const splitParts = taskPlan ? proposedParts : [latestUserMessage];
   const agentProfiles = executionMode === "agent" && (splitParts.length > 1 || mind.intent === "complex_task" || Boolean(requestedConnector || requestedMultiReadToolkits?.length || internalBrainCall))
     ? await loadAgentProfiles(supabase)
