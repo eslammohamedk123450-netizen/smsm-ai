@@ -1,5 +1,4 @@
 import { assertEquals, assertRejects } from "jsr:@std/assert@1";
-import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { settleTerminalAgentTaskUsage } from "./agent_usage_settlement.ts";
 
 function fakeAdmin(response: { data: unknown; error: unknown }) {
@@ -9,7 +8,7 @@ function fakeAdmin(response: { data: unknown; error: unknown }) {
       calls.push({ name, args });
       return response;
     },
-  } as unknown as SupabaseClient;
+  } as Parameters<typeof settleTerminalAgentTaskUsage>[0];
   return { client, calls };
 }
 
