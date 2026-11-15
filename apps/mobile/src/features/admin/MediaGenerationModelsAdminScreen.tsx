@@ -181,7 +181,7 @@ export function MediaGenerationModelsAdminScreen() {
       <View style={{ flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center" }}><Text style={{ color: colors.textSecondary }}>تفعيل النموذج للمستخدمين</Text><Switch value={isActive} onValueChange={setIsActive} /></View>
       <View style={{ flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center" }}><Text style={{ color: colors.textSecondary }}>النموذج الافتراضي لاستوديو الصور</Text><Switch value={isDefault} onValueChange={setIsDefault} /></View>
       <Text style={{ color: colors.textPrimary, textAlign: "right", fontWeight: "800" }}>تسعير الجودة والربحية</Text>
-      <Text style={{ color: colors.textMuted, textAlign: "right", fontSize: 10 }}>قيمة الـ Credit بالجنيه وسعر الدولار ضروريان لحساب هامش الربح والتكلفة. إذا تركتهما صفرًا، سيُستخدم سعر Credits الثابت فقط ويُسجل الربح كغير محسوب.</Text>
+      <Text style={{ color: colors.textMuted, textAlign: "right", fontSize: 10 }}>قيمة الـ Credit بالجنيه وسعر الدولار ضروريان لحساب التسوية الفعلية وهامش الربح. Credits هنا مبلغ الحجز التقديري؛ وبعد التنفيذ تُحسب التسوية من التكلفة المؤكدة إن أرجعها المزود، وإلا يُستخدم التقدير المسجل.</Text>
       {prices.map((item) => <View key={item.quality} style={{ borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 9, gap: 7 }}>
         <View style={{ flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center" }}>
           <Text style={{ color: colors.textPrimary, fontWeight: "800" }}>{QUALITY_OPTIONS.find((option) => option.key === item.quality)?.label}</Text>
@@ -189,7 +189,7 @@ export function MediaGenerationModelsAdminScreen() {
         </View>
         <View style={{ flexDirection: "row-reverse", gap: 7 }}>
           {[
-            ["السعر Credits", "price_credits"],
+            ["الحجز التقديري Credits", "price_credits"],
             ["تكلفة المزود USD", "estimated_provider_cost_usd"],
             ["هامش الربح 0–0.95", "target_margin"],
           ].map(([label, key]) => <View key={key} style={{ flex: 1, gap: 4 }}>
