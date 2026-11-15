@@ -252,7 +252,7 @@ export const adminService = {
     await requireAdmin();
     const [modelsResult, healthResult, probeResult, settingsResult, providers] = await Promise.all([
       supabase.from("ai_models")
-        .select("id,name,provider_id,model_identifier,enabled,priority,context_window,routing_group,allowed_tiers,capabilities_json,response_timeout_ms,restriction_failure_threshold,restriction_window_minutes")
+        .select("id,name,provider_id,model_identifier,enabled,priority,context_window,routing_group,allowed_tiers,capabilities_json,task_roles,response_timeout_ms,restriction_failure_threshold,restriction_window_minutes")
         .order("priority", { ascending: false }).order("name").limit(500),
       supabase.from("ai_model_health")
         .select("model_id,total_attempts,successful_attempts,failed_attempts,consecutive_failures,last_attempt_at,last_success_at,last_failure_at,last_status,last_error_code,last_error_reason,average_latency_ms,auto_restricted,restriction_reason,restricted_at")
@@ -281,8 +281,16 @@ export const adminService = {
 
   async updateModel(modelId: number, changes: Record<string, unknown>) {
     await requireAdmin();
-    const allowed = ["enabled", "priority", "routing_group", "allowed_tiers", "response_timeout_ms", "restriction_failure_threshold", "restriction_window_minutes", "capabilities_json"];
+    const allowed = ["enabled", "priority", "routing_group", "allowed_tiers", "response_timeout_ms", "restriction_failure_threshold", "restriction_window_minutes", "capabilities_json", "task_roles"];
     if (Object.keys(changes).some((key) => !allowed.includes(key))) throw new Error("حقل تعديل غير مسموح.");
+    if ("task_roles" in changes) {
+      const roles = changes.task_roles;
+      const supportedRoles = ["general", "planner", "worker", "executor", "reviewer", "summarizer"];
+      if (!Array.isArray(roles) || roles.length === 0 || roles.some((role) => typeof role !== "string" || !supportedRoles.includes(role))) {
+        throw new Error("يجب تحديد دور واحد صالح على الأقل للنموذج.");
+      }
+      changes.task_roles = [...new Set(roles as string[])];
+    }
     if ("capabilities_json" in changes) {
       let parsed: unknown = changes.capabilities_json;
       if (typeof parsed === "string") {
@@ -345,7 +353,7 @@ export const adminService = {
 
   async saveRouteModelAssignments(routeRole: "chat" | "planner" | "worker" | "reviewer" | "summarizer", modelIds: number[]) {
     await requireAdmin();
-    const ids = [...new Set(modelIds)].filter((id) => Number.isSafeInteger(id) && id > 0).slice(0, 500);
+    const ids = [...new Set(modelIds)].filter((id) => Number.isSafeInteger(id) && id > 0).slice(0, 2);
     const { error: deleteError } = await supabase.from("ai_route_model_assignments").delete().eq("route_role", routeRole);
     if (deleteError) throw deleteError;
     if (!ids.length) return;
