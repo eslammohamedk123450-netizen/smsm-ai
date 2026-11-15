@@ -266,7 +266,7 @@ async function main(req: Request): Promise<Response> {
       estimated_steps: stored.estimated_steps ?? storedContext.estimated_steps ?? 1,
       steps_completed: storedResults.length,
       response: finalResponse,
-      route: "brain-router",
+      route: "central-agent",
     });
   }
   if (reservation.allowed !== true) {
