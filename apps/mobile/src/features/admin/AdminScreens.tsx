@@ -39,7 +39,7 @@ type TransactionRow = { id?: string; user_id?: string; event_type: string; amoun
 type ModelCapabilityKey = "chat" | "vision" | "pdf" | "word" | "video" | "gmail" | "google_drive" | "github";
 type ModelCapabilityState = Record<ModelCapabilityKey, boolean>;
 const MODEL_CAPABILITY_OPTIONS: Array<[ModelCapabilityKey, string]> = [["chat", "نص"], ["vision", "قراءة الصور"], ["pdf", "PDF"], ["word", "Word / DOCX"], ["video", "فيديو"], ["gmail", "Gmail"], ["google_drive", "Google Drive"], ["github", "GitHub"]];
-const MODEL_TASK_ROLE_OPTIONS: Array<[string, string]> = [["general", "عام"], ["planner", "التخطيط"], ["worker", "التنفيذ"], ["reviewer", "المراجعة"], ["summarizer", "التلخيص"]];
+const MODEL_TASK_ROLE_OPTIONS: Array<[string, string]> = [["general", "عام (كل الأقسام)"], ["chat", "المحادثة"], ["planner", "التخطيط"], ["worker", "التنفيذ"], ["reviewer", "المراجعة"], ["summarizer", "التلخيص"]];
 function modelSupportsAgentRole(model: ModelRow, role: string): boolean {
   const roles = model.task_roles?.length ? model.task_roles : ["general"];
   if (roles.includes("general")) return true;
