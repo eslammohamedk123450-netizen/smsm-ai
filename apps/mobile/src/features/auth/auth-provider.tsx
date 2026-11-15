@@ -34,7 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(nextSession);
       setUser(nextUser);
       setStatus(nextUser ? "authenticated" : "unauthenticated");
-      if (nextUser) void authService.syncProfile(nextUser).catch(() => undefined);
+      // Profile sync is started by the auth service and must not block auth state.
     };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
