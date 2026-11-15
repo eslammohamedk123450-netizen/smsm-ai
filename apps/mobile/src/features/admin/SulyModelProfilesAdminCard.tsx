@@ -15,7 +15,7 @@ type Profile = {
   capabilities_json: Record<string, boolean>;
   is_active: boolean;
 };
-type Model = { id: number; name: string; model_identifier: string; provider_id: number; enabled: boolean; task_roles: string[] | null; allowed_tiers: string[] | null; capabilities_json: Record<string, boolean> | null };
+type Model = { id: number; name: string; model_identifier: string; provider_id: number; enabled: boolean; task_roles: string[] | null; allowed_tiers: string[] | null; capabilities_json: Record<string, boolean> | null; context_window: number | null };
 type Mapping = { profile_key: string; model_id: number; route_role: string; enabled: boolean };
 
 function rolesForModel(model: Model): string[] {
@@ -44,7 +44,7 @@ export function SulyModelProfilesAdminCard() {
     setLoading(true); setError(null);
     const [profileResult, modelResult, mappingResult] = await Promise.all([
       supabase.from("suly_model_profiles").select("profile_key,display_name,tagline,description,icon_key,sort_order,minimum_subscription_tier,capabilities_json,is_active").order("sort_order"),
-      supabase.from("ai_models").select("id,name,model_identifier,provider_id,enabled,task_roles,allowed_tiers,capabilities_json").eq("enabled", true).order("priority", { ascending: false }).limit(200),
+      supabase.from("ai_models").select("id,name,model_identifier,provider_id,enabled,task_roles,allowed_tiers,capabilities_json,context_window").eq("enabled", true).order("priority", { ascending: false }).limit(200),
       supabase.from("suly_model_profile_models").select("profile_key,model_id,route_role,enabled").limit(2000),
     ]);
     if (profileResult.error || modelResult.error || mappingResult.error) {
@@ -164,7 +164,7 @@ export function SulyModelProfilesAdminCard() {
           return <View key={model.id} style={{ flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: colors.divider }}>
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={{ color: colors.textPrimary, fontSize: 11, textAlign: "right" }}>{model.name || model.model_identifier}</Text>
-              <Text style={{ color: colors.textMuted, fontSize: 9, textAlign: "right" }}>{model.model_identifier} · Provider #{model.provider_id}</Text>
+              <Text style={{ color: colors.textMuted, fontSize: 9, textAlign: "right" }}>{model.model_identifier} · Provider #{model.provider_id} · {Number(model.context_window ?? 0).toLocaleString("en-US")} context</Text>
             </View>
             <Switch value={linked} disabled={busy} onValueChange={(value) => void toggleMapping(profile, model, value)} />
           </View>;
