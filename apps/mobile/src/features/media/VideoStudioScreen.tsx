@@ -11,11 +11,16 @@ export function VideoStudioScreen() {
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     let active = true;
-    void supabase.from("suly_media_generation_models")
-      .select("id,display_name,model_identifier,protocol,capabilities_json")
-      .eq("service_type", "video").eq("is_active", true)
-      .then(({ data }) => { if (active) setModels((data ?? []) as VideoModel[]); })
-      .finally(() => { if (active) setLoading(false); });
+    void (async () => {
+      try {
+        const { data } = await supabase.from("suly_media_generation_models")
+          .select("id,display_name,model_identifier,protocol,capabilities_json")
+          .eq("service_type", "video").eq("is_active", true);
+        if (active) setModels((data ?? []) as VideoModel[]);
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
     return () => { active = false; };
   }, []);
   return <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: 18, gap: 14, maxWidth: 900, width: "100%", alignSelf: "center" }}>
