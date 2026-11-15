@@ -107,6 +107,7 @@ export function AdminDashboardScreen() {
       <Pressable onPress={() => router.push("/admin/models")} style={styles.quickAction}><Text style={styles.quickIcon}>⏸</Text><Text style={styles.quickText}>إيقاف نموذج</Text></Pressable>
       <Pressable onPress={() => router.push("/admin/users")} style={styles.quickAction}><Text style={styles.quickIcon}>＋</Text><Text style={styles.quickText}>شحن رصيد</Text></Pressable>
       <Pressable onPress={() => router.push("/admin/models")} style={[styles.quickAction, styles.quickPrimary]}><Text style={[styles.quickIcon, styles.quickPrimaryText]}>✓</Text><Text style={[styles.quickText, styles.quickPrimaryText]}>اختبار شامل للنماذج</Text></Pressable>
+      <Pressable onPress={() => router.push("/admin/image-generation")} style={styles.quickAction}><Text style={styles.quickIcon}>🖼</Text><Text style={styles.quickText}>نماذج الصور والأسعار</Text></Pressable>
     </View>
     <AgentTaskQueueCard />
     <SulyFinanceOverviewCard />
