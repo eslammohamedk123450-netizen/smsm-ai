@@ -2856,10 +2856,15 @@ async function handleRequest(req: Request): Promise<Response> {
   }
 
   const freeDeadline = Date.now() + (routingMode === "manual" ? settings.paidFallbackTimeoutMs : settings.freeRaceTimeoutMs);
-  for (const candidate of raceCandidates) {
+  const boundedFreeCandidates = raceCandidates.slice(0, Math.max(1, settings.maxParallelFreeModels));
+  for (let index = 0; index < boundedFreeCandidates.length; index += 1) {
     const remaining = freeDeadline - Date.now();
     if (remaining <= 0) break;
-    winner = await firstReady([candidate], remaining, recordAttempt, countModelStarts);
+    // Reserve part of the remaining window for the next eligible backup so a
+    // slow primary cannot consume the entire deadline before fallback starts.
+    const candidatesLeft = boundedFreeCandidates.length - index;
+    const candidateBudget = candidatesLeft > 1 ? Math.ceil(remaining / candidatesLeft) : remaining;
+    winner = await firstReady([boundedFreeCandidates[index]], candidateBudget, recordAttempt, countModelStarts);
     if (winner) break;
   }
 
