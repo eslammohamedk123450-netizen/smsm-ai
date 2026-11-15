@@ -1569,7 +1569,18 @@ async function handleRequest(req: Request): Promise<Response> {
       first_chunk_ms: Date.now() - startedAt,
       total_ms: Date.now() - startedAt,
       output_guard: outputGuard,
-      ...(internalBrainCall ? { usage: { input_tokens: workerInputTokens, output_tokens: workerOutputTokens } } : {}),
+      ...(internalBrainCall ? {
+        usage: { input_tokens: workerInputTokens, output_tokens: workerOutputTokens },
+        agent_steps: [
+          ...partResultsWithCandidates.map((part) => ({
+            index: part.index,
+            kind: "worker",
+            status: part.candidate ? "completed" : "failed",
+            model: part.model,
+          })),
+          { index: splitParts.length, kind: "final", status: "completed" },
+        ],
+      } : {}),
       billing,
       user_metadata: userMetadata,
     };
