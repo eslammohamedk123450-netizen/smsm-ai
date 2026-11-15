@@ -1088,7 +1088,8 @@ async function handleRequest(req: Request): Promise<Response> {
       : manuallyRequested ? "النموذج المحدد لا يملك القدرات المطلوبة لهذا المرفق." : "Model not found or disabled.";
     return await failedResponse(jsonResponse({ error: message }, manuallyRequested ? 422 : selectedProfileKey ? 503 : 404, req), "manual_model_unavailable");
   }
-  if (routingMode === "manual" && !(candidatesFrom[0].allowed_tiers ?? []).includes(userTier)) return await failedResponse(jsonResponse({ error: "This model is not available on your current plan." }, 403, req), "tier_not_allowed");
+  // Subscription hierarchy is enforced by the canonical eligibility helper above.
+  // A Max subscriber may intentionally choose Pro or Lite without being downgraded.
 
   // Queued Brain compound tasks may delegate independent list items to
   // worker-role models. Keep this pool separate from the planner pool so a
