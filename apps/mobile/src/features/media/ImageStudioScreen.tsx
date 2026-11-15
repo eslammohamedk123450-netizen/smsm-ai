@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Image, Pressable, ScrollView, TextInput, View } from "react-native";
+import { ActivityIndicator, Image, Linking, Pressable, ScrollView, TextInput, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { randomUUID } from "expo-crypto";
 import { useRouter } from "expo-router";
@@ -144,6 +144,7 @@ export function ImageStudioScreen() {
       <Image source={{ uri: result.url }} resizeMode="contain" style={{ width: "100%", aspectRatio: 1, borderRadius: 12, backgroundColor: colors.surfaceElevated }} />
       <Text style={{ color: colors.textSecondary, textAlign: "right", fontSize: 10 }}>{result.modelName} · {QUALITY_LABELS[result.quality]} · {result.credits} Credits</Text>
       <View style={{ flexDirection: "row-reverse", flexWrap: "wrap", gap: 8 }}>
+        <Pressable onPress={() => void Linking.openURL(result.url)} style={{ borderWidth: 1, borderColor: colors.divider, borderRadius: 9, padding: 10 }}><Text style={{ color: colors.textPrimary, fontSize: 11 }}>فتح / تنزيل الصورة</Text></Pressable>
         <Pressable onPress={() => void copyResultLink()} style={{ borderWidth: 1, borderColor: colors.divider, borderRadius: 9, padding: 10 }}><Text style={{ color: colors.textPrimary, fontSize: 11 }}>نسخ رابط الصورة</Text></Pressable>
         <Pressable onPress={() => router.push("/(protected)/media")} style={{ borderWidth: 1, borderColor: colors.divider, borderRadius: 9, padding: 10 }}><Text style={{ color: colors.textPrimary, fontSize: 11 }}>فتح مكتبتي</Text></Pressable>
         <Pressable onPress={() => router.push("/(protected)/chat")} style={{ backgroundColor: colors.primary, borderRadius: 9, padding: 10 }}><Text style={{ color: colors.background, fontSize: 11, fontWeight: "800" }}>ابدأ محادثة عنها</Text></Pressable>
