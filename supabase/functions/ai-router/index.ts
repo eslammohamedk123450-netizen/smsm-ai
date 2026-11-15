@@ -1587,6 +1587,24 @@ async function handleRequest(req: Request): Promise<Response> {
     : [latestUserMessage];
   let taskPlan = buildTaskPlan(proposedParts, settings.taskSplitMaxParts, hasExplicitDependencyLanguage(latestUserMessage));
   if (!taskPlan || !validateTaskPlan(taskPlan, settings.taskSplitMaxParts)) taskPlan = null;
+  let existingWorkspaceId: string | null = null;
+  if (executionMode === "agent" || proposedParts.length > 1) {
+    const { data: existingWorkspace, error: existingWorkspaceError } = await supabase
+      .from("agent_workspaces")
+      .select("id,plan")
+      .eq("request_id", billingTaskId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (existingWorkspaceError) throw new Error("Could not load the durable Agent workspace checkpoint.");
+    if (existingWorkspace) {
+      existingWorkspaceId = String(existingWorkspace.id);
+      const storedPlan = Array.isArray(existingWorkspace.plan) ? existingWorkspace.plan as TaskPlanStep[] : [];
+      if (validateTaskPlan(storedPlan, settings.taskSplitMaxParts)) {
+        taskPlan = storedPlan;
+        proposedParts = storedPlan.map((step) => step.description);
+      }
+    }
+  }
   let taskPlannerUsage: { candidate: ReadyCandidate; inputTokens: number; outputTokens: number } | null = null;
   if (!taskPlan && proposedParts.length === 1 && executionMode === "agent" && mind.intent === "complex_task" && workerCandidates.length > 0) {
     const dagPlannerCandidates = orderCandidatesByRoute(
@@ -1629,32 +1647,7 @@ async function handleRequest(req: Request): Promise<Response> {
     }
   }
   if (!taskPlan || !validateTaskPlan(taskPlan, settings.taskSplitMaxParts)) taskPlan = null;
-  let splitParts = taskPlan ? proposedParts : [latestUserMessage];
-
-  // A retried queue job must keep the exact plan that was first committed for
-  // this request. Re-planning could silently change dependency IDs and replay
-  // already completed external/model work.
-  let existingWorkspaceId: string | null = null;
-  if (executionMode === "agent" || splitParts.length > 1) {
-    const { data: existingWorkspace, error: existingWorkspaceError } = await supabase
-      .from("agent_workspaces")
-      .select("id,plan")
-      .eq("request_id", billingTaskId)
-      .eq("user_id", user.id)
-      .maybeSingle();
-    if (existingWorkspaceError) {
-      throw new Error("Could not load the durable Agent workspace checkpoint.");
-    }
-    if (existingWorkspace) {
-      existingWorkspaceId = String(existingWorkspace.id);
-      const storedPlan = Array.isArray(existingWorkspace.plan) ? existingWorkspace.plan as TaskPlanStep[] : [];
-      if (validateTaskPlan(storedPlan, settings.taskSplitMaxParts)) {
-        taskPlan = storedPlan;
-        proposedParts = storedPlan.map((step) => step.description);
-        splitParts = proposedParts;
-      }
-    }
-  }
+  const splitParts = taskPlan ? proposedParts : [latestUserMessage];
 
   // Every request gets a durable workspace. Compound requests reuse their
   // deterministic plan; simple and Agent requests get one resumable step.
