@@ -2,7 +2,6 @@
  * The legacy Brain model/tier catalog is read only by the backward-compatible
  * synchronous path while older clients are being retired.
  */
-export function shouldLoadLegacyBrainTiers(mode: unknown, internalWorker: boolean): boolean {
-  if (internalWorker) return false;
-  return mode !== "enqueue";
+export function shouldLoadLegacyBrainTiers(_mode: unknown, _internalWorker: boolean): boolean {
+  return false;
 }
