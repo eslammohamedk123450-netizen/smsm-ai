@@ -101,6 +101,7 @@ type Candidate = {
   usageStepKey?: string;
   usageAttemptNo?: number;
   usageCallKey?: string;
+  usageReported?: boolean;
 };
 type ReadyCandidate = Candidate & {
   controller: AbortController;
@@ -327,12 +328,14 @@ async function openCandidate(candidate: Candidate, controller: AbortController):
     const iterator = readOpenAiStream(response.body, (inputTokens, outputTokens, providerCostEgp) => {
       if (inputTokens !== null) candidate.inputTokens = inputTokens;
       if (outputTokens !== null) candidate.outputTokens = outputTokens;
+      if (inputTokens !== null && outputTokens !== null) candidate.usageReported = true;
       if (providerCostEgp !== null) candidate.providerCostEgp = providerCostEgp;
       // Keep the live candidate in sync after the first streamed chunk so
       // final usage and provider-reported EGP costs survive the shallow copy.
       if (readyCandidate) {
         if (inputTokens !== null) readyCandidate.inputTokens = inputTokens;
         if (outputTokens !== null) readyCandidate.outputTokens = outputTokens;
+        if (inputTokens !== null && outputTokens !== null) readyCandidate.usageReported = true;
         if (providerCostEgp !== null) readyCandidate.providerCostEgp = providerCostEgp;
       }
     });
@@ -1240,7 +1243,8 @@ async function handleRequest(req: Request): Promise<Response> {
   const recordAttempt: AttemptRecorder = async (candidate, status, durationMs, errorCode = null, errorReason = null, stage = "finished") => {
     const safeReason = safeOperationalSummary(errorReason ?? "", 1000);
     if (internalBrainCall && agentJobId && candidate.usageCallKey) {
-      const hasProviderUsage = Number.isSafeInteger(candidate.inputTokens) && candidate.inputTokens >= 0
+      const hasProviderUsage = candidate.usageReported === true
+        && Number.isSafeInteger(candidate.inputTokens) && candidate.inputTokens >= 0
         && Number.isSafeInteger(candidate.outputTokens) && candidate.outputTokens >= 0;
       const usageStatus = stage === "started" ? "unknown" : hasProviderUsage ? status === "success" ? "completed" : "partial" : "unknown";
       const usageSource = usageStatus === "completed" ? "provider_reported" : usageStatus === "partial" ? "provider_reported_partial" : "unavailable";
@@ -1668,7 +1672,7 @@ async function handleRequest(req: Request): Promise<Response> {
     ];
     const dagRequestMessages = providerMessagesForModel(dagMessages, []);
     for (const baseCandidate of dagPlannerCandidates) {
-      const candidate: Candidate = { ...baseCandidate, requestMessages: dagRequestMessages, temperature: 0, maxTokens: 1200, inputTokens: 0, outputTokens: 0 };
+      const candidate: Candidate = { ...baseCandidate, requestMessages: dagRequestMessages, temperature: 0, maxTokens: 1200, inputTokens: 0, outputTokens: 0, usageStepKey: "dag-planner", usageAttemptNo: 1 };
       const ready = await firstReady([candidate], settings.freeRaceTimeoutMs, recordAttempt, countModelStarts);
       if (!ready) continue;
       const planned = await collectCandidate(ready, 12000);
@@ -1818,7 +1822,12 @@ async function handleRequest(req: Request): Promise<Response> {
         ...(dependencyBrief ? [{ role: "system" as const, content: `مخرجات الاعتماديات السابقة التي يجب البناء عليها:\n${dependencyBrief}` }] : []),
         { role: "user", content: splitParts[index] },
       ];
-      let remaining = routedWorkerCandidates.slice(0, 3).map((candidate) => ({ ...candidate, requestMessages: partMessages }));
+      let remaining = routedWorkerCandidates.slice(0, 3).map((candidate, candidateIndex) => ({
+        ...candidate,
+        requestMessages: partMessages,
+        usageStepKey: stepKey,
+        usageAttemptNo: candidateIndex + 1,
+      }));
       for (let attempt = 0; attempt < Math.min(2, remaining.length); attempt += 1) {
         const partWinner = await firstReady(remaining, settings.freeRaceTimeoutMs, recordAttempt, countModelStarts);
         if (!partWinner) break;
@@ -2099,6 +2108,8 @@ async function handleRequest(req: Request): Promise<Response> {
       const requestMessages = providerMessagesForModel(planningMessages, trustedAttachments);
       const makePlanningCandidate = (candidate: Candidate): Candidate => ({
         ...candidate,
+        usageStepKey: `agent-loop-planner-${step}`,
+        usageAttemptNo: Math.max(1, plannerAttemptCount),
         requestMessages,
         temperature: 0.1,
         maxTokens: agentPlannerMaxTokens,
