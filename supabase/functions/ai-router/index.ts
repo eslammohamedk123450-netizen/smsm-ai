@@ -2093,6 +2093,7 @@ async function handleRequest(req: Request): Promise<Response> {
         : null,
       model_calls: modelInvocationCount,
       total_ms: Date.now() - startedAt,
+      ...(internalBrainCall ? { usage: { input_tokens: plannerInputTokens + summarizerInputTokens, output_tokens: plannerOutputTokens + summarizerOutputTokens } } : {}),
       billing,
       user_metadata: userMetadata,
     };
