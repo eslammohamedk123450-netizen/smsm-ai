@@ -152,6 +152,7 @@ revoke all on public.suly_model_profiles, public.suly_model_profile_models from 
 grant select on public.suly_model_profiles to authenticated;
 grant select, insert, update, delete on public.suly_model_profiles to authenticated;
 grant select, insert, update, delete on public.suly_model_profile_models to authenticated;
+grant usage, select on sequence public.suly_model_profile_models_id_seq to authenticated, service_role;
 grant all on public.suly_model_profiles, public.suly_model_profile_models to service_role;
 
 commit;
