@@ -5,6 +5,7 @@ export interface AiRequestFingerprintInput {
   mediaAssetIds: string[];
   featureKey: string;
   routingMode: string;
+  executionMode?: string;
   modelId: number | null;
   temperature: number;
   maxTokens: number;
@@ -21,6 +22,7 @@ export async function fingerprintAiRequest(input: AiRequestFingerprintInput): Pr
     media_asset_ids: [...input.mediaAssetIds].sort(),
     feature_key: input.featureKey,
     routing_mode: input.routingMode,
+    execution_mode: input.executionMode ?? "legacy",
     model_id: input.modelId,
     temperature: input.temperature,
     max_tokens: input.maxTokens,
