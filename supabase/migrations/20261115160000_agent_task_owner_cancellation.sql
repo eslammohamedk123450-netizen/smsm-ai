@@ -30,8 +30,7 @@ begin
 end;
 $$;
 
-revoke all on function public.cancel_agent_task_job(uuid) from public, anon, service_role;
-grant execute on function public.cancel_agent_task_job(uuid) to authenticated;
+revoke all on function public.cancel_agent_task_job(uuid) from public, anon, authenticated, service_role;
 
 comment on function public.cancel_agent_task_job(uuid) is
   'Cancels only the authenticated owner\'s queued/running task; clearing the lease causes active workers to abort on heartbeat.';
