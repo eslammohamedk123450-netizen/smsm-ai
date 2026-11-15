@@ -1732,7 +1732,7 @@ async function handleRequest(req: Request): Promise<Response> {
     const pendingParts = new Set(splitParts.map((_, index) => index));
     let workerInputTokens = taskPlannerUsage?.inputTokens ?? 0;
     let workerOutputTokens = taskPlannerUsage?.outputTokens ?? 0;
-    let workerBillingCandidate: ReadyCandidate | null = taskPlannerUsage?.candidate ?? null;
+    let workerBillingCandidate: Candidate | null = taskPlannerUsage?.candidate ?? null;
     const accountedWorkerCandidates = new WeakSet<object>();
     const accountWorkerUsage = (candidate: ReadyCandidate, content: string) => {
       if (accountedWorkerCandidates.has(candidate)) return;
