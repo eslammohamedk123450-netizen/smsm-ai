@@ -36,7 +36,7 @@ The default path must optimize time-to-first-token: simple chat should use a dir
 - Entry point: `supabase/functions/agent-task-worker/index.ts`.
 - The worker currently accepts only `brain_task`; unsupported job types are failed.
 - It claims one job, renews a lease, calls `brain-router`, and finalizes the queue job. For queued Brain jobs, `brain-router` delegates the actual work to the central `ai-router` Agent.
-- The queue worker and scheduler still recognize only `brain_task`; generic job-handler registration and a general dependency-aware task graph remain unfinished.\n- Cancellation remains intentionally deferred: changing only the queue row can strand a Brain task context or reserved usage. Implement it as one billing-safe, authenticated workflow before exposing it in the UI.
+- The queue worker and scheduler still recognize only `brain_task`; generic job-handler registration and a general dependency-aware task graph remain unfinished.\n- Queued-only cancellation is implemented through an owner-checked atomic RPC. It marks the queue row, Brain context, and pending/running Brain steps as cancelled and releases the unused Brain usage reservation exactly once. Running jobs remain untouched until cooperative abort and partial-usage settlement are proven end-to-end.
 - Expired worker leases are now requeued once with bounded exponential backoff (15s, 30s, then capped at 5 minutes); exhausted attempts become terminal. The database claim RPC owns this transition so scheduler ticks cannot repeatedly extend the same retry delay.
 
 ### 4. Admin surfaces and data duplication
@@ -172,8 +172,8 @@ Daily and monthly budgets must be enforced server-side, not only displayed in th
 
 ## Non-negotiable safety rules
 
-- Work only on `feat/agent-worker-brain-queue` until separately approved.
-- Do not merge PR #47, deploy Edge Functions, or apply production migrations as part of this baseline.
+- Implement changes on focused feature branches and merge to `release/v1` only after review and passing CI.
+- Production Edge Function deployments and additive migrations are permitted when explicitly authorized, reviewed, regression-tested, and verified; destructive data/schema changes remain separately gated.
 - Do not delete user data, model/provider credentials, task history, usage ledgers, or existing migrations.
 - Never expose service-role credentials to the mobile client.
 - Any new routing decision must enforce plan, capability, health, and spend eligibility server-side.
@@ -184,21 +184,28 @@ Daily and monthly budgets must be enforced server-side, not only displayed in th
 - User-triggered and scheduled workers now share one Brain payload validator for owner match, UUID task ID, trimmed non-empty objective, and the 50,000-character limit.
 - Retry SQL regression coverage checks the 15s first retry, 30s second retry, no repeated delay extension while queued, and terminal exhaustion after the configured attempts.
 - Brain model admin saves now upsert selected capability links before removing deselected links. A failed capability write no longer deletes all previously working links; tier/plan update errors are surfaced.
-- Task cancellation remains deferred until queue status, Brain context, worker abort, and usage finalization can be reconciled safely.
+- Queued-only cancellation is now live and billing-safe. Running cancellation remains deferred until worker/provider abort propagation and partial-token accounting can be reconciled safely.
 
+
+### Stage 2 production verification (2026-11-15)
+- PR #70 is merged; `ai-router` was deployed as active version 44. Explicit ordered user lists with dependency language are represented as sequential DAGs, while independent lists remain parallel (bounded to three workers).
+- PR #71 is merged; `cancel_agent_task_job(uuid)` is deployed. Authenticated callers can cancel only their own queued jobs. `anon` and `public` cannot execute the RPC; authenticated callers cannot execute `brain_finalize_usage` directly.
+- Production SQL regression harness passed inside a transaction and rolled back. It covered user ownership, duplicate enqueue, lease expiry/backoff, queued cancellation, exactly-once reservation release, protection of running jobs, cross-user isolation, and usage finalization/overage. A post-test query confirmed no regression rows remained.
+- `task_ledger` has a runtime write path in `ai-router/index.ts` for Agent workspaces. The legacy `agent_registry` remains under audit; do not assume it is the live tool registry or remove it until all database and admin call sites are mapped.
+- Remaining Stage 2 gaps: model-generated branching/merging DAG planning; cooperative running-task cancellation; generic job handlers beyond `brain_task` only when a real producer is introduced; authenticated HTTP/JWT integration and concurrency tests; and a full legacy synchronous Brain routing/catalog retirement audit.
 
 ### Dependency-aware execution
 - Added a bounded DAG executor to the central Agent worker path. It validates the plan before starting, runs ready independent steps in bounded waves, passes completed prerequisite outputs to dependants, and blocks only descendants of failed steps while allowing unrelated branches to continue.
-- The current user-facing plan builder still emits only explicit independent list items; model-generated dependency plans and durable cross-invocation DAG resumption remain follow-up work.
+- The current plan builder supports explicit independent lists and explicit ordered lists with dependency language (converted to a sequential DAG). Arbitrary model-generated branching/merging DAGs and durable cross-invocation DAG resumption remain follow-up work.
 
 
 ### Brain usage accounting hardening
 - Brain finalization now records actual token usage even when it exceeds the enqueue-time reservation, stores the excess in `overage_tokens`, and includes the full actual amount in daily usage.
 - Finalization remains idempotent: repeated calls return the already-finalized totals without releasing/counting tokens twice.
-- The migration is additive and dev-branch only; it has not been applied to production.
+- The additive Brain usage overage-accounting migration is applied to production. Regression coverage verifies actual usage above reservation and idempotent finalization.
 
 
 ### Admin queue observability
 - Added an admin-only SECURITY DEFINER overview RPC guarded by `suly_is_admin()`. It returns queue counts, expired leases, oldest queued timestamp, and recent task metadata.
 - The RPC intentionally omits payloads and results. A new Admin Dashboard card displays queue health and recent job status without exposing task contents.
-- The migration is additive and remains dev-only until release approval.
+- The additive admin queue-observability migration is applied to production; its admin-only RPC omits payloads and task results.
