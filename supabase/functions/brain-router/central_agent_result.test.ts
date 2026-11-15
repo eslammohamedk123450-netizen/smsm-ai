@@ -56,3 +56,9 @@ Deno.test("central Agent progress always contains at least one safe display step
   assertEquals(rows[0].capability_key, "reasoning");
   assertEquals(rows[0].status, "completed");
 });
+
+Deno.test("empty failed Agent output maps to a failed progress step", () => {
+  const rows = toBrainTaskStepRows("task-3", [], "failed");
+  assertEquals(rows.length, 1);
+  assertEquals(rows[0].status, "failed");
+});
