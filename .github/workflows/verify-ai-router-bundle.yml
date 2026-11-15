@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - "supabase/functions/ai-router/**"
+      - "supabase/functions/image-generator/**"
+      - "apps/mobile/src/features/admin/MediaGenerationModelsAdminScreen.tsx"
+      - "supabase/migrations/**"
       - "supabase/deploy-artifacts/ai-router.bundle.js"
       - "package.json"
       - ".github/workflows/verify-ai-router-bundle.yml"
@@ -11,6 +14,9 @@ on:
     branches: [release/v1, feat/agent-worker-brain-queue]
     paths:
       - "supabase/functions/ai-router/**"
+      - "supabase/functions/image-generator/**"
+      - "apps/mobile/src/features/admin/MediaGenerationModelsAdminScreen.tsx"
+      - "supabase/migrations/**"
       - "supabase/deploy-artifacts/ai-router.bundle.js"
       - "package.json"
       - ".github/workflows/verify-ai-router-bundle.yml"
@@ -76,3 +82,17 @@ jobs:
             exit 1
           fi
           echo "ai-router bundle matches the current source."
+
+  media-billing:
+    name: Currency-safe media billing tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Test currency-safe billing and endpoint validation
+        run: deno test supabase/functions/image-generator/cost.test.ts
+      - name: Type-check image generator
+        run: deno check supabase/functions/image-generator/index.ts
