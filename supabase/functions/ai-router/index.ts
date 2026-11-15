@@ -1233,9 +1233,27 @@ async function handleRequest(req: Request): Promise<Response> {
     )
     : [];
   const orderedWorkerModels = orderModelsByRoute(workerModels, orderedRouteAssignments, "worker");
+  const reviewerModels = executionMode === "agent" && routingMode === "auto"
+    ? restrictModelsToAssignedRoute(
+      profileEligibleModels.filter((model: ModelRow) => isEligibleModel(model, "reviewer", ["free_race"])),
+      orderedRouteAssignments,
+      "reviewer",
+    )
+    : [];
+  const summarizerModels = executionMode === "agent" && routingMode === "auto"
+    ? restrictModelsToAssignedRoute(
+      profileEligibleModels.filter((model: ModelRow) => isEligibleModel(model, "summarizer", ["free_race"])),
+      orderedRouteAssignments,
+      "summarizer",
+    )
+    : [];
+  const orderedReviewerModels = orderModelsByRoute(reviewerModels, orderedRouteAssignments, "reviewer");
+  const orderedSummarizerModels = orderModelsByRoute(summarizerModels, orderedRouteAssignments, "summarizer");
   const requiredProviderIds: number[] = [...new Set<number>([
     ...(candidatesFrom as ModelRow[]).map((m: ModelRow) => m.provider_id),
     ...orderedWorkerModels.map((m: ModelRow) => m.provider_id),
+    ...orderedReviewerModels.map((m: ModelRow) => m.provider_id),
+    ...orderedSummarizerModels.map((m: ModelRow) => m.provider_id),
   ])];
   const providerKeys = new Map<number, string>();
   await Promise.all(requiredProviderIds.map(async (providerId) => {
@@ -1255,6 +1273,8 @@ async function handleRequest(req: Request): Promise<Response> {
 
   const usableInitial = makeCandidates(candidatesFrom);
   const workerCandidates = makeCandidates(orderedWorkerModels);
+  const reviewerCandidates = makeCandidates(orderedReviewerModels);
+  const summarizerCandidates = makeCandidates(orderedSummarizerModels);
   const recordAttempt: AttemptRecorder = async (candidate, status, durationMs, errorCode = null, errorReason = null, stage = "finished") => {
     const safeReason = safeOperationalSummary(errorReason ?? "", 1000);
     if (internalBrainCall && agentJobId && candidate.usageCallKey) {
@@ -2080,7 +2100,7 @@ async function handleRequest(req: Request): Promise<Response> {
     );
     const freeSummarizerPool = prioritizeAgentProfileCandidates(
       orderCandidatesByRoute(
-        restrictModelsToAssignedRoute(raceCandidates.filter((candidate) => modelSupportsRole(candidate.model, "summarizer")), orderedRouteAssignments, "summarizer"),
+        restrictModelsToAssignedRoute(summarizerCandidates.filter((candidate) => modelSupportsRole(candidate.model, "summarizer")), orderedRouteAssignments, "summarizer"),
         orderedRouteAssignments,
         "summarizer",
       ),
@@ -2088,7 +2108,7 @@ async function handleRequest(req: Request): Promise<Response> {
     );
     const freeReviewerPool = prioritizeAgentProfileCandidates(
       orderCandidatesByRoute(
-        restrictModelsToAssignedRoute(raceCandidates.filter((candidate) => modelSupportsRole(candidate.model, "reviewer")), orderedRouteAssignments, "reviewer"),
+        restrictModelsToAssignedRoute(reviewerCandidates.filter((candidate) => modelSupportsRole(candidate.model, "reviewer")), orderedRouteAssignments, "reviewer"),
         orderedRouteAssignments,
         "reviewer",
       ),
