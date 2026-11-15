@@ -48,6 +48,14 @@ begin
   values (v_b, 'brain_task', jsonb_build_object('user_id', v_b), 'regression-b-' || gen_random_uuid()::text, 10, 3)
   returning id into v_b_job;
 
+  -- Isolate this harness from unrelated queued work in a shared development project.
+  -- The outer transaction rolls this temporary deferral back.
+  update public.agent_task_jobs
+     set available_at = now() + interval '1 day'
+   where user_id in (v_a, v_b)
+     and status = 'queued'
+     and id not in (v_a_job, v_b_job);
+
   if not exists (
     select 1 from public.claim_agent_task_jobs('regression-worker-a', 1, 60, v_a) where id = v_a_job
   ) then raise exception 'User A could not claim its own job'; end if;
