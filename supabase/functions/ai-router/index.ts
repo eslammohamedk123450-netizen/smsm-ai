@@ -82,6 +82,8 @@ type CreditPricing = {
   minimum_request_credits: number;
   input_credits_per_1k_tokens: number;
   output_credits_per_1k_tokens: number;
+  credit_value_egp: number | null;
+  usd_to_egp: number | null;
 };
 type Candidate = {
   model: ModelRow;
@@ -983,7 +985,7 @@ async function handleRequest(req: Request): Promise<Response> {
 
   const { data: pricingRow, error: pricingError } = await supabase
     .from("suly_credit_pricing")
-    .select("enabled,minimum_request_credits,input_credits_per_1k_tokens,output_credits_per_1k_tokens")
+    .select("enabled,minimum_request_credits,input_credits_per_1k_tokens,output_credits_per_1k_tokens,credit_value_egp,usd_to_egp")
     .eq("id", 1)
     .maybeSingle();
   if (pricingError || !pricingRow) {
@@ -995,6 +997,8 @@ async function handleRequest(req: Request): Promise<Response> {
     minimum_request_credits: Math.max(0, Math.floor(Number(pricingRow.minimum_request_credits) || 0)),
     input_credits_per_1k_tokens: Math.max(0, Math.floor(Number(pricingRow.input_credits_per_1k_tokens) || 0)),
     output_credits_per_1k_tokens: Math.max(0, Math.floor(Number(pricingRow.output_credits_per_1k_tokens) || 0)),
+    credit_value_egp: pricingRow.credit_value_egp == null ? null : Math.max(0, Number(pricingRow.credit_value_egp)),
+    usd_to_egp: pricingRow.usd_to_egp == null ? null : Math.max(0, Number(pricingRow.usd_to_egp)),
   };
 
   const [{ data: settingsRow }, { data: allModels, error: modelsError }, { data: providers, error: providersError }, { data: routeAssignments, error: routeAssignmentsError }] = await Promise.all([
@@ -1391,6 +1395,12 @@ async function handleRequest(req: Request): Promise<Response> {
       // sub-call is aggregated, keep their total cost explicitly unknown.
       const primaryProviderCostEgp = candidate.providerCostEgp;
       const providerCostEgp = executionMode === "chat" ? primaryProviderCostEgp : null;
+      const revenueEgp = creditPricing.credit_value_egp === null
+        ? null
+        : actualCost * creditPricing.credit_value_egp;
+      const grossProfitEgp = revenueEgp !== null && providerCostEgp !== null
+        ? revenueEgp - providerCostEgp
+        : null;
       const { error: ledgerError } = await supabase.from("suly_company_cost_ledger").upsert({
         request_id: billingTaskId,
         user_id: user.id,
@@ -1401,12 +1411,12 @@ async function handleRequest(req: Request): Promise<Response> {
         provider_cost_usd: null,
         cost_status: providerCostEgp === null ? "unknown" : "confirmed_egp",
         user_credits_charged: actualCost,
-        credit_value_egp: null,
-        usd_to_egp: null,
-        revenue_egp: null,
+        credit_value_egp: creditPricing.credit_value_egp,
+        usd_to_egp: creditPricing.usd_to_egp,
+        revenue_egp: revenueEgp,
         provider_cost_egp: providerCostEgp,
         other_cost_egp: 0,
-        gross_profit_egp: null,
+        gross_profit_egp: grossProfitEgp,
         price_version: null,
         metadata: {
           input_tokens: inputTokens,
@@ -1416,6 +1426,8 @@ async function handleRequest(req: Request): Promise<Response> {
             ? executionMode === "agent" ? "multi_model_agent_cost_not_aggregated" : "not_reported_by_provider"
             : "provider_response.x_billing.cost_egp",
           primary_model_reported_cost_egp: primaryProviderCostEgp,
+          credit_value_egp: creditPricing.credit_value_egp,
+          usd_to_egp: creditPricing.usd_to_egp,
           execution_mode: executionMode,
           suly_profile: selectedProfileKey,
           billing_source: source,
