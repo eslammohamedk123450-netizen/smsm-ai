@@ -9,6 +9,7 @@ Deno.test("fingerprint is stable for the same request", async () => {
     mediaAssetIds: ["asset-b", "asset-a"],
     featureKey: "general",
     routingMode: "auto",
+    executionMode: "auto",
     modelId: null,
     temperature: 0.7,
     maxTokens: 1024,
@@ -29,6 +30,7 @@ Deno.test("fingerprint changes when response-affecting input changes", async () 
     maxTokens: 1024,
   };
   assertNotEquals(await fingerprintAiRequest(base), await fingerprintAiRequest({ ...base, maxTokens: 2048 }));
+  assertNotEquals(await fingerprintAiRequest(base), await fingerprintAiRequest({ ...base, executionMode: "agent" }));
   assertNotEquals(await fingerprintAiRequest(base), await fingerprintAiRequest({ ...base, messages: [{ role: "user", content: "طلب آخر" }] }));
 });
 

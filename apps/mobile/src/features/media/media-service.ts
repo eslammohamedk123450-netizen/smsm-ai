@@ -29,6 +29,7 @@ export interface MediaAsset {
   width: number | null;
   height: number | null;
   durationSeconds: number | null;
+  metadata: Record<string, unknown>;
 }
 export interface PickedMedia { part: UploadFilePart; kind: MediaKind; width?: number; height?: number; sourceBytes: number; }
 function normalizeFeatureKey(value: string | undefined): "chat" | "support" | "hims" | "general" {
@@ -97,6 +98,15 @@ export async function getMediaDeliveryUrl(mediaId: string): Promise<string> {
   if (error || !data || typeof data.url !== "string") throw new MediaUploadError("media_access_denied", gatewayMessage(error, data, "تعذر استرجاع الملف أو لا تملك صلاحية الوصول إليه."));
   return data.url;
 }
+export async function deleteMediaAsset(mediaId: string): Promise<void> {
+  const { data, error } = await supabase.functions.invoke("media-gateway", {
+    body: { action: "delete", media_id: mediaId },
+    headers: await getAuthHeaders(),
+  });
+  if (error || data?.success !== true) {
+    throw new MediaUploadError("media_delete_failed", gatewayMessage(error, data, "تعذر حذف الملف. قد يكون مرتبطًا بمحادثة أو محفوظًا في مخزن قديم."));
+  }
+}
 export async function getMediaDeliveryUrls(mediaIds: string[]): Promise<Map<string, string>> {
   const ids = [...new Set(mediaIds)].filter(Boolean).slice(0, 500);
   if (!ids.length) return new Map();
@@ -143,6 +153,7 @@ export async function uploadMediaFile(input: UploadMediaInput): Promise<MediaAss
     width: picked.width ?? null,
     height: picked.height ?? null,
     durationSeconds: null,
+    metadata: {},
   };
 }
 function asKind(value: unknown): MediaKind { const text = String(value ?? ""); return text === "video" || text === "raw" ? text : "image"; }
@@ -162,6 +173,36 @@ export async function listMyMedia(limit = 60): Promise<MediaAsset[]> {
       filename: typeof row.original_filename === "string" ? row.original_filename : null, kind: asKind(metadata.kind ?? row.storage_provider),
       createdAt: String(row.created_at ?? ""), width: typeof metadata.width === "number" ? metadata.width : null,
       height: typeof metadata.height === "number" ? metadata.height : null, durationSeconds: typeof metadata.duration_seconds === "number" ? metadata.duration_seconds : null,
+      metadata,
     };
   }).filter((asset) => asset.url.length > 0);
+}
+
+export interface MediaGenerationJob {
+  id: string;
+  serviceType: "image" | "video";
+  status: "queued" | "running";
+  prompt: string;
+  quality: string;
+  estimatedCredits: number;
+  chargedCredits: number;
+  createdAt: string;
+}
+export async function listMyGenerationJobs(): Promise<MediaGenerationJob[]> {
+  const { data, error } = await supabase.rpc("suly_list_my_media_generation_jobs");
+  if (error) {
+    // The media-job migration may not have reached a preview database yet.
+    if (error.code === "42P01" || error.code === "PGRST202" || error.code === "PGRST205" || error.code === "PGRST204") return [];
+    throw new MediaUploadError("jobs_list_failed", "تعذر تحميل المهام قيد التنفيذ.");
+  }
+  return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+    id: String(row.id),
+    serviceType: row.service_type === "video" ? "video" : "image",
+    status: row.status === "queued" ? "queued" : "running",
+    prompt: String(row.prompt ?? ""),
+    quality: String(row.quality ?? "standard"),
+    estimatedCredits: Number(row.estimated_credits ?? 0),
+    chargedCredits: Number(row.charged_credits ?? 0),
+    createdAt: String(row.created_at ?? ""),
+  }));
 }

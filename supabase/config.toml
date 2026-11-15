@@ -45,13 +45,16 @@ enabled = false
 verify_jwt = true
 
 [functions.ai-router]
-verify_jwt = true
+verify_jwt = false
 
 [functions.brain-router]
-verify_jwt = true
+verify_jwt = false
 
 [functions.composito-integration]
 verify_jwt = true
 
 [functions.model-health-check]
+verify_jwt = false
+
+[functions.agent-task-scheduler]
 verify_jwt = false

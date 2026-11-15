@@ -40,6 +40,31 @@ export interface AgentConfig {
   updated_at: string;
 }
 
+export interface AgentTaskQueueOverview {
+  queued_count: number;
+  running_count: number;
+  completed_count: number;
+  failed_count: number;
+  cancelled_count: number;
+  expired_lease_count: number;
+  oldest_queued_at: string | null;
+  generated_at: string | null;
+  recent_jobs: Array<{
+    id: string;
+    user_id: string;
+    job_type: string;
+    status: "queued" | "running" | "completed" | "failed" | "cancelled";
+    priority: number;
+    attempt_count: number;
+    max_attempts: number;
+    created_at: string;
+    updated_at: string;
+    started_at: string | null;
+    completed_at: string | null;
+    error_code: string | null;
+  }>;
+}
+
 export interface HimsActivationCode {
   id: string;
   feature_key: string;
@@ -441,7 +466,7 @@ export const adminService = {
   async getCreditOverview() {
     await requireAdmin();
     const [pricing, transactions] = await Promise.all([
-      supabase.from("suly_credit_pricing").select("id,enabled,minimum_request_credits,input_credits_per_1k_tokens,output_credits_per_1k_tokens,updated_at").eq("id", 1).maybeSingle(),
+      supabase.from("suly_credit_pricing").select("id,enabled,minimum_request_credits,input_credits_per_1k_tokens,output_credits_per_1k_tokens,negative_balance_limit,updated_at").eq("id", 1).maybeSingle(),
       supabase.from("suly_credit_transactions").select("id,user_id,event_type,amount,balance_delta,balance_after,actual_cost,input_tokens,output_tokens,model_id,source,reason,created_at").order("created_at", { ascending: false }).limit(100),
     ]);
     if (pricing.error) throw pricing.error;
@@ -462,6 +487,31 @@ export const adminService = {
     });
     if (error) throw error;
     return data as { success?: boolean };
+  },
+  async updateCreditControls(input: { enabled: boolean; minimum: number; inputRate: number; outputRate: number; negativeBalanceLimit: number }) {
+    await requireAdmin();
+    const values = [input.minimum, input.inputRate, input.outputRate, input.negativeBalanceLimit];
+    if (values.some((value) => !Number.isSafeInteger(value) || value < 0 || value > 1_000_000_000)) {
+      throw new Error("قيم الرصيد وحد الرصيد السالب يجب أن تكون أعدادًا صحيحة بين صفر ومليار.");
+    }
+    const { data, error } = await supabase.rpc("suly_admin_update_credit_controls", {
+      p_enabled: input.enabled,
+      p_minimum_request_credits: input.minimum,
+      p_input_credits_per_1k_tokens: input.inputRate,
+      p_output_credits_per_1k_tokens: input.outputRate,
+      p_negative_balance_limit: input.negativeBalanceLimit,
+    });
+    if (error) throw error;
+    return data as { success?: boolean; negative_balance_limit?: number };
+  },
+  async updateNegativeBalanceLimit(limit: number) {
+    await requireAdmin();
+    if (!Number.isSafeInteger(limit) || limit < 0 || limit > 1_000_000_000) {
+      throw new Error("حد الرصيد السالب يجب أن يكون عددًا صحيحًا بين صفر ومليار.");
+    }
+    const { data, error } = await supabase.rpc("suly_admin_update_negative_balance_limit", { p_limit: limit });
+    if (error) throw error;
+    return data as { success?: boolean; negative_balance_limit?: number };
   },
   async getPricingPlans(): Promise<PricingPlan[]> {
     await requireAdmin();
@@ -520,29 +570,6 @@ export const adminService = {
     }).eq("id", planId);
     if (error) throw error;
   },
-  async getCloudflareImageSettings(): Promise<{ accountId: string; tokenConfigured: boolean; enabled: boolean; creditsPerImage: number }> {
-    await requireAdmin();
-    const { data, error } = await supabase.rpc("suly_admin_get_cloudflare_image_config");
-    if (error) throw new Error("تعذر تحميل إعدادات Cloudflare. تحقق من نشر migration إعداد الصور.");
-    const row = Array.isArray(data) ? data[0] : data;
-    return {
-      accountId: typeof row?.account_id === "string" ? row.account_id : "",
-      tokenConfigured: row?.token_configured === true,
-      enabled: row?.enabled === true,
-      creditsPerImage: Math.max(1, Number(row?.credits_per_image ?? 1)),
-    };
-  },
-  async saveCloudflareImageSettings(input: { accountId: string; apiToken: string | null; enabled: boolean; creditsPerImage: number }): Promise<{ tokenConfigured: boolean }> {
-    await requireAdmin();
-    const { data, error } = await supabase.rpc("suly_admin_save_cloudflare_image_config", {
-      p_account_id: input.accountId,
-      p_api_token: input.apiToken,
-      p_enabled: input.enabled,
-      p_credits_per_image: input.creditsPerImage,
-    });
-    if (error || data?.success !== true) throw new Error("تعذر حفظ إعدادات Cloudflare بأمان. تحقق من Account ID والرمز وصلاحية المشرف.");
-    return { tokenConfigured: data.token_configured === true };
-  },
   async getAdMobSettings(): Promise<{ appId: string; rewardedUnitId: string; bannerUnitId: string }> {
     await requireAdmin();
     const { data, error } = await supabase.from("system_settings").select("key,value").in("key", ["admob_app_id", "admob_rewarded_unit_id", "admob_banner_unit_id"]);
@@ -564,6 +591,26 @@ export const adminService = {
     const { error } = await supabase.from("system_settings").upsert(toUpdate, { onConflict: "key" });
     if (error) throw error;
   },
+  async getAgentTaskOverview(): Promise<AgentTaskQueueOverview> {
+    await requireAdmin();
+    const { data, error } = await supabase.rpc("suly_admin_agent_task_overview");
+    if (error) throw new Error("تعذر تحميل مراقبة مهام الوكيل. تحقق من نشر ترحيل لوحة الإدارة.");
+    const row = (Array.isArray(data) ? data[0] : data) ?? {};
+    const count = (key: string) => Math.max(0, Number(row[key] ?? 0));
+    const recentJobs = Array.isArray(row.recent_jobs) ? row.recent_jobs : [];
+    return {
+      queued_count: count("queued_count"),
+      running_count: count("running_count"),
+      completed_count: count("completed_count"),
+      failed_count: count("failed_count"),
+      cancelled_count: count("cancelled_count"),
+      expired_lease_count: count("expired_lease_count"),
+      oldest_queued_at: typeof row.oldest_queued_at === "string" ? row.oldest_queued_at : null,
+      generated_at: typeof row.generated_at === "string" ? row.generated_at : null,
+      recent_jobs: recentJobs.filter((job: any) => job && typeof job.id === "string").slice(0, 20),
+    };
+  },
+
   async getAgents(): Promise<AgentConfig[]> {
     await requireAdmin();
     const { data, error } = await supabase.from("agent_registry")

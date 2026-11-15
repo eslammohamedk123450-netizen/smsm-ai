@@ -4,7 +4,7 @@ import { useRouter } from "expo-router";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { useToast } from "../../components/ui/Toast";
 import { colors } from "../../theme/colors";
-import { runBrainTask, type BrainTaskResult } from "./brain-service";
+import { runBrainTask, wakeBrainWorker, type BrainTaskResult } from "./brain-service";
 import { getTaskProgress, type TaskSnapshot } from "./task-service";
 
 const TASK_TEMPLATES = [
@@ -37,10 +37,31 @@ export function BrainTaskScreen() {
     setResult(null);
     setProgress(null);
     try {
-      const next = await runBrainTask(value);
-      setResult(next);
-      void getTaskProgress(next.task_id).then(setProgress);
-      show("اكتمل تنفيذ المهمة.", "success");
+      const accepted = await runBrainTask(value);
+      let latest: TaskSnapshot | null = null;
+      for (let attempt = 0; attempt < 180; attempt += 1) {
+        latest = await getTaskProgress(accepted.task_id, accepted.job_id);
+        if (latest) setProgress(latest);
+        if (latest?.status === "completed" && latest.result && typeof latest.result.response === "string") {
+          setResult({
+            task_id: accepted.task_id,
+            complexity: latest.result.complexity === "complex" ? "complex" : "easy",
+            capabilities: Array.isArray(latest.result.capabilities) ? latest.result.capabilities.filter((item): item is string => typeof item === "string") : [],
+            estimated_steps: Number(latest.result.estimated_steps ?? latest.estimatedSteps ?? 1),
+            steps_completed: Number(latest.result.steps_completed ?? 0),
+            response: String(latest.result.response),
+            route: "brain-router",
+          });
+          show("اكتمل تنفيذ المهمة.", "success");
+          return;
+        }
+        if (latest?.status === "queued" && attempt > 0 && attempt % 8 === 0) wakeBrainWorker();
+        if (latest?.status === "failed" || latest?.status === "cancelled") {
+          throw new Error(latest.errorMessage || "تعذر إكمال المهمة.");
+        }
+        await new Promise((resolve) => setTimeout(resolve, 2500));
+      }
+      throw new Error("المهمة ما زالت قيد التنفيذ. يمكنك العودة لاحقًا لمتابعة حالتها.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "تعذر تنفيذ المهمة.");
     } finally {

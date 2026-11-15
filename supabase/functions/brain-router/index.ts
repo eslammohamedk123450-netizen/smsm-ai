@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { parseCentralAgentResult, toBrainTaskStepRows } from "./central_agent_result.ts";
 
 const CAPABILITIES = ["text", "coding", "image", "video", "vision", "audio", "reasoning", "web_search"] as const;
 type Capability = typeof CAPABILITIES[number];
@@ -35,15 +36,21 @@ async function main(req: Request): Promise<Response> {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl || !serviceRoleKey) return json({ error: "Server configuration is incomplete" }, 500);
-  const userJwt = req.headers.get("Authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
-  if (!userJwt) return json({ error: "A signed-in user's Bearer access token is required" }, 401);
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data: authData, error: authError } = await admin.auth.getUser(userJwt);
-  if (authError || !authData.user) return json({ error: "Invalid or expired user access token" }, 401);
-  const userId = authData.user.id;
-
   let body: Record<string, unknown>;
   try { body = asRecord(await req.json()); } catch { return json({ error: "Request body must be valid JSON" }, 400); }
+  const userJwt = req.headers.get("Authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
+  const internalWorker = req.headers.get("x-suly-internal-brain-key") === serviceRoleKey && body.internal_worker === true;
+  let userId = "";
+  if (internalWorker) {
+    userId = cleanText(body.user_id, 64);
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userId)) return json({ error: "Invalid internal user context" }, 400);
+  } else {
+    if (!userJwt) return json({ error: "A signed-in user's Bearer access token is required" }, 401);
+    const { data: authData, error: authError } = await admin.auth.getUser(userJwt);
+    if (authError || !authData.user) return json({ error: "Invalid or expired user access token" }, 401);
+    userId = authData.user.id;
+  }
   const objective = cleanText(body.objective ?? body.message);
   if (!objective || objective.length > 50000) return json({ error: "objective is required and must be <= 50000 characters" }, 400);
   const taskId = cleanText(body.task_id) || crypto.randomUUID();
@@ -51,18 +58,147 @@ async function main(req: Request): Promise<Response> {
 
   const [{ data: profile, error: profileError }, { data: tierRows, error: tiersError }] = await Promise.all([
     admin.from("suly_profiles").select("subscription_tier,is_banned").eq("id", userId).maybeSingle(),
-    admin.from("brain_tiers").select("tier_name,priority,model_id,max_tokens_per_task,model:models(id,name,legacy_ai_model_id,is_active,model_capabilities(capability_key))").eq("is_active", true).order("tier_name").order("priority").limit(100),
+    internalWorker
+      ? Promise.resolve({ data: [], error: null })
+      : admin.from("brain_tiers").select("tier_name,priority,model_id,max_tokens_per_task,model:models(id,name,legacy_ai_model_id,is_active,model_capabilities(capability_key))").eq("is_active", true).order("tier_name").order("priority").limit(100),
   ]);
   if (profileError || !profile) return json({ error: "Application profile is missing" }, 403);
   if (profile.is_banned) return json({ error: "This account is suspended" }, 403);
   if (tiersError) return json({ error: "Brain tiers could not be loaded" }, 500);
+
+  if (internalWorker) {
+    // A worker may be reclaimed after the result was persisted but before the
+    // queue row was finalized. Return the durable result without rerunning or
+    // charging the same task a second time.
+    const { data: savedTask } = await admin.from("brain_task_contexts")
+      .select("task_id,context,final_response,complexity,capabilities,estimated_steps,status")
+      .eq("task_id", taskId).eq("user_id", userId).maybeSingle();
+    const savedContext = asRecord(savedTask?.context);
+    const savedResponse = cleanText(savedTask?.final_response ?? savedContext.final_response);
+    if (savedTask?.status === "completed" && savedResponse) {
+      const { data: savedSteps } = await admin.from("brain_task_steps")
+        .select("status").eq("task_id", taskId).limit(100);
+      return json({
+        task_id: taskId,
+        complexity: savedTask.complexity ?? "easy",
+        capabilities: savedTask.capabilities ?? ["text"],
+        estimated_steps: savedTask.estimated_steps ?? 1,
+        steps_completed: (savedSteps ?? []).filter((step) => step.status === "completed").length,
+        response: savedResponse,
+        route: "central-agent",
+      });
+    }
+    if (savedTask?.status === "failed") {
+      return json({ error: "Central Agent task already failed", task_id: taskId }, 409);
+    }
+
+    // Brain is an intake/billing adapter only. The central ai-router Agent owns
+    // planning, model eligibility, tool policy, execution, and final response.
+    const response = await fetch(`${supabaseUrl}/functions/v1/ai-router`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-suly-internal-brain-key": serviceRoleKey,
+      },
+      body: JSON.stringify({
+        message: objective,
+        user_id: userId,
+        feature_key: "brain_system",
+        request_id: taskId,
+        execution_mode: "agent",
+        routing_mode: "auto",
+        stream: false,
+        max_tokens: 4096,
+      }),
+    });
+    const centralResult = parseCentralAgentResult(await response.json().catch(() => ({})));
+    const finalResponse = centralResult?.response ?? "";
+    const actualTokens = (centralResult?.inputTokens ?? 0) + (centralResult?.outputTokens ?? 0);
+    const agentSteps = centralResult?.agentSteps ?? [];
+    const completedSteps = centralResult?.completedSteps ?? 0;
+    const estimatedSteps = centralResult?.estimatedSteps ?? 1;
+    const complexity = centralResult?.complexity ?? "easy";
+    const capabilities = centralResult?.capabilities ?? ["text"];
+
+    if (!response.ok || !centralResult) {
+      await admin.from("brain_task_contexts").upsert({
+        task_id: taskId,
+        user_id: userId,
+        objective,
+        complexity,
+        capabilities,
+        estimated_steps: estimatedSteps,
+        context: { objective, complexity, capabilities, estimated_steps: estimatedSteps, steps: agentSteps },
+        status: "failed",
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "task_id" });
+      await admin.from("brain_task_steps").upsert(toBrainTaskStepRows(taskId, agentSteps, "failed"), { onConflict: "task_id,step_index" });
+      await admin.rpc("brain_finalize_usage", { p_task_id: taskId, p_actual_tokens: actualTokens, p_status: "failed" });
+      return json({ error: "Central Agent could not complete this task", task_id: taskId }, response.status >= 400 ? response.status : 502);
+    }
+
+    const context = {
+      objective,
+      complexity,
+      capabilities,
+      estimated_steps: estimatedSteps,
+      steps: agentSteps,
+      results: [],
+      final_response: finalResponse,
+      route: "central-agent",
+    };
+    const { error: contextError } = await admin.from("brain_task_contexts").upsert({
+      task_id: taskId,
+      user_id: userId,
+      objective,
+      complexity,
+      capabilities,
+      estimated_steps: estimatedSteps,
+      context,
+      final_response: finalResponse,
+      status: "completed",
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "task_id" });
+    if (contextError) {
+      await admin.rpc("brain_finalize_usage", { p_task_id: taskId, p_actual_tokens: actualTokens, p_status: "failed" });
+      return json({ error: "Could not persist the central Agent result", task_id: taskId }, 500);
+    }
+    const { error: stepPersistenceError } = await admin.from("brain_task_steps")
+      .upsert(toBrainTaskStepRows(taskId, agentSteps), { onConflict: "task_id,step_index" });
+    if (stepPersistenceError) {
+      await admin.from("brain_task_contexts").update({ status: "failed", updated_at: new Date().toISOString() }).eq("task_id", taskId).eq("user_id", userId);
+      await admin.rpc("brain_finalize_usage", { p_task_id: taskId, p_actual_tokens: actualTokens, p_status: "failed" });
+      return json({ error: "Could not persist central Agent progress", task_id: taskId }, 500);
+    }
+    const { error: finalizationError } = await admin.rpc("brain_finalize_usage", {
+      p_task_id: taskId,
+      p_actual_tokens: actualTokens,
+      p_status: "completed",
+    });
+    if (finalizationError) return json({ error: "Could not finalize Brain task usage", task_id: taskId }, 500);
+
+    return json({
+      task_id: taskId,
+      complexity,
+      capabilities,
+      estimated_steps: estimatedSteps,
+      steps_completed: completedSteps,
+      response: finalResponse,
+      route: "central-agent",
+    });
+  }
   const tiers = (tierRows ?? []) as unknown as TierRow[];
   const byTier = (name: Tier, requiredCapability: Capability = "text") => tiers
     .filter((row) => row.tier_name === name && row.model?.is_active && row.model.model_capabilities?.some((item) => item.capability_key === requiredCapability))
     .sort((a, b) => a.priority - b.priority);
   const maxConfigured = Math.max(1024, ...tiers.map((row) => Math.max(128, Number(row.max_tokens_per_task) || 1024)));
   const reserveEstimate = Math.min(100000, Math.max(4096, maxConfigured + maxConfigured + maxConfigured * 8 + maxConfigured));
-  const { data: reservationData, error: reservationError } = await admin.rpc("brain_reserve_usage", { p_user_id: userId, p_task_id: taskId, p_tokens: reserveEstimate });
+  const { data: reservationData, error: reservationRpcError } = await admin.rpc("brain_reserve_usage", {
+    p_user_id: userId,
+    p_task_id: taskId,
+    p_tokens: reserveEstimate,
+  });
+  const reservationError = reservationRpcError ? { message: reservationRpcError.message } : null;
   const reservation = Array.isArray(reservationData) ? asRecord(reservationData[0]) : asRecord(reservationData);
   if (reservationError) {
     const message = reservationError.message.toLowerCase();
@@ -101,6 +237,39 @@ async function main(req: Request): Promise<Response> {
     return json({ error: reservationReason || "daily_limit_reached" }, 429);
   }
 
+  if (!internalWorker && body.mode === "enqueue") {
+    const objective = cleanText(body.objective ?? body.message);
+    const idempotencyKey = `brain:${taskId}`;
+    const { data: queued, error: queueError } = await admin.from("agent_task_jobs").insert({
+      user_id: userId, task_id: taskId, job_type: "brain_task", idempotency_key: idempotencyKey,
+      payload: { user_id: userId, task_id: taskId, objective }, priority: 10, max_attempts: 3,
+    }).select("id,status").single();
+    if (queueError?.code === "23505") {
+      const { data: existing, error: existingError } = await admin.from("agent_task_jobs")
+        .select("id,status,payload").eq("user_id", userId).eq("idempotency_key", idempotencyKey).maybeSingle();
+      if (!existingError && existing) {
+        const existingPayload = asRecord(existing.payload);
+        if (cleanText(existingPayload.objective) !== objective) {
+          return json({ error: "task_id_conflict" }, 409);
+        }
+        return json({ task_id: taskId, job_id: existing.id, status: existing.status, queued: true, route: "brain-router" }, 202);
+      }
+      if (existingError) {
+        // Keep the original usage reservation intact if the idempotent job
+        // lookup is temporarily unavailable; a retry can recover it.
+        return json({ error: "Could not recover the existing Brain task" }, 503);
+      }
+      // A different active job already occupies this user's queue slot.
+      await admin.rpc("brain_finalize_usage", { p_task_id: taskId, p_actual_tokens: 0, p_status: "failed" });
+      return json({ error: "task_in_progress" }, 409);
+    }
+    if (queueError || !queued) {
+      await admin.rpc("brain_finalize_usage", { p_task_id: taskId, p_actual_tokens: 0, p_status: "failed" });
+      return json({ error: "Could not enqueue Brain task" }, 503);
+    }
+    return json({ task_id: taskId, job_id: queued.id, status: queued.status, queued: true, route: "brain-router" }, 202);
+  }
+
   let totalTokens = 0;
   let finalizationAttempted = false;
   const finalizeUsage = async (status: "completed" | "failed"): Promise<void> => {
@@ -125,7 +294,7 @@ async function main(req: Request): Promise<Response> {
       const response = await fetch(`${supabaseUrl}/functions/v1/ai-router`, {
         method: "POST",
         headers: { Authorization: authHeader, "Content-Type": "application/json", "x-suly-internal-brain-key": serviceRoleKey },
-        body: JSON.stringify({ message: prompt, model_id: legacyId, routing_mode: "manual", max_tokens: Math.min(4096, Math.max(128, Number(row.max_tokens_per_task) || 1024)), stream: false, request_id: crypto.randomUUID(), feature_key: "brain_system" }),
+        body: JSON.stringify({ message: prompt, model_id: legacyId, routing_mode: "manual", max_tokens: Math.min(4096, Math.max(128, Number(row.max_tokens_per_task) || 1024)), stream: false, request_id: crypto.randomUUID(), feature_key: "brain_system", user_id: userId }),
       });
       const payload = asRecord(await response.json().catch(() => ({})));
       const responseObject = asRecord(payload.response);

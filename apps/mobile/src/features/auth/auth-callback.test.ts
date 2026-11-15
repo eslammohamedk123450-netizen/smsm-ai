@@ -12,6 +12,13 @@ describe("parseAuthCallbackUrl", () => {
     });
   });
 
+  it("preserves the signup verification type for Supabase email confirmation", () => {
+    expect(parseAuthCallbackUrl("suly-agent-ai://auth/callback?token_hash=signup-token&type=signup")).toMatchObject({
+      tokenHash: "signup-token",
+      type: "signup",
+    });
+  });
+
   it("reads PKCE code and token-hash query parameters", () => {
     expect(parseAuthCallbackUrl("suly-agent-ai://auth/callback?code=pkce&token_hash=hash&type=email")).toMatchObject({
       tokenHash: "hash",

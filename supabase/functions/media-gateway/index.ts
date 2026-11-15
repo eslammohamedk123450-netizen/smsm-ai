@@ -127,7 +127,7 @@ async function handle(req: Request): Promise<Response> {
   try { const value = await req.json(); body = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
   catch { return json({ error: "تعذر قراءة الطلب." }, 400); }
   const action = safeString(body.action, 40);
-  if (!["sign_upload", "register", "get_url", "get_urls"].includes(action)) return json({ error: "الطلب غير مدعوم." }, 400);
+  if (!["sign_upload", "register", "get_url", "get_urls", "delete"].includes(action)) return json({ error: "الطلب غير مدعوم." }, 400);
 
   if (action === "sign_upload") {
     const feature = body.feature_key;
@@ -199,6 +199,32 @@ async function handle(req: Request): Promise<Response> {
     }
     const delivery = await getDeliveryUrl(ctx, String(asset.id));
     return delivery ? json({ success: true, id: asset.id, mime_type: mime, size_bytes: bytes, url: delivery.url }) : json({ error: "تم حفظ الملف لكن تعذر تجهيزه للعرض." }, 500);
+  }
+
+  if (action === "delete") {
+    const id = validUuid(body.media_id) ? body.media_id : "";
+    if (!id) return json({ error: "معرّف الملف غير صالح." }, 400);
+    const { data: asset, error: assetError } = await ctx.service.from("global_media_assets")
+      .select("id,user_id,storage_provider,bucket,object_key,conversation_id,message_id,support_ticket_id")
+      .eq("id", id).eq("user_id", ctx.userId).maybeSingle();
+    if (assetError || !asset) return json({ error: "الملف غير موجود أو لا تملك صلاحية حذفه." }, 404);
+    if (asset.conversation_id || asset.message_id || asset.support_ticket_id) {
+      return json({ error: "لا يمكن حذف ملف مرتبط بمحادثة أو تذكرة دعم من المكتبة." }, 409);
+    }
+    if (asset.storage_provider !== "supabase" || asset.bucket !== MEDIA_BUCKET
+      || typeof asset.object_key !== "string" || !asset.object_key.startsWith(`${ctx.userId}/`)) {
+      return json({ error: "هذا الملف محفوظ في مخزن قديم أو غير مدعوم للحذف المباشر." }, 409);
+    }
+    const { error: storageError } = await ctx.service.storage.from(MEDIA_BUCKET).remove([asset.object_key]);
+    if (storageError) {
+      console.error("Media object deletion failed:", storageError.message);
+      return json({ error: "تعذر حذف الملف من التخزين الآمن." }, 503);
+    }
+    const { error: rowError } = await ctx.service.from("global_media_assets").delete()
+      .eq("id", id).eq("user_id", ctx.userId)
+      .is("conversation_id", null).is("message_id", null).is("support_ticket_id", null);
+    if (rowError) return json({ error: "تم حذف الملف من التخزين لكن تعذر تحديث المكتبة. أعد تحديثها." }, 500);
+    return json({ success: true, deleted_id: id });
   }
 
   if (action === "get_url") {

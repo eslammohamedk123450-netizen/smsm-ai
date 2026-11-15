@@ -162,6 +162,7 @@ export const chatService = {
         width: typeof metadata.width === "number" ? metadata.width : null,
         height: typeof metadata.height === "number" ? metadata.height : null,
         durationSeconds: typeof metadata.duration_seconds === "number" ? metadata.duration_seconds : null,
+        metadata,
       };
       attachmentsByMessage.set(messageId, [...(attachmentsByMessage.get(messageId) ?? []), attachment]);
     }
@@ -249,6 +250,7 @@ export const chatService = {
   async sendMessage(options: {
     conversationId: string;
     content: string;
+    modelProfileKey?: "auto" | "lite" | "pro" | "max";
     writeApproval?: { requestId: string; originalText: string };
     mediaAsset?: MediaAsset;
     signal: AbortSignal;
@@ -305,7 +307,7 @@ export const chatService = {
             "Content-Type": "application/json",
             Accept: "application/json",
           },
-          body: JSON.stringify({ conversation_id: options.conversationId, user_message_id: String(inserted.id), prompt: imagePrompt }),
+          body: JSON.stringify({ conversation_id: options.conversationId, user_message_id: String(inserted.id), request_id: String(inserted.id), prompt: imagePrompt, quality: "standard" }),
           signal: options.signal,
         });
       } catch (cause) {
@@ -332,8 +334,9 @@ export const chatService = {
       media_asset_ids: options.mediaAsset ? [options.mediaAsset.id] : undefined,
       request_id: options.writeApproval?.requestId ?? retryRequestId(String(inserted.id)),
       messages: history,
-      routing_mode: "auto",
-      execution_mode: "agent",
+      routing_mode: options.modelProfileKey && options.modelProfileKey !== "auto" ? "manual" : "auto",
+      model_profile_key: options.modelProfileKey ?? "auto",
+      execution_mode: "auto",
       stream: true,
       connector_approval_request_id: options.writeApproval?.requestId,
       connector_approval_original_text: options.writeApproval?.originalText,
@@ -364,7 +367,7 @@ export const chatService = {
       request_id: options.requestId ?? randomUUID(),
       messages,
       routing_mode: "auto",
-      execution_mode: "agent",
+      execution_mode: "auto",
       stream: true,
     }, { onChunk: options.onChunk, onTaskUpdate: options.onTaskUpdate, onDone() {} }, options.signal);
   },

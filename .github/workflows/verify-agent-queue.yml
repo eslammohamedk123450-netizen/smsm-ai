@@ -1,0 +1,104 @@
+name: Verify Agent task runtime
+
+on:
+  pull_request:
+    paths:
+      - "apps/mobile/**"
+      - "supabase/functions/ai-router/**"
+      - "supabase/functions/brain-router/**"
+      - "supabase/functions/agent-task-worker/**"
+      - "supabase/functions/agent-task-scheduler/**"
+      - "supabase/functions/_shared/agent_task_queue.ts"
+      - "supabase/functions/_shared/brain_task_payload.ts"
+      - "supabase/functions/_shared/brain_task_payload.test.ts"
+      - "supabase/functions/_shared/model_capabilities.ts"
+      - "supabase/functions/_shared/intent_classifier.ts"
+      - "supabase/functions/_shared/tavily.ts"
+      - "supabase/functions/_shared/ai_request_idempotency.ts"
+      - "supabase/functions/ai-router/agent/model_eligibility.ts"
+      - "supabase/functions/ai-router/execution_mode.ts"
+      - "supabase/migrations/**"
+      - "supabase/config.toml"
+      - ".github/workflows/verify-agent-queue.yml"
+  push:
+    branches: [release/v1, feat/agent-worker-brain-queue]
+    paths:
+      - "apps/mobile/**"
+      - "supabase/functions/ai-router/**"
+      - "supabase/functions/brain-router/**"
+      - "supabase/functions/agent-task-worker/**"
+      - "supabase/functions/agent-task-scheduler/**"
+      - "supabase/functions/_shared/agent_task_queue.ts"
+      - "supabase/functions/_shared/model_capabilities.ts"
+      - "supabase/functions/_shared/intent_classifier.ts"
+      - "supabase/functions/_shared/tavily.ts"
+      - "supabase/functions/_shared/ai_request_idempotency.ts"
+      - "supabase/functions/ai-router/agent/model_eligibility.ts"
+      - "supabase/functions/ai-router/execution_mode.ts"
+      - "supabase/migrations/**"
+      - "supabase/config.toml"
+      - ".github/workflows/verify-agent-queue.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-agent-runtime-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mobile-typecheck:
+    name: Expo TypeScript typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Typecheck mobile application
+        run: npm run typecheck
+      - name: Run mobile authentication regression tests
+        run: npm test -- --runInBand src/features/auth/auth-service.test.ts src/features/auth/auth-callback.test.ts src/features/chat/chat-service.test.ts
+
+  edge-function-typecheck:
+    name: Deno Edge Function typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Run Agent and scheduler regression tests
+        run: |
+          deno test supabase/functions/ai-router/agent/orchestrator.test.ts
+          deno test supabase/functions/ai-router/resilience.test.ts
+          deno test supabase/functions/ai-router/agent/model_eligibility.test.ts
+          deno test supabase/functions/ai-router/execution_mode.test.ts
+          deno test supabase/functions/_shared/ai_request_idempotency_test.ts
+          deno test supabase/functions/_shared/intent_classifier_test.ts
+          deno test supabase/functions/_shared/tavily.test.ts
+          deno test supabase/functions/agent-task-scheduler/index.test.ts
+          deno test supabase/functions/_shared/brain_task_payload.test.ts
+          deno test supabase/functions/brain-router/central_agent_result.test.ts
+      - name: Typecheck Agent, Brain, and scheduler runtime
+        run: |
+          deno check --node-modules-dir=auto \
+            supabase/functions/agent-task-worker/index.ts \
+            supabase/functions/agent-task-scheduler/index.ts \
+            supabase/functions/brain-router/index.ts \
+            supabase/functions/ai-router/index.ts \
+            supabase/functions/ai-router/agent/orchestrator.test.ts

@@ -11,7 +11,10 @@ export async function readTavilyApiKey(supabase: { rpc: Function }): Promise<str
 }
 
 export function isWebSearchRequest(text: string): boolean {
-  return /\b(search|browse|web|internet|online|news|current|latest|recent|look up|research|find out)\b|ابحث|بحث|الإنترنت|الانترنت|النت|على النت|على الإنترنت|أخبار|خبر|حالي|حديث|آخر الأخبار|جوجل|معلومات عن/iu.test(text);
+  // Explicit search verbs, news/freshness terms, or direct Arabic search
+  // requests trigger live search. Generic mentions of the internet or
+  // "معلومات عن" stay on the normal chat path.
+  return /\b(search|browse|news|latest|recent|today|right now|look up|research|find out)\b|ابحث|دور على|على النت|على الإنترنت|أخبار|آخر الأخبار|الأخبار|اليوم|حاليًا|الآن|مصادر متعددة|في جوجل|على جوجل/iu.test(text);
 }
 
 export async function runTavilySearch(apiKey: string, query: string): Promise<JsonRecord> {

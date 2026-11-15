@@ -1,35 +1,31 @@
 # SMSM AI
 
-This project was originally built with Flutter/Dart and has been converted to Expo (React Native + TypeScript + Expo Router) for a unified codebase across Android, iOS, and Web.
+Suly is currently developed as an Expo application using React Native, TypeScript, and Expo Router.
 
-## Current Status
+## Active application
 
-- **Expo App:** Located in `apps/mobile/`
-- **Flutter Source:** Preserved in `lib/` for reference and comparison
-- **Backend:** Supabase (unchanged - auth, database, edge functions)
+- **Mobile application:** `apps/mobile/`
+- **Platforms:** Android and web preview; iOS support depends on native build configuration.
+- **Backend:** Supabase (authentication, database, and Edge Functions).
 
-## Getting Started with Expo
+For setup, environment variables, development commands, and security notes, see [apps/mobile/README.md](apps/mobile/README.md).
 
-See `apps/mobile/README.md` for detailed instructions.
+## Repository layout
 
-## Development
+- `apps/mobile/` — active Expo client and its application source.
+- `supabase/` — database migrations, Edge Functions, configuration, and the checked-in AI router deployment artifact.
+- `.github/workflows/` — CI and build workflows.
+- `agent/`, `.agents/`, and `scripts/` — agent resources and project automation.
+- Root-level `src/`, `index.html`, `vite.config.ts`, and `server.ts` — legacy Vite/Express web application. This is **not** the active Expo client. The legacy server still contains Composio administration routes, so these files are retained pending a separate usage/dependency audit.
 
-- Use `npx expo start --web` for web preview
-- Use Expo Go app with QR code for device preview
-- TypeScript strict mode enabled
-- Expo Router for navigation
+## Root Node.js tooling
 
-## Backend
+The root `package.json` and `package-lock.json` are still used by the AI router bundle verification workflow. Do not remove them as part of cleaning up the legacy web client unless that workflow is migrated first.
 
-Supabase backend is unchanged. Key files in `supabase/`:
-- Migrations: `001_initial_schema.sql` through `012_restrict_provider_catalog_privileges.sql`
-- Edge Functions: `ai-router` for AI routing with SSE streaming
-- Config: `config.toml`
+## Important security note
 
-## Conversion
+Never commit Supabase service-role keys or other server secrets to the mobile app. Client-side Expo public environment variables are embedded in the application and must contain only publishable/anon configuration. Enforce authorization with Supabase Auth, RLS, and server-side functions.
 
-This is a conversion from Flutter to Expo, not a rewrite of the backend. The goal is to provide a TypeScript/React Native client that connects to the existing Supabase backend.
+## Project status
 
-## License
-
-See individual files for license information.
+The Expo client is the current application. Legacy web files are intentionally documented as legacy until their remaining routes, deployments, and external usage have been verified.

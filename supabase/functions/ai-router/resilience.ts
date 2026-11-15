@@ -235,3 +235,77 @@ export function mergePartAnswers(parts: Array<{ index: number; content: string; 
     })
     .join("\n\n");
 }
+
+
+export type TaskPlanStepOutcome<T> = {
+  step_id: string;
+  status: "completed" | "failed" | "blocked";
+  result?: T;
+  error?: string;
+};
+
+/**
+ * Execute a validated dependency graph in deterministic waves.
+ * Independent ready steps run concurrently; dependants wait until every
+ * prerequisite succeeds. A failed prerequisite blocks only its descendants.
+ */
+export async function executeTaskPlan<T>(
+  plan: TaskPlanStep[],
+  concurrency: number,
+  execute: (step: TaskPlanStep, index: number, completed: ReadonlyMap<string, T>) => Promise<T>,
+): Promise<TaskPlanStepOutcome<T>[]> {
+  if (!validateTaskPlan(plan, Math.max(2, plan.length))) {
+    throw new Error("Invalid task plan: duplicate IDs, missing fields, dependencies, or cycle.");
+  }
+
+  const state = new Map<string, TaskPlanStepOutcome<T>>();
+  const completed = new Map<string, T>();
+  const pending = new Set(plan.map((step) => step.step_id));
+  const limit = Math.max(1, Math.min(5, Math.floor(concurrency) || 1));
+
+  while (pending.size > 0) {
+    const ready = plan.filter((step) =>
+      pending.has(step.step_id)
+      && step.depends_on.every((dependency) => state.get(dependency)?.status === "completed")
+    );
+
+    if (ready.length === 0) {
+      for (const step of plan) {
+        if (!pending.has(step.step_id)) continue;
+        state.set(step.step_id, {
+          step_id: step.step_id,
+          status: "blocked",
+          error: "A prerequisite step did not complete successfully.",
+        });
+        pending.delete(step.step_id);
+      }
+      break;
+    }
+
+    const wave = await mapWithConcurrency(ready, limit, async (step) => {
+      const index = plan.findIndex((candidate) => candidate.step_id === step.step_id);
+      try {
+        const result = await execute(step, index, new Map(completed));
+        return { step_id: step.step_id, status: "completed" as const, result };
+      } catch (error) {
+        return {
+          step_id: step.step_id,
+          status: "failed" as const,
+          error: error instanceof Error ? error.message.slice(0, 500) : "Task step failed.",
+        };
+      }
+    });
+
+    for (const outcome of wave) {
+      state.set(outcome.step_id, outcome);
+      pending.delete(outcome.step_id);
+      if (outcome.status === "completed") completed.set(outcome.step_id, outcome.result);
+    }
+  }
+
+  return plan.map((step) => state.get(step.step_id) ?? {
+    step_id: step.step_id,
+    status: "blocked" as const,
+    error: "Task step was not scheduled.",
+  });
+}

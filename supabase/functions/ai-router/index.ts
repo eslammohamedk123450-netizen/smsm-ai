@@ -21,10 +21,13 @@ import {
   upsertSharedTaskMemory,
 } from "../_shared/shared_task_memory.ts";
 import { CircuitBreaker } from "./circuit_breaker.ts";
-import { buildIndependentTaskPlan, mapWithConcurrency, mergePartAnswers, probeCandidates, splitTask, validateTaskPlan } from "./resilience.ts";
+import { buildIndependentTaskPlan, executeTaskPlan, mergePartAnswers, probeCandidates, splitTask, validateTaskPlan } from "./resilience.ts";
 import { parseAgentDecision, runAgentLoop, type AgentLoopStep, type AgentTool } from "./agent/orchestrator.ts";
 import { prioritizeModelCandidate } from "./agent/model_routing.ts";
-import { getAgentTools, getRegisteredTool, validateToolInput } from "./agent/tool_registry.ts";
+import { isModelEligibleForRequest, modelSupportsRole as supportsModelRole } from "./agent/model_eligibility.ts";
+import { resolveExecutionMode } from "./execution_mode.ts";
+import { resolveSulyProfileKey } from "./agent/suly_profile_routing.ts";
+import { getAgentToolsFromDatabase, getRegisteredTool, validateToolInput } from "./agent/tool_registry.ts";
 
 // Native Android/iOS clients do not require CORS. Web access must set WEB_CORS_ORIGIN
 // explicitly; never fall back to a wildcard in a deployed environment.
@@ -61,6 +64,7 @@ type ModelRow = {
   restriction_window_minutes: number;
   allowed_modes?: string[];
   task_roles?: string[];
+  context_window?: number | null;
 };
 type RouteModelAssignment = { route_role: "chat" | "planner" | "worker" | "reviewer" | "summarizer"; model_id: number; priority: number; enabled: boolean };
 type ProviderRow = {
@@ -187,15 +191,9 @@ function modelSupportsChat(model: ModelRow): boolean {
 
 type TrustedChatAttachment = { id: string; capability: ModelCapability; url: string; filename: string; extractedText?: string };
 
-function modelSupportsRequest(model: ModelRow, required: readonly ModelCapability[]): boolean {
-  return supportsModelCapabilities(model.capabilities_json, required);
-}
 
 function modelSupportsRole(model: ModelRow, role: "planner" | "worker" | "reviewer" | "summarizer"): boolean {
-  const roles = Array.isArray(model.task_roles) && model.task_roles.length > 0 ? model.task_roles : ["general"];
-  if (roles.includes("general")) return true;
-  if (role === "worker") return roles.includes("worker") || roles.includes("executor");
-  return roles.includes(role);
+  return supportsModelRole(model.task_roles, role);
 }
 
 function orderModelsByRoute(models: ModelRow[], assignments: RouteModelAssignment[], role: RouteModelAssignment["route_role"]): ModelRow[] {
@@ -476,13 +474,24 @@ async function handleRequest(req: Request): Promise<Response> {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl || !serviceRoleKey) return jsonResponse({ error: "Server database configuration is incomplete." }, 500);
 
-  const userJwt = req.headers.get("Authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
-  if (!userJwt) return jsonResponse({ error: "A signed-in user's Bearer access token is required." }, 401);
   const supabase = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
-
-  const { data: authData, error: authError } = await supabase.auth.getUser(userJwt);
-  if (authError || !authData.user) return jsonResponse({ error: "Invalid or expired user access token." }, 401);
-  const user = authData.user;
+  let body: Record<string, unknown>;
+  try { body = asRecord(await req.json()); }
+  catch { return jsonResponse({ error: "Request body must be valid JSON." }, 400); }
+  const internalBrainCall = req.headers.get("x-suly-internal-brain-key") === serviceRoleKey
+    && normalizeFeatureKey(body.feature_key) === "brain_system";
+  let user: { id: string };
+  if (internalBrainCall) {
+    const internalUserId = typeof body.user_id === "string" ? body.user_id : "";
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(internalUserId)) return jsonResponse({ error: "Invalid internal Brain user context." }, 400);
+    user = { id: internalUserId };
+  } else {
+    const userJwt = req.headers.get("Authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
+    if (!userJwt) return jsonResponse({ error: "A signed-in user's Bearer access token is required." }, 401);
+    const { data: authData, error: authError } = await supabase.auth.getUser(userJwt);
+    if (authError || !authData.user) return jsonResponse({ error: "Invalid or expired user access token." }, 401);
+    user = { id: authData.user.id };
+  }
   const { data: maintenanceSetting, error: maintenanceError } = await supabase
     .from("system_settings").select("value").eq("key", "maintenance_mode").maybeSingle();
   if (maintenanceError) {
@@ -509,7 +518,10 @@ async function handleRequest(req: Request): Promise<Response> {
   }
   if (!profile) return jsonResponse({ error: "Application profile is missing. Sign out and sign in again." }, 403);
   if (profile.is_banned) return jsonResponse({ error: "This account is suspended." }, 403);
-  const userTier = ["free", "lite", "pro", "max"].includes(profile.subscription_tier) ? profile.subscription_tier : "free";
+  const { data: effectiveTier, error: effectiveTierError } = await supabase.rpc("suly_effective_subscription_tier", { p_user_id: user.id });
+  if (effectiveTierError) console.warn("Effective subscription lookup unavailable; using legacy profile tier.");
+  const resolvedTier = typeof effectiveTier === "string" ? effectiveTier : profile.subscription_tier;
+  const userTier = ["free", "lite", "pro", "max"].includes(resolvedTier) ? resolvedTier : "free";
 
   // Text chat is credit-gated, not daily-request-gated. The atomic
   // reserve_credits call below is the single source of truth: users may
@@ -517,12 +529,6 @@ async function handleRequest(req: Request): Promise<Response> {
   // 402 when their balance is insufficient. The daily rate-limit RPC remains
   // available for future media-generation endpoints.
 
-  let body: Record<string, unknown>;
-  try { body = asRecord(await req.json()); }
-  catch { return jsonResponse({ error: "Request body must be valid JSON." }, 400); }
-
-  const internalBrainCall = req.headers.get("x-suly-internal-brain-key") === serviceRoleKey
-    && normalizeFeatureKey(body.feature_key) === "brain_system";
   const conversationId = typeof body.conversation_id === "string" ? body.conversation_id : null;
   const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   const billingTaskId = typeof body.request_id === "string" ? body.request_id : crypto.randomUUID();
@@ -647,10 +653,17 @@ async function handleRequest(req: Request): Promise<Response> {
   const rawModelId = Number(body.model_id);
   const modelId = Number.isSafeInteger(rawModelId) && rawModelId > 0 ? rawModelId : 0;
   const hasExplicitModel = modelId > 0;
-  const routingMode = body.routing_mode === "manual" || (hasExplicitModel && body.routing_mode !== "auto") ? "manual" : "auto";
+  const rawProfileKey = typeof body.model_profile_key === "string" ? body.model_profile_key.trim().toLowerCase() : "";
+  const requestedProfileKey = ["auto", "lite", "pro", "max"].includes(rawProfileKey) ? rawProfileKey : null;
+  const hasManualProfile = requestedProfileKey === "lite" || requestedProfileKey === "pro" || requestedProfileKey === "max";
+  const routingMode = hasManualProfile || body.routing_mode === "manual" || (hasExplicitModel && body.routing_mode !== "auto") ? "manual" : "auto";
+  if (hasManualProfile) {
+    const access = resolveSulyProfileKey({ requestedProfileKey, userTier, intent: "chat" });
+    if (!access.allowed) return jsonResponse({ error: `يتطلب اختيار ${requestedProfileKey === "pro" ? "SULY Pro" : "SULY Max"} اشتراكًا أعلى. لم يتم تغيير اختيارك.`, required_profile: requestedProfileKey }, 403, req);
+  }
   // New clients select Chat or Agent explicitly. Legacy clients remain Agent
   // compatible so existing connected-app requests do not silently lose tools.
-  const executionMode = body.execution_mode === "chat" ? "chat" : "agent";
+  let executionMode: "chat" | "agent" = body.execution_mode === "chat" ? "chat" : "agent";
   const temperatureInput = typeof body.temperature === "number" ? body.temperature : 0.7;
   const temperature = Math.min(2, Math.max(0, temperatureInput));
   const maxTokensInput = typeof body.max_tokens === "number" ? body.max_tokens : 1024;
@@ -666,7 +679,9 @@ async function handleRequest(req: Request): Promise<Response> {
     mediaAssetIds,
     featureKey: fingerprintFeatureKey,
     routingMode,
+    executionMode: typeof body.execution_mode === "string" ? body.execution_mode : "legacy",
     modelId: hasExplicitModel ? modelId : null,
+    modelProfileKey: requestedProfileKey,
     temperature,
     maxTokens,
   });
@@ -758,9 +773,26 @@ async function handleRequest(req: Request): Promise<Response> {
   let latestUserMessage = originalUserInstruction;
   // "The mind thinks first": a zero-token internal decision made before any
   // response or orchestration. It is never surfaced to the user.
-  const mind = internalBrainCall
-    ? { intent: "simple_task" as const, maxSources: 1, reason: "internal_brain_worker" }
-    : classifyIntent(latestUserMessage);
+  // Internal Brain jobs use the same intent classifier as every other request;
+  // forcing them to simple_task would disable the central Agent's compound plan.
+  const mind = classifyIntent(latestUserMessage);
+  executionMode = resolveExecutionMode({
+    requestedMode: body.execution_mode === "chat" || body.execution_mode === "agent" || body.execution_mode === "auto"
+      ? body.execution_mode
+      : undefined,
+    intent: mind.intent,
+    hasConnectorRequest: Boolean(requestedConnector || requestedMultiReadToolkits),
+    hasAttachments: trustedAttachments.length > 0,
+    requiresLiveSearch: isWebSearchRequest(latestUserMessage),
+    internalBrainCall,
+  });
+  const profileIntent = mind.intent === "complex_task" || isWebSearchRequest(latestUserMessage)
+    || Boolean(requestedConnector || requestedMultiReadToolkits || internalBrainCall)
+    ? "complex_task"
+    : mind.intent;
+  let selectedProfileKey = requestedProfileKey
+    ? resolveSulyProfileKey({ requestedProfileKey, userTier, intent: profileIntent }).profileKey
+    : null;
   const maxOutputChars = outputLimitForRequest(mind.intent, latestUserMessage, maxTokens);
   const streamRequested = body.stream === true;
   let himsActivated = profile.hims_activated === true;
@@ -781,7 +813,7 @@ async function handleRequest(req: Request): Promise<Response> {
     if (error) console.error("Could not update agent workspace step:", error.message);
   };
   const updateTaskLedger = async (taskKey: string, status: "running" | "completed" | "failed", result?: Record<string, unknown>) => {
-    if (!conversationId) return;
+    if (!conversationId || !workspaceId) return;
     const timestamp = new Date().toISOString();
     const { error } = await supabase.from("task_ledger").update({
       status,
@@ -948,7 +980,7 @@ async function handleRequest(req: Request): Promise<Response> {
 
   const [{ data: settingsRow }, { data: allModels, error: modelsError }, { data: providers, error: providersError }, { data: routeAssignments, error: routeAssignmentsError }] = await Promise.all([
     supabase.from("ai_router_settings").select("free_race_timeout_ms,paid_fallback_enabled,paid_fallback_timeout_ms,max_parallel_free_models,health_auto_restrict_enabled,preflight_probe_enabled,preflight_probe_timeout_ms,preflight_probe_max_models,task_split_enabled,task_split_max_parts,gmail_task_model_id,agent_planner_model_id,agent_summarizer_model_id").eq("id", 1).maybeSingle(),
-    supabase.from("ai_models").select("id,name,provider_id,model_identifier,enabled,priority,routing_group,allowed_tiers,capabilities_json,allowed_modes,task_roles,response_timeout_ms,restriction_failure_threshold,restriction_window_minutes").eq("enabled", true).order("priority", { ascending: false }).limit(200),
+    supabase.from("ai_models").select("id,name,provider_id,model_identifier,enabled,priority,routing_group,allowed_tiers,capabilities_json,allowed_modes,task_roles,context_window,response_timeout_ms,restriction_failure_threshold,restriction_window_minutes").eq("enabled", true).order("priority", { ascending: false }).limit(200),
     supabase.from("ai_providers").select("id,name,provider_type,base_url,enabled,timeout_seconds,api_key_vault_id").limit(100),
     supabase.from("ai_route_model_assignments").select("route_role,model_id,priority,enabled").order("route_role").order("priority").limit(2500),
   ]);
@@ -985,10 +1017,90 @@ async function handleRequest(req: Request): Promise<Response> {
   const providerById = new Map<number, ProviderRow>((providers ?? []).map((p: ProviderRow) => [p.id, p]));
   const orderedRouteAssignments = (routeAssignments ?? []) as RouteModelAssignment[];
   const healthyModels = (allModels ?? []).filter((model: ModelRow) => !healthByModel.get(model.id)?.auto_restricted);
-  const anyCapabilityEligible = healthyModels.some((model: ModelRow) => model.enabled
-    && (model.allowed_tiers ?? []).includes(userTier)
-    && (model.routing_group === "free_race" || (settings.paidFallbackEnabled && model.routing_group === "paid_fallback"))
-    && modelSupportsRequest(model, uniqueRequiredCapabilities));
+  const allowedAutoRoutingGroups: ModelRow["routing_group"][] = settings.paidFallbackEnabled
+    ? ["free_race", "paid_fallback"]
+    : ["free_race"];
+  const isEligibleModel = (
+    model: ModelRow,
+    requiredRole?: "chat" | "planner" | "worker" | "reviewer" | "summarizer",
+    allowedRoutingGroups?: ModelRow["routing_group"][],
+  ) => isModelEligibleForRequest({
+    enabled: model.enabled,
+    healthy: !healthByModel.get(model.id)?.auto_restricted,
+    providerEnabled: providerById.get(model.provider_id)?.enabled === true,
+    allowedTiers: model.allowed_tiers ?? [],
+    userTier,
+    capabilities: model.capabilities_json,
+    requiredCapabilities: uniqueRequiredCapabilities,
+    taskRoles: model.task_roles,
+    requiredRole,
+    routingGroup: model.routing_group,
+    allowedRoutingGroups,
+  });
+  const requiredModelRole = executionMode === "agent" ? "planner" : "chat";
+  const routeRole: RouteModelAssignment["route_role"] = executionMode === "agent" ? "planner" : "chat";
+  const [profileAssignmentsResult, profileDefinitionResult] = selectedProfileKey
+    ? await Promise.all([
+      supabase.from("suly_model_profile_models")
+        .select("model_id,route_role,priority,enabled")
+        .eq("profile_key", selectedProfileKey)
+        .eq("enabled", true)
+        .limit(500),
+      supabase.from("suly_model_profiles")
+        .select("capabilities_json,is_active,minimum_subscription_tier")
+        .eq("profile_key", selectedProfileKey)
+        .maybeSingle(),
+    ])
+    : [{ data: [], error: null }, { data: null, error: null }];
+  const profileAssignmentsError = profileAssignmentsResult.error ?? profileDefinitionResult.error;
+  if (selectedProfileKey && profileAssignmentsError) {
+    console.error("Could not load SULY profile configuration:", profileAssignmentsError.message);
+    if (requestedProfileKey === "auto") {
+      // Keep existing clients usable until the additive profile migration is applied.
+      selectedProfileKey = null;
+    } else {
+      return await failedResponse(jsonResponse({ error: "تعذر تحميل إعدادات مستوى SULY المحدد. لم يتم تغيير اختيارك." }, 503, req), "suly_profile_unavailable");
+    }
+  }
+  const selectedProfileAssignments = profileAssignmentsResult.data ?? [];
+  const profileCapabilities = selectedProfileKey
+    ? (profileDefinitionResult.data?.capabilities_json ?? {}) as Record<string, unknown>
+    : {};
+  if (selectedProfileKey && profileDefinitionResult.data?.is_active !== true) {
+    return await failedResponse(jsonResponse({ error: "مستوى SULY المحدد غير مفعّل حاليًا. لم يتم اختيار مستوى بديل تلقائيًا." }, 503, req), "suly_profile_disabled");
+  }
+  const profileModelIds = selectedProfileKey
+    ? new Set((selectedProfileAssignments ?? []).filter((item: { route_role: string }) => item.route_role === routeRole).map((item: { model_id: number }) => Number(item.model_id)))
+    : null;
+  const workerProfileModelIds = selectedProfileKey
+    ? new Set((selectedProfileAssignments ?? []).filter((item: { route_role: string }) => item.route_role === "worker").map((item: { model_id: number }) => Number(item.model_id)))
+    : null;
+  if (selectedProfileKey && requestedProfileKey && requestedProfileKey !== "auto") {
+    const needsWebSearch = isWebSearchRequest(latestUserMessage);
+    const needsComplexExecution = profileIntent === "complex_task" && executionMode === "agent";
+    if (needsWebSearch && profileCapabilities.web_search !== true) {
+      return await failedResponse(jsonResponse({ error: `${selectedProfileKey.toUpperCase()} لا يتضمن البحث على الويب. اختر مستوى أعلى أو غيّر اختيارك يدويًا.` }, 403, req), "profile_capability_unavailable");
+    }
+    if (needsComplexExecution && (profileCapabilities.multi_step_agent !== true || profileCapabilities.advanced_reasoning !== true)) {
+      return await failedResponse(jsonResponse({ error: `${selectedProfileKey.toUpperCase()} لا يملك القدرات المطلوبة لتنفيذ هذه المهمة المعقدة. اختر مستوى أعلى أو استخدم Auto.` }, 403, req), "profile_capability_unavailable");
+    }
+  } else if (selectedProfileKey && requestedProfileKey === "auto") {
+    if (isWebSearchRequest(latestUserMessage) && profileCapabilities.web_search !== true) {
+      return await failedResponse(jsonResponse({ error: "البحث على الويب غير متاح في المستوى المؤهل ضمن اشتراكك الحالي. يمكنك ترقية الاشتراك للوصول إلى Pro." }, 403, req), "profile_capability_unavailable");
+    }
+    if (profileIntent === "complex_task" && executionMode === "agent" && (profileCapabilities.multi_step_agent !== true || profileCapabilities.advanced_reasoning !== true)) {
+      return await failedResponse(jsonResponse({ error: "هذه المهمة تحتاج قدرات أعلى من المتاحة في اشتراكك الحالي. يمكنك الترقية إلى Pro أو Max." }, 403, req), "profile_capability_unavailable");
+    }
+  }
+  const profileEligibleModels = profileModelIds
+    ? healthyModels.filter((model: ModelRow) => profileModelIds.has(model.id)
+      && (profileCapabilities.extended_context !== true || Number(model.context_window ?? 0) >= 65536))
+    : healthyModels;
+  if (selectedProfileKey && profileCapabilities.extended_context === true && profileEligibleModels.length === 0) {
+    return await failedResponse(jsonResponse({ error: "لا يوجد نموذج مفعّل في هذا المستوى يدعم السياق الطويل حاليًا. راجع ربط نماذج Max من لوحة الإدارة." }, 503, req), "profile_context_unavailable");
+  }
+  const anyCapabilityEligible = profileEligibleModels.some((model: ModelRow) =>
+    isEligibleModel(model, requiredModelRole, allowedAutoRoutingGroups));
   if (routingMode === "auto" && !anyCapabilityEligible) {
     const labels = [...new Set([
       ...connectorCapabilities.map(capabilityLabel),
@@ -1003,19 +1115,44 @@ async function handleRequest(req: Request): Promise<Response> {
   }
   let candidatesFrom: ModelRow[] = [];
   if (routingMode === "manual") {
-    candidatesFrom = healthyModels.filter((m: ModelRow) => m.id === modelId && m.routing_group !== "disabled" && modelSupportsRequest(m, uniqueRequiredCapabilities));
+    candidatesFrom = profileModelIds
+      ? profileEligibleModels.filter((model: ModelRow) => isEligibleModel(model, requiredModelRole))
+      : healthyModels.filter((model: ModelRow) => model.id === modelId && isEligibleModel(model, requiredModelRole));
   } else {
-    // Auto routing always starts with the free race. Paid models are selected only
-    // after every free candidate has failed or no usable free candidate exists.
-    const tierFiltered = healthyModels.filter((m: ModelRow) => (m.allowed_tiers ?? []).includes(userTier) && modelSupportsRequest(m, uniqueRequiredCapabilities));
-    const routeRole: RouteModelAssignment["route_role"] = executionMode === "agent" ? "planner" : "chat";
+    // Auto chooses a SULY profile first, then routes only within that profile.
+    // The user's selected profile is never silently replaced with another one.
+    const tierFiltered = profileEligibleModels.filter((model: ModelRow) => isEligibleModel(model, requiredModelRole));
     candidatesFrom = orderModelsByRoute(tierFiltered.filter(m => m.routing_group === "free_race"), orderedRouteAssignments, routeRole);
   }
 
-  if (routingMode === "manual" && candidatesFrom.length === 0) return await failedResponse(jsonResponse({ error: manuallyRequested ? "النموذج المحدد لا يملك القدرات المطلوبة لهذا المرفق." : "Model not found or disabled." }, manuallyRequested ? 422 : 404, req), "manual_model_unavailable");
-  if (routingMode === "manual" && !(candidatesFrom[0].allowed_tiers ?? []).includes(userTier)) return await failedResponse(jsonResponse({ error: "This model is not available on your current plan." }, 403, req), "tier_not_allowed");
+  if (routingMode === "manual" && candidatesFrom.length === 0) {
+    const message = selectedProfileKey
+      ? `لا توجد نماذج مفعّلة ومؤهلة حاليًا ضمن ${selectedProfileKey.toUpperCase()} لهذا الطلب. لم يتم التحويل إلى مستوى آخر.`
+      : manuallyRequested ? "النموذج المحدد لا يملك القدرات المطلوبة لهذا المرفق." : "Model not found or disabled.";
+    return await failedResponse(jsonResponse({ error: message }, manuallyRequested ? 422 : selectedProfileKey ? 503 : 404, req), "manual_model_unavailable");
+  }
+  // Subscription hierarchy is enforced by the canonical eligibility helper above.
+  // A Max subscriber may intentionally choose Pro or Lite without being downgraded.
 
-  const requiredProviderIds: number[] = [...new Set<number>((candidatesFrom as ModelRow[]).map((m: ModelRow) => m.provider_id))];
+  // Queued Brain compound tasks may delegate independent list items to
+  // worker-role models. Keep this pool separate from the planner pool so a
+  // planner is never silently reused as a worker.
+  const workerModels = executionMode === "agent"
+    && routingMode === "auto"
+    && settings.taskSplitEnabled
+    && mind.intent === "complex_task"
+    && trustedAttachments.length === 0
+    && !requestedConnector
+    && !requestedMultiReadToolkits?.length
+    && !isWebSearchRequest(latestUserMessage)
+    ? healthyModels.filter((model: ModelRow) =>
+      (!workerProfileModelIds || workerProfileModelIds.has(model.id)) && isEligibleModel(model, "worker", ["free_race"]))
+    : [];
+  const orderedWorkerModels = orderModelsByRoute(workerModels, orderedRouteAssignments, "worker");
+  const requiredProviderIds: number[] = [...new Set<number>([
+    ...(candidatesFrom as ModelRow[]).map((m: ModelRow) => m.provider_id),
+    ...orderedWorkerModels.map((m: ModelRow) => m.provider_id),
+  ])];
   const providerKeys = new Map<number, string>();
   await Promise.all(requiredProviderIds.map(async (providerId) => {
     const provider = providerById.get(providerId);
@@ -1033,6 +1170,7 @@ async function handleRequest(req: Request): Promise<Response> {
   });
 
   const usableInitial = makeCandidates(candidatesFrom);
+  const workerCandidates = makeCandidates(orderedWorkerModels);
   const recordAttempt: AttemptRecorder = async (candidate, status, durationMs, errorCode = null, errorReason = null) => {
     const safeReason = safeOperationalSummary(errorReason ?? "", 1000);
     const { error } = await supabase.rpc("record_ai_model_attempt", {
@@ -1315,7 +1453,9 @@ async function handleRequest(req: Request): Promise<Response> {
   // answers are merged so a single provider hiccup never fails the request.
   // Only compound tasks pay the decomposition cost; chat and simple tasks are
   // always answered in a single response.
-  const proposedParts = executionMode !== "agent" && settings.taskSplitEnabled && trustedAttachments.length === 0 && mind.intent === "complex_task"
+  // Only the central Agent may delegate. Explicit chat requests, connector
+  // operations, live search, and attachment work stay on their dedicated paths.
+  const proposedParts = executionMode === "agent" && workerCandidates.length > 0
     ? splitTask(latestUserMessage, settings.taskSplitMaxParts)
     : [latestUserMessage];
   let taskPlan = buildIndependentTaskPlan(proposedParts, settings.taskSplitMaxParts);
@@ -1332,35 +1472,39 @@ async function handleRequest(req: Request): Promise<Response> {
       completion_criteria: "نتيجة نهائية محفوظة أو سبب فشل تشغيلي واضح.",
       depends_on: [],
     }];
-  const { data: workspaceRow, error: workspaceError } = await supabase.from("agent_workspaces").upsert({
-    request_id: billingTaskId,
-    conversation_id: conversationId,
-    user_id: user.id,
-    status: "planning",
-    plan: workspacePlan,
-    metadata: { execution_mode: executionMode, intent: mind.intent },
-  }, { onConflict: "request_id" }).select("id").single();
-  if (workspaceError || !workspaceRow) console.error("Could not create agent workspace:", workspaceError?.message);
-  else workspaceId = String(workspaceRow.id);
-
   const resultStepKey = taskPlan ? "merge" : "final";
-  const workspaceSteps = [
-    { workspace_id: workspaceId, step_key: "plan", sequence_order: 0, description: "تحديد خطة الطلب ومسار التنفيذ.", depends_on: [] },
-    ...workspacePlan.map((step, index) => ({ workspace_id: workspaceId, step_key: step.step_id, sequence_order: index + 1, description: step.description, depends_on: step.depends_on ?? [] })),
-    { workspace_id: workspaceId, step_key: resultStepKey, sequence_order: workspacePlan.length + 1, description: "حفظ النتيجة النهائية أو سبب الفشل.", depends_on: workspacePlan.map((step) => step.step_id) },
-  ];
-  if (workspaceId) {
-    const { error: stepsError } = await supabase.from("agent_workspace_steps").upsert(workspaceSteps, { onConflict: "workspace_id,step_key" });
-    if (stepsError) console.error("Could not create task workspace steps:", stepsError.message);
-  }
-  const ledgerRows = [
-    { task_key: "plan", task_description: "تحديد خطة الطلب ومسار التنفيذ.", sequence_order: 0 },
-    ...workspacePlan.map((step, index) => ({ task_key: step.step_id, task_description: step.description.slice(0, 240), sequence_order: index + 1 })),
-    { task_key: resultStepKey, task_description: "حفظ النتيجة النهائية أو سبب الفشل.", sequence_order: workspacePlan.length + 1 },
-  ].map((step) => ({ conversation_id: conversationId, request_id: billingTaskId, workspace_id: workspaceId, ...step, status: "pending" }));
-  if (conversationId) {
-    const { error: ledgerError } = await supabase.from("task_ledger").upsert(ledgerRows, { onConflict: "request_id,task_key", ignoreDuplicates: true });
-    if (ledgerError) console.error("Could not create task ledger:", ledgerError.message);
+  // Direct chat avoids workspace/ledger writes; durable tracking is reserved for Agent and split tasks.
+  if (executionMode === "agent" || splitParts.length > 1) {
+    const { data: workspaceRow, error: workspaceError } = await supabase.from("agent_workspaces").upsert({
+      request_id: billingTaskId,
+      conversation_id: conversationId,
+      user_id: user.id,
+      status: "planning",
+      plan: workspacePlan,
+      metadata: { execution_mode: executionMode, intent: mind.intent },
+    }, { onConflict: "request_id" }).select("id").single();
+    if (workspaceError || !workspaceRow) console.error("Could not create agent workspace:", workspaceError?.message);
+    else workspaceId = String(workspaceRow.id);
+  
+    const workspaceSteps = [
+      { workspace_id: workspaceId, step_key: "plan", sequence_order: 0, description: "تحديد خطة الطلب ومسار التنفيذ.", depends_on: [] },
+      ...workspacePlan.map((step, index) => ({ workspace_id: workspaceId, step_key: step.step_id, sequence_order: index + 1, description: step.description, depends_on: step.depends_on ?? [] })),
+      { workspace_id: workspaceId, step_key: resultStepKey, sequence_order: workspacePlan.length + 1, description: "حفظ النتيجة النهائية أو سبب الفشل.", depends_on: workspacePlan.map((step) => step.step_id) },
+    ];
+    if (workspaceId) {
+      const { error: stepsError } = await supabase.from("agent_workspace_steps").upsert(workspaceSteps, { onConflict: "workspace_id,step_key" });
+      if (stepsError) console.error("Could not create task workspace steps:", stepsError.message);
+    }
+    const ledgerRows = [
+      { task_key: "plan", task_description: "تحديد خطة الطلب ومسار التنفيذ.", sequence_order: 0 },
+      ...workspacePlan.map((step, index) => ({ task_key: step.step_id, task_description: step.description.slice(0, 240), sequence_order: index + 1 })),
+      { task_key: resultStepKey, task_description: "حفظ النتيجة النهائية أو سبب الفشل.", sequence_order: workspacePlan.length + 1 },
+    ].map((step) => ({ conversation_id: conversationId, request_id: billingTaskId, workspace_id: workspaceId, ...step, status: "pending" }));
+    if (conversationId && workspaceId) {
+      const { error: ledgerError } = await supabase.from("task_ledger").upsert(ledgerRows, { onConflict: "request_id,task_key", ignoreDuplicates: true });
+      if (ledgerError) console.error("Could not create task ledger:", ledgerError.message);
+    }
+  
   }
   await updateWorkspaceStep("plan", "running");
   await updateTaskLedger("plan", "running");
@@ -1400,16 +1544,37 @@ async function handleRequest(req: Request): Promise<Response> {
     };
     // Parts do not depend on one another. Bound parallel workers to three;
     // each part also races at most three candidate models and has one fallback.
-    const answerPart = async (index: number): Promise<{ index: number; content: string; model: string | null; candidate: ReadyCandidate | null; outputGuard: "repetition" | "max_output" | null }> => {
+    type PartResult = {
+      index: number;
+      content: string;
+      model: string | null;
+      candidate: ReadyCandidate | null;
+      outputGuard: "repetition" | "max_output" | null;
+    };
+    const answerPart = async (
+      index: number,
+      completedDependencies: ReadonlyMap<string, PartResult> = new Map(),
+    ): Promise<PartResult> => {
       const stepKey = `part-${index + 1}`;
       await updateWorkspaceStep(stepKey, "running");
       await updateTaskLedger(stepKey, "running");
+      const step = taskPlan?.[index];
+      const dependencyBrief = (step?.depends_on ?? [])
+        .map((dependencyId) => {
+          const dependency = completedDependencies.get(dependencyId);
+          return dependency?.content?.trim()
+            ? `نتيجة الخطوة ${dependencyId}:\n${dependency.content.trim().slice(0, 12000)}`
+            : "";
+        })
+        .filter(Boolean)
+        .join("\n\n");
       const partMessages: ChatMessage[] = [
         ...systemMessages,
         { role: "system", content: workerBrief },
+        ...(dependencyBrief ? [{ role: "system" as const, content: `مخرجات الاعتماديات السابقة التي يجب البناء عليها:\n${dependencyBrief}` }] : []),
         { role: "user", content: splitParts[index] },
       ];
-      let remaining = raceCandidates.slice(0, 3).map((candidate) => ({ ...candidate, requestMessages: partMessages }));
+      let remaining = workerCandidates.slice(0, 3).map((candidate) => ({ ...candidate, requestMessages: partMessages }));
       for (let attempt = 0; attempt < Math.min(2, remaining.length); attempt += 1) {
         const partWinner = await firstReady(remaining, settings.freeRaceTimeoutMs, recordAttempt, countModelStarts);
         if (!partWinner) break;
@@ -1443,7 +1608,19 @@ async function handleRequest(req: Request): Promise<Response> {
       await updateTaskLedger(stepKey, "failed", { error: "worker_failed" });
       return { index, content: "", model: null, candidate: null, outputGuard: null };
     };
-    const partResultsWithCandidates = await mapWithConcurrency(splitParts, 3, (_part, index) => answerPart(index));
+    if (!taskPlan) throw new Error("A multi-part execution requires a validated task plan.");
+    const taskExecution = await executeTaskPlan<PartResult>(taskPlan, 3, async (_step, index, completed) => {
+      const result = await answerPart(index, completed);
+      if (!result.candidate) throw new Error("worker_failed");
+      return result;
+    });
+    const partResultsWithCandidates = await Promise.all(taskExecution.map(async (outcome, index) => {
+      if (outcome.status === "completed" && outcome.result) return outcome.result;
+      const stepKey = taskPlan![index].step_id;
+      await updateWorkspaceStep(stepKey, "failed", { error_message: outcome.error ?? "dependency_failed" });
+      await updateTaskLedger(stepKey, "failed", { error: outcome.error ?? "dependency_failed" });
+      return { index, content: "", model: null, candidate: null, outputGuard: null };
+    }));
     const partResults = partResultsWithCandidates.map(({ index, content, model }) => ({ index, content, model }));
     const successfulParts = partResultsWithCandidates.filter((part) => part.candidate !== null);
     const failedPartCount = splitParts.length - successfulParts.length;
@@ -1461,7 +1638,13 @@ async function handleRequest(req: Request): Promise<Response> {
       await updateWorkspace("failed", { parts: splitParts.length, completed: 0, failed: splitParts.length });
       await clearSharedTaskMemory(supabase, billingTaskId);
       await finishAiRequest("failed", null, null, { route: "task_split", parts: splitParts.length, failed_parts: splitParts.length, billing }, "all_workers_failed");
-      return jsonResponse({ error: "The compound request could not be completed because every task part failed.", completed_parts: 0, failed_parts: splitParts.length, billing }, 502, req);
+      return jsonResponse({
+        error: "The compound request could not be completed because every task part failed.",
+        completed_parts: 0,
+        failed_parts: splitParts.length,
+        ...(internalBrainCall ? { usage: { input_tokens: workerInputTokens, output_tokens: workerOutputTokens } } : {}),
+        billing,
+      }, 502, req);
     }
 
     await updateWorkspaceStep(resultStepKey, "running");
@@ -1508,6 +1691,18 @@ async function handleRequest(req: Request): Promise<Response> {
       first_chunk_ms: Date.now() - startedAt,
       total_ms: Date.now() - startedAt,
       output_guard: outputGuard,
+      ...(internalBrainCall ? {
+        usage: { input_tokens: workerInputTokens, output_tokens: workerOutputTokens },
+        agent_steps: [
+          ...partResultsWithCandidates.map((part) => ({
+            index: part.index,
+            kind: "worker",
+            status: part.candidate ? "completed" : "failed",
+            model: part.model,
+          })),
+          { index: splitParts.length, kind: "final", status: "completed" },
+        ],
+      } : {}),
       billing,
       user_metadata: userMetadata,
     };
@@ -1516,7 +1711,7 @@ async function handleRequest(req: Request): Promise<Response> {
     return jsonResponse({ ...info, response: { choices: [{ message: { role: "assistant", content: merged } }] } }, 200, req);
   }
 
-  if (executionMode === "agent" && !internalBrainCall) {
+  if (executionMode === "agent") {
     const connectorRequest = requestedConnector;
     const multiConnectorRequest = isMultiToolkitComposioRequest(latestUserMessage) && !requestedMultiReadToolkits;
     // Bind the explicit user confirmation to this exact immutable request. A
@@ -1535,7 +1730,7 @@ async function handleRequest(req: Request): Promise<Response> {
       : null;
     let connectorReadCompleted = false;
     let connectorWriteCompleted = false;
-    const agentTools: AgentTool[] = getAgentTools({
+    const agentTools: AgentTool[] = await getAgentToolsFromDatabase(supabase, {
       "connected_app.status": true,
       "connected_app.read": !multiConnectorRequest && connectorRequest?.intent === "read",
       "connected_app.read_multiple": !multiConnectorRequest && Boolean(requestedMultiReadToolkits),
@@ -1549,8 +1744,7 @@ async function handleRequest(req: Request): Promise<Response> {
     let paidPlanPool: Candidate[] = [];
     if (routingMode === "auto" && settings.paidFallbackEnabled) {
       const paidModels: ModelRow[] = healthyModels
-        .filter((model) => modelSupportsRole(model, "planner") && model.routing_group === "paid_fallback" && (model.allowed_tiers ?? []).includes(userTier) && modelSupportsRequest(model, uniqueRequiredCapabilities))
-        ;
+        .filter((model) => (!profileModelIds || profileModelIds.has(model.id)) && isEligibleModel(model, "planner", ["paid_fallback"]));
       const orderedPaidModels = orderModelsByRoute(paidModels, orderedRouteAssignments, "planner");
       const paidProviderIds = [...new Set(paidModels.map((model) => model.provider_id))];
       await Promise.all(paidProviderIds.map(async (providerId) => {
@@ -1864,15 +2058,16 @@ async function handleRequest(req: Request): Promise<Response> {
     let summarizerCandidateUsed: ReadyCandidate | null = null;
     let summarizerInputTokens = 0;
     let summarizerOutputTokens = 0;
+    // Shared with the reviewer retry below, including when initial summarization is skipped.
+    const summarizerModelId = settings.agentSummarizerModelId ?? plannerCandidatesUsed.at(-1)?.model.id ?? preferredGmailModelId;
+    const summarizerPools = [
+      { candidates: prioritizeModelCandidate(freeSummarizerPool, summarizerModelId), timeoutMs: settings.freeRaceTimeoutMs },
+      { candidates: prioritizeModelCandidate(paidPlanPool.filter((candidate) => modelSupportsRole(candidate.model, "summarizer")), summarizerModelId), timeoutMs: settings.paidFallbackTimeoutMs },
+    ];
     if (loopResult.status === "completed" && !operationalReply && !connectorWriteCompleted && agentEvidence.length > 0) {
       const summarizerTask = "مراجعة نتائج القراءة وصياغة الإجابة";
       taskUpdates.push({ task: summarizerTask, status: "running" });
       const evidenceText = JSON.stringify(agentEvidence);
-      const summarizerModelId = settings.agentSummarizerModelId ?? plannerCandidatesUsed.at(-1)?.model.id ?? preferredGmailModelId;
-      const summarizerPools = [
-        { candidates: prioritizeModelCandidate(freeSummarizerPool, summarizerModelId), timeoutMs: settings.freeRaceTimeoutMs },
-        { candidates: prioritizeModelCandidate(paidPlanPool.filter((candidate) => modelSupportsRole(candidate.model, "summarizer")), summarizerModelId), timeoutMs: settings.paidFallbackTimeoutMs },
-      ];
       const summaryMessages: ChatMessage[] = [
         {
           role: "system",
@@ -1902,14 +2097,14 @@ async function handleRequest(req: Request): Promise<Response> {
           const ready = await firstReady([candidate], pool.timeoutMs, recordAttempt, countModelStarts);
           if (!ready) continue;
           const collected = await collectCandidate(ready, 8000);
+          summarizerInputTokens += ready.inputTokens > 0 ? ready.inputTokens : estimateTokens(requestMessages.map((message) => message.content).join("\n"));
+          summarizerOutputTokens += ready.outputTokens > 0 ? ready.outputTokens : estimateTokens(collected.content);
           const summarized = collected.content.trim();
           if (!summarized || summarized.length > 6000) {
             await recordAttempt(ready, "error", Date.now() - ready.startedAtMs, "invalid_agent_summary", "Summarizer returned an empty or oversized answer.");
             continue;
           }
           summarizerCandidateUsed = ready;
-          summarizerInputTokens = ready.inputTokens > 0 ? ready.inputTokens : estimateTokens(requestMessages.map((message) => message.content).join("\n"));
-          summarizerOutputTokens = ready.outputTokens > 0 ? ready.outputTokens : estimateTokens(summarized);
           content = summarized;
           await recordAttempt(ready, "success", Date.now() - ready.startedAtMs);
         }
@@ -1920,6 +2115,8 @@ async function handleRequest(req: Request): Promise<Response> {
     // Independent quality gate: the reviewer never executes tools and can only
     // approve, request one bounded revision, or reject an unsupported answer.
     let reviewerCandidateUsed: ReadyCandidate | null = null;
+    let reviewerInputTokens = 0;
+    let reviewerOutputTokens = 0;
     let reviewVerdict: "approved" | "retry" | "rejected" = "approved";
     let reviewFeedback = "";
     const reviewerPools = [
@@ -1941,6 +2138,8 @@ async function handleRequest(req: Request): Promise<Response> {
             const ready = await firstReady([candidate], pool.timeoutMs, recordAttempt, countModelStarts);
             if (!ready) continue;
             const collected = await collectCandidate(ready, 2000);
+            reviewerInputTokens += ready.inputTokens > 0 ? ready.inputTokens : estimateTokens(reviewMessages.map((message) => message.content).join("\n"));
+            reviewerOutputTokens += ready.outputTokens > 0 ? ready.outputTokens : estimateTokens(collected.content);
             try {
               const parsed = JSON.parse(collected.content.trim().replace(/^```json\s*/i, "").replace(/\s*```$/, "")) as Record<string, unknown>;
               const verdict = parsed.verdict === "retry" || parsed.verdict === "rejected" ? parsed.verdict : parsed.verdict === "approved" ? "approved" : null;
@@ -1972,6 +2171,8 @@ async function handleRequest(req: Request): Promise<Response> {
             const ready = await firstReady([candidate], pool.timeoutMs, recordAttempt, countModelStarts);
             if (!ready) continue;
             const collected = await collectCandidate(ready, 8000);
+            summarizerInputTokens += ready.inputTokens > 0 ? ready.inputTokens : estimateTokens(revisionMessages.map((message) => message.content).join("\n"));
+            summarizerOutputTokens += ready.outputTokens > 0 ? ready.outputTokens : estimateTokens(collected.content);
             if (collected.content.trim().length < 1 || collected.content.trim().length > 6000) continue;
             content = collected.content.trim();
             summarizerCandidateUsed = ready;
@@ -2058,6 +2259,7 @@ async function handleRequest(req: Request): Promise<Response> {
         : null,
       model_calls: modelInvocationCount,
       total_ms: Date.now() - startedAt,
+      ...(internalBrainCall ? { usage: { input_tokens: plannerInputTokens + summarizerInputTokens + reviewerInputTokens, output_tokens: plannerOutputTokens + summarizerOutputTokens + reviewerOutputTokens } } : {}),
       billing,
       user_metadata: userMetadata,
     };
@@ -2076,8 +2278,8 @@ async function handleRequest(req: Request): Promise<Response> {
 
   if (!winner && routingMode === "auto" && settings.paidFallbackEnabled) {
     const paidModels: ModelRow[] = healthyModels
-      .filter((m: ModelRow) => m.routing_group === "paid_fallback" && (m.allowed_tiers ?? []).includes(userTier) && modelSupportsRequest(m, uniqueRequiredCapabilities))
-    const orderedPaidModels = orderModelsByRoute(paidModels, orderedRouteAssignments, executionMode === "agent" ? "planner" : "chat");
+      .filter((model: ModelRow) => (!profileModelIds || profileModelIds.has(model.id)) && isEligibleModel(model, "chat", ["paid_fallback"]));
+    const orderedPaidModels = orderModelsByRoute(paidModels, orderedRouteAssignments, "chat");
     const paidProviderIds: number[] = [...new Set<number>(orderedPaidModels.map((m: ModelRow) => m.provider_id))];
     await Promise.all(paidProviderIds.map(async (providerId) => {
       const provider = providerById.get(providerId);

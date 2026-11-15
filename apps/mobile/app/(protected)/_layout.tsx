@@ -124,6 +124,15 @@ function CustomDrawerContent({ isAdmin, ...props }: DrawerContentComponentProps 
             <Ionicons name="chatbubbles-outline" size={18} color="#0EA5E9" />
             <Text style={styles.navItemText}>المحادثة</Text>
           </TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.7} style={styles.navItem} onPress={() => { router.push("/(protected)/image-studio"); props.navigation.closeDrawer(); }}>
+            <View style={styles.navItemRight}><Ionicons name="images-outline" size={18} color="#D4AF37" /><Text style={styles.navItemText}>استوديو الصور</Text></View>
+          </TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.7} style={styles.navItem} onPress={() => { router.push("/(protected)/video-studio"); props.navigation.closeDrawer(); }}>
+            <View style={styles.navItemRight}><Ionicons name="videocam-outline" size={18} color="#D4AF37" /><Text style={styles.navItemText}>استوديو الفيديو</Text></View>
+          </TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.7} style={styles.navItem} onPress={() => { router.push("/(protected)/media"); props.navigation.closeDrawer(); }}>
+            <View style={styles.navItemRight}><Ionicons name="library-outline" size={18} color="#0EA5E9" /><Text style={styles.navItemText}>مكتبتي</Text></View>
+          </TouchableOpacity>
           <TouchableOpacity activeOpacity={0.7} style={styles.navItem} onPress={goToBalance}>
             <View style={styles.navItemRight}>
               <Ionicons name="card-outline" size={18} color="#0EA5E9" />
@@ -233,6 +242,8 @@ export default function ProtectedLayout() {
   return (
     <Drawer drawerContent={(props) => <CustomDrawerContent {...props} isAdmin={isAdmin} />} screenOptions={{ headerShown: false, drawerPosition: "right", drawerStyle: { backgroundColor: colors.background, width: 320 }, swipeEdgeWidth: 36 }}>
       <Drawer.Screen name="chat" options={{ title: "المحادثة" }} />
+      <Drawer.Screen name="image-studio" options={{ title: "استوديو الصور", drawerItemStyle: { display: "none" } }} />
+      <Drawer.Screen name="video-studio" options={{ title: "استوديو الفيديو", drawerItemStyle: { display: "none" } }} />
       <Drawer.Screen name="tasks" options={{ title: "تنفيذ مهمة ذكية", drawerItemStyle: { display: "none" } }} />
       <Drawer.Screen name="balance" options={{ title: "الرصيد والاستهلاك", drawerItemStyle: { display: "none" } }} />
       <Drawer.Screen name="media" options={{ title: "المكتبة" }} />

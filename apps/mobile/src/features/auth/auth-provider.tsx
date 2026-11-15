@@ -34,7 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(nextSession);
       setUser(nextUser);
       setStatus(nextUser ? "authenticated" : "unauthenticated");
-      if (nextUser) void authService.syncProfile(nextUser).catch(() => undefined);
+      // Profile sync is started by the auth service and must not block auth state.
     };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
@@ -42,8 +42,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     void authService.getSession().then(applySession).catch(() => {
-      if (!active) return;
-      void supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
+      if (!active || currentUserId) return;
+      // A transient session-read failure must not erase a session already restored by an auth event.
       applySession(null);
     });
 

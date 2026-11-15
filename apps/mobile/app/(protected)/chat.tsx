@@ -4,7 +4,7 @@ import { PremiumText as Text } from "../../src/components/ui/PremiumText";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { DrawerActions } from "@react-navigation/native";
-import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter, type ErrorBoundaryProps } from "expo-router";
 import { useAuth } from "../../src/features/auth/auth-provider";
 import { chatService, type ChatMessage } from "../../src/features/chat/chat-service";
 import { getRotatingSuggestions } from "../../src/features/chat/suggestions";
@@ -27,6 +27,30 @@ import { randomUUID } from "expo-crypto";
 
 const STREAMING_ID = "local-streaming-assistant";
 const TASK_SUGGESTIONS = getRotatingSuggestions(Date.now(), 4);
+const DEFAULT_SULY_PROFILES = [
+  { profile_key: "lite" as const, display_name: "SULY Lite", tagline: "للمهام السريعة واليومية", description: "للمحادثات والأسئلة والكتابة والطلبات اليومية الخفيفة.", icon_key: "zap", minimum_subscription_tier: "free" },
+  { profile_key: "pro" as const, display_name: "SULY Pro", tagline: "توازن بين السرعة والذكاء والقدرات", description: "للبرمجة والبحث والتحليل والمهام المتوسطة والمركبة.", icon_key: "rocket", minimum_subscription_tier: "pro" },
+  { profile_key: "max" as const, display_name: "SULY Max", tagline: "للمهام المعقدة والتحليل العميق", description: "للتخطيط والتحليل العميق والبرمجة المتقدمة والمهام متعددة الخطوات مع سياق أطول.", icon_key: "diamond", minimum_subscription_tier: "max" },
+];
+
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  return (
+    <SafeAreaView style={styles.safe}>
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 14 }}>
+        <Ionicons name="alert-circle-outline" size={42} color={colors.error} />
+        <Text style={{ color: colors.textPrimary, fontSize: 19, fontWeight: "700", textAlign: "center" }}>
+          تعذّر فتح المحادثة
+        </Text>
+        <Text selectable style={{ color: colors.textSecondary, textAlign: "center", lineHeight: 22 }}>
+          {error.message || "حدث خطأ غير متوقع أثناء تجهيز الشاشة."}
+        </Text>
+        <Pressable onPress={() => void retry()} style={{ backgroundColor: colors.primary, borderRadius: 12, paddingHorizontal: 22, paddingVertical: 12 }}>
+          <Text style={{ color: colors.background, fontWeight: "700" }}>إعادة المحاولة</Text>
+        </Pressable>
+      </View>
+    </SafeAreaView>
+  );
+}
 
 type DisplayMessage = ChatMessage & {
   responseVariants?: Array<{ id: string; content: string }>;
@@ -97,6 +121,9 @@ export default function ChatPage() {
   const [ratingNote, setRatingNote] = useState("");
   const [ratingSaving, setRatingSaving] = useState(false);
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
+  const [selectedModelProfile, setSelectedModelProfile] = useState<"auto" | "lite" | "pro" | "max">("auto");
+  const [subscriptionTier, setSubscriptionTier] = useState("free");
+  const [modelProfiles, setModelProfiles] = useState(DEFAULT_SULY_PROFILES);
   const [connectorApproval, setConnectorApproval] = useState<{ content: string; toolkit: ToolkitStatus["toolkit"]; intent: "read" | "write"; connected: boolean; accountExists: boolean; disabled: boolean; writeApproval: ConnectorWriteApproval | null } | null>(null);
   const closeShareSheet = useCallback(() => setShareVisible(false), []);
   const composerRef = useRef<ChatComposerHandle>(null);
@@ -127,6 +154,26 @@ export default function ChatPage() {
     try { setTaskUsage(await getTaskUsage(conversationId)); } catch { setTaskUsage(null); }
     finally { setUsageLoading(false); }
   }, [conversationId]);
+
+  useEffect(() => {
+    let active = true;
+    if (!user?.id) { setSubscriptionTier("free"); return () => { active = false; }; }
+    void (async () => {
+      const [tierResult, profileResult, modelResult] = await Promise.all([
+        supabase.rpc("suly_effective_subscription_tier", { p_user_id: user.id }),
+        supabase.from("suly_profiles").select("subscription_tier").eq("id", user.id).maybeSingle(),
+        supabase.from("suly_model_profiles").select("profile_key,display_name,tagline,description,icon_key,minimum_subscription_tier").eq("is_active", true).order("sort_order"),
+      ]);
+      if (!active) return;
+      const tierValue = typeof tierResult.data === "string" ? tierResult.data : profileResult.data?.subscription_tier ?? user.user_metadata?.subscription_tier ?? "free";
+      const tier = String(tierValue).toLowerCase();
+      setSubscriptionTier(["free", "lite", "pro", "max"].includes(tier) ? tier : "free");
+      if (Array.isArray(modelResult.data) && modelResult.data.length) {
+        setModelProfiles(modelResult.data as typeof DEFAULT_SULY_PROFILES);
+      }
+    })().catch(() => undefined);
+    return () => { active = false; };
+  }, [user?.id]);
 
   useEffect(() => { void loadTaskUsage(); }, [loadTaskUsage, messages.length]);
   useEffect(() => {
@@ -292,6 +339,7 @@ export default function ChatPage() {
         await chatService.sendMessage({
           conversationId: conversationKey,
           content,
+          modelProfileKey: selectedModelProfile,
           writeApproval,
           mediaAsset: uploadedAsset,
           signal: controller.signal,
@@ -733,6 +781,29 @@ export default function ChatPage() {
           </View>
         )}
         {isUploadingAttachment ? <View style={styles.uploadStatus}><ActivityIndicator size="small" color={colors.primary} /><Text style={styles.loadingText}>جارٍ رفع المرفق…</Text></View> : null}
+        <View style={{ paddingHorizontal: 14, paddingTop: 8, paddingBottom: 5, gap: 7 }}>
+          <Text style={{ color: colors.textSecondary, textAlign: "right", fontSize: 12, fontWeight: "700" }}>مستوى SULY</Text>
+          <View style={{ flexDirection: "row-reverse", flexWrap: "wrap", gap: 7 }}>
+            <Pressable onPress={() => setSelectedModelProfile("auto")} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 18, borderWidth: 1, borderColor: selectedModelProfile === "auto" ? colors.primary : colors.divider, backgroundColor: selectedModelProfile === "auto" ? colors.surfaceElevated : colors.surface }}>
+              <Text style={{ color: selectedModelProfile === "auto" ? colors.primary : colors.textSecondary, fontSize: 12, fontWeight: "700" }}>تلقائي</Text>
+            </Pressable>
+            {modelProfiles.map((profile) => {
+              const tierRank: Record<string, number> = { free: 0, lite: 1, pro: 2, max: 3 };
+              const locked = (tierRank[subscriptionTier] ?? 0) < (tierRank[profile.minimum_subscription_tier] ?? 3);
+              const selected = selectedModelProfile === profile.profile_key;
+              return <Pressable key={profile.profile_key} disabled={locked} onPress={() => setSelectedModelProfile(profile.profile_key)} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 18, borderWidth: 1, borderColor: selected ? colors.primary : colors.divider, backgroundColor: selected ? colors.surfaceElevated : colors.surface, opacity: locked ? 0.45 : 1, flexDirection: "row", alignItems: "center", gap: 5 }}>
+                <Ionicons name={profile.icon_key === "diamond" ? "diamond-outline" : profile.icon_key === "rocket" ? "rocket-outline" : "flash-outline"} size={13} color={selected ? colors.primary : colors.textSecondary} />
+                <Text style={{ color: selected ? colors.primary : colors.textSecondary, fontSize: 12, fontWeight: "700" }}>{profile.display_name}</Text>
+                {locked ? <Ionicons name="lock-closed" size={11} color={colors.textMuted} /> : null}
+              </Pressable>;
+            })}
+          </View>
+          <Text style={{ color: colors.textMuted, textAlign: "right", fontSize: 11, lineHeight: 17 }}>
+            {selectedModelProfile === "auto"
+              ? "الوضع التلقائي يختار المستوى الأنسب للمهمة من المستويات المتاحة في اشتراكك."
+              : modelProfiles.find((profile) => profile.profile_key === selectedModelProfile)?.description ?? "المستوى المحدد سيُستخدم كما اخترته دون تخفيض تلقائي."}
+          </Text>
+        </View>
         <StreamingStatus isStreaming={isSending && !isUploadingAttachment} taskLabel={activeTaskLabel} onCancel={() => abortRef.current?.abort()} />
         <ChatComposer ref={composerRef} onSend={handleSend} disabled={isSending || Boolean(connectorApproval)} isStreaming={isSending} onCancel={() => abortRef.current?.abort()} creditBalance={creditBalance} onOpenRecharge={() => router.push("/(protected)/balance")} />
       </KeyboardAvoidingView>
