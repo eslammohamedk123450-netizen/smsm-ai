@@ -52,6 +52,42 @@ function imageFormat(bytes: Uint8Array): { mimeType: string; extension: string; 
   if (bytes.length >= 12 && String.fromCharCode(...bytes.slice(0, 4)) === "RIFF" && String.fromCharCode(...bytes.slice(8, 12)) === "WEBP") return { mimeType: "image/webp", extension: "webp", format: "webp" };
   return null;
 }
+function imageDimensions(bytes: Uint8Array): { width: number; height: number } | null {
+  if (bytes.length >= 24 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const width = view.getUint32(16, false);
+    const height = view.getUint32(20, false);
+    return width > 0 && height > 0 ? { width, height } : null;
+  }
+  if (bytes.length >= 10 && String.fromCharCode(...bytes.slice(0, 3)) === "GIF") {
+    const width = bytes[6] | (bytes[7] << 8);
+    const height = bytes[8] | (bytes[9] << 8);
+    return width > 0 && height > 0 ? { width, height } : null;
+  }
+  if (bytes.length >= 30 && String.fromCharCode(...bytes.slice(0, 4)) === "RIFF"
+    && String.fromCharCode(...bytes.slice(8, 12)) === "WEBP"
+    && String.fromCharCode(...bytes.slice(12, 16)) === "VP8X") {
+    const width = 1 + bytes[24] + (bytes[25] << 8) + (bytes[26] << 16);
+    const height = 1 + bytes[27] + (bytes[28] << 8) + (bytes[29] << 16);
+    return width > 0 && height > 0 ? { width, height } : null;
+  }
+  if (bytes.length >= 4 && bytes[0] === 0xff && bytes[1] === 0xd8) {
+    let offset = 2;
+    while (offset + 9 < bytes.length) {
+      if (bytes[offset] !== 0xff) { offset += 1; continue; }
+      const marker = bytes[offset + 1];
+      const segmentLength = (bytes[offset + 2] << 8) | bytes[offset + 3];
+      if (segmentLength < 2 || offset + 2 + segmentLength > bytes.length) break;
+      if ([0xc0,0xc1,0xc2,0xc3,0xc5,0xc6,0xc7,0xc9,0xca,0xcb,0xcd,0xce,0xcf].includes(marker)) {
+        const height = (bytes[offset + 5] << 8) | bytes[offset + 6];
+        const width = (bytes[offset + 7] << 8) | bytes[offset + 8];
+        return width > 0 && height > 0 ? { width, height } : null;
+      }
+      offset += 2 + segmentLength;
+    }
+  }
+  return null;
+}
 function decodeBase64Image(raw: string): Uint8Array {
   const value = raw.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "").trim();
   if (!value || value.length > 24 * 1024 * 1024 || !/^[A-Za-z0-9+/]+={0,2}$/.test(value)) throw new ServiceError(502, "لم يرجع مزود الصور ملفًا صالحًا.");
@@ -267,6 +303,7 @@ Deno.serve(async (req: Request) => {
     const generated = await callImageProvider({ model: typedModel, price: typedPrice, apiKey, prompt, quality });
     const format = imageFormat(generated.bytes);
     if (!format) throw new ServiceError(502, "صيغة الصورة التي رجعها المزود غير مدعومة.");
+    const dimensions = imageDimensions(generated.bytes);
 
     const actualCredits = actualChargeCredits(generated.costUsd, typedPrice, generated.costConfirmed);
     const imageId = crypto.randomUUID();
@@ -292,6 +329,7 @@ Deno.serve(async (req: Request) => {
         kind: "image", format: format.format, generated: true, prompt,
         public_model_name: typedModel.display_name, quality, resolution: typedPrice.resolution,
         estimated_credits: typedPrice.price_credits, charged_credits: actualCredits,
+        width: dimensions?.width ?? null, height: dimensions?.height ?? null,
         request_id: requestId, source: studioRequest ? "image_studio" : "chat",
       },
       delivery_type: "authenticated", conversation_id: studioRequest ? null : conversationId, message_id: assistantMessageId, support_ticket_id: null,
