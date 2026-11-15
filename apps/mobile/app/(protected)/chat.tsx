@@ -99,8 +99,9 @@ export default function ChatPage() {
   const { show } = useToast();
   const router = useRouter();
   const navigation = useNavigation();
-  const params = useLocalSearchParams<{ conversationId?: string | string[] }>();
+  const params = useLocalSearchParams<{ conversationId?: string | string[]; projectId?: string | string[] }>();
   const routeConversationId = Array.isArray(params.conversationId) ? params.conversationId[0] : params.conversationId;
+  const routeProjectId = Array.isArray(params.projectId) ? params.projectId[0] : params.projectId;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [responseIndexByUser, setResponseIndexByUser] = useState<Record<string, number>>({});
   const [conversationId, setConversationId] = useState<string | null>(routeConversationId || null);
@@ -318,7 +319,7 @@ export default function ChatPage() {
       let streamCompleted = false;
       try {
         if (!id) {
-          const conversation = await chatService.createConversation();
+          const conversation = await chatService.createConversation("New Conversation", routeProjectId || null);
           id = conversation.id;
           setConversationId(id);
           internalConversationTransitionRef.current = id;
