@@ -1,10 +1,12 @@
 export type BrainTaskPayload = {
   userId: string;
   taskId: string;
+  jobId: string;
   objective: string;
 };
 
 export type BrainTaskQueueRecord = {
+  id: string;
   user_id: string;
   payload: unknown;
 };
@@ -15,10 +17,11 @@ export function readBrainTaskPayload(job: BrainTaskQueueRecord): BrainTaskPayloa
     : {};
   const userId = typeof payload.user_id === "string" ? payload.user_id : "";
   const taskId = typeof payload.task_id === "string" ? payload.task_id : "";
+  const jobId = typeof (job as BrainTaskQueueRecord & { id?: unknown }).id === "string" ? (job as BrainTaskQueueRecord & { id: string }).id : "";
   const objective = typeof payload.objective === "string" ? payload.objective.trim() : "";
 
-  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(taskId);
-  if (userId !== job.user_id || !isUuid || !objective || objective.length > 50_000) return null;
+  const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+  if (userId !== job.user_id || !isUuid(taskId) || !isUuid(jobId) || !objective || objective.length > 50_000) return null;
 
-  return { userId, taskId, objective };
+  return { userId, taskId, jobId, objective };
 }

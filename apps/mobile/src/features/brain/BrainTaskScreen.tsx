@@ -21,14 +21,20 @@ export function BrainTaskScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<TaskSnapshot | null>(null);
+  const [cancelRequested, setCancelRequested] = useState(false);
   const cancellationRequested = useRef<string | null>(null);
 
-  const cancelQueuedTask = async (jobId: string) => {
+  const requestTaskCancellation = async (jobId: string) => {
     try {
-      await cancelBrainTask(jobId);
-      cancellationRequested.current = jobId;
-      setProgress((current) => current ? { ...current, status: "cancelled" } : current);
-      show("تم إلغاء المهمة قبل أن يبدأ العامل تنفيذها.", "success");
+      const outcome = await cancelBrainTask(jobId);
+      if (outcome.status === "cancelled") {
+        cancellationRequested.current = jobId;
+        setProgress((current) => current ? { ...current, status: "cancelled" } : current);
+        show("تم إلغاء المهمة قبل أن يبدأ العامل تنفيذها.", "success");
+      } else {
+        setCancelRequested(true);
+        show("تم استلام طلب الإيقاف. ستكتمل الخطوة الجارية أولًا، ثم يتوقف العامل دون بدء خطوات جديدة.", "success");
+      }
     } catch (cause) {
       show(cause instanceof Error ? cause.message : "تعذر إلغاء المهمة.", "error");
     }
@@ -48,6 +54,7 @@ export function BrainTaskScreen() {
     setError(null);
     setResult(null);
     setProgress(null);
+    setCancelRequested(false);
     cancellationRequested.current = null;
     try {
       const accepted = await runBrainTask(value);
@@ -155,10 +162,13 @@ export function BrainTaskScreen() {
             </View>
           ))}
           {progress.review ? <Text style={styles.review}>المراجعة: {progress.review.verdict}{progress.review.feedback ? ` — ${progress.review.feedback}` : ""}</Text> : null}
-          {progress.status === "queued" && progress.jobId ? (
-            <Pressable onPress={() => void cancelQueuedTask(progress.jobId!)} style={styles.cancelButton} accessibilityRole="button">
-              <Text style={styles.cancelText}>إلغاء المهمة قبل بدء التنفيذ</Text>
+          {progress.jobId && (progress.status === "queued" || progress.status === "running") && !cancelRequested ? (
+            <Pressable onPress={() => void requestTaskCancellation(progress.jobId!)} style={styles.cancelButton} accessibilityRole="button">
+              <Text style={styles.cancelText}>{progress.status === "queued" ? "إلغاء المهمة قبل بدء التنفيذ" : "طلب إيقاف المهمة بعد الخطوة الجارية"}</Text>
             </Pressable>
+          ) : null}
+          {cancelRequested && progress.status === "running" ? (
+            <Text style={styles.meta}>تم تسجيل طلب الإيقاف. ننتظر انتهاء الخطوة الحالية بأمان.</Text>
           ) : null}
         </View>
       ) : null}

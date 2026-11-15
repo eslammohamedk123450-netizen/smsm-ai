@@ -79,3 +79,25 @@ Deno.test("delegated worker steps receive clear progress descriptions", () => {
   assertEquals(rows[0].description, "تنفيذ الجزء 1 بواسطة Worker");
   assertEquals(rows[0].capability_key, "text");
 });
+
+
+Deno.test("central Agent cancellation retains status and usage even without a final answer envelope", () => {
+  const result = parseCentralAgentResult({
+    agent_status: "cancelled",
+    response: "تم إيقاف المهمة.",
+    usage: { input_tokens: 90, output_tokens: 20 },
+  });
+  assertNotEquals(result, null);
+  assertEquals(result?.status, "cancelled");
+  assertEquals(result?.inputTokens, 90);
+  assertEquals(result?.outputTokens, 20);
+});
+
+Deno.test("cancelled Agent steps remain cancelled in durable Brain progress", () => {
+  const rows = toBrainTaskStepRows("task-cancelled", [
+    { index: 0, kind: "planning", status: "completed" },
+    { index: 1, kind: "tool", tool: "web.search", status: "cancelled" },
+  ], "cancelled");
+  assertEquals(rows[0].status, "completed");
+  assertEquals(rows[1].status, "cancelled");
+});

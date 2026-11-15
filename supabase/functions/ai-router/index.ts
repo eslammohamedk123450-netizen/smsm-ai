@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { buildAgentUsageLedgerRecord } from "./agent_usage_ledger.ts";
 import { prepareAgentMemory, saveAgentMemory } from "./agent/memory.ts";
 import { activationOutcomeMessage, parseActivationCommand, shouldReportActivationFailure } from "../_shared/activation_command.ts";
 import { activateFeatureByCode, buildFeatureSystemContext, getFeatureContext } from "../_shared/feature_flags.ts";
@@ -21,8 +22,8 @@ import {
   upsertSharedTaskMemory,
 } from "../_shared/shared_task_memory.ts";
 import { CircuitBreaker } from "./circuit_breaker.ts";
-import { buildIndependentTaskPlan, buildTaskPlan, executeTaskPlan, hasExplicitDependencyLanguage, mergePartAnswers, parseModelGeneratedTaskPlan, probeCandidates, splitTask, validateTaskPlan } from "./resilience.ts";
-import { parseAgentDecision, runAgentLoop, type AgentLoopStep, type AgentTool } from "./agent/orchestrator.ts";
+import { buildIndependentTaskPlan, buildTaskPlan, executeTaskPlan, hasExplicitDependencyLanguage, mergePartAnswers, parseModelGeneratedTaskPlan, probeCandidates, splitTask, validateTaskPlan, type TaskPlanStep } from "./resilience.ts";
+import { parseAgentDecision, runAgentLoop, type AgentLoopResumeStep, type AgentLoopStep, type AgentTool, type AgentDecision } from "./agent/orchestrator.ts";
 import { prioritizeModelCandidate } from "./agent/model_routing.ts";
 import { isModelEligibleForRequest, modelSupportsRole as supportsModelRole } from "./agent/model_eligibility.ts";
 import { resolveExecutionMode } from "./execution_mode.ts";
@@ -98,6 +99,10 @@ type Candidate = {
   inputTokens: number;
   outputTokens: number;
   providerCostEgp: number | null;
+  usageStepKey?: string;
+  usageAttemptNo?: number;
+  usageCallKey?: string;
+  usageReported?: boolean;
 };
 type ReadyCandidate = Candidate & {
   controller: AbortController;
@@ -107,7 +112,7 @@ type ReadyCandidate = Candidate & {
   firstChunkAtMs: number;
   cleanup: () => void;
 };
-type AttemptRecorder = (candidate: Candidate, status: AttemptStatus, durationMs: number, errorCode?: string | null, errorReason?: string | null) => Promise<void>;
+type AttemptRecorder = (candidate: Candidate, status: AttemptStatus, durationMs: number, errorCode?: string | null, errorReason?: string | null, stage?: "started" | "finished") => Promise<void>;
 
 function jsonResponse(body: unknown, status = 200, req?: Request): Response {
   return new Response(JSON.stringify(body), {
@@ -324,12 +329,14 @@ async function openCandidate(candidate: Candidate, controller: AbortController):
     const iterator = readOpenAiStream(response.body, (inputTokens, outputTokens, providerCostEgp) => {
       if (inputTokens !== null) candidate.inputTokens = inputTokens;
       if (outputTokens !== null) candidate.outputTokens = outputTokens;
+      if (inputTokens !== null && outputTokens !== null) candidate.usageReported = true;
       if (providerCostEgp !== null) candidate.providerCostEgp = providerCostEgp;
       // Keep the live candidate in sync after the first streamed chunk so
       // final usage and provider-reported EGP costs survive the shallow copy.
       if (readyCandidate) {
         if (inputTokens !== null) readyCandidate.inputTokens = inputTokens;
         if (outputTokens !== null) readyCandidate.outputTokens = outputTokens;
+        if (inputTokens !== null && outputTokens !== null) readyCandidate.usageReported = true;
         if (providerCostEgp !== null) readyCandidate.providerCostEgp = providerCostEgp;
       }
     });
@@ -357,23 +364,36 @@ async function firstReady(candidates: Candidate[], waitMs: number, recordAttempt
   if (candidates.length === 0) return null;
   const raceState = { winnerSelected: false, deadlineExpired: false };
   const attempts = candidates.map((candidate) => {
+    const attemptCandidate: Candidate = {
+      ...candidate,
+      usageStepKey: candidate.usageStepKey ?? "agent-runtime",
+      usageAttemptNo: Math.max(1, Math.min(20, Math.floor(candidate.usageAttemptNo ?? 1))),
+      usageCallKey: crypto.randomUUID(),
+    };
     const controller = new AbortController();
     const startedAtMs = Date.now();
-    const promise = openCandidate(candidate, controller).catch(async (error) => {
+    let providerCallStarted = false;
+    const promise = (async () => {
+      await recordAttempt(attemptCandidate, "cancelled", 0, "provider_attempt_started", null, "started");
+      providerCallStarted = true;
+      return await openCandidate(attemptCandidate, controller);
+    })().catch(async (error) => {
       const errorText = error instanceof Error ? error.message : String(error);
-      const cancelledByWinner = raceState.winnerSelected && controller.signal.aborted;
-      const status: AttemptStatus = cancelledByWinner
-        ? "cancelled"
-        : controller.signal.aborted || raceState.deadlineExpired || /timeout|timed out|abort/i.test(errorText)
-          ? "timeout"
-          : /no text|empty/i.test(errorText)
-            ? "empty"
-            : "error";
-      const errorCode = status === "timeout" ? "model_timeout" : status === "empty" ? "empty_response" : "provider_error";
-      await recordAttempt(candidate, status, Math.max(0, Date.now() - startedAtMs), errorCode, errorText);
+      if (providerCallStarted) {
+        const cancelledByWinner = raceState.winnerSelected && controller.signal.aborted;
+        const status: AttemptStatus = cancelledByWinner
+          ? "cancelled"
+          : controller.signal.aborted || raceState.deadlineExpired || /timeout|timed out|abort/i.test(errorText)
+            ? "timeout"
+            : /no text|empty/i.test(errorText)
+              ? "empty"
+              : "error";
+        const errorCode = status === "timeout" ? "model_timeout" : status === "empty" ? "empty_response" : "provider_error";
+        await recordAttempt(attemptCandidate, status, Math.max(0, Date.now() - startedAtMs), errorCode, errorText, "finished");
+      }
       throw error;
     });
-    return { candidate, controller, promise, startedAtMs };
+    return { candidate: attemptCandidate, controller, promise, startedAtMs };
   });
   onStart?.(attempts.length);
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -391,7 +411,7 @@ async function firstReady(candidates: Candidate[], waitMs: number, recordAttempt
       if (winner) {
         void attempt.promise.then(async (loser) => {
           loser.cleanup();
-          await recordAttempt(attempt.candidate, "cancelled", Math.max(0, Date.now() - attempt.startedAtMs), "race_lost", "Another model returned text first; this attempt was cancelled to avoid duplicate generation.");
+          await recordAttempt(attempt.candidate, "cancelled", Math.max(0, Date.now() - attempt.startedAtMs), "race_lost", "Another model returned text first; this attempt was cancelled to avoid duplicate generation.", "finished");
         }).catch(() => {});
       }
     }
@@ -556,6 +576,39 @@ async function handleRequest(req: Request): Promise<Response> {
   const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   const billingTaskId = typeof body.request_id === "string" ? body.request_id : crypto.randomUUID();
   if (!uuidPattern.test(billingTaskId)) return jsonResponse({ error: "request_id must be a valid UUID." }, 400);
+  const agentJobId = internalBrainCall && typeof body.agent_job_id === "string" ? body.agent_job_id : null;
+  const agentWorkerId = internalBrainCall && typeof body.agent_worker_id === "string" ? body.agent_worker_id : null;
+  const agentWorkerAttempt = internalBrainCall ? Number(body.agent_worker_attempt) : null;
+  const getAgentExecutionState = async () => {
+    if (!internalBrainCall || !agentJobId || !agentWorkerId || agentWorkerAttempt === null || !Number.isInteger(agentWorkerAttempt)) return null;
+    const { data, error } = await supabase.rpc("agent_task_execution_state", {
+      p_job_id: agentJobId,
+      p_task_id: billingTaskId,
+      p_user_id: user.id,
+      p_worker_id: agentWorkerId,
+      p_worker_attempt: agentWorkerAttempt as number,
+    });
+    if (error) throw new Error("Could not verify Agent worker lease.");
+    return asRecord(data);
+  };
+  if (internalBrainCall) {
+    if (!agentJobId || !uuidPattern.test(agentJobId)
+      || !agentWorkerId || agentWorkerId.length > 120
+      || agentWorkerAttempt === null || !Number.isInteger(agentWorkerAttempt) || agentWorkerAttempt < 1 || agentWorkerAttempt > 10) {
+      return jsonResponse({ error: "A valid internal Agent worker lease identity is required." }, 400);
+    }
+    const state = await getAgentExecutionState();
+    if (!state || state.lease_valid !== true) return jsonResponse({ error: "Agent worker lease is not active." }, 409);
+    if (state.cancel_requested === true) {
+      return jsonResponse({ agent_status: "cancelled", usage: { input_tokens: 0, output_tokens: 0 }, response: "تم إيقاف المهمة قبل بدء التنفيذ بناءً على طلبك." }, 200, req);
+    }
+  }
+  const checkAgentCancellation = async (): Promise<boolean> => {
+    if (!internalBrainCall || !agentJobId) return false;
+    const state = await getAgentExecutionState();
+    if (!state || state.lease_valid !== true) throw new Error("agent_worker_lease_lost");
+    return state.cancel_requested === true;
+  };
   if (conversationId) {
     if (!uuidPattern.test(conversationId)) return jsonResponse({ error: "conversation_id must be a valid UUID." }, 400);
     const { data: conversation, error: conversationError } = await supabase
@@ -1203,8 +1256,45 @@ async function handleRequest(req: Request): Promise<Response> {
 
   const usableInitial = makeCandidates(candidatesFrom);
   const workerCandidates = makeCandidates(orderedWorkerModels);
-  const recordAttempt: AttemptRecorder = async (candidate, status, durationMs, errorCode = null, errorReason = null) => {
+  const recordAttempt: AttemptRecorder = async (candidate, status, durationMs, errorCode = null, errorReason = null, stage = "finished") => {
     const safeReason = safeOperationalSummary(errorReason ?? "", 1000);
+    if (internalBrainCall && agentJobId && candidate.usageCallKey) {
+      if (stage === "started") {
+        const state = await getAgentExecutionState();
+        if (!state || state.lease_valid !== true) throw new Error("agent_worker_lease_lost");
+        if (state.cancel_requested === true) throw new Error("agent_task_cancel_requested");
+      }
+      const usageRecord = buildAgentUsageLedgerRecord({
+        stage,
+        status,
+        usageReported: candidate.usageReported === true,
+        inputTokens: candidate.inputTokens,
+        outputTokens: candidate.outputTokens,
+        inputCreditsPer1k: Number(creditPricing.input_credits_per_1k_tokens) || 0,
+        outputCreditsPer1k: Number(creditPricing.output_credits_per_1k_tokens) || 0,
+      });
+      const { error: usageError } = await supabase.rpc("record_agent_step_usage", {
+        p_job_id: agentJobId,
+        p_task_id: billingTaskId,
+        p_user_id: user.id,
+        p_step_key: (candidate.usageStepKey ?? "agent-runtime").slice(0, 160),
+        p_attempt_no: candidate.usageAttemptNo ?? 1,
+        p_model_call_key: candidate.usageCallKey,
+        p_model_id: candidate.model.id,
+        p_provider_type: candidate.provider.provider_type,
+        p_input_tokens: usageRecord.inputTokens,
+        p_output_tokens: usageRecord.outputTokens,
+        p_actual_cost: usageRecord.actualCost,
+        p_usage_status: usageRecord.usageStatus,
+        p_usage_source: usageRecord.usageSource,
+        p_metadata: { attempt_status: stage === "started" ? "started" : status, duration_ms: Math.max(0, Math.floor(durationMs)), error_code: errorCode, error_summary: safeReason || null },
+      });
+      if (usageError) {
+        console.error("Could not persist Agent provider usage:", usageError.message);
+        if (stage === "started") throw new Error("agent_usage_ledger_unavailable");
+      }
+    }
+    if (stage === "started") return;
     const { error } = await supabase.rpc("record_ai_model_attempt", {
       p_model_id: candidate.model.id,
       p_provider_id: candidate.provider.id,
@@ -1499,7 +1589,7 @@ async function handleRequest(req: Request): Promise<Response> {
   // Fast pre-flight: a bounded parallel probe drops dead candidates in about a
   // second instead of spending the whole race budget waiting on them.
   let raceCandidates = usableInitial;
-  if (settings.preflightProbeEnabled && usableInitial.length > 1) {
+  if (!internalBrainCall && settings.preflightProbeEnabled && usableInitial.length > 1) {
     const probeTargets = usableInitial
       .slice(0, settings.preflightProbeMaxModels)
       .map((candidate) => ({
@@ -1565,6 +1655,24 @@ async function handleRequest(req: Request): Promise<Response> {
     : [latestUserMessage];
   let taskPlan = buildTaskPlan(proposedParts, settings.taskSplitMaxParts, hasExplicitDependencyLanguage(latestUserMessage));
   if (!taskPlan || !validateTaskPlan(taskPlan, settings.taskSplitMaxParts)) taskPlan = null;
+  let existingWorkspaceId: string | null = null;
+  if (executionMode === "agent" || proposedParts.length > 1) {
+    const { data: existingWorkspace, error: existingWorkspaceError } = await supabase
+      .from("agent_workspaces")
+      .select("id,plan")
+      .eq("request_id", billingTaskId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (existingWorkspaceError) throw new Error("Could not load the durable Agent workspace checkpoint.");
+    if (existingWorkspace) {
+      existingWorkspaceId = String(existingWorkspace.id);
+      const storedPlan = Array.isArray(existingWorkspace.plan) ? existingWorkspace.plan as TaskPlanStep[] : [];
+      if (validateTaskPlan(storedPlan, settings.taskSplitMaxParts)) {
+        taskPlan = storedPlan;
+        proposedParts = storedPlan.map((step) => step.description);
+      }
+    }
+  }
   let taskPlannerUsage: { candidate: ReadyCandidate; inputTokens: number; outputTokens: number } | null = null;
   if (!taskPlan && proposedParts.length === 1 && executionMode === "agent" && mind.intent === "complex_task" && workerCandidates.length > 0) {
     const dagPlannerCandidates = orderCandidatesByRoute(
@@ -1586,7 +1694,7 @@ async function handleRequest(req: Request): Promise<Response> {
     ];
     const dagRequestMessages = providerMessagesForModel(dagMessages, []);
     for (const baseCandidate of dagPlannerCandidates) {
-      const candidate: Candidate = { ...baseCandidate, requestMessages: dagRequestMessages, temperature: 0, maxTokens: 1200, inputTokens: 0, outputTokens: 0 };
+      const candidate: Candidate = { ...baseCandidate, requestMessages: dagRequestMessages, temperature: 0, maxTokens: 1200, inputTokens: 0, outputTokens: 0, usageStepKey: "dag-planner", usageAttemptNo: 1 };
       const ready = await firstReady([candidate], settings.freeRaceTimeoutMs, recordAttempt, countModelStarts);
       if (!ready) continue;
       const planned = await collectCandidate(ready, 12000);
@@ -1634,13 +1742,28 @@ async function handleRequest(req: Request): Promise<Response> {
       plan: workspacePlan,
       metadata: { execution_mode: executionMode, intent: mind.intent },
     }, { onConflict: "request_id" }).select("id").single();
-    if (workspaceError || !workspaceRow) console.error("Could not create agent workspace:", workspaceError?.message);
-    else workspaceId = String(workspaceRow.id);
+    if (workspaceError || !workspaceRow) {
+      console.error("Could not create agent workspace:", workspaceError?.message);
+      throw new Error("Durable Agent workspace is unavailable; refusing to execute without checkpoints.");
+    } else workspaceId = String(workspaceRow.id);
+    if (existingWorkspaceId && workspaceId !== existingWorkspaceId) {
+      throw new Error("Durable Agent workspace identity changed during retry.");
+    }
   
+    const agentLoopCheckpointSteps = executionMode === "agent" && splitParts.length === 1
+      ? Array.from({ length: 5 }, (_, index) => ({
+        workspace_id: workspaceId,
+        step_key: `agent-loop-step-${index}`,
+        sequence_order: workspacePlan.length + index + 1,
+        description: `استعادة خطوة الوكيل رقم ${index + 1} بعد الانقطاع.`,
+        depends_on: index === 0 ? ["agent-loop"] : [`agent-loop-step-${index - 1}`],
+      }))
+      : [];
     const workspaceSteps = [
       { workspace_id: workspaceId, step_key: "plan", sequence_order: 0, description: "تحديد خطة الطلب ومسار التنفيذ.", depends_on: [] },
       ...workspacePlan.map((step, index) => ({ workspace_id: workspaceId, step_key: step.step_id, sequence_order: index + 1, description: step.description, depends_on: step.depends_on ?? [] })),
-      { workspace_id: workspaceId, step_key: resultStepKey, sequence_order: workspacePlan.length + 1, description: "حفظ النتيجة النهائية أو سبب الفشل.", depends_on: workspacePlan.map((step) => step.step_id) },
+      ...agentLoopCheckpointSteps,
+      { workspace_id: workspaceId, step_key: resultStepKey, sequence_order: workspacePlan.length + agentLoopCheckpointSteps.length + 1, description: "حفظ النتيجة النهائية أو سبب الفشل.", depends_on: workspacePlan.map((step) => step.step_id) },
     ];
     if (workspaceId) {
       const { error: stepsError } = await supabase.from("agent_workspace_steps").upsert(workspaceSteps, { onConflict: "workspace_id,step_key" });
@@ -1649,7 +1772,8 @@ async function handleRequest(req: Request): Promise<Response> {
     const ledgerRows = [
       { task_key: "plan", task_description: "تحديد خطة الطلب ومسار التنفيذ.", sequence_order: 0 },
       ...workspacePlan.map((step, index) => ({ task_key: step.step_id, task_description: step.description.slice(0, 240), sequence_order: index + 1 })),
-      { task_key: resultStepKey, task_description: "حفظ النتيجة النهائية أو سبب الفشل.", sequence_order: workspacePlan.length + 1 },
+      ...agentLoopCheckpointSteps.map((step, index) => ({ task_key: step.step_key, task_description: step.description, sequence_order: step.sequence_order })),
+      { task_key: resultStepKey, task_description: "حفظ النتيجة النهائية أو سبب الفشل.", sequence_order: workspacePlan.length + agentLoopCheckpointSteps.length + 1 },
     ].map((step) => ({ conversation_id: conversationId, request_id: billingTaskId, workspace_id: workspaceId, ...step, status: "pending" }));
     if (conversationId && workspaceId) {
       const { error: ledgerError } = await supabase.from("task_ledger").upsert(ledgerRows, { onConflict: "request_id,task_key", ignoreDuplicates: true });
@@ -1680,7 +1804,7 @@ async function handleRequest(req: Request): Promise<Response> {
     const pendingParts = new Set(splitParts.map((_, index) => index));
     let workerInputTokens = taskPlannerUsage?.inputTokens ?? 0;
     let workerOutputTokens = taskPlannerUsage?.outputTokens ?? 0;
-    let workerBillingCandidate: ReadyCandidate | null = taskPlannerUsage?.candidate ?? null;
+    let workerBillingCandidate: Candidate | null = taskPlannerUsage?.candidate ?? null;
     const accountedWorkerCandidates = new WeakSet<object>();
     const accountWorkerUsage = (candidate: ReadyCandidate, content: string) => {
       if (accountedWorkerCandidates.has(candidate)) return;
@@ -1731,7 +1855,12 @@ async function handleRequest(req: Request): Promise<Response> {
         ...(dependencyBrief ? [{ role: "system" as const, content: `مخرجات الاعتماديات السابقة التي يجب البناء عليها:\n${dependencyBrief}` }] : []),
         { role: "user", content: splitParts[index] },
       ];
-      let remaining = routedWorkerCandidates.slice(0, 3).map((candidate) => ({ ...candidate, requestMessages: partMessages }));
+      let remaining = routedWorkerCandidates.slice(0, 3).map((candidate, candidateIndex) => ({
+        ...candidate,
+        requestMessages: partMessages,
+        usageStepKey: stepKey,
+        usageAttemptNo: candidateIndex + 1,
+      }));
       for (let attempt = 0; attempt < Math.min(2, remaining.length); attempt += 1) {
         const partWinner = await firstReady(remaining, settings.freeRaceTimeoutMs, recordAttempt, countModelStarts);
         if (!partWinner) break;
@@ -1750,7 +1879,16 @@ async function handleRequest(req: Request): Promise<Response> {
                 ...(partSources.length > 0 ? { sources: partSources.slice(0, 3) } : {}),
               });
             } catch { console.warn("Could not update temporary task scratchpad."); }
-            await updateWorkspaceStep(stepKey, "completed", { selected_model_id: partWinner.model.id, result: { characters: trimmedPart.length, output_guard: collected.reason } });
+            const checkpoint = {
+              content: trimmedPart.slice(0, 30000),
+              model: partWinner.model.model_identifier,
+              model_id: partWinner.model.id,
+              input_tokens: partWinner.inputTokens > 0 ? partWinner.inputTokens : null,
+              output_tokens: partWinner.outputTokens > 0 ? partWinner.outputTokens : null,
+              output_guard: collected.reason,
+              characters: trimmedPart.length,
+            };
+            await updateWorkspaceStep(stepKey, "completed", { selected_model_id: partWinner.model.id, result: checkpoint });
             await updateTaskLedger(stepKey, "completed", { model_id: partWinner.model.id, characters: trimmedPart.length, output_guard: collected.reason });
             return { index, content, model: partWinner.model.model_identifier, candidate: partWinner, outputGuard: collected.reason };
           }
@@ -1766,11 +1904,52 @@ async function handleRequest(req: Request): Promise<Response> {
       return { index, content: "", model: null, candidate: null, outputGuard: null };
     };
     if (!taskPlan) throw new Error("A multi-part execution requires a validated task plan.");
+    const { data: checkpointRows, error: checkpointError } = workspaceId
+      ? await supabase.from("agent_workspace_steps")
+        .select("step_key,status,result,selected_model_id")
+        .eq("workspace_id", workspaceId)
+        .in("step_key", taskPlan.map((step) => step.step_id))
+      : { data: null, error: new Error("workspace_missing") };
+    if (checkpointError) throw new Error("Could not load durable Agent step checkpoints.");
+    const resumedResults = new Map<string, PartResult>();
+    for (const row of checkpointRows ?? []) {
+      const saved = asRecord(row.result);
+      if (row.status !== "completed" || typeof saved.content !== "string" || !saved.content.trim()) continue;
+      const index = taskPlan.findIndex((step) => step.step_id === row.step_key);
+      if (index < 0) continue;
+      const modelId = Number(saved.model_id ?? row.selected_model_id ?? 0);
+      const modelName = typeof saved.model === "string" ? saved.model : null;
+      resumedResults.set(String(row.step_key), {
+        index,
+        content: saved.content,
+        model: modelName,
+        candidate: null,
+        outputGuard: saved.output_guard === "repetition" || saved.output_guard === "max_output" ? saved.output_guard : null,
+      });
+      const storedInput = Number(saved.input_tokens);
+      const storedOutput = Number(saved.output_tokens);
+      if (Number.isSafeInteger(storedInput) && storedInput >= 0) workerInputTokens += storedInput;
+      else workerInputTokens += estimateTokens([...systemMessages.map((message) => message.content), splitParts[index]].join("\n"));
+      if (Number.isSafeInteger(storedOutput) && storedOutput >= 0) workerOutputTokens += storedOutput;
+      else workerOutputTokens += estimateTokens(saved.content);
+      workerBillingCandidate ??= routedWorkerCandidates.find((candidate) => candidate.model.id === modelId) ?? null;
+      pendingParts.delete(index);
+    }
     const taskExecution = await executeTaskPlan<PartResult>(taskPlan, 3, async (_step, index, completed) => {
       const result = await answerPart(index, completed);
       if (!result.candidate) throw new Error("worker_failed");
       return result;
-    });
+    }, resumedResults);
+    if (await checkAgentCancellation()) {
+      await updateWorkspace("cancelled", { parts: splitParts.length, completed: resumedResults.size, cancelled: true });
+      await clearSharedTaskMemory(supabase, billingTaskId);
+      return jsonResponse({
+        agent_status: "cancelled",
+        response: "تم إيقاف المهمة بناءً على طلبك، واحتفظت بالخطوات التي اكتملت قبل الإيقاف.",
+        completed_parts: resumedResults.size,
+        ...(internalBrainCall ? { usage: { input_tokens: workerInputTokens, output_tokens: workerOutputTokens } } : {}),
+      }, 200, req);
+    }
     const partResultsWithCandidates = await Promise.all(taskExecution.map(async (outcome, index) => {
       if (outcome.status === "completed" && outcome.result) return outcome.result;
       const stepKey = taskPlan![index].step_id;
@@ -1779,13 +1958,13 @@ async function handleRequest(req: Request): Promise<Response> {
       return { index, content: "", model: null, candidate: null, outputGuard: null };
     }));
     const partResults = partResultsWithCandidates.map(({ index, content, model }) => ({ index, content, model }));
-    const successfulParts = partResultsWithCandidates.filter((part) => part.candidate !== null);
+    const successfulParts = partResultsWithCandidates.filter((part) => part.content.trim().length > 0);
     const failedPartCount = splitParts.length - successfulParts.length;
     const bestCandidate = partResultsWithCandidates.find((part) => part.candidate)?.candidate ?? null;
     if (successfulParts.length === 0) {
       await updateWorkspaceStep(resultStepKey, "running");
       await updateTaskLedger(resultStepKey, "running");
-      const workerBillingRef = ((): ReadyCandidate | null => workerBillingCandidate)();
+      const workerBillingRef = ((): Candidate | null => workerBillingCandidate)();
       const billingCandidate = workerBillingRef
         ? { ...workerBillingRef, inputTokens: workerInputTokens, outputTokens: workerOutputTokens }
         : null;
@@ -1814,13 +1993,14 @@ async function handleRequest(req: Request): Promise<Response> {
       ? await persistAssistant(supabase, conversationId, user.id, billingTaskId, mergedModel, merged)
       : await persistAssistantText(supabase, conversationId, user.id, billingTaskId, null, merged);
     for (const part of successfulParts) {
+      if (!part.candidate) continue; // A resumed checkpoint already has its original attempt log.
       await logMessageModel({
         messageId,
-        modelId: part.candidate!.model.id,
-        modelIdentifier: part.candidate!.model.model_identifier,
-        providerType: part.candidate!.provider.provider_type,
+        modelId: part.candidate.model.id,
+        modelIdentifier: part.candidate.model.model_identifier,
+        providerType: part.candidate.provider.provider_type,
         route: "task_split",
-        durationMs: Date.now() - part.candidate!.startedAtMs,
+        durationMs: Date.now() - part.candidate.startedAtMs,
         partIndex: part.index + 1,
         partCount: splitParts.length,
       });
@@ -1971,6 +2151,8 @@ async function handleRequest(req: Request): Promise<Response> {
       const requestMessages = providerMessagesForModel(planningMessages, trustedAttachments);
       const makePlanningCandidate = (candidate: Candidate): Candidate => ({
         ...candidate,
+        usageStepKey: `agent-loop-planner-${step}`,
+        usageAttemptNo: Math.max(1, plannerAttemptCount),
         requestMessages,
         temperature: 0.1,
         maxTokens: agentPlannerMaxTokens,
@@ -1980,6 +2162,7 @@ async function handleRequest(req: Request): Promise<Response> {
       for (const pool of plannerPools) {
         for (const baseCandidate of pool.candidates) {
           if (plannerAttemptCount >= 3) break;
+          if (await checkAgentCancellation()) throw new Error("agent_cancelled");
           plannerAttemptCount += 1;
           const ready = await firstReady(
             [makePlanningCandidate(baseCandidate)],
@@ -1992,6 +2175,7 @@ async function handleRequest(req: Request): Promise<Response> {
           plannerCandidatesUsed.push(ready);
           plannerInputTokens += ready.inputTokens > 0 ? ready.inputTokens : estimateTokens(requestMessages.map((message) => typeof message.content === "string" ? message.content : JSON.stringify(message.content)).join("\n"));
           plannerOutputTokens += ready.outputTokens > 0 ? ready.outputTokens : estimateTokens(collected.content);
+          if (await checkAgentCancellation()) throw new Error("agent_cancelled");
           const decision = parseAgentDecision(collected.content);
           if (decision) {
             const genericConnectorRefusal = (connectorReadCompleted || connectorWriteCompleted)
@@ -2011,7 +2195,7 @@ async function handleRequest(req: Request): Promise<Response> {
       throw new Error("No eligible model returned a valid Agent decision.");
     };
 
-    const execute = async (tool: string, input: Record<string, unknown>): Promise<unknown> => {
+    const executeToolImplementation = async (tool: string, input: Record<string, unknown>): Promise<unknown> => {
       const registeredTool = getRegisteredTool(tool);
       if (!registeredTool || !validateToolInput(registeredTool, input)) {
         throw new Error("tool_not_registered_or_invalid_input");
@@ -2146,10 +2330,174 @@ async function handleRequest(req: Request): Promise<Response> {
       throw new Error("The requested tool is not registered.");
     };
 
+    const toolOccurrenceCounts = new Map<string, number>();
+    const canonicalToolInput = (value: unknown): string => {
+      if (Array.isArray(value)) return `[${value.map(canonicalToolInput).join(",")}]`;
+      if (value && typeof value === "object") {
+        const record = value as Record<string, unknown>;
+        return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${canonicalToolInput(record[key])}`).join(",")}}`;
+      }
+      return JSON.stringify(value) ?? "null";
+    };
+    const sanitizeToolCheckpointResult = (value: unknown, depth = 0): unknown => {
+      if (depth > 8) return "[depth-limited]";
+      if (typeof value === "string") return value.length > 8000 ? `${value.slice(0, 8000)}…[truncated]` : value;
+      if (Array.isArray(value)) return value.slice(0, 40).map((item) => sanitizeToolCheckpointResult(item, depth + 1));
+      if (value && typeof value === "object") {
+        const output: Record<string, unknown> = {};
+        for (const [key, item] of Object.entries(value as Record<string, unknown>).slice(0, 80)) {
+          output[key] = /token|secret|password|authorization|api.?key|credential|cookie/i.test(key)
+            ? "[redacted]"
+            : sanitizeToolCheckpointResult(item, depth + 1);
+        }
+        return output;
+      }
+      return value ?? null;
+    };
+    const execute = async (tool: string, input: Record<string, unknown>): Promise<unknown> => {
+      const registeredTool = getRegisteredTool(tool);
+      if (!registeredTool || !validateToolInput(registeredTool, input)) {
+        throw new Error("tool_not_registered_or_invalid_input");
+      }
+      if (registeredTool.effect !== "write" || !internalBrainCall || !agentJobId || !agentWorkerId || !agentWorkerAttempt) {
+        return await executeToolImplementation(tool, input);
+      }
+      // Approval is checked before claiming a side-effect checkpoint. An
+      // unapproved action has not started and remains safely retryable.
+      if (registeredTool.requiresApproval && !confirmedWrite) {
+        return await executeToolImplementation(tool, input);
+      }
+
+      const serialized = canonicalToolInput(input);
+      const digest = await crypto.subtle.digest(
+        "SHA-256",
+        new TextEncoder().encode(`${tool}:${serialized}`),
+      );
+      const inputHash = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+      const occurrenceKey = `${tool}:${inputHash}`;
+      const occurrenceNo = (toolOccurrenceCounts.get(occurrenceKey) ?? 0) + 1;
+      toolOccurrenceCounts.set(occurrenceKey, occurrenceNo);
+
+      const { data: claimData, error: claimError } = await supabase.rpc("claim_agent_tool_execution", {
+        p_job_id: agentJobId,
+        p_task_id: billingTaskId,
+        p_user_id: user.id,
+        p_worker_id: agentWorkerId,
+        p_worker_attempt: agentWorkerAttempt as number,
+        p_tool_name: tool,
+        p_input_hash: inputHash,
+        p_occurrence_no: occurrenceNo,
+      });
+      if (claimError) throw new Error("agent_tool_checkpoint_unavailable");
+      const claim = asRecord(claimData);
+      if (claim.status === "lease_lost") throw new Error("agent_worker_lease_lost");
+      if (claim.status === "cancelled") return { status: "cancelled", reason: "user_requested_stop" };
+      if (claim.status === "completed" || claim.status === "failed") {
+        return claim.result && typeof claim.result === "object"
+          ? claim.result
+          : { status: claim.status, reason: "saved_tool_result_unavailable" };
+      }
+      if (claim.status === "outcome_unknown") {
+        operationalReply = "لم أكرر الإجراء الخارجي لأن العامل السابق بدأه ولم تُحفظ نتيجة مؤكدة. أوقفت إعادة التنفيذ لتجنب تكرار أثر جانبي؛ يلزم التحقق من الخدمة المتصلة أولاً.";
+        return { status: "blocked", reason: "previous_write_outcome_unknown", tool };
+      }
+      if (claim.claimed !== true || typeof claim.checkpoint_id !== "string") {
+        throw new Error("agent_tool_checkpoint_claim_failed");
+      }
+
+      // If the process stops after the external action but before this durable
+      // completion write, the checkpoint remains running and retries are blocked.
+      const result = await executeToolImplementation(tool, input);
+      const resultRecord = asRecord(result);
+      const resultStatus = resultRecord.status === "failed" ? "failed" : "completed";
+      const sanitizedResult = sanitizeToolCheckpointResult(result);
+      const safeResult = sanitizedResult && typeof sanitizedResult === "object" && !Array.isArray(sanitizedResult)
+        ? sanitizedResult as Record<string, unknown>
+        : { result: sanitizedResult };
+      const { data: completeData, error: completeError } = await supabase.rpc("complete_agent_tool_execution", {
+        p_job_id: agentJobId,
+        p_task_id: billingTaskId,
+        p_user_id: user.id,
+        p_worker_id: agentWorkerId,
+        p_worker_attempt: agentWorkerAttempt as number,
+        p_checkpoint_id: claim.checkpoint_id,
+        p_status: resultStatus,
+        p_result: safeResult,
+      });
+      if (completeError || asRecord(completeData).completed !== true) {
+        throw new Error("agent_tool_checkpoint_completion_failed");
+      }
+      return result;
+    };
+
+    const agentLoopResumeSteps = new Map<number, AgentLoopResumeStep>();
+    const agentLoopDecisions = new Map<number, AgentDecision>();
+    if (workspaceId && internalBrainCall) {
+      const { data: savedLoopRows, error: savedLoopError } = await supabase
+        .from("agent_workspace_steps")
+        .select("step_key,result")
+        .eq("workspace_id", workspaceId)
+        .like("step_key", "agent-loop-step-%")
+        .limit(5);
+      if (savedLoopError) throw new Error("Could not restore durable Agent loop checkpoints.");
+      for (const row of savedLoopRows ?? []) {
+        const match = /^agent-loop-step-(\\d+)$/.exec(String(row.step_key));
+        if (!match) continue;
+        const index = Number(match[1]);
+        if (!Number.isSafeInteger(index) || index < 0 || index >= 5) continue;
+        const saved = asRecord(row.result);
+        const decisionText = saved.decision ? JSON.stringify(saved.decision) : "";
+        const decision = parseAgentDecision(decisionText);
+        if (!decision) continue;
+        agentLoopDecisions.set(index, decision);
+        if (saved.tool_result_status === "completed" && Object.prototype.hasOwnProperty.call(saved, "tool_result")) {
+          agentLoopResumeSteps.set(index, { decision, toolResultStatus: "completed", toolResult: saved.tool_result });
+        } else if (saved.tool_result_status === "failed") {
+          agentLoopResumeSteps.set(index, {
+            decision,
+            toolResultStatus: "failed",
+            toolError: typeof saved.tool_error === "string" ? saved.tool_error : "tool_failed",
+          });
+        } else {
+          agentLoopResumeSteps.set(index, { decision });
+        }
+      }
+    }
+    const persistAgentLoopStep = async (
+      index: number,
+      status: "running" | "waiting_approval" | "completed" | "failed",
+      patch: Record<string, unknown> = {},
+    ) => {
+      if (!workspaceId) throw new Error("Agent loop workspace is unavailable.");
+      const timestamp = new Date().toISOString();
+      const { data, error } = await supabase.from("agent_workspace_steps")
+        .update({
+          status,
+          ...(status === "running" ? { started_at: timestamp, completed_at: null } : {}),
+          ...(status === "completed" || status === "failed" ? { completed_at: timestamp } : {}),
+          ...patch,
+        })
+        .eq("workspace_id", workspaceId)
+        .eq("step_key", `agent-loop-step-${index}`)
+        .select("step_key")
+        .maybeSingle();
+      if (error || !data) throw new Error("Durable Agent loop checkpoint could not be saved.");
+      await updateTaskLedger(
+        `agent-loop-step-${index}`,
+        status === "waiting_approval" ? "running" : status,
+        { checkpointed: true, ...(typeof patch.current_step === "string" ? { current_step: patch.current_step } : {}) },
+      );
+    };
+
     const loopResult = await runAgentLoop({
       messages,
       tools: agentTools,
       maxSteps: 5,
+      resumeSteps: agentLoopResumeSteps,
+      async onDecision(decision, index) {
+        agentLoopDecisions.set(index, decision);
+        await persistAgentLoopStep(index, "running", { result: { decision } });
+      },
       confirmedWrite,
       plan,
       execute,
@@ -2163,10 +2511,26 @@ async function handleRequest(req: Request): Promise<Response> {
         const status = reason === "approval_required" ? "pending" : "rejected";
         await recordToolExecution(tool, input, { status, reason }, status, reason);
       },
-      async onToolError(tool, input, reason) {
+      async onToolError(tool, input, reason, index) {
+        const decision = agentLoopDecisions.get(index);
+        await persistAgentLoopStep(index, "failed", {
+          result: {
+            ...(decision ? { decision } : {}),
+            tool_result_status: "failed",
+            tool_error: safeOperationalSummary(reason, 300),
+          },
+        });
         await recordToolExecution(tool, input, { status: "failed", reason }, "failed", "tool_execution_failed");
       },
-      async onToolResult(tool, input, result) {
+      async onToolResult(tool, input, result, index) {
+        const decision = agentLoopDecisions.get(index);
+        await persistAgentLoopStep(index, "completed", {
+          result: {
+            ...(decision ? { decision } : {}),
+            tool_result_status: "completed",
+            tool_result: sanitizeToolCheckpointResult(result),
+          },
+        });
         await recordToolExecution(tool, input, result, "completed");
         if (!new Set(["connected_app.read", "connected_app.read_multiple", "web.search"]).has(tool)) return;
         let serialized = "null";
@@ -2177,6 +2541,7 @@ async function handleRequest(req: Request): Promise<Response> {
         agentEvidence.push({ tool, result: bounded });
         agentEvidenceChars += bounded.length;
       },
+      isCancelled: checkAgentCancellation,
       async onStep(step: AgentLoopStep) {
         const labels: Record<string, string> = {
           planning: "تحليل الطلب واختيار الخطوة",
@@ -2193,10 +2558,12 @@ async function handleRequest(req: Request): Promise<Response> {
         else if (step.status === "completed") taskUpdates.push({ task, status: "completed" });
         else if (step.status === "failed") taskUpdates.push({ task, status: "failed" });
         const persistedStatus = step.status === "requires_confirmation" ? "waiting_approval" : step.status === "running" ? "running" : step.status;
+        await persistAgentLoopStep(step.index, persistedStatus as "running" | "waiting_approval" | "completed" | "failed", { current_step: step.kind, tool: step.tool ?? null });
         await updateWorkspaceStep("agent-loop", persistedStatus as "running" | "reviewing" | "waiting_approval" | "retrying" | "completed" | "failed", { current_step: step.kind, tool: step.tool ?? null });
         await updateTaskLedger("agent-loop", persistedStatus === "waiting_approval" ? "running" : persistedStatus as "running" | "completed" | "failed", { kind: step.kind, tool: step.tool ?? null });
       },
     });
+    let agentCancellationObserved = loopResult.status === "cancelled";
 
     if (connectorRequest) {
       const awaitingApproval = loopResult.status === "needs_confirmation";
@@ -2213,9 +2580,11 @@ async function handleRequest(req: Request): Promise<Response> {
       });
     }
 
-    let content = operationalReply ?? (loopResult.status === "completed"
-      ? loopResult.answer
-      : loopResult.status === "needs_clarification"
+    let content = operationalReply ?? (loopResult.status === "cancelled"
+      ? "تم إيقاف المهمة بناءً على طلبك. احتُفظ باستهلاك الخطوات التي اكتملت قبل الإيقاف."
+      : loopResult.status === "completed"
+        ? loopResult.answer
+        : loopResult.status === "needs_clarification"
         ? loopResult.question
         : loopResult.status === "needs_confirmation"
           ? "أحتاج موافقتك الصريحة على نص العملية قبل تنفيذ أي إرسال أو تعديل خارجي. راجع المعاينة ثم وافق لإعادة إرسال الطلب نفسه."
@@ -2256,7 +2625,8 @@ async function handleRequest(req: Request): Promise<Response> {
       let summarizerAttempts = 0;
       for (const pool of summarizerPools) {
         for (const baseCandidate of pool.candidates) {
-          if (summarizerAttempts >= 3 || summarizerCandidateUsed) break;
+          if (summarizerAttempts >= 3 || summarizerCandidateUsed || agentCancellationObserved) break;
+          if (await checkAgentCancellation()) { agentCancellationObserved = true; break; }
           summarizerAttempts += 1;
           const candidate: Candidate = {
             ...baseCandidate,
@@ -2271,6 +2641,7 @@ async function handleRequest(req: Request): Promise<Response> {
           const collected = await collectCandidate(ready, 8000);
           summarizerInputTokens += ready.inputTokens > 0 ? ready.inputTokens : estimateTokens(requestMessages.map((message) => message.content).join("\n"));
           summarizerOutputTokens += ready.outputTokens > 0 ? ready.outputTokens : estimateTokens(collected.content);
+          if (await checkAgentCancellation()) { agentCancellationObserved = true; break; }
           const summarized = collected.content.trim();
           if (!summarized || summarized.length > 6000) {
             await recordAttempt(ready, "error", Date.now() - ready.startedAtMs, "invalid_agent_summary", "Summarizer returned an empty or oversized answer.");
@@ -2280,7 +2651,7 @@ async function handleRequest(req: Request): Promise<Response> {
           content = summarized;
           await recordAttempt(ready, "success", Date.now() - ready.startedAtMs);
         }
-        if (summarizerAttempts >= 3 || summarizerCandidateUsed) break;
+        if (summarizerAttempts >= 3 || summarizerCandidateUsed || agentCancellationObserved) break;
       }
       taskUpdates.push({ task: summarizerTask, status: summarizerCandidateUsed ? "completed" : "failed" });
     }
@@ -2296,7 +2667,7 @@ async function handleRequest(req: Request): Promise<Response> {
       { candidates: prioritizeModelCandidate(prioritizeAgentProfileCandidates(paidPlanPool.filter((candidate) => modelSupportsRole(candidate.model, "reviewer")), selectAgentProfile(agentProfiles, "reviewer")), settings.agentPlannerModelId), timeoutMs: settings.paidFallbackTimeoutMs },
     ];
     const reviewTask = "مراجعة جودة النتيجة قبل التسليم";
-    if (loopResult.status === "completed" && !operationalReply) {
+    if (loopResult.status === "completed" && !operationalReply && !agentCancellationObserved && !(await checkAgentCancellation())) {
       taskUpdates.push({ task: reviewTask, status: "running" });
       for (let reviewAttempt = 0; reviewAttempt < 2; reviewAttempt += 1) {
         const reviewMessages: ChatMessage[] = [
@@ -2307,12 +2678,14 @@ async function handleRequest(req: Request): Promise<Response> {
         let reviewed = false;
         for (const pool of reviewerPools) {
           for (const baseCandidate of pool.candidates) {
+            if (agentCancellationObserved || await checkAgentCancellation()) { agentCancellationObserved = true; break; }
             const candidate: Candidate = { ...baseCandidate, requestMessages: providerMessagesForModel(reviewMessages, []), temperature: 0, maxTokens: 500, inputTokens: 0, outputTokens: 0 };
             const ready = await firstReady([candidate], pool.timeoutMs, recordAttempt, countModelStarts);
             if (!ready) continue;
             const collected = await collectCandidate(ready, 2000);
             reviewerInputTokens += ready.inputTokens > 0 ? ready.inputTokens : estimateTokens(reviewMessages.map((message) => message.content).join("\n"));
             reviewerOutputTokens += ready.outputTokens > 0 ? ready.outputTokens : estimateTokens(collected.content);
+            if (await checkAgentCancellation()) { agentCancellationObserved = true; break; }
             try {
               const parsed = JSON.parse(collected.content.trim().replace(/^```json\s*/i, "").replace(/\s*```$/, "")) as Record<string, unknown>;
               const verdict = parsed.verdict === "retry" || parsed.verdict === "rejected" ? parsed.verdict : parsed.verdict === "approved" ? "approved" : null;
@@ -2327,9 +2700,9 @@ async function handleRequest(req: Request): Promise<Response> {
               await recordAttempt(ready, "error", Date.now() - ready.startedAtMs, "invalid_reviewer_verdict", "Reviewer did not return the required JSON verdict.");
             }
           }
-          if (reviewed) break;
+          if (reviewed || agentCancellationObserved) break;
         }
-        if (!reviewed || reviewVerdict === "approved" || reviewVerdict === "rejected") break;
+        if (agentCancellationObserved || !reviewed || reviewVerdict === "approved" || reviewVerdict === "rejected") break;
         await updateWorkspace("retrying", { review_feedback: reviewFeedback });
         await updateWorkspaceStep("agent-loop", "retrying", { review_feedback: reviewFeedback });
         // One bounded revision using the summarizer pool; no new tools are run.
@@ -2340,19 +2713,21 @@ async function handleRequest(req: Request): Promise<Response> {
         let revised = false;
         for (const pool of summarizerPools) {
           for (const baseCandidate of pool.candidates) {
+            if (await checkAgentCancellation()) { agentCancellationObserved = true; break; }
             const candidate: Candidate = { ...baseCandidate, requestMessages: providerMessagesForModel(revisionMessages, []), temperature: 0.1, maxTokens: Math.min(1800, Math.max(256, maxTokens)), inputTokens: 0, outputTokens: 0 };
             const ready = await firstReady([candidate], pool.timeoutMs, recordAttempt, countModelStarts);
             if (!ready) continue;
             const collected = await collectCandidate(ready, 8000);
             summarizerInputTokens += ready.inputTokens > 0 ? ready.inputTokens : estimateTokens(revisionMessages.map((message) => message.content).join("\n"));
             summarizerOutputTokens += ready.outputTokens > 0 ? ready.outputTokens : estimateTokens(collected.content);
+            if (await checkAgentCancellation()) { agentCancellationObserved = true; break; }
             if (collected.content.trim().length < 1 || collected.content.trim().length > 6000) continue;
             content = collected.content.trim();
             summarizerCandidateUsed = ready;
             revised = true;
             break;
           }
-          if (revised) break;
+          if (revised || agentCancellationObserved) break;
         }
         if (!revised) {
           reviewVerdict = "rejected";
@@ -2374,6 +2749,8 @@ async function handleRequest(req: Request): Promise<Response> {
         content = "تعذر اعتماد النتيجة بعد المراجعة المستقلة؛ لم أقدّم إجابة غير موثوقة. أعد المحاولة بطلب أوضح.";
       }
     }
+    if (internalBrainCall && await checkAgentCancellation()) agentCancellationObserved = true;
+    if (agentCancellationObserved) content = "تم إيقاف المهمة بناءً على طلبك. احتُفظ باستهلاك الخطوات التي اكتملت قبل الإيقاف.";
     content = applyFinalOutputLimit(content, maxOutputChars).content;
     const agentWorkspaceStatus = loopResult.status === "needs_confirmation" ? "waiting_approval" : loopResult.status === "completed" && reviewVerdict !== "rejected" ? "completed" : "failed";
     await updateWorkspaceStep("agent-loop", agentWorkspaceStatus === "waiting_approval" ? "waiting_approval" : agentWorkspaceStatus, { result: { status: loopResult.status, characters: content.length } });
@@ -2419,7 +2796,7 @@ async function handleRequest(req: Request): Promise<Response> {
       review_verdict: reviewVerdict,
       review_feedback: reviewFeedback || null,
       route: "agent",
-      agent_status: loopResult.status,
+      agent_status: agentCancellationObserved ? "cancelled" : loopResult.status,
       agent_steps: loopResult.steps,
       connector_status: connectorRequest
         ? operationalReply

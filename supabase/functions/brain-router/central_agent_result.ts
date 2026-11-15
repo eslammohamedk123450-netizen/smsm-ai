@@ -7,6 +7,7 @@ export interface CentralAgentResult {
   estimatedSteps: number;
   complexity: "easy" | "complex";
   capabilities: string[];
+  status: "completed" | "cancelled" | "failed";
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -58,13 +59,14 @@ export function parseCentralAgentResult(value: unknown): CentralAgentResult | nu
     estimatedSteps: Math.max(1, agentSteps.length),
     complexity: agentSteps.length > 2 ? "complex" : "easy",
     capabilities,
+    status: payload.agent_status === "cancelled" ? "cancelled" : payload.agent_status === "failed" ? "failed" : "completed",
   };
 }
 
 export function toBrainTaskStepRows(
   taskId: string,
   agentSteps: Record<string, unknown>[],
-  fallbackStatus: "completed" | "failed" = "completed",
+  fallbackStatus: "completed" | "failed" | "cancelled" = "completed",
 ): Array<Record<string, unknown>> {
   const sourceSteps = agentSteps.length > 0
     ? agentSteps.slice(0, 100)
@@ -73,7 +75,7 @@ export function toBrainTaskStepRows(
     const tool = typeof step.tool === "string" ? step.tool.slice(0, 80) : null;
     const kind = typeof step.kind === "string" ? step.kind : "planning";
     const rawStatus = step.status;
-    const status = rawStatus === "completed" ? "completed" : rawStatus === "failed" ? "failed" : "running";
+    const status = rawStatus === "completed" ? "completed" : rawStatus === "failed" ? "failed" : rawStatus === "cancelled" ? "cancelled" : "running";
     const capabilityKey = tool === "web.search" ? "web_search" : kind === "planning" ? "reasoning" : "text";
     const description = tool
       ? `تنفيذ الأداة ${tool}`

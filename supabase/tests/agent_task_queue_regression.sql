@@ -27,6 +27,8 @@ declare
   v_cancel_task uuid := gen_random_uuid();
   v_cancel_job uuid;
   v_running_job uuid;
+  v_running_task uuid := gen_random_uuid();
+  v_cancel_poll boolean;
   v_cancel_result jsonb;
 begin
   select array_agg(id order by created_at)
@@ -45,6 +47,20 @@ begin
   insert into public.agent_task_jobs(user_id, job_type, payload, idempotency_key, priority, max_attempts)
   values (v_b, 'brain_task', jsonb_build_object('user_id', v_b), 'regression-b-' || gen_random_uuid()::text, 10, 3)
   returning id into v_b_job;
+
+  -- Isolate this harness from unrelated queued work in a shared development project.
+  -- The outer transaction rolls this temporary deferral back.
+  update public.agent_task_jobs
+     set available_at = now() + interval '1 day'
+   where user_id in (v_a, v_b)
+     and status = 'queued'
+     and id not in (v_a_job, v_b_job);
+  update public.agent_task_jobs
+     set status = 'failed', locked_by = null, lease_until = null,
+         completed_at = now(), updated_at = now()
+   where user_id in (v_a, v_b)
+     and status = 'running'
+     and id not in (v_a_job, v_b_job);
 
   if not exists (
     select 1 from public.claim_agent_task_jobs('regression-worker-a', 1, 60, v_a) where id = v_a_job
@@ -166,16 +182,33 @@ begin
     raise exception 'Repeated cancellation was not idempotently rejected: %', v_cancel_result;
   end if;
 
-  -- A running job is never mutated by this queued-only cancellation RPC.
-  insert into public.agent_task_jobs(user_id, job_type, payload, idempotency_key, status, locked_by, lease_until)
-  values (v_a, 'brain_task', '{}'::jsonb, 'regression-running-cancel-' || gen_random_uuid()::text,
+  -- Running cancellation records a request but leaves the worker lease intact.
+  insert into public.agent_task_jobs(user_id, task_id, job_type, payload, idempotency_key, status, locked_by, lease_until)
+  values (v_a, v_running_task, 'brain_task',
+    jsonb_build_object('user_id', v_a, 'task_id', v_running_task, 'objective', 'running cancellation regression'),
+    'regression-running-cancel-' || gen_random_uuid()::text,
     'running', 'regression-active-worker', now() + interval '2 minutes')
   returning id into v_running_job;
   v_cancel_result := public.cancel_agent_task_job(v_running_job);
-  if coalesce((v_cancel_result->>'success')::boolean, true)
-     or v_cancel_result->>'reason' <> 'already_running'
-     or (select status from public.agent_task_jobs where id = v_running_job) <> 'running' then
-    raise exception 'Running job was incorrectly mutated by queued cancellation: %', v_cancel_result;
+  if coalesce((v_cancel_result->>'success')::boolean, false) is not true
+     or coalesce((v_cancel_result->>'cancel_requested')::boolean, false) is not true
+     or v_cancel_result->>'status' <> 'running'
+     or (select status from public.agent_task_jobs where id = v_running_job) <> 'running'
+     or (select cancel_requested_at from public.agent_task_jobs where id = v_running_job) is null then
+    raise exception 'Running cancellation did not persist a safe cancellation request: %', v_cancel_result;
+  end if;
+
+  perform set_config('request.jwt.claim.role', 'service_role', true);
+  v_cancel_poll := public.agent_task_cancel_requested(v_running_job, v_running_task, v_a);
+  if v_cancel_poll is not true then
+    raise exception 'Worker cancellation poll did not observe the request';
+  end if;
+
+  perform set_config('request.jwt.claim.role', 'authenticated', true);
+  v_cancel_result := public.cancel_agent_task_job(v_running_job);
+  if coalesce((v_cancel_result->>'success')::boolean, false) is not true
+     or coalesce((v_cancel_result->>'already_requested')::boolean, false) is not true then
+    raise exception 'Repeated running cancellation was not idempotent: %', v_cancel_result;
   end if;
 
   -- A different authenticated user cannot discover or cancel another user's job.

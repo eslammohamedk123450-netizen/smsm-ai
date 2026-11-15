@@ -41,8 +41,10 @@ export function wakeBrainWorker(): void {
 }
 
 
-/** Cancel only work that is still queued; running provider work is not mutated. */
-export async function cancelBrainTask(jobId: string): Promise<void> {
+export type BrainTaskCancellation = { status: "cancelled" | "running"; cancelRequested: boolean };
+
+/** Cancels queued work or requests a safe stop at the next running-step boundary. */
+export async function cancelBrainTask(jobId: string): Promise<BrainTaskCancellation> {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(jobId)) {
     throw new Error("معرّف المهمة غير صالح.");
   }
@@ -55,4 +57,9 @@ export async function cancelBrainTask(jobId: string): Promise<void> {
     if (reason === "not_found") throw new Error("المهمة غير موجودة أو لا تملك صلاحية إلغائها.");
     throw new Error("المهمة انتهت بالفعل ولا تحتاج إلى إلغاء.");
   }
+  const status = (result as Record<string, unknown>).status;
+  const cancelRequested = (result as Record<string, unknown>).cancel_requested === true;
+  if (status === "cancelled") return { status: "cancelled", cancelRequested: false };
+  if (status === "running" && cancelRequested) return { status: "running", cancelRequested: true };
+  throw new Error("لم يتم تأكيد طلب إيقاف المهمة.");
 }
