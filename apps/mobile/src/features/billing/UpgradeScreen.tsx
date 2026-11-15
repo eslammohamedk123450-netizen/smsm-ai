@@ -23,9 +23,10 @@ export default function UpgradeScreen() {
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
-    let [plansResult, featuresResult, profileResult] = await Promise.all([
+    let [plansResult, featuresResult, tierResult, profileResult] = await Promise.all([
       supabase.from("subscription_plans").select("id,name,tier_key,description,price,currency,billing_period,daily_credits,max_requests,sort_order").eq("is_active", true).order("sort_order").limit(20),
       supabase.from("subscription_plan_features").select("id,plan_id,title,value,sort_order").eq("is_active", true).order("sort_order").limit(200),
+      user ? supabase.rpc("suly_effective_subscription_tier", { p_user_id: user.id }) : Promise.resolve({ data: null, error: null }),
       user ? supabase.from("suly_profiles").select("subscription_tier").eq("id", user.id).maybeSingle() : Promise.resolve({ data: null, error: null }),
     ]);
     if (plansResult.error) {
@@ -36,7 +37,8 @@ export default function UpgradeScreen() {
     else {
       setPlans((plansResult.data ?? []) as Plan[]);
       setFeatures((featuresResult.data ?? []) as Feature[]);
-      setCurrentTier(String(profileResult.data?.subscription_tier ?? user?.user_metadata?.subscription_tier ?? "free").toLowerCase());
+      const effectiveTier = typeof tierResult.data === "string" ? tierResult.data : profileResult.data?.subscription_tier ?? user?.user_metadata?.subscription_tier ?? "free";
+      setCurrentTier(String(effectiveTier).toLowerCase());
     }
     setLoading(false);
   }, [user]);
