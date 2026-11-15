@@ -110,6 +110,7 @@ async function main(req: Request): Promise<Response> {
         user_id: userId,
         feature_key: "brain_system",
         request_id: taskId,
+        agent_job_id: cleanText(body.job_id, 64),
         execution_mode: "agent",
         routing_mode: "auto",
         stream: false,
