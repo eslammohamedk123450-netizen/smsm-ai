@@ -2220,6 +2220,7 @@ async function handleRequest(req: Request): Promise<Response> {
         await updateTaskLedger("agent-loop", persistedStatus === "waiting_approval" ? "running" : persistedStatus as "running" | "completed" | "failed", { kind: step.kind, tool: step.tool ?? null });
       },
     });
+    let agentCancellationObserved = loopResult.status === "cancelled";
 
     if (connectorRequest) {
       const awaitingApproval = loopResult.status === "needs_confirmation";
@@ -2281,7 +2282,8 @@ async function handleRequest(req: Request): Promise<Response> {
       let summarizerAttempts = 0;
       for (const pool of summarizerPools) {
         for (const baseCandidate of pool.candidates) {
-          if (summarizerAttempts >= 3 || summarizerCandidateUsed) break;
+          if (summarizerAttempts >= 3 || summarizerCandidateUsed || agentCancellationObserved) break;
+          if (await checkAgentCancellation()) { agentCancellationObserved = true; break; }
           summarizerAttempts += 1;
           const candidate: Candidate = {
             ...baseCandidate,
@@ -2296,6 +2298,7 @@ async function handleRequest(req: Request): Promise<Response> {
           const collected = await collectCandidate(ready, 8000);
           summarizerInputTokens += ready.inputTokens > 0 ? ready.inputTokens : estimateTokens(requestMessages.map((message) => message.content).join("\n"));
           summarizerOutputTokens += ready.outputTokens > 0 ? ready.outputTokens : estimateTokens(collected.content);
+          if (await checkAgentCancellation()) { agentCancellationObserved = true; break; }
           const summarized = collected.content.trim();
           if (!summarized || summarized.length > 6000) {
             await recordAttempt(ready, "error", Date.now() - ready.startedAtMs, "invalid_agent_summary", "Summarizer returned an empty or oversized answer.");
@@ -2305,7 +2308,7 @@ async function handleRequest(req: Request): Promise<Response> {
           content = summarized;
           await recordAttempt(ready, "success", Date.now() - ready.startedAtMs);
         }
-        if (summarizerAttempts >= 3 || summarizerCandidateUsed) break;
+        if (summarizerAttempts >= 3 || summarizerCandidateUsed || agentCancellationObserved) break;
       }
       taskUpdates.push({ task: summarizerTask, status: summarizerCandidateUsed ? "completed" : "failed" });
     }
@@ -2321,7 +2324,7 @@ async function handleRequest(req: Request): Promise<Response> {
       { candidates: prioritizeModelCandidate(prioritizeAgentProfileCandidates(paidPlanPool.filter((candidate) => modelSupportsRole(candidate.model, "reviewer")), selectAgentProfile(agentProfiles, "reviewer")), settings.agentPlannerModelId), timeoutMs: settings.paidFallbackTimeoutMs },
     ];
     const reviewTask = "مراجعة جودة النتيجة قبل التسليم";
-    if (loopResult.status === "completed" && !operationalReply) {
+    if (loopResult.status === "completed" && !operationalReply && !agentCancellationObserved && !(await checkAgentCancellation())) {
       taskUpdates.push({ task: reviewTask, status: "running" });
       for (let reviewAttempt = 0; reviewAttempt < 2; reviewAttempt += 1) {
         const reviewMessages: ChatMessage[] = [
@@ -2332,12 +2335,14 @@ async function handleRequest(req: Request): Promise<Response> {
         let reviewed = false;
         for (const pool of reviewerPools) {
           for (const baseCandidate of pool.candidates) {
+            if (agentCancellationObserved || await checkAgentCancellation()) { agentCancellationObserved = true; break; }
             const candidate: Candidate = { ...baseCandidate, requestMessages: providerMessagesForModel(reviewMessages, []), temperature: 0, maxTokens: 500, inputTokens: 0, outputTokens: 0 };
             const ready = await firstReady([candidate], pool.timeoutMs, recordAttempt, countModelStarts);
             if (!ready) continue;
             const collected = await collectCandidate(ready, 2000);
             reviewerInputTokens += ready.inputTokens > 0 ? ready.inputTokens : estimateTokens(reviewMessages.map((message) => message.content).join("\n"));
             reviewerOutputTokens += ready.outputTokens > 0 ? ready.outputTokens : estimateTokens(collected.content);
+            if (await checkAgentCancellation()) { agentCancellationObserved = true; break; }
             try {
               const parsed = JSON.parse(collected.content.trim().replace(/^```json\s*/i, "").replace(/\s*```$/, "")) as Record<string, unknown>;
               const verdict = parsed.verdict === "retry" || parsed.verdict === "rejected" ? parsed.verdict : parsed.verdict === "approved" ? "approved" : null;
@@ -2352,9 +2357,9 @@ async function handleRequest(req: Request): Promise<Response> {
               await recordAttempt(ready, "error", Date.now() - ready.startedAtMs, "invalid_reviewer_verdict", "Reviewer did not return the required JSON verdict.");
             }
           }
-          if (reviewed) break;
+          if (reviewed || agentCancellationObserved) break;
         }
-        if (!reviewed || reviewVerdict === "approved" || reviewVerdict === "rejected") break;
+        if (agentCancellationObserved || !reviewed || reviewVerdict === "approved" || reviewVerdict === "rejected") break;
         await updateWorkspace("retrying", { review_feedback: reviewFeedback });
         await updateWorkspaceStep("agent-loop", "retrying", { review_feedback: reviewFeedback });
         // One bounded revision using the summarizer pool; no new tools are run.
@@ -2365,19 +2370,21 @@ async function handleRequest(req: Request): Promise<Response> {
         let revised = false;
         for (const pool of summarizerPools) {
           for (const baseCandidate of pool.candidates) {
+            if (await checkAgentCancellation()) { agentCancellationObserved = true; break; }
             const candidate: Candidate = { ...baseCandidate, requestMessages: providerMessagesForModel(revisionMessages, []), temperature: 0.1, maxTokens: Math.min(1800, Math.max(256, maxTokens)), inputTokens: 0, outputTokens: 0 };
             const ready = await firstReady([candidate], pool.timeoutMs, recordAttempt, countModelStarts);
             if (!ready) continue;
             const collected = await collectCandidate(ready, 8000);
             summarizerInputTokens += ready.inputTokens > 0 ? ready.inputTokens : estimateTokens(revisionMessages.map((message) => message.content).join("\n"));
             summarizerOutputTokens += ready.outputTokens > 0 ? ready.outputTokens : estimateTokens(collected.content);
+            if (await checkAgentCancellation()) { agentCancellationObserved = true; break; }
             if (collected.content.trim().length < 1 || collected.content.trim().length > 6000) continue;
             content = collected.content.trim();
             summarizerCandidateUsed = ready;
             revised = true;
             break;
           }
-          if (revised) break;
+          if (revised || agentCancellationObserved) break;
         }
         if (!revised) {
           reviewVerdict = "rejected";
@@ -2399,6 +2406,8 @@ async function handleRequest(req: Request): Promise<Response> {
         content = "تعذر اعتماد النتيجة بعد المراجعة المستقلة؛ لم أقدّم إجابة غير موثوقة. أعد المحاولة بطلب أوضح.";
       }
     }
+    if (internalBrainCall && await checkAgentCancellation()) agentCancellationObserved = true;
+    if (agentCancellationObserved) content = "تم إيقاف المهمة بناءً على طلبك. احتُفظ باستهلاك الخطوات التي اكتملت قبل الإيقاف.";
     content = applyFinalOutputLimit(content, maxOutputChars).content;
     const agentWorkspaceStatus = loopResult.status === "needs_confirmation" ? "waiting_approval" : loopResult.status === "completed" && reviewVerdict !== "rejected" ? "completed" : "failed";
     await updateWorkspaceStep("agent-loop", agentWorkspaceStatus === "waiting_approval" ? "waiting_approval" : agentWorkspaceStatus, { result: { status: loopResult.status, characters: content.length } });
@@ -2444,7 +2453,7 @@ async function handleRequest(req: Request): Promise<Response> {
       review_verdict: reviewVerdict,
       review_feedback: reviewFeedback || null,
       route: "agent",
-      agent_status: loopResult.status,
+      agent_status: agentCancellationObserved ? "cancelled" : loopResult.status,
       agent_steps: loopResult.steps,
       connector_status: connectorRequest
         ? operationalReply
