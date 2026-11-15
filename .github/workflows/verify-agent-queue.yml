@@ -21,7 +21,7 @@ on:
       - "supabase/config.toml"
       - ".github/workflows/verify-agent-queue.yml"
   push:
-    branches: [release/v1, feat/agent-worker-brain-queue]
+    branches: [release/v1, 'feat/**']
     paths:
       - "apps/mobile/**"
       - "supabase/functions/ai-router/**"
@@ -94,6 +94,7 @@ jobs:
           deno test supabase/functions/agent-task-scheduler/index.test.ts
           deno test supabase/functions/_shared/brain_task_payload.test.ts
           deno test supabase/functions/brain-router/central_agent_result.test.ts
+          deno test supabase/functions/brain-router/route_policy.test.ts
       - name: Typecheck Agent, Brain, and scheduler runtime
         run: |
           deno check --node-modules-dir=auto \
