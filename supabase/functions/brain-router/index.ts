@@ -246,8 +246,12 @@ async function main(req: Request): Promise<Response> {
     }).select("id,status").single();
     if (queueError?.code === "23505") {
       const { data: existing, error: existingError } = await admin.from("agent_task_jobs")
-        .select("id,status").eq("user_id", userId).eq("idempotency_key", idempotencyKey).maybeSingle();
+        .select("id,status,payload").eq("user_id", userId).eq("idempotency_key", idempotencyKey).maybeSingle();
       if (!existingError && existing) {
+        const existingPayload = asRecord(existing.payload);
+        if (cleanText(existingPayload.objective) !== objective) {
+          return json({ error: "task_id_conflict" }, 409);
+        }
         return json({ task_id: taskId, job_id: existing.id, status: existing.status, queued: true, route: "brain-router" }, 202);
       }
       // Keep the original usage reservation intact if the idempotent job lookup
