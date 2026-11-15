@@ -8,13 +8,13 @@ const AUTH_REQUEST_TIMEOUT_MS = 20_000;
 const OAUTH_BROWSER_TIMEOUT_MS = 120_000;
 
 function withTimeout<T>(operation: PromiseLike<T>, timeoutMs: number, action: string): Promise<T> {
-  let timer: ReturnType<typeof setTimeout>;
+  let timer: ReturnType<typeof setTimeout> | undefined;
   return Promise.race([
     Promise.resolve(operation),
     new Promise<T>((_, reject) => {
       timer = setTimeout(() => reject(new Error(`${action} timed out after ${Math.round(timeoutMs / 1000)} seconds. Please check your connection and try again.`)), timeoutMs);
     }),
-  ]).finally(() => clearTimeout(timer));
+  ]).finally(() => { if (timer) clearTimeout(timer); });
 }
 
 function syncProfileInBackground(user: User): void {
