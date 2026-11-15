@@ -95,11 +95,12 @@ function actualCostUsd(payload: Record<string, unknown>, fallback: number): { va
   }
   return { value: fallback, confirmed: false };
 }
-function actualChargeCredits(costUsd: number, price: MediaPrice): number {
+function actualChargeCredits(costUsd: number, price: MediaPrice, costConfirmed: boolean): number {
+  if (!costConfirmed) return price.price_credits;
   if (price.credit_value_egp > 0 && price.usd_to_egp > 0 && price.target_margin < 1) {
     const revenueEgp = (costUsd * price.usd_to_egp) / (1 - price.target_margin);
     const computed = Math.ceil(revenueEgp / price.credit_value_egp);
-    if (Number.isSafeInteger(computed) && computed > 0) return Math.max(price.price_credits, computed);
+    if (Number.isSafeInteger(computed) && computed >= 0) return Math.min(1000000000, computed);
   }
   return price.price_credits;
 }
@@ -109,7 +110,7 @@ async function callImageProvider(input: {
   const endpoint = new URL(input.model.endpoint_url);
   if (endpoint.protocol !== "https:" || endpoint.username || endpoint.password) throw new ServiceError(503, "عنوان مزود الصور غير صالح. راجع إعدادات المشرف.");
   if (input.model.protocol !== "openai_images") throw new ServiceError(501, "بروتوكول نموذج الصور غير مدعوم حاليًا.");
-  const providerQuality = input.quality === "economy" ? "low" : input.quality === "ultra" ? "high" : input.quality;
+  const providerQuality = input.quality === "economy" ? "low" : input.quality === "standard" ? "medium" : input.quality === "ultra" ? "high" : input.quality;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 90_000);
   let response: Response;
@@ -123,7 +124,6 @@ async function callImageProvider(input: {
         size: input.price.resolution,
         quality: providerQuality,
         n: 1,
-        response_format: "b64_json",
       }),
       signal: controller.signal,
       redirect: "error",
@@ -260,7 +260,7 @@ Deno.serve(async (req: Request) => {
     const format = imageFormat(generated.bytes);
     if (!format) throw new ServiceError(502, "صيغة الصورة التي رجعها المزود غير مدعومة.");
 
-    const actualCredits = actualChargeCredits(generated.costUsd, typedPrice);
+    const actualCredits = actualChargeCredits(generated.costUsd, typedPrice, generated.costConfirmed);
     const imageId = crypto.randomUUID();
     assetId = imageId;
     const objectKey = `${userId}/generated/${imageId}.${format.extension}`;
