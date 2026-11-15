@@ -2430,10 +2430,74 @@ async function handleRequest(req: Request): Promise<Response> {
       return result;
     };
 
+    const agentLoopResumeSteps = new Map<number, AgentLoopResumeStep>();
+    const agentLoopDecisions = new Map<number, AgentDecision>();
+    if (workspaceId && internalBrainCall) {
+      const { data: savedLoopRows, error: savedLoopError } = await supabase
+        .from("agent_workspace_steps")
+        .select("step_key,result")
+        .eq("workspace_id", workspaceId)
+        .like("step_key", "agent-loop-step-%")
+        .limit(5);
+      if (savedLoopError) throw new Error("Could not restore durable Agent loop checkpoints.");
+      for (const row of savedLoopRows ?? []) {
+        const match = /^agent-loop-step-(\\d+)$/.exec(String(row.step_key));
+        if (!match) continue;
+        const index = Number(match[1]);
+        if (!Number.isSafeInteger(index) || index < 0 || index >= 5) continue;
+        const saved = asRecord(row.result);
+        const decisionText = saved.decision ? JSON.stringify(saved.decision) : "";
+        const decision = parseAgentDecision(decisionText);
+        if (!decision) continue;
+        agentLoopDecisions.set(index, decision);
+        if (saved.tool_result_status === "completed" && Object.prototype.hasOwnProperty.call(saved, "tool_result")) {
+          agentLoopResumeSteps.set(index, { decision, toolResultStatus: "completed", toolResult: saved.tool_result });
+        } else if (saved.tool_result_status === "failed") {
+          agentLoopResumeSteps.set(index, {
+            decision,
+            toolResultStatus: "failed",
+            toolError: typeof saved.tool_error === "string" ? saved.tool_error : "tool_failed",
+          });
+        } else {
+          agentLoopResumeSteps.set(index, { decision });
+        }
+      }
+    }
+    const persistAgentLoopStep = async (
+      index: number,
+      status: "running" | "waiting_approval" | "completed" | "failed",
+      patch: Record<string, unknown> = {},
+    ) => {
+      if (!workspaceId) throw new Error("Agent loop workspace is unavailable.");
+      const timestamp = new Date().toISOString();
+      const { data, error } = await supabase.from("agent_workspace_steps")
+        .update({
+          status,
+          ...(status === "running" ? { started_at: timestamp } : {}),
+          ...(status === "completed" || status === "failed" ? { completed_at: timestamp } : {}),
+          ...patch,
+        })
+        .eq("workspace_id", workspaceId)
+        .eq("step_key", `agent-loop-step-${index}`)
+        .select("step_key")
+        .maybeSingle();
+      if (error || !data) throw new Error("Durable Agent loop checkpoint could not be saved.");
+      await updateTaskLedger(
+        `agent-loop-step-${index}`,
+        status === "waiting_approval" ? "running" : status,
+        { checkpointed: true, ...(typeof patch.current_step === "string" ? { current_step: patch.current_step } : {}) },
+      );
+    };
+
     const loopResult = await runAgentLoop({
       messages,
       tools: agentTools,
       maxSteps: 5,
+      resumeSteps: agentLoopResumeSteps,
+      async onDecision(decision, index) {
+        agentLoopDecisions.set(index, decision);
+        await persistAgentLoopStep(index, "running", { result: { decision } });
+      },
       confirmedWrite,
       plan,
       execute,
@@ -2447,10 +2511,26 @@ async function handleRequest(req: Request): Promise<Response> {
         const status = reason === "approval_required" ? "pending" : "rejected";
         await recordToolExecution(tool, input, { status, reason }, status, reason);
       },
-      async onToolError(tool, input, reason) {
+      async onToolError(tool, input, reason, index) {
+        const decision = agentLoopDecisions.get(index);
+        await persistAgentLoopStep(index, "failed", {
+          result: {
+            ...(decision ? { decision } : {}),
+            tool_result_status: "failed",
+            tool_error: safeOperationalSummary(reason, 300),
+          },
+        });
         await recordToolExecution(tool, input, { status: "failed", reason }, "failed", "tool_execution_failed");
       },
-      async onToolResult(tool, input, result) {
+      async onToolResult(tool, input, result, index) {
+        const decision = agentLoopDecisions.get(index);
+        await persistAgentLoopStep(index, "completed", {
+          result: {
+            ...(decision ? { decision } : {}),
+            tool_result_status: "completed",
+            tool_result: sanitizeToolCheckpointResult(result),
+          },
+        });
         await recordToolExecution(tool, input, result, "completed");
         if (!new Set(["connected_app.read", "connected_app.read_multiple", "web.search"]).has(tool)) return;
         let serialized = "null";
@@ -2478,6 +2558,7 @@ async function handleRequest(req: Request): Promise<Response> {
         else if (step.status === "completed") taskUpdates.push({ task, status: "completed" });
         else if (step.status === "failed") taskUpdates.push({ task, status: "failed" });
         const persistedStatus = step.status === "requires_confirmation" ? "waiting_approval" : step.status === "running" ? "running" : step.status;
+        await persistAgentLoopStep(step.index, persistedStatus as "running" | "waiting_approval" | "completed" | "failed", { current_step: step.kind, tool: step.tool ?? null });
         await updateWorkspaceStep("agent-loop", persistedStatus as "running" | "reviewing" | "waiting_approval" | "retrying" | "completed" | "failed", { current_step: step.kind, tool: step.tool ?? null });
         await updateTaskLedger("agent-loop", persistedStatus === "waiting_approval" ? "running" : persistedStatus as "running" | "completed" | "failed", { kind: step.kind, tool: step.tool ?? null });
       },
