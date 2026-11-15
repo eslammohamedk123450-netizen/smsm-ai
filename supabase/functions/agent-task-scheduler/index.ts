@@ -17,7 +17,7 @@ function json(body: unknown, status = 200): Response {
 
 
 async function processJob(
-  job: { id: string; user_id: string; job_type: string; payload: Record<string, unknown> | null },
+  job: QueueJob,
   supabaseUrl: string,
   serviceRoleKey: string,
   admin: any,
