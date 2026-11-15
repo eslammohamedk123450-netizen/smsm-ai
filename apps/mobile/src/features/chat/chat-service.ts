@@ -249,6 +249,7 @@ export const chatService = {
   async sendMessage(options: {
     conversationId: string;
     content: string;
+    modelProfileKey?: "auto" | "lite" | "pro" | "max";
     writeApproval?: { requestId: string; originalText: string };
     mediaAsset?: MediaAsset;
     signal: AbortSignal;
@@ -332,7 +333,8 @@ export const chatService = {
       media_asset_ids: options.mediaAsset ? [options.mediaAsset.id] : undefined,
       request_id: options.writeApproval?.requestId ?? retryRequestId(String(inserted.id)),
       messages: history,
-      routing_mode: "auto",
+      routing_mode: options.modelProfileKey && options.modelProfileKey !== "auto" ? "manual" : "auto",
+      model_profile_key: options.modelProfileKey ?? "auto",
       execution_mode: "auto",
       stream: true,
       connector_approval_request_id: options.writeApproval?.requestId,
