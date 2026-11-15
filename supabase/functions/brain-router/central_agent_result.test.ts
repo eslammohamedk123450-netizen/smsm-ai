@@ -62,3 +62,14 @@ Deno.test("empty failed Agent output maps to a failed progress step", () => {
   assertEquals(rows.length, 1);
   assertEquals(rows[0].status, "failed");
 });
+
+Deno.test("failed central Agent responses retain provider usage without a final answer", () => {
+  const result = parseCentralAgentResult({
+    error: "No worker result",
+    usage: { input_tokens: 250, output_tokens: 0 },
+  });
+  assertNotEquals(result, null);
+  assertEquals(result?.response, "");
+  assertEquals(result?.inputTokens, 250);
+  assertEquals(result?.outputTokens, 0);
+});
