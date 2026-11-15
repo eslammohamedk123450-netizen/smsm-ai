@@ -333,8 +333,25 @@ async function main(req: Request): Promise<Response> {
       p_amount: walletReservation,
       p_conversation_id: null,
     });
-    const creditReservation = asRecord(creditReservationData);
-    if (creditReservationError || creditReservation.success !== true) {
+    let creditReservation = asRecord(creditReservationData);
+    if (creditReservationError) {
+      // Resolve an ambiguous RPC response by checking the idempotent hold;
+      // never release the Brain reservation if the wallet outcome is unknown.
+      const { data: existingHold, error: holdLookupError } = await admin
+        .from("suly_credit_holds")
+        .select("reserved_amount,status")
+        .eq("task_id", taskId)
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (holdLookupError) return json({ error: "Agent credit reservation outcome is unknown; retry safely" }, 503);
+      if (existingHold?.status === "held") {
+        creditReservation = { success: true, already_reserved: true, reserved_amount: existingHold.reserved_amount };
+      } else {
+        await admin.rpc("brain_finalize_usage", { p_task_id: taskId, p_actual_tokens: 0, p_status: "failed" });
+        return json({ error: "Agent credit reservation failed" }, 503);
+      }
+    }
+    if (creditReservation.success !== true) {
       await admin.rpc("brain_finalize_usage", { p_task_id: taskId, p_actual_tokens: 0, p_status: "failed" });
       const insufficient = creditReservation.error === "insufficient_credits";
       return json({
