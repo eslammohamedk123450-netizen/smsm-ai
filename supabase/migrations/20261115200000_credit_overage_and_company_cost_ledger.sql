@@ -32,7 +32,7 @@ returns jsonb
 language plpgsql
 security definer
 set search_path = pg_catalog, public, pg_temp
-as $
+as $fn$
 declare
   v_account public.suly_credit_accounts%rowtype;
   v_hold public.suly_credit_holds%rowtype;
@@ -130,7 +130,7 @@ begin
     'negative_balance_limit', v_negative_limit
   );
 end;
-$;
+$fn$;
 
 revoke all on function public.reserve_credits(uuid, uuid, bigint, uuid) from public, anon, authenticated;
 grant execute on function public.reserve_credits(uuid, uuid, bigint, uuid) to service_role;
@@ -265,7 +265,7 @@ returns jsonb
 language plpgsql
 security definer
 set search_path = pg_catalog, public, pg_temp
-as $
+as $fn$
 declare
   v_admin uuid := auth.uid();
 begin
@@ -308,7 +308,7 @@ begin
 
   return jsonb_build_object('success', true, 'negative_balance_limit', p_negative_balance_limit);
 end;
-$;
+$fn$;
 
 revoke all on function public.suly_admin_update_credit_controls(boolean,bigint,bigint,bigint,bigint) from public, anon;
 grant execute on function public.suly_admin_update_credit_controls(boolean,bigint,bigint,bigint,bigint) to authenticated;
