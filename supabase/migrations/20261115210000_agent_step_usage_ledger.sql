@@ -187,7 +187,7 @@ begin
   -- Never call finalize_credits unless this task actually owns an active credit hold.
   select exists (
     select 1 from public.suly_credit_holds
-     where task_id = p_task_id and user_id = p_user_id and status in ('reserved', 'settled')
+     where task_id = p_task_id and user_id = p_user_id and status in ('held', 'settled')
   ) into v_hold_exists;
   if not v_hold_exists then
     return jsonb_build_object(
