@@ -1455,7 +1455,17 @@ async function handleRequest(req: Request): Promise<Response> {
     };
     // Parts do not depend on one another. Bound parallel workers to three;
     // each part also races at most three candidate models and has one fallback.
-    const answerPart = async (index: number, completedDependencies: ReadonlyMap<string, { index: number; content: string; model: string | null; candidate: ReadyCandidate | null; outputGuard: "repetition" | "max_output" | null }> = new Map()): Promise<{ index: number; content: string; model: string | null; candidate: ReadyCandidate | null; outputGuard: "repetition" | "max_output" | null }> => {
+    type PartResult = {
+      index: number;
+      content: string;
+      model: string | null;
+      candidate: ReadyCandidate | null;
+      outputGuard: "repetition" | "max_output" | null;
+    };
+    const answerPart = async (
+      index: number,
+      completedDependencies: ReadonlyMap<string, PartResult> = new Map(),
+    ): Promise<PartResult> => {
       const stepKey = `part-${index + 1}`;
       await updateWorkspaceStep(stepKey, "running");
       await updateTaskLedger(stepKey, "running");
@@ -1510,7 +1520,7 @@ async function handleRequest(req: Request): Promise<Response> {
       return { index, content: "", model: null, candidate: null, outputGuard: null };
     };
     if (!taskPlan) throw new Error("A multi-part execution requires a validated task plan.");
-    const taskExecution = await executeTaskPlan(taskPlan, 3, (step, index, completed) => answerPart(index, completed));
+    const taskExecution = await executeTaskPlan<PartResult>(taskPlan, 3, (step, index, completed) => answerPart(index, completed));
     const partResultsWithCandidates = await Promise.all(taskExecution.map(async (outcome, index) => {
       if (outcome.status === "completed" && outcome.result) return outcome.result;
       const stepKey = taskPlan![index].step_id;
