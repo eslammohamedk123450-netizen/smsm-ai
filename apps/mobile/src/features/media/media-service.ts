@@ -176,17 +176,14 @@ export interface MediaGenerationJob {
   prompt: string;
   quality: string;
   estimatedCredits: number;
+  chargedCredits: number;
   createdAt: string;
 }
 export async function listMyGenerationJobs(limit = 50): Promise<MediaGenerationJob[]> {
-  const { data, error } = await supabase.from("suly_media_generation_jobs")
-    .select("id,service_type,status,prompt,quality,estimated_credits,created_at")
-    .in("status", ["queued", "running"])
-    .order("created_at", { ascending: false })
-    .limit(Math.min(Math.max(limit, 1), 100));
+  const { data, error } = await supabase.rpc("suly_list_my_media_generation_jobs");
   if (error) {
     // The media-job migration may not have reached a preview database yet.
-    if (error.code === "42P01" || error.code === "PGRST205" || error.code === "PGRST204") return [];
+    if (error.code === "42P01" || error.code === "PGRST202" || error.code === "PGRST205" || error.code === "PGRST204") return [];
     throw new MediaUploadError("jobs_list_failed", "تعذر تحميل المهام قيد التنفيذ.");
   }
   return (data ?? []).map((row) => ({
@@ -196,6 +193,7 @@ export async function listMyGenerationJobs(limit = 50): Promise<MediaGenerationJ
     prompt: String(row.prompt ?? ""),
     quality: String(row.quality ?? "standard"),
     estimatedCredits: Number(row.estimated_credits ?? 0),
+    chargedCredits: Number(row.charged_credits ?? 0),
     createdAt: String(row.created_at ?? ""),
   }));
 }
