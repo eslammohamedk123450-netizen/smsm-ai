@@ -9,6 +9,8 @@ on:
       - "supabase/functions/agent-task-worker/**"
       - "supabase/functions/agent-task-scheduler/**"
       - "supabase/functions/_shared/agent_task_queue.ts"
+      - "supabase/functions/_shared/brain_task_payload.ts"
+      - "supabase/functions/_shared/brain_task_payload.test.ts"
       - "supabase/functions/_shared/model_capabilities.ts"
       - "supabase/functions/_shared/intent_classifier.ts"
       - "supabase/functions/_shared/tavily.ts"
@@ -90,6 +92,7 @@ jobs:
           deno test supabase/functions/_shared/intent_classifier_test.ts
           deno test supabase/functions/_shared/tavily.test.ts
           deno test supabase/functions/agent-task-scheduler/index.test.ts
+          deno test supabase/functions/_shared/brain_task_payload.test.ts
           deno test supabase/functions/brain-router/central_agent_result.test.ts
       - name: Typecheck Agent, Brain, and scheduler runtime
         run: |
