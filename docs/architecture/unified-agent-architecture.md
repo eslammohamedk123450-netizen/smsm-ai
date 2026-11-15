@@ -36,7 +36,7 @@ The default path must optimize time-to-first-token: simple chat should use a dir
 - Entry point: `supabase/functions/agent-task-worker/index.ts`.
 - The worker currently accepts only `brain_task`; unsupported job types are failed.
 - It claims one job, renews a lease, calls `brain-router`, and finalizes the queue job. For queued Brain jobs, `brain-router` delegates the actual work to the central `ai-router` Agent.
-- The queue worker and scheduler still recognize only `brain_task`; generic job-handler registration and a general dependency-aware task graph remain unfinished.\n- An owner-scoped cancellation RPC can cancel queued/running jobs; running workers detect the cleared lease at heartbeat and abort. UI/API wiring and authenticated end-to-end cancellation tests remain.
+- The queue worker and scheduler still recognize only `brain_task`; generic job-handler registration and a general dependency-aware task graph remain unfinished.\n- Cancellation remains intentionally deferred: changing only the queue row can strand a Brain task context or reserved usage. Implement it as one billing-safe, authenticated workflow before exposing it in the UI.
 - Expired worker leases are now requeued once with bounded exponential backoff (15s, 30s, then capped at 5 minutes); exhausted attempts become terminal. The database claim RPC owns this transition so scheduler ticks cannot repeatedly extend the same retry delay.
 
 ### 4. Admin surfaces and data duplication
@@ -153,7 +153,7 @@ Daily and monthly budgets must be enforced server-side, not only displayed in th
 - [ ] Generalize durable task jobs and worker handlers beyond `brain_task`.
 - [ ] Add a dependency-aware task graph; current parallel execution is limited to independent parts (up to three concurrent workers).
 - [x] Add bounded exponential backoff for expired leases and preserve terminal failure after maximum attempts.
-- [x] Add an authenticated owner-scoped queue cancellation RPC and shared client helper; active workers stop on the next failed lease heartbeat.\n- [ ] Wire cancellation into every task UI/API and unify result synthesis across task types.
+- [ ] Implement end-to-end cancellation only after queue state, Brain task context, active worker abort, and usage finalization can be committed consistently.
 - [ ] Add authenticated end-to-end tests for duplicate enqueue, lease expiry, worker interruption, cross-user isolation, and usage finalization.
 - Keep worker execution separate from orchestration policy.
 
