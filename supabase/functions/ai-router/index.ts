@@ -1242,7 +1242,7 @@ async function handleRequest(req: Request): Promise<Response> {
         reason = "No API credential could be read from Supabase Vault for the linked provider.";
       }
       if (code) {
-        await recordAttempt({ model, provider, apiKey: apiKey ?? "", endpoint: endpoint ?? "", requestMessages: messages, temperature, maxTokens, inputTokens: 0, outputTokens: 0 }, "error", 0, code, reason);
+        await recordAttempt({ model, provider, apiKey: apiKey ?? "", endpoint: endpoint ?? "", requestMessages: messages, temperature, maxTokens, inputTokens: 0, outputTokens: 0, providerCostEgp: null }, "error", 0, code, reason);
       }
     }));
   };
