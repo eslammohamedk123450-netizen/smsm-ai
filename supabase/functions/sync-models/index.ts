@@ -215,11 +215,12 @@ async function handleSyncModelsRequest(request: Request): Promise<Response> {
     }
     const { data: provider, error: providerError } = await supabase
       .from("ai_providers")
-      .select("id,name,provider_type,base_url,api_key_vault_id")
+      .select("id,name,provider_type,base_url,api_key_vault_id,enabled")
       .eq("id", providerId)
       .maybeSingle();
     if (providerError) return jsonResponse({ error: "Could not read the provider." }, 500);
     if (!provider) return jsonResponse({ error: "Provider not found." }, 404);
+    if (provider.enabled !== true) return jsonResponse({ error: "المفتاح معطّل؛ لا يمكن مزامنة نماذجه حتى إعادة تفعيله." }, 409);
     const baseUrl = safeHttpsUrl(String(provider.base_url ?? ""));
     if (!baseUrl) return jsonResponse({ error: "The provider has no valid HTTPS base URL." }, 422);
     const { data: key, error: keyError } = await supabase.rpc("suly_service_get_provider_api_key", {
