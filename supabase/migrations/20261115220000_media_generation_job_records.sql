@@ -66,7 +66,7 @@ language sql
 stable
 security definer
 set search_path = public, pg_temp
-as $
+as $$
   select job.id, job.service_type, job.status, job.prompt, job.quality,
     job.estimated_credits, job.charged_credits, job.output_asset_id,
     job.created_at, job.started_at, job.completed_at, job.error_message
@@ -75,7 +75,7 @@ as $
     and job.status in ('queued','running')
   order by job.created_at desc
   limit 100;
-$;
+$$;
 
 revoke all on function public.suly_list_my_media_generation_jobs() from public, anon;
 grant execute on function public.suly_list_my_media_generation_jobs() to authenticated;
@@ -92,12 +92,12 @@ language sql
 stable
 security definer
 set search_path = public, pg_temp
-as $
+as $$
   select job.status, job.output_asset_id, job.charged_credits, job.error_message, job.metadata
   from public.suly_media_generation_jobs job
   where auth.uid() is not null and job.user_id = auth.uid() and job.id = p_job_id
   limit 1;
-$;
+$$;
 
 revoke all on function public.suly_get_my_media_generation_job(uuid) from public, anon;
 grant execute on function public.suly_get_my_media_generation_job(uuid) to authenticated;
@@ -107,7 +107,7 @@ returns integer
 language plpgsql
 security definer
 set search_path = public, pg_temp
-as $
+as $$
 declare
   v_job public.suly_media_generation_jobs%rowtype;
   v_asset public.global_media_assets%rowtype;
@@ -154,7 +154,7 @@ begin
 
   return v_recovered;
 end;
-$;
+$$;
 
 revoke all on function public.suly_service_recover_stale_media_jobs() from public, anon, authenticated;
 grant execute on function public.suly_service_recover_stale_media_jobs() to service_role;
