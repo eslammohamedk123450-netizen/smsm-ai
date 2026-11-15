@@ -101,6 +101,10 @@ const NUMBERED_LINE = /^\s*(?:(\d{1,3})\s*[.)\-–:]|(?:س|q|Q)\s*\.?\s*(\d{1,3}
 const BULLET_LINE = /^\s*[•*\-–]\s+\S/;
 const DEPENDENCY_HINT = /(?:\bthen\b|\bafter\b|\bonce\b|\bfollowed by\b|\bdepends on\b|ثم|بعد ذلك|بعدها|بعد أن|بعد ما|يعتمد على|اعتمادًا على)/iu;
 
+export function hasExplicitDependencyLanguage(text: string): boolean {
+  return DEPENDENCY_HINT.test(text);
+}
+
 /**
  * Split only explicit, same-level numbered/bulleted asks. Dependency-ordered
  * lists remain separate but are later wired into a sequential DAG; prose and
