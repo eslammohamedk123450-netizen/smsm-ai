@@ -98,6 +98,15 @@ export async function getMediaDeliveryUrl(mediaId: string): Promise<string> {
   if (error || !data || typeof data.url !== "string") throw new MediaUploadError("media_access_denied", gatewayMessage(error, data, "تعذر استرجاع الملف أو لا تملك صلاحية الوصول إليه."));
   return data.url;
 }
+export async function deleteMediaAsset(mediaId: string): Promise<void> {
+  const { data, error } = await supabase.functions.invoke("media-gateway", {
+    body: { action: "delete", media_id: mediaId },
+    headers: await getAuthHeaders(),
+  });
+  if (error || data?.success !== true) {
+    throw new MediaUploadError("media_delete_failed", gatewayMessage(error, data, "تعذر حذف الملف. قد يكون مرتبطًا بمحادثة أو محفوظًا في مخزن قديم."));
+  }
+}
 export async function getMediaDeliveryUrls(mediaIds: string[]): Promise<Map<string, string>> {
   const ids = [...new Set(mediaIds)].filter(Boolean).slice(0, 500);
   if (!ids.length) return new Map();
