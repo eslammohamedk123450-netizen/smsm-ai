@@ -13,7 +13,7 @@ function json(body: unknown, status = 200): Response {
 }
 
 async function finishAndSettle(
-  admin: AgentSettlementClient,
+  admin: Parameters<typeof finishAgentTask>[0],
   jobId: string,
   workerId: string,
   userId: string,
@@ -23,7 +23,7 @@ async function finishAndSettle(
 ): Promise<boolean> {
   const finished = await finishAgentTask(admin, jobId, workerId, status, options);
   if (finished && taskId) {
-    const settlement = await settleTerminalAgentTaskUsage(admin, { jobId, taskId, userId, status });
+    const settlement = await settleTerminalAgentTaskUsage(admin as unknown as AgentSettlementClient, { jobId, taskId, userId, status });
     if (settlement.finalized !== true) {
       console.warn("Agent task terminal billing remains pending:", String(settlement.reason ?? settlement.status ?? "unknown"));
     }
