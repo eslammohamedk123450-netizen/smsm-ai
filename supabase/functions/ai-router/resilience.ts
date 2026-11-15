@@ -102,16 +102,14 @@ const BULLET_LINE = /^\s*[•*\-–]\s+\S/;
 const DEPENDENCY_HINT = /(?:\bthen\b|\bafter\b|\bonce\b|\bfollowed by\b|\bdepends on\b|ثم|بعد ذلك|بعدها|بعد أن|بعد ما|يعتمد على|اعتمادًا على)/iu;
 
 /**
- * Split only explicit, same-level numbered/bulleted asks. Message length and
- * paragraph boundaries alone are never evidence that a request is parallel.
- * Dependency language falls back to one direct model call rather than racing
- * steps whose inputs may depend on each other.
+ * Split only explicit, same-level numbered/bulleted asks. Dependency-ordered
+ * lists remain separate but are later wired into a sequential DAG; prose and
+ * ambiguous dependency requests remain a single task.
  */
 export function splitTask(text: string, maxParts: number): string[] {
   const limit = Math.max(2, Math.min(5, Math.floor(maxParts) || 4));
   const trimmed = text.trim();
   if (!trimmed) return [];
-  if (DEPENDENCY_HINT.test(trimmed)) return [trimmed];
 
   const lines = trimmed.split(/\r?\n/);
   const blocks: string[] = [];
@@ -134,6 +132,11 @@ export function splitTask(text: string, maxParts: number): string[] {
 
   const usableBlocks = blocks.filter((block) => block.length > 0);
   if (!listType || usableBlocks.length < 2) return [trimmed];
+  // A dependency phrase only becomes an executable graph when the user also
+  // supplied an explicit ordered list. Never infer a graph from prose alone.
+  if (DEPENDENCY_HINT.test(trimmed)) {
+    return usableBlocks.length <= limit ? usableBlocks : [trimmed];
+  }
   return groupBySize(usableBlocks, limit);
 }
 
@@ -175,6 +178,25 @@ export function buildIndependentTaskPlan(parts: string[], maxParts: number): Tas
     expected_inputs: { source: "user_request_list_item", list_index: index + 1 },
     completion_criteria: "إجابة مكتملة ومباشرة عن هذا الجزء دون تنفيذ أجزاء أخرى.",
     depends_on: [],
+  }));
+}
+
+/** Build an explicit dependency chain only when the request contains both an
+ * ordered list and dependency language. Each worker receives the prior result. */
+export function buildTaskPlan(parts: string[], maxParts: number, dependencyOrdered = false): TaskPlanStep[] | null {
+  if (!dependencyOrdered) return buildIndependentTaskPlan(parts, maxParts);
+  const limit = Math.max(2, Math.min(5, Math.floor(maxParts) || 4));
+  if (parts.length < 2 || parts.length > limit || parts.some((part) => !part.trim())) return null;
+  return parts.map((part, index) => ({
+    step_id: `part-${index + 1}`,
+    description: part.trim().slice(0, 240),
+    expected_inputs: {
+      source: "user_ordered_dependency_list",
+      list_index: index + 1,
+      consume_completed_dependencies: true,
+    },
+    completion_criteria: "إكمال الخطوة اعتمادًا على نتائج جميع الخطوات السابقة المحددة.",
+    depends_on: index === 0 ? [] : [`part-${index}`],
   }));
 }
 
