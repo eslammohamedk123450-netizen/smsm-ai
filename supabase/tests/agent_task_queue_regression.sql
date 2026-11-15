@@ -15,6 +15,8 @@ declare
   v_a_job uuid;
   v_b_job uuid;
   v_task uuid := gen_random_uuid();
+  v_overage_task uuid := gen_random_uuid();
+  v_repeat_finalize jsonb;
   v_reserved jsonb;
   v_finalized jsonb;
   v_usage public.brain_usage_daily%rowtype;
@@ -147,6 +149,35 @@ begin
      or v_usage.tokens_reserved <> 0
      or v_usage.tokens_used <> 70 then
     raise exception 'Usage accounting did not reconcile';
+  end if;
+
+  -- Actual usage above the reservation is fully recorded, not silently capped.
+  v_reserved := public.brain_reserve_usage(v_a, v_overage_task, 100);
+  if coalesce((v_reserved->>'allowed')::boolean, false) is not true then
+    raise exception 'Brain overage reservation failed: %', v_reserved;
+  end if;
+  v_finalized := public.brain_finalize_usage(v_overage_task, 150, 'completed');
+  if coalesce((v_finalized->>'finalized')::boolean, false) is not true
+     or (v_finalized->>'actual_tokens')::integer <> 150
+     or (v_finalized->>'overage_tokens')::integer <> 50 then
+    raise exception 'Brain overage was not reported accurately: %', v_finalized;
+  end if;
+  select * into v_event from public.brain_usage_events where task_id = v_overage_task;
+  select * into v_usage from public.brain_usage_daily where user_id = v_a and usage_date = current_date;
+  if v_event.actual_tokens <> 150
+     or v_event.overage_tokens <> 50
+     or v_usage.tokens_reserved <> 0
+     or v_usage.tokens_used <> 220 then
+    raise exception 'Actual over-reservation tokens were not included in daily usage';
+  end if;
+
+  -- Repeated finalization must never count tokens twice.
+  v_repeat_finalize := public.brain_finalize_usage(v_overage_task, 10, 'failed');
+  select * into v_usage from public.brain_usage_daily where user_id = v_a and usage_date = current_date;
+  if coalesce((v_repeat_finalize->>'finalized')::boolean, true)
+     or v_usage.tokens_used <> 220
+     or v_usage.tokens_reserved <> 0 then
+    raise exception 'Repeated finalization double-counted Brain usage';
   end if;
 end $$;
 
