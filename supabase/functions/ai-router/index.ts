@@ -1375,7 +1375,11 @@ async function handleRequest(req: Request): Promise<Response> {
     if (result.success !== true) return { status: "pending", task_id: billingTaskId, requested_cost: actualCost };
 
     if (candidate && billForAttempt) {
-      const providerCostEgp = candidate.providerCostEgp;
+      // A single chat call can be reconciled from the provider's billing
+      // event. Multi-step Agent requests may use several models; until every
+      // sub-call is aggregated, keep their total cost explicitly unknown.
+      const primaryProviderCostEgp = candidate.providerCostEgp;
+      const providerCostEgp = executionMode === "chat" ? primaryProviderCostEgp : null;
       const { error: ledgerError } = await supabase.from("suly_company_cost_ledger").upsert({
         request_id: billingTaskId,
         user_id: user.id,
@@ -1397,7 +1401,10 @@ async function handleRequest(req: Request): Promise<Response> {
           input_tokens: inputTokens,
           output_tokens: outputTokens,
           provider_cost_currency: providerCostEgp === null ? null : "EGP",
-          provider_cost_source: providerCostEgp === null ? "not_reported_by_provider" : "provider_response.x_billing.cost_egp",
+          provider_cost_source: providerCostEgp === null
+            ? executionMode === "agent" ? "multi_model_agent_cost_not_aggregated" : "not_reported_by_provider"
+            : "provider_response.x_billing.cost_egp",
+          primary_model_reported_cost_egp: primaryProviderCostEgp,
           execution_mode: executionMode,
           suly_profile: selectedProfileKey,
           billing_source: source,
