@@ -6,7 +6,7 @@ export type ModelRoutingGroup = "free_race" | "paid_fallback" | "disabled";
 export interface ModelEligibilityInput {
   enabled: boolean;
   healthy: boolean;
-  providerEnabled: boolean;
+  providerEnabled?: boolean;
   allowedTiers: readonly string[];
   userTier: string;
   capabilities: unknown;
@@ -22,7 +22,7 @@ export interface ModelEligibilityInput {
  * Priority and preferred-model settings must only rank models after this check.
  */
 export function isModelEligibleForRequest(input: ModelEligibilityInput): boolean {
-  if (!input.enabled || !input.healthy || !input.providerEnabled) return false;
+  if (!input.enabled || !input.healthy || input.providerEnabled === false) return false;
   if (input.routingGroup === "disabled") return false;
   if (input.allowedRoutingGroups && !input.allowedRoutingGroups.includes(input.routingGroup)) return false;
   if (!input.allowedTiers.includes(input.userTier)) return false;
