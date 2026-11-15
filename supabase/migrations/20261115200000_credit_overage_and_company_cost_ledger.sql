@@ -31,7 +31,7 @@ create or replace function public.reserve_credits(
 returns jsonb
 language plpgsql
 security definer
-set search_path = public, pg_temp
+set search_path = pg_catalog, public, pg_temp
 as $
 declare
   v_account public.suly_credit_accounts%rowtype;
@@ -147,7 +147,7 @@ create or replace function public.finalize_credits(
 returns jsonb
 language plpgsql
 security definer
-set search_path = public, pg_temp
+set search_path = pg_catalog, public, pg_temp
 as $$
 declare
   v_account public.suly_credit_accounts%rowtype;
@@ -234,7 +234,7 @@ create or replace function public.suly_admin_update_negative_balance_limit(p_lim
 returns jsonb
 language plpgsql
 security definer
-set search_path = public, pg_temp
+set search_path = pg_catalog, public, pg_temp
 as $$
 declare
   v_admin uuid := auth.uid();
@@ -264,7 +264,7 @@ create or replace function public.suly_admin_update_credit_controls(
 returns jsonb
 language plpgsql
 security definer
-set search_path = public, pg_temp
+set search_path = pg_catalog, public, pg_temp
 as $
 declare
   v_admin uuid := auth.uid();
@@ -372,7 +372,7 @@ create or replace function public.suly_service_record_company_cost(
 returns jsonb
 language plpgsql
 security definer
-set search_path = public, pg_temp
+set search_path = pg_catalog, public, pg_temp
 as $$
 declare
   v_row public.suly_company_cost_ledger%rowtype;
