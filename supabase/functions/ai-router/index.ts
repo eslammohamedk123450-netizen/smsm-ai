@@ -1567,7 +1567,7 @@ async function handleRequest(req: Request): Promise<Response> {
   // Fast pre-flight: a bounded parallel probe drops dead candidates in about a
   // second instead of spending the whole race budget waiting on them.
   let raceCandidates = usableInitial;
-  if (settings.preflightProbeEnabled && usableInitial.length > 1) {
+  if (!internalBrainCall && settings.preflightProbeEnabled && usableInitial.length > 1) {
     const probeTargets = usableInitial
       .slice(0, settings.preflightProbeMaxModels)
       .map((candidate) => ({
