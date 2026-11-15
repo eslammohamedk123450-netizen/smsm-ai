@@ -183,10 +183,7 @@ Deno.serve(async (req: Request) => {
   if (error) return json({ error: "Could not claim queued tasks" }, 503);
 
   const jobs = (data ?? []) as QueueJob[];
-  if (!jobs.length) return json({ accepted: true, claimed: 0, status: "idle" }, 200);
-
-  EdgeRuntime.waitUntil((async () => {
-    await processBatch(jobs, supabaseUrl, serviceRoleKey, admin, workerId);
+  const reconcileTerminalBilling = async () => {
     // Also reconcile terminal jobs created by exhausted leases or a prior
     // worker interruption. Unknown provider usage remains held for late reports.
     const { data: settlementBatch, error: settlementError } = await admin.rpc("settle_terminal_agent_task_usage_batch", {
@@ -194,6 +191,16 @@ Deno.serve(async (req: Request) => {
     });
     if (settlementError) console.error("Terminal Agent settlement sweep failed:", settlementError.code ?? "database_error");
     else console.info("Terminal Agent settlement sweep:", settlementBatch);
+  };
+
+  if (!jobs.length) {
+    EdgeRuntime.waitUntil(reconcileTerminalBilling());
+    return json({ accepted: true, claimed: 0, status: "idle" }, 200);
+  }
+
+  EdgeRuntime.waitUntil((async () => {
+    await processBatch(jobs, supabaseUrl, serviceRoleKey, admin, workerId);
+    await reconcileTerminalBilling();
   })());
   return json({ accepted: true, claimed: jobs.length, status: "processing" }, 202);
 });
