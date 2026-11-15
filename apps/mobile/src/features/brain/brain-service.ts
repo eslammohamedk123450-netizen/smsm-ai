@@ -19,8 +19,8 @@ export type BrainTaskResult = {
 };
 
 /**
- * New orchestration entrypoint. The existing chat client intentionally keeps
- * using ai-router so current conversations and billing remain unchanged.
+ * Brain is the durable task intake/status surface. Queued execution is delegated
+ * to the central ai-router Agent; chat keeps its existing streaming entrypoint.
  */
 export async function runBrainTask(objective: string, taskId?: string): Promise<BrainTaskAccepted> {
   const { data, error } = await supabase.functions.invoke("brain-router", {
