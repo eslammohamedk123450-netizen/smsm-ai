@@ -5,7 +5,7 @@ import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { useToast } from "../../components/ui/Toast";
 import { colors } from "../../theme/colors";
 import { runBrainTask, wakeBrainWorker, type BrainTaskResult } from "./brain-service";
-import { cancelTask, getTaskProgress, type TaskSnapshot } from "./task-service";
+import { getTaskProgress, type TaskSnapshot } from "./task-service";
 
 const TASK_TEMPLATES = [
   { title: "تحليل ملف أو بيانات", prompt: "حلّل البيانات التالية واستخرج أهم المؤشرات والمشكلات والتوصيات العملية: " },
@@ -21,8 +21,6 @@ export function BrainTaskScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<TaskSnapshot | null>(null);
-  const [activeJobId, setActiveJobId] = useState<string | null>(null);
-  const [cancelling, setCancelling] = useState(false);
 
   const submit = async () => {
     const value = objective.trim();
@@ -38,10 +36,8 @@ export function BrainTaskScreen() {
     setError(null);
     setResult(null);
     setProgress(null);
-    setActiveJobId(null);
     try {
       const accepted = await runBrainTask(value);
-      setActiveJobId(accepted.job_id);
       let latest: TaskSnapshot | null = null;
       for (let attempt = 0; attempt < 180; attempt += 1) {
         latest = await getTaskProgress(accepted.task_id, accepted.job_id);
@@ -70,24 +66,6 @@ export function BrainTaskScreen() {
       setError(cause instanceof Error ? cause.message : "تعذر تنفيذ المهمة.");
     } finally {
       setBusy(false);
-    }
-  };
-
-  const cancelCurrentTask = async () => {
-    if (!activeJobId || cancelling) return;
-    setCancelling(true);
-    try {
-      const cancelled = await cancelTask(activeJobId);
-      if (!cancelled) {
-        show("المهمة انتهت بالفعل أو لم تعد قابلة للإلغاء.", "info");
-        return;
-      }
-      setProgress((current) => current ? { ...current, status: "cancelled" } : current);
-      show("تم إرسال طلب إلغاء المهمة.", "success");
-    } catch (cause) {
-      show(cause instanceof Error ? cause.message : "تعذر إلغاء المهمة.", "error");
-    } finally {
-      setCancelling(false);
     }
   };
 
@@ -132,11 +110,6 @@ export function BrainTaskScreen() {
             {busy ? <ActivityIndicator color="#071018" /> : <Text style={styles.primaryText}>تشغيل المهمة</Text>}
           </Pressable>
         </View>
-        {busy && activeJobId ? (
-          <Pressable onPress={() => void cancelCurrentTask()} style={styles.secondary} disabled={cancelling} accessibilityRole="button">
-            <Text style={styles.secondaryText}>{cancelling ? "جارٍ الإلغاء…" : "إلغاء المهمة"}</Text>
-          </Pressable>
-        ) : null}
         {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
       </View>
 
