@@ -183,3 +183,8 @@ Daily and monthly budgets must be enforced server-side, not only displayed in th
 - Retry SQL regression coverage checks the 15s first retry, 30s second retry, no repeated delay extension while queued, and terminal exhaustion after the configured attempts.
 - Brain model admin saves now upsert selected capability links before removing deselected links. A failed capability write no longer deletes all previously working links; tier/plan update errors are surfaced.
 - Task cancellation remains deferred until queue status, Brain context, worker abort, and usage finalization can be reconciled safely.
+
+
+### Dependency-aware execution
+- Added a bounded DAG executor to the central Agent worker path. It validates the plan before starting, runs ready independent steps in bounded waves, passes completed prerequisite outputs to dependants, and blocks only descendants of failed steps while allowing unrelated branches to continue.
+- The current user-facing plan builder still emits only explicit independent list items; model-generated dependency plans and durable cross-invocation DAG resumption remain follow-up work.
