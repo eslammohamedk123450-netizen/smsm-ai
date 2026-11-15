@@ -4,6 +4,7 @@ import { Link } from "expo-router";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { supabase } from "../../lib/supabase/client";
 import { colors } from "../../theme/colors";
+import { adminService } from "./admin-service";
 
 type Provider = { id: number; name: string; provider_type: string; enabled: boolean };
 type MediaModel = {
@@ -43,14 +44,14 @@ export function MediaGenerationModelsAdminScreen() {
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
-    const [providerResult, modelResult, priceResult] = await Promise.all([
-      supabase.from("ai_providers").select("id,name,provider_type,enabled").order("name"),
+    const [providerRows, modelResult, priceResult] = await Promise.all([
+      adminService.getProviders(),
       supabase.from("suly_media_generation_models").select("id,display_name,provider_id,model_identifier,endpoint_url,allowed_tiers,supported_qualities,is_default,is_active").eq("service_type", "image").order("created_at", { ascending: false }),
       supabase.from("suly_media_generation_prices").select("generation_model_id,quality,price_credits,estimated_provider_cost_usd,target_margin,credit_value_egp,usd_to_egp,resolution,enabled").limit(500),
     ]);
-    if (providerResult.error || modelResult.error || priceResult.error) setError("تعذر تحميل نماذج الصور الخارجية أو الأسعار. تأكد من تطبيق ترحيل مزود الصور وصلاحيات الأدمن.");
+    if (modelResult.error || priceResult.error) setError("تعذر تحميل نماذج الصور الخارجية أو الأسعار. تأكد من تطبيق ترحيل مزود الصور وصلاحيات الأدمن.");
     else {
-      setProviders((providerResult.data ?? []) as Provider[]);
+      setProviders((providerRows ?? []) as Provider[]);
       setModels((modelResult.data ?? []) as MediaModel[]);
     }
     setLoading(false);
