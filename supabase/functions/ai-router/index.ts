@@ -64,6 +64,7 @@ type ModelRow = {
   restriction_window_minutes: number;
   allowed_modes?: string[];
   task_roles?: string[];
+  context_window?: number | null;
 };
 type RouteModelAssignment = { route_role: "chat" | "planner" | "worker" | "reviewer" | "summarizer"; model_id: number; priority: number; enabled: boolean };
 type ProviderRow = {
@@ -979,7 +980,7 @@ async function handleRequest(req: Request): Promise<Response> {
 
   const [{ data: settingsRow }, { data: allModels, error: modelsError }, { data: providers, error: providersError }, { data: routeAssignments, error: routeAssignmentsError }] = await Promise.all([
     supabase.from("ai_router_settings").select("free_race_timeout_ms,paid_fallback_enabled,paid_fallback_timeout_ms,max_parallel_free_models,health_auto_restrict_enabled,preflight_probe_enabled,preflight_probe_timeout_ms,preflight_probe_max_models,task_split_enabled,task_split_max_parts,gmail_task_model_id,agent_planner_model_id,agent_summarizer_model_id").eq("id", 1).maybeSingle(),
-    supabase.from("ai_models").select("id,name,provider_id,model_identifier,enabled,priority,routing_group,allowed_tiers,capabilities_json,allowed_modes,task_roles,response_timeout_ms,restriction_failure_threshold,restriction_window_minutes").eq("enabled", true).order("priority", { ascending: false }).limit(200),
+    supabase.from("ai_models").select("id,name,provider_id,model_identifier,enabled,priority,routing_group,allowed_tiers,capabilities_json,allowed_modes,task_roles,context_window,response_timeout_ms,restriction_failure_threshold,restriction_window_minutes").eq("enabled", true).order("priority", { ascending: false }).limit(200),
     supabase.from("ai_providers").select("id,name,provider_type,base_url,enabled,timeout_seconds,api_key_vault_id").limit(100),
     supabase.from("ai_route_model_assignments").select("route_role,model_id,priority,enabled").order("route_role").order("priority").limit(2500),
   ]);
@@ -1092,8 +1093,12 @@ async function handleRequest(req: Request): Promise<Response> {
     }
   }
   const profileEligibleModels = profileModelIds
-    ? healthyModels.filter((model: ModelRow) => profileModelIds.has(model.id))
+    ? healthyModels.filter((model: ModelRow) => profileModelIds.has(model.id)
+      && (profileCapabilities.extended_context !== true || Number(model.context_window ?? 0) >= 65536))
     : healthyModels;
+  if (selectedProfileKey && profileCapabilities.extended_context === true && profileEligibleModels.length === 0) {
+    return await failedResponse(jsonResponse({ error: "لا يوجد نموذج مفعّل في هذا المستوى يدعم السياق الطويل حاليًا. راجع ربط نماذج Max من لوحة الإدارة." }, 503, req), "profile_context_unavailable");
+  }
   const anyCapabilityEligible = profileEligibleModels.some((model: ModelRow) =>
     isEligibleModel(model, requiredModelRole, allowedAutoRoutingGroups));
   if (routingMode === "auto" && !anyCapabilityEligible) {
