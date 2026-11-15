@@ -1,7 +1,10 @@
 name: Build Android APK (GitHub)
 
 on:
-  # APK builds remain opt-in; ordinary release/v1 pushes publish only web/OTA.
+  # Build a test APK whenever the agent-worker development branch changes.
+  push:
+    branches:
+      - feat/agent-worker-brain-queue
   workflow_dispatch:
 
 permissions:
