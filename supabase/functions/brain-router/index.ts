@@ -67,6 +67,31 @@ async function main(req: Request): Promise<Response> {
   if (tiersError) return json({ error: "Brain tiers could not be loaded" }, 500);
 
   if (internalWorker) {
+    // A worker may be reclaimed after the result was persisted but before the
+    // queue row was finalized. Return the durable result without rerunning or
+    // charging the same task a second time.
+    const { data: savedTask } = await admin.from("brain_task_contexts")
+      .select("task_id,context,final_response,complexity,capabilities,estimated_steps,status")
+      .eq("task_id", taskId).eq("user_id", userId).maybeSingle();
+    const savedContext = asRecord(savedTask?.context);
+    const savedResponse = cleanText(savedTask?.final_response ?? savedContext.final_response);
+    if (savedTask?.status === "completed" && savedResponse) {
+      const { data: savedSteps } = await admin.from("brain_task_steps")
+        .select("status").eq("task_id", taskId).limit(100);
+      return json({
+        task_id: taskId,
+        complexity: savedTask.complexity ?? "easy",
+        capabilities: savedTask.capabilities ?? ["text"],
+        estimated_steps: savedTask.estimated_steps ?? 1,
+        steps_completed: (savedSteps ?? []).filter((step) => step.status === "completed").length,
+        response: savedResponse,
+        route: "central-agent",
+      });
+    }
+    if (savedTask?.status === "failed") {
+      return json({ error: "Central Agent task already failed", task_id: taskId }, 409);
+    }
+
     // Brain is an intake/billing adapter only. The central ai-router Agent owns
     // planning, model eligibility, tool policy, execution, and final response.
     const response = await fetch(`${supabaseUrl}/functions/v1/ai-router`, {
