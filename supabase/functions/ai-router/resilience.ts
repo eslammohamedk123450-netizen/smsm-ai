@@ -217,6 +217,7 @@ export function parseModelGeneratedTaskPlan(raw: string, maxParts: number): Task
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
   const root = parsed as Record<string, unknown>;
   if (Object.keys(root).some((key) => key !== "steps") || !Array.isArray(root.steps)) return null;
+  if (root.steps.length === 0) return [];
   if (root.steps.length < 2 || root.steps.length > limit) return null;
 
   const plan: TaskPlanStep[] = [];
