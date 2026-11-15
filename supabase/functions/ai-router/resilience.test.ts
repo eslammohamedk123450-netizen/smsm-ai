@@ -1,7 +1,7 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
   buildIndependentTaskPlan,
-  buildTaskPlan,
+  buildTaskPlan,\n  parseModelGeneratedTaskPlan,
   hasExplicitDependencyLanguage,
   executeTaskPlan,
   mapWithConcurrency,
@@ -127,4 +127,30 @@ Deno.test("dependency-aware executor rejects cyclic plans before running", async
   }
   assertEquals(rejected, true);
   assertEquals(called, false);
+});
+
+Deno.test("model-generated DAG parser accepts branching and merging dependencies", () => {
+  const raw = JSON.stringify({ steps: [
+    { step_id: "collect_a", description: "Collect source A", expected_inputs: {}, completion_criteria: "Source A collected", depends_on: [] },
+    { step_id: "collect_b", description: "Collect source B", expected_inputs: {}, completion_criteria: "Source B collected", depends_on: [] },
+    { step_id: "analyze_a", description: "Analyze source A", expected_inputs: {}, completion_criteria: "Analysis A complete", depends_on: ["collect_a"] },
+    { step_id: "synthesize", description: "Synthesize both analyses", expected_inputs: {}, completion_criteria: "Synthesis complete", depends_on: ["analyze_a", "collect_b"] },
+  ] });
+  const plan = parseModelGeneratedTaskPlan(raw, 5);
+  assertEquals(plan?.length, 4);
+  assertEquals(plan?.[3].depends_on, ["analyze_a", "collect_b"]);
+  assertEquals(validateTaskPlan(plan ?? [], 5), true);
+});
+
+Deno.test("model-generated DAG parser rejects unknown dependencies, cycles, and oversized plans", () => {
+  const make = (steps: unknown[]) => JSON.stringify({ steps });
+  const step = (id: string, deps: string[]) => ({
+    step_id: id, description: "A valid task", expected_inputs: {},
+    completion_criteria: "Task complete", depends_on: deps,
+  });
+  assertEquals(parseModelGeneratedTaskPlan(make([step("a", ["missing"]), step("b", [])]), 4), null);
+  assertEquals(parseModelGeneratedTaskPlan(make([step("a", ["b"]), step("b", ["a"])]), 4), null);
+  assertEquals(parseModelGeneratedTaskPlan(make([step("a", []), step("b", []), step("c", []), step("d", []), step("e", []), step("f", [])]), 5), null);
+  assertEquals(parseModelGeneratedTaskPlan(make([step("a", []), { ...step("b", []), extra: true }]), 4), null);
+  assertEquals(parseModelGeneratedTaskPlan("not json", 4), null);
 });
