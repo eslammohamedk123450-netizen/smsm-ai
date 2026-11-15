@@ -5,6 +5,8 @@ import { readBrainTaskPayload } from "../_shared/brain_task_payload.ts";
 
 declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void };
 
+type QueueJob = { id: string; user_id: string; job_type: string; payload: Record<string, unknown> | null };
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
