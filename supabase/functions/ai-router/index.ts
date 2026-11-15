@@ -1464,15 +1464,15 @@ async function handleRequest(req: Request): Promise<Response> {
         .map((dependencyId) => {
           const dependency = completedDependencies.get(dependencyId);
           return dependency?.content?.trim()
-            ? `نتيجة الخطوة ${dependencyId}:\\n${dependency.content.trim().slice(0, 12000)}`
+            ? `نتيجة الخطوة ${dependencyId}:\n${dependency.content.trim().slice(0, 12000)}`
             : "";
         })
         .filter(Boolean)
-        .join("\\n\\n");
+        .join("\n\n");
       const partMessages: ChatMessage[] = [
         ...systemMessages,
         { role: "system", content: workerBrief },
-        ...(dependencyBrief ? [{ role: "system" as const, content: `مخرجات الاعتماديات السابقة التي يجب البناء عليها:\\n${dependencyBrief}` }] : []),
+        ...(dependencyBrief ? [{ role: "system" as const, content: `مخرجات الاعتماديات السابقة التي يجب البناء عليها:\n${dependencyBrief}` }] : []),
         { role: "user", content: splitParts[index] },
       ];
       let remaining = workerCandidates.slice(0, 3).map((candidate) => ({ ...candidate, requestMessages: partMessages }));
@@ -1511,13 +1511,13 @@ async function handleRequest(req: Request): Promise<Response> {
     };
     if (!taskPlan) throw new Error("A multi-part execution requires a validated task plan.");
     const taskExecution = await executeTaskPlan(taskPlan, 3, (step, index, completed) => answerPart(index, completed));
-    const partResultsWithCandidates = taskExecution.map((outcome, index) => {
+    const partResultsWithCandidates = await Promise.all(taskExecution.map(async (outcome, index) => {
       if (outcome.status === "completed" && outcome.result) return outcome.result;
       const stepKey = taskPlan![index].step_id;
-      void updateWorkspaceStep(stepKey, "failed", { error_message: outcome.error ?? "dependency_failed" });
-      void updateTaskLedger(stepKey, "failed", { error: outcome.error ?? "dependency_failed" });
+      await updateWorkspaceStep(stepKey, "failed", { error_message: outcome.error ?? "dependency_failed" });
+      await updateTaskLedger(stepKey, "failed", { error: outcome.error ?? "dependency_failed" });
       return { index, content: "", model: null, candidate: null, outputGuard: null };
-    });
+    }));
     const partResults = partResultsWithCandidates.map(({ index, content, model }) => ({ index, content, model }));
     const successfulParts = partResultsWithCandidates.filter((part) => part.candidate !== null);
     const failedPartCount = splitParts.length - successfulParts.length;
