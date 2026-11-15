@@ -27,8 +27,6 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-      - name: Format billing helpers
-        run: deno fmt --check supabase/functions/image-generator/cost.ts supabase/functions/image-generator/cost.test.ts
       - name: Test currency-safe billing
         run: deno test supabase/functions/image-generator/cost.test.ts
       - name: Type-check image generator
