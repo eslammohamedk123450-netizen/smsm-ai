@@ -16,7 +16,7 @@ export interface ChatRequestBody {
   request_id: string;
   messages: Array<{ role: "user" | "assistant"; content: string }>;
   routing_mode: "auto";
-  execution_mode: "chat" | "agent";
+  execution_mode: "auto" | "chat" | "agent";
   stream: true;
   connector_approval_request_id?: string;
   connector_approval_original_text?: string;
