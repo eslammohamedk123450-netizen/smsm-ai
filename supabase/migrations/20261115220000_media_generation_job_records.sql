@@ -65,7 +65,7 @@ returns table (
 language sql
 stable
 security definer
-set search_path = public, pg_temp
+set search_path = pg_catalog, public, pg_temp
 as $$
   select job.id, job.service_type, job.status, job.prompt, job.quality,
     job.estimated_credits, job.charged_credits, job.output_asset_id,
@@ -91,7 +91,7 @@ returns table (
 language sql
 stable
 security definer
-set search_path = public, pg_temp
+set search_path = pg_catalog, public, pg_temp
 as $$
   select job.status, job.output_asset_id, job.charged_credits,
     case
@@ -118,7 +118,7 @@ create or replace function public.suly_service_recover_stale_media_jobs()
 returns integer
 language plpgsql
 security definer
-set search_path = public, pg_temp
+set search_path = pg_catalog, public, pg_temp
 as $$
 declare
   v_job public.suly_media_generation_jobs%rowtype;
