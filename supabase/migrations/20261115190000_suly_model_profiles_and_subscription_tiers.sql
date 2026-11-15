@@ -101,7 +101,7 @@ values
   ('max', 'SULY Max', 'للمهام المعقدة والتحليل العميق',
    'للتخطيط متعدد الخطوات والتحليل العميق والبرمجة المتقدمة والمهام التي تحتاج إلى أدوات وميزانية تنفيذ أوسع.',
    'diamond', 3, 'max',
-   '{"chat":true,"quick_tasks":true,"web_search":true,"multi_step_agent":true,"advanced_reasoning":true,"extended_context":true,"priority_execution":true}',
+   '{"chat":true,"quick_tasks":true,"web_search":true,"multi_step_agent":true,"advanced_reasoning":true,"extended_context":true}',
    true)
 on conflict (profile_key) do update set
   display_name = excluded.display_name,
