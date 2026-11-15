@@ -151,7 +151,8 @@ Daily and monthly budgets must be enforced server-side, not only displayed in th
 - [x] Persist central Agent steps into the existing Brain task-progress table and return actual/estimated token usage for Brain accounting.
 - [x] Recover duplicate queue submissions by the same task ID and return an already-persisted task result after worker reclamation.
 - [ ] Generalize durable task jobs and worker handlers beyond `brain_task`.
-- [ ] Add a dependency-aware task graph; current parallel execution is limited to independent parts (up to three concurrent workers).
+- [x] Execute explicit dependency-ordered user lists as a validated DAG: prerequisite steps run first, completed outputs are passed to dependent workers, and a failed prerequisite blocks only its descendants.
+- [ ] Add model-generated general DAG planning with branching/merging dependencies; current inferred DAGs are intentionally limited to explicit ordered lists (up to three concurrent workers).
 - [x] Add bounded exponential backoff for expired leases and preserve terminal failure after maximum attempts.
 - [ ] Implement end-to-end cancellation only after queue state, Brain task context, active worker abort, and usage finalization can be committed consistently.
 - [ ] Add authenticated end-to-end tests for duplicate enqueue, lease expiry, worker interruption, cross-user isolation, and usage finalization.
