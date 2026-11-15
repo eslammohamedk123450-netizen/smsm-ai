@@ -86,9 +86,13 @@ begin
     null, 'regression-provider', null, null, null,
     'unknown', 'unavailable', '{"fixture":true}'::jsonb
   );
+  -- Simulate the authenticated owner calling the queued-cancellation RPC.
+  -- Direct table UPDATE is used only by this privileged rollback-only harness.
+  perform set_config('request.jwt.claim.role', 'authenticated', true);
   update public.agent_task_jobs
      set status = 'cancelled', completed_at = now()
    where id = v_job;
+  perform set_config('request.jwt.claim.role', 'service_role', true);
 
   select * into v_hold from public.suly_credit_holds where task_id = v_task;
   select * into v_event from public.brain_usage_events where task_id = v_task;
