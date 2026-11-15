@@ -1551,7 +1551,7 @@ async function handleRequest(req: Request): Promise<Response> {
     return jsonResponse({ ...info, response: { choices: [{ message: { role: "assistant", content: merged } }] } }, 200, req);
   }
 
-  if (executionMode === "agent" && !internalBrainCall) {
+  if (executionMode === "agent") {
     const connectorRequest = requestedConnector;
     const multiConnectorRequest = isMultiToolkitComposioRequest(latestUserMessage) && !requestedMultiReadToolkits;
     // Bind the explicit user confirmation to this exact immutable request. A
