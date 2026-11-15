@@ -3,6 +3,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { actualChargeCredits, actualCostUsd, providerEndpointAllowed, validateEnabledMediaPrice } from "./cost.ts";
 
+declare const EdgeRuntime: {
+  waitUntil(promise: Promise<unknown>): void;
+};
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, apikey, x-client-info, content-type",
@@ -308,10 +312,12 @@ Deno.serve(async (req: Request) => {
     void service.from("suly_media_generation_jobs")
       .update({ updated_at: new Date().toISOString() })
       .eq("id", requestId).eq("user_id", userId).eq("status", "running")
-      .then(({ error }) => {
-        if (error) console.error("Media generation heartbeat failed.", error.code ?? "database_error");
-      })
-      .catch(() => undefined);
+      .then(
+        ({ error }) => {
+          if (error) console.error("Media generation heartbeat failed.", error.code ?? "database_error");
+        },
+        () => undefined,
+      );
   }, 30_000);
   try {
     const generated = await callImageProvider({ model: typedModel, price: typedPrice, apiKey, prompt, quality });

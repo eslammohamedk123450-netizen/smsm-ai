@@ -27,6 +27,7 @@ import { prioritizeModelCandidate } from "./agent/model_routing.ts";
 import { isModelEligibleForRequest, modelSupportsRole as supportsModelRole } from "./agent/model_eligibility.ts";
 import { resolveExecutionMode } from "./execution_mode.ts";
 import { resolveSulyProfileKey } from "./agent/suly_profile_routing.ts";
+import { getAgentReservationCallCount } from "./agent/agent_budget_policy.ts";
 import { getAgentToolsFromDatabase, getRegisteredTool, validateToolInput } from "./agent/tool_registry.ts";
 
 // Native Android/iOS clients do not require CORS. Web access must set WEB_CORS_ORIGIN
@@ -1258,15 +1259,24 @@ async function handleRequest(req: Request): Promise<Response> {
   if (creditPricing.enabled && !internalBrainCall) {
     // Reserve room for up to five bounded saved memories before embedding/retrieval runs.
     const inputUpperBound = messages.reduce((sum, item) => sum + item.content.length, 0) + 22000;
-    const proposedReservationParts = settings.taskSplitEnabled && trustedAttachments.length === 0 && mind.intent === "complex_task"
+    const canDelegateReservation = executionMode === "agent"
+      && workerCandidates.length > 0
+      && settings.taskSplitEnabled
+      && trustedAttachments.length === 0
+      && !requestedConnector
+      && !requestedMultiReadToolkits?.length
+      && !isWebSearchRequest(latestUserMessage)
+      && mind.intent === "complex_task";
+    const proposedReservationParts = canDelegateReservation
       ? splitTask(latestUserMessage, settings.taskSplitMaxParts)
       : [latestUserMessage];
     const reservationPlan = buildIndependentTaskPlan(proposedReservationParts, settings.taskSplitMaxParts);
-    const boundedWorkerCalls = executionMode === "agent"
-      ? 6
-      : reservationPlan && validateTaskPlan(reservationPlan, settings.taskSplitMaxParts)
-        ? reservationPlan.length * 3
-        : 1;
+    const boundedWorkerCalls = getAgentReservationCallCount({
+      executionMode,
+      splitPartCount: reservationPlan && validateTaskPlan(reservationPlan, settings.taskSplitMaxParts)
+        ? reservationPlan.length
+        : 1,
+    });
     const reserveAmount = calculateCreditCost(creditPricing, inputUpperBound * boundedWorkerCalls, (executionMode === "agent" ? agentPlannerMaxTokens : maxTokens) * boundedWorkerCalls);
     if (!Number.isSafeInteger(reserveAmount) || reserveAmount <= 0 || reserveAmount > 1000000000) {
       return await failedResponse(jsonResponse({ error: "Estimated credit reservation exceeds the configured safety limit." }, 422, req), "credit_reservation_invalid");
@@ -1845,12 +1855,12 @@ async function handleRequest(req: Request): Promise<Response> {
     ];
     let plannerInputTokens = 0;
     let plannerOutputTokens = 0;
-    let plannerAttemptCount = 0;
     const plannerCandidatesUsed: ReadyCandidate[] = [];
     const agentEvidence: Array<{ tool: string; result: string }> = [];
     let agentEvidenceChars = 0;
     const agentStartedAt = Date.now();
     const plan = async (history: Array<{ role: string; content: string }>, tools: AgentTool[], step: number) => {
+      let plannerAttemptCount = 0;
       if (multiConnectorRequest) return { action: "respond" as const, answer: operationalReply! };
       if (operationalReply) return { action: "respond" as const, answer: operationalReply };
       if (step === 0 && requestedMultiReadToolkits) {

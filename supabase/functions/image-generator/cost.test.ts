@@ -6,7 +6,7 @@ import {
 } from "./cost.ts";
 
 const validPrice = {
-  price_credits: 50,
+  price_credits: 358,
   estimated_provider_cost_usd: 0.5,
   target_margin: 0.3,
   credit_value_egp: 0.1,
@@ -58,7 +58,7 @@ Deno.test("accepts a fully funded price and reports its minimum reserve", () => 
 
 Deno.test("uses the fixed reservation when provider cost is not confirmed", () => {
   const result = actualChargeCredits(0.25, validPrice, false);
-  if (result !== 50) throw new Error("unconfirmed cost must use the configured reserve");
+  if (result !== 358) throw new Error("unconfirmed cost must use the configured reserve");
 });
 
 Deno.test("settles credits using confirmed USD cost and FX", () => {
