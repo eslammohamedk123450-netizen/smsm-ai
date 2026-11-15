@@ -55,6 +55,9 @@ Record each case as **PASS**, **FAIL**, or **BLOCKED**. For every failure, captu
 - [ ] Ask a question that does not require live information; verify no accidental web-search routing.
 - [ ] Attach a supported image/file; verify Agent/attachment path and safe response.
 - [ ] Verify one central Agent makes the execution decision; workers do not independently choose plans or models.
+- [ ] For an eligible independent multi-part task, verify worker-role models execute the parts and planner-role models are not silently used as workers.
+- [ ] Verify live-search, connector, attachment, and dependency-ordered requests do not enter the independent parallel-worker path.
+- [ ] Verify independent worker parts run with a maximum concurrency of three and results retain their original order.
 - [ ] Verify Agent step count is bounded and the task ends in a clear terminal state.
 - [ ] Verify malformed model decisions are rejected safely.
 - [ ] Verify repeated identical tool calls are stopped.
