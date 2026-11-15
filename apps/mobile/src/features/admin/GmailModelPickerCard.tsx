@@ -51,7 +51,7 @@ export function GmailModelPickerCard({ models, selectedModelId, busy, onSelect, 
   const [search, setSearch] = useState("");
   const eligibleModels = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
-    return models.filter((model) => model.provider_enabled !== false && model.enabled
+    return models.filter((model) => model.provider_enabled === true && model.enabled
       && model.routing_group !== "disabled" && !model.health?.auto_restricted
       && supportsChat(model.capabilities_json)
       && supportsGmail(model.capabilities_json)
