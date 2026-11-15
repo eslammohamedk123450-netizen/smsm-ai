@@ -299,6 +299,17 @@ Deno.serve(async (req: Request) => {
   let uploadedObjectKey: string | null = null;
   let assistantMessageId: string | null = null;
   let assetId: string | null = null;
+  // A live generation refreshes its lease so the recovery job never refunds
+  // a request that is still running at the provider.
+  const heartbeat = setInterval(() => {
+    void service.from("suly_media_generation_jobs")
+      .update({ updated_at: new Date().toISOString() })
+      .eq("id", requestId).eq("user_id", userId).eq("status", "running")
+      .then(({ error }) => {
+        if (error) console.error("Media generation heartbeat failed.", error.code ?? "database_error");
+      })
+      .catch(() => undefined);
+  }, 30_000);
   try {
     const generated = await callImageProvider({ model: typedModel, price: typedPrice, apiKey, prompt, quality });
     const format = imageFormat(generated.bytes);
@@ -378,6 +389,8 @@ Deno.serve(async (req: Request) => {
     if (error instanceof ServiceError) return json(error.status, { error: error.message, request_id: requestId });
     console.error("External image generation failed.");
     return json(502, { error: "تعذر إكمال إنشاء الصورة. تم تحرير الحجز عند فشل التنفيذ.", request_id: requestId });
+  } finally {
+    clearInterval(heartbeat);
   }
   };
 
