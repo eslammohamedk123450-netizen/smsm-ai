@@ -85,8 +85,33 @@ export function MediaGenerationModelsAdminScreen() {
     let endpoint: URL;
     try { endpoint = new URL(endpointUrl.trim()); if (endpoint.protocol !== "https:" || endpoint.username || endpoint.password) throw new Error(); }
     catch { setError("أدخل رابط HTTPS صالحًا لنقطة OpenAI Images المتوافقة."); return; }
-    if (!prices.some((item) => item.enabled && Number.isSafeInteger(item.price_credits) && item.price_credits > 0)) {
+    const enabledPrices = prices.filter((item) => item.enabled);
+    if (enabledPrices.length === 0) {
       setError("فعّل جودة واحدة على الأقل وحدد سعرها بالـ Credits."); return;
+    }
+    for (const item of enabledPrices) {
+      const priceCredits = Number(item.price_credits);
+      const estimatedCostUsd = Number(item.estimated_provider_cost_usd);
+      const targetMargin = Number(item.target_margin);
+      const creditValueEgp = Number(item.credit_value_egp);
+      const usdToEgp = Number(item.usd_to_egp);
+      if (
+        !Number.isSafeInteger(priceCredits) || priceCredits < 1 ||
+        !Number.isFinite(estimatedCostUsd) || estimatedCostUsd <= 0 ||
+        !Number.isFinite(creditValueEgp) || creditValueEgp <= 0 ||
+        !Number.isFinite(usdToEgp) || usdToEgp <= 0 ||
+        !Number.isFinite(targetMargin) || targetMargin < 0 || targetMargin >= 1
+      ) {
+        setError(`أكمل تكلفة المزود بالدولار وقيمة الـ Credit بالجنيه وسعر الصرف والهامش لجودة ${item.quality} قبل تفعيلها.`);
+        return;
+      }
+      const minimumCredits = Math.ceil(
+        (estimatedCostUsd * usdToEgp) / ((1 - targetMargin) * creditValueEgp),
+      );
+      if (!Number.isSafeInteger(minimumCredits) || priceCredits < minimumCredits) {
+        setError(`سعر جودة ${item.quality} أقل من التكلفة والهامش؛ الحد الأدنى ${minimumCredits} Credits.`);
+        return;
+      }
     }
     setSaving(true); setError(null); setNotice(null);
     try {
