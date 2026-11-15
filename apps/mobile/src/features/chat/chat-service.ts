@@ -162,6 +162,7 @@ export const chatService = {
         width: typeof metadata.width === "number" ? metadata.width : null,
         height: typeof metadata.height === "number" ? metadata.height : null,
         durationSeconds: typeof metadata.duration_seconds === "number" ? metadata.duration_seconds : null,
+        metadata,
       };
       attachmentsByMessage.set(messageId, [...(attachmentsByMessage.get(messageId) ?? []), attachment]);
     }
