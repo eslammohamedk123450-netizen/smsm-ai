@@ -78,17 +78,17 @@ Other deployed functions inspected in the inventory require JWT verification. Th
 - Migration `20261115172009_password_storage_hardening_legacy_users` was applied successfully. It replaced the legacy credential with a random bcrypt hash (not derived from the old value), preserved the row and its other fields, added a bcrypt-only CHECK constraint, and revoked all table privileges from `PUBLIC`, `anon`, `authenticated`, and `service_role`. Post-migration verification confirmed one row remains, one bcrypt-format value, the constraint exists, and all four roles lack SELECT access.
 - No database routine or deployed Edge Function references `public.users` or `hashed_password`. The reviewed Expo login path uses Supabase Auth.
 - Separate session-storage note: the Expo auth adapter stores Supabase session tokens in native AsyncStorage and browser localStorage. These are session credentials, not passwords. Native OS-backed secure storage remains a follow-up hardening item; browser localStorage remains subject to the usual XSS exposure.
-- The login UI currently accepts a six-character minimum, while the stronger Supabase Auth password settings have not been configured. HaveIBeenPwned leaked-password protection remains unavailable on the Free plan.
+- The project owner has now configured Supabase Auth password requirements in the dashboard: minimum 12 characters, uppercase, lowercase, digit, and symbol. The owner also confirmed that the API Exposed Schemas list contains only `graphql_public` and `public`; `net` is not exposed through the Data API. PR #65 aligns the app's email/password registration validation with this policy. These dashboard settings are owner-reported; the available connector cannot independently read them back. HaveIBeenPwned leaked-password protection remains unavailable on the Free plan and has been explicitly accepted by the project owner as a temporary limitation until a Pro upgrade is affordable.
 
 ### 7. Remaining hardening findings
 
 #### Leaked-password protection is disabled
 
-Supabase Security Advisor reports `auth_leaked_password_protection`. Supabase's current documentation states that HaveIBeenPwned leaked-password protection is available on Pro Plan and above. The available project tools do not expose an Auth-settings write operation, and no plan upgrade was made. This remains open; do not claim it is enabled.
+Supabase Security Advisor reports `auth_leaked_password_protection`. Supabase's current documentation states that HaveIBeenPwned leaked-password protection is available on Pro Plan and above. The project owner explicitly accepted this as a temporary Free-plan limitation, with intent to enable it after upgrading to Pro. It is not enabled and must not be represented as enabled.
 
 Documentation: https://supabase.com/docs/guides/auth/password-security
 
-The current login UI still accepts a six-character minimum. A stronger client-side policy and matching server-side Auth settings are still required; client-only checks would be bypassable. The project tools available in this session do not expose Auth configuration writes.
+The project owner reports that the Supabase dashboard now enforces 12 characters plus uppercase, lowercase, digits, and symbols. PR #65 aligns client-side registration validation with those requirements. Server-side Supabase Auth settings remain authoritative; client validation is only usability feedback.
 
 #### pg_net schema grants are broader than least privilege
 
@@ -98,7 +98,7 @@ The `net` schema, its functions, `http_request_queue`, and `_http_response` have
 - `suly_trigger_model_recovery()`
 - `suly_dispatch_agent_task_scheduler()`
 
-The extension and schema owner is `supabase_admin`; the connected database role `postgres` is not a superuser and is not a member of `supabase_admin`. A fresh ACL inventory confirmed `USAGE` on schema `net` for `PUBLIC`, `anon`, `authenticated`, and `service_role`; `EXECUTE` on the extension functions for `PUBLIC`; and broad `PUBLIC` privileges on `http_request_queue` and `_http_response`. The three cron callers still require `net.http_post`. Role/database settings visible to the SQL connection did not expose a `pgrst.db_schemas` value, so the live PostgREST exposed-schema list remains unverified. A rollback-only REVOKE dry run did not change ACLs. No ownership transfer, extension ownership change, or privilege escalation was attempted. This item remains open until schema exposure and least-privilege grants are verified and changed through an authorized Supabase owner/management path without breaking cron dispatch.
+The extension and schema owner is `supabase_admin`; the connected database role `postgres` is not a superuser and is not a member of `supabase_admin`. A fresh ACL inventory confirmed `USAGE` on schema `net` for `PUBLIC`, `anon`, `authenticated`, and `service_role`; `EXECUTE` on the extension functions for `PUBLIC`; and broad `PUBLIC` privileges on `http_request_queue` and `_http_response`. The project owner has now checked the Supabase dashboard and confirmed that the Exposed Schemas list contains only `graphql_public` and `public`, not `net`; therefore `net` is not exposed through the project's PostgREST Data API. The SQL connection cannot independently read the dashboard's Exposed Schemas setting. A rollback-only REVOKE dry run did not change ACLs. No ownership transfer, extension ownership change, or privilege escalation was attempted. The Data API exposure risk is mitigated by keeping `net` unexposed. The underlying extension ACLs remain broader than least privilege and cannot be changed by the connected `postgres` role because the extension objects are owned by `supabase_admin`; further ACL cleanup requires an authorized Supabase owner/support path and must preserve the three cron callers.
 
 #### Extensions installed in public
 
@@ -114,10 +114,10 @@ There are no `storage` RLS policies. This is secure by default but means direct 
 - `extension_in_public`: 2 warnings (`vector`, `pg_net`).
 - `anon_security_definer_function_executable`: 1 warning; the public conversation-share RPC is intentional and token-gated.
 - `authenticated_security_definer_function_executable`: 52 warnings; admin and ownership guards were inspected, and negative authorization tests were run.
-- `auth_leaked_password_protection`: 1 warning; still open.
+- `auth_leaked_password_protection`: 1 warning; not enabled on Free and explicitly accepted as a temporary plan limitation by the project owner.
 
 ## Stage 1 decision
 
-**Not complete.** Core table RLS, ownership isolation, admin guards, fixed search paths, Vault isolation, and application-level authentication checks passed the checks listed above. Legacy password storage has been neutralized and access closed. Remaining blockers/follow-ups are the `pg_net` schema's overbroad grants/exposure verification, Auth password-strength configuration, the Free-plan leaked-password-protection limitation, and native session-token secure storage. No risky ownership transfer or extension change was made merely to silence Advisor warnings.
+**Pending final sign-off.** Core table RLS, ownership isolation, admin guards, fixed search paths, Vault isolation, and application-level authentication checks passed the checks listed above. Legacy password storage has been neutralized and access closed. The project owner has configured the stronger Auth password policy and verified that `net` is not in the exposed API schemas. The Free-plan leaked-password-protection limitation is explicitly accepted temporarily. The remaining technical follow-up is least-privilege cleanup of managed `pg_net` ACLs; this requires an authorized `supabase_admin`/Supabase support path and must not disrupt cron dispatch. Native secure session-token storage is deferred to Stage 6, as agreed. No risky ownership transfer or extension change was made merely to silence Advisor warnings.
 
-Do not begin Stage 2 until the remaining Stage 1 items are resolved or explicitly documented as accepted risks by the project owner.
+Stage 1 can be signed off only after the project owner explicitly accepts the residual managed `pg_net` ACL risk or Supabase provides an authorized safe remediation.
