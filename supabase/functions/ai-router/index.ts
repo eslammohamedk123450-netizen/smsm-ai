@@ -82,6 +82,8 @@ type CreditPricing = {
   minimum_request_credits: number;
   input_credits_per_1k_tokens: number;
   output_credits_per_1k_tokens: number;
+  credit_value_egp: number | null;
+  usd_to_egp: number | null;
 };
 type Candidate = {
   model: ModelRow;
@@ -93,6 +95,7 @@ type Candidate = {
   maxTokens: number;
   inputTokens: number;
   outputTokens: number;
+  providerCostEgp: number | null;
 };
 type ReadyCandidate = Candidate & {
   controller: AbortController;
@@ -225,7 +228,7 @@ function capabilityLabel(capability: ModelCapability): string {
 
 async function* readOpenAiStream(
   body: ReadableStream<Uint8Array>,
-  onUsage: (inputTokens: number, outputTokens: number) => void,
+  onUsage: (inputTokens: number | null, outputTokens: number | null, providerCostEgp: number | null) => void,
 ): AsyncGenerator<string> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
@@ -244,10 +247,14 @@ async function* readOpenAiStream(
           if (data) {
             try {
               const parsed = JSON.parse(data);
-              const inputTokens = Number(parsed?.usage?.prompt_tokens ?? parsed?.usage?.input_tokens);
-              const outputTokens = Number(parsed?.usage?.completion_tokens ?? parsed?.usage?.output_tokens);
-              if (Number.isFinite(inputTokens) && inputTokens >= 0 && Number.isFinite(outputTokens) && outputTokens >= 0) {
-                onUsage(Math.floor(inputTokens), Math.floor(outputTokens));
+              const rawInputTokens = Number(parsed?.usage?.prompt_tokens ?? parsed?.usage?.input_tokens);
+              const rawOutputTokens = Number(parsed?.usage?.completion_tokens ?? parsed?.usage?.output_tokens);
+              const rawProviderCostEgp = Number(parsed?.x_billing?.cost_egp);
+              const inputTokens = Number.isFinite(rawInputTokens) && rawInputTokens >= 0 ? Math.floor(rawInputTokens) : null;
+              const outputTokens = Number.isFinite(rawOutputTokens) && rawOutputTokens >= 0 ? Math.floor(rawOutputTokens) : null;
+              const providerCostEgp = Number.isFinite(rawProviderCostEgp) && rawProviderCostEgp >= 0 ? rawProviderCostEgp : null;
+              if (inputTokens !== null || outputTokens !== null || providerCostEgp !== null) {
+                onUsage(inputTokens, outputTokens, providerCostEgp);
               }
               const content = parsed?.choices?.[0]?.delta?.content;
               if (typeof content === "string" && content.length > 0) yield content;
@@ -265,10 +272,14 @@ async function* readOpenAiStream(
       if (data && data !== "[DONE]") {
         try {
           const parsed = JSON.parse(data);
-          const inputTokens = Number(parsed?.usage?.prompt_tokens ?? parsed?.usage?.input_tokens);
-          const outputTokens = Number(parsed?.usage?.completion_tokens ?? parsed?.usage?.output_tokens);
-          if (Number.isFinite(inputTokens) && inputTokens >= 0 && Number.isFinite(outputTokens) && outputTokens >= 0) {
-            onUsage(Math.floor(inputTokens), Math.floor(outputTokens));
+          const rawInputTokens = Number(parsed?.usage?.prompt_tokens ?? parsed?.usage?.input_tokens);
+          const rawOutputTokens = Number(parsed?.usage?.completion_tokens ?? parsed?.usage?.output_tokens);
+          const rawProviderCostEgp = Number(parsed?.x_billing?.cost_egp);
+          const inputTokens = Number.isFinite(rawInputTokens) && rawInputTokens >= 0 ? Math.floor(rawInputTokens) : null;
+          const outputTokens = Number.isFinite(rawOutputTokens) && rawOutputTokens >= 0 ? Math.floor(rawOutputTokens) : null;
+          const providerCostEgp = Number.isFinite(rawProviderCostEgp) && rawProviderCostEgp >= 0 ? rawProviderCostEgp : null;
+          if (inputTokens !== null || outputTokens !== null || providerCostEgp !== null) {
+            onUsage(inputTokens, outputTokens, providerCostEgp);
           }
           const content = parsed?.choices?.[0]?.delta?.content;
           if (typeof content === "string" && content.length > 0) yield content;
@@ -307,13 +318,22 @@ async function openCandidate(candidate: Candidate, controller: AbortController):
       const body = await response.text().catch(() => "");
       throw new Error(`provider_http_${response.status}${body ? `: ${body.slice(0, 300)}` : ""}`);
     }
-    const iterator = readOpenAiStream(response.body, (inputTokens, outputTokens) => {
-      candidate.inputTokens = inputTokens;
-      candidate.outputTokens = outputTokens;
+    let readyCandidate: ReadyCandidate | null = null;
+    const iterator = readOpenAiStream(response.body, (inputTokens, outputTokens, providerCostEgp) => {
+      if (inputTokens !== null) candidate.inputTokens = inputTokens;
+      if (outputTokens !== null) candidate.outputTokens = outputTokens;
+      if (providerCostEgp !== null) candidate.providerCostEgp = providerCostEgp;
+      // Keep the live candidate in sync after the first streamed chunk so
+      // final usage and provider-reported EGP costs survive the shallow copy.
+      if (readyCandidate) {
+        if (inputTokens !== null) readyCandidate.inputTokens = inputTokens;
+        if (outputTokens !== null) readyCandidate.outputTokens = outputTokens;
+        if (providerCostEgp !== null) readyCandidate.providerCostEgp = providerCostEgp;
+      }
     });
     const first = await iterator.next();
     if (first.done || !first.value) throw new Error("provider returned no text");
-    return {
+    readyCandidate = {
       ...candidate,
       controller,
       iterator,
@@ -322,6 +342,7 @@ async function openCandidate(candidate: Candidate, controller: AbortController):
       firstChunkAtMs: Date.now(),
       cleanup: () => clearTimeout(timeoutId),
     };
+    return readyCandidate;
   } catch (error) {
     clearTimeout(timeoutId);
     controller.abort();
@@ -964,7 +985,7 @@ async function handleRequest(req: Request): Promise<Response> {
 
   const { data: pricingRow, error: pricingError } = await supabase
     .from("suly_credit_pricing")
-    .select("enabled,minimum_request_credits,input_credits_per_1k_tokens,output_credits_per_1k_tokens")
+    .select("enabled,minimum_request_credits,input_credits_per_1k_tokens,output_credits_per_1k_tokens,credit_value_egp,usd_to_egp")
     .eq("id", 1)
     .maybeSingle();
   if (pricingError || !pricingRow) {
@@ -976,6 +997,8 @@ async function handleRequest(req: Request): Promise<Response> {
     minimum_request_credits: Math.max(0, Math.floor(Number(pricingRow.minimum_request_credits) || 0)),
     input_credits_per_1k_tokens: Math.max(0, Math.floor(Number(pricingRow.input_credits_per_1k_tokens) || 0)),
     output_credits_per_1k_tokens: Math.max(0, Math.floor(Number(pricingRow.output_credits_per_1k_tokens) || 0)),
+    credit_value_egp: pricingRow.credit_value_egp == null ? null : Math.max(0, Number(pricingRow.credit_value_egp)),
+    usd_to_egp: pricingRow.usd_to_egp == null ? null : Math.max(0, Number(pricingRow.usd_to_egp)),
   };
 
   const [{ data: settingsRow }, { data: allModels, error: modelsError }, { data: providers, error: providersError }, { data: routeAssignments, error: routeAssignmentsError }] = await Promise.all([
@@ -1166,7 +1189,7 @@ async function handleRequest(req: Request): Promise<Response> {
     const apiKey = providerKeys.get(model.provider_id);
     const endpoint = safeChatEndpoint(provider?.base_url);
     if (!provider || !provider.enabled || !apiKey || !endpoint) return [];
-    return [{ model, provider, apiKey, endpoint, requestMessages: providerMessagesForModel(messages, trustedAttachments), temperature, maxTokens, inputTokens: 0, outputTokens: 0 }];
+    return [{ model, provider, apiKey, endpoint, requestMessages: providerMessagesForModel(messages, trustedAttachments), temperature, maxTokens, inputTokens: 0, outputTokens: 0, providerCostEgp: null }];
   });
 
   const usableInitial = makeCandidates(candidatesFrom);
@@ -1223,7 +1246,7 @@ async function handleRequest(req: Request): Promise<Response> {
         reason = "No API credential could be read from Supabase Vault for the linked provider.";
       }
       if (code) {
-        await recordAttempt({ model, provider, apiKey: apiKey ?? "", endpoint: endpoint ?? "", requestMessages: messages, temperature, maxTokens, inputTokens: 0, outputTokens: 0 }, "error", 0, code, reason);
+        await recordAttempt({ model, provider, apiKey: apiKey ?? "", endpoint: endpoint ?? "", requestMessages: messages, temperature, maxTokens, inputTokens: 0, outputTokens: 0, providerCostEgp: null }, "error", 0, code, reason);
       }
     }));
   };
@@ -1353,9 +1376,67 @@ async function handleRequest(req: Request): Promise<Response> {
       return { status: "pending", task_id: billingTaskId, requested_cost: actualCost };
     }
     const result = asRecord(data);
-    return result.success === true
-      ? { ...result, status: "settled", task_id: billingTaskId, input_tokens: inputTokens, output_tokens: outputTokens }
-      : { status: "pending", task_id: billingTaskId, requested_cost: actualCost };
+    const settledCharged = Number(result.charged ?? 0);
+    const settledActual = Number(result.actual_cost ?? 0);
+    if (result.success !== true
+      || !Number.isSafeInteger(settledCharged) || settledCharged !== actualCost
+      || !Number.isSafeInteger(settledActual) || settledActual !== actualCost) {
+      return {
+        status: "pending",
+        task_id: billingTaskId,
+        requested_cost: actualCost,
+        settled_charged: Number.isFinite(settledCharged) ? settledCharged : null,
+      };
+    }
+
+    if (candidate && billForAttempt) {
+      // A single chat call can be reconciled from the provider's billing
+      // event. Multi-step Agent requests may use several models; until every
+      // sub-call is aggregated, keep their total cost explicitly unknown.
+      const primaryProviderCostEgp = candidate.providerCostEgp;
+      const providerCostEgp = executionMode === "chat" ? primaryProviderCostEgp : null;
+      const revenueEgp = creditPricing.credit_value_egp === null
+        ? null
+        : actualCost * creditPricing.credit_value_egp;
+      const grossProfitEgp = revenueEgp !== null && providerCostEgp !== null
+        ? revenueEgp - providerCostEgp
+        : null;
+      const { error: ledgerError } = await supabase.from("suly_company_cost_ledger").upsert({
+        request_id: billingTaskId,
+        user_id: user.id,
+        service_type: "chat",
+        provider_id: candidate.model.provider_id,
+        model_id: candidate.model.id,
+        provider_model_identifier: candidate.model.model_identifier,
+        provider_cost_usd: null,
+        cost_status: providerCostEgp === null ? "unknown" : "confirmed_egp",
+        user_credits_charged: actualCost,
+        credit_value_egp: creditPricing.credit_value_egp,
+        usd_to_egp: creditPricing.usd_to_egp,
+        revenue_egp: revenueEgp,
+        provider_cost_egp: providerCostEgp,
+        other_cost_egp: 0,
+        gross_profit_egp: grossProfitEgp,
+        price_version: null,
+        metadata: {
+          input_tokens: inputTokens,
+          output_tokens: outputTokens,
+          provider_cost_currency: providerCostEgp === null ? null : "EGP",
+          provider_cost_source: providerCostEgp === null
+            ? executionMode === "agent" ? "multi_model_agent_cost_not_aggregated" : "not_reported_by_provider"
+            : "provider_response.x_billing.cost_egp",
+          primary_model_reported_cost_egp: primaryProviderCostEgp,
+          credit_value_egp: creditPricing.credit_value_egp,
+          usd_to_egp: creditPricing.usd_to_egp,
+          execution_mode: executionMode,
+          suly_profile: selectedProfileKey,
+          billing_source: source,
+        },
+      }, { onConflict: "request_id", ignoreDuplicates: true });
+      if (ledgerError) console.error("Could not record provider cost ledger entry.", ledgerError.code ?? "database_error");
+    }
+
+    return { ...result, status: "settled", task_id: billingTaskId, input_tokens: inputTokens, output_tokens: outputTokens };
   };
 
   // Global semantic cache: a sufficiently similar earlier answer is served

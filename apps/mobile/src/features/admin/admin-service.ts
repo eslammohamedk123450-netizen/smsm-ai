@@ -466,7 +466,7 @@ export const adminService = {
   async getCreditOverview() {
     await requireAdmin();
     const [pricing, transactions] = await Promise.all([
-      supabase.from("suly_credit_pricing").select("id,enabled,minimum_request_credits,input_credits_per_1k_tokens,output_credits_per_1k_tokens,negative_balance_limit,updated_at").eq("id", 1).maybeSingle(),
+      supabase.from("suly_credit_pricing").select("id,enabled,minimum_request_credits,input_credits_per_1k_tokens,output_credits_per_1k_tokens,negative_balance_limit,credit_value_egp,usd_to_egp,updated_at").eq("id", 1).maybeSingle(),
       supabase.from("suly_credit_transactions").select("id,user_id,event_type,amount,balance_delta,balance_after,actual_cost,input_tokens,output_tokens,model_id,source,reason,created_at").order("created_at", { ascending: false }).limit(100),
     ]);
     if (pricing.error) throw pricing.error;
@@ -488,21 +488,31 @@ export const adminService = {
     if (error) throw error;
     return data as { success?: boolean };
   },
-  async updateCreditControls(input: { enabled: boolean; minimum: number; inputRate: number; outputRate: number; negativeBalanceLimit: number }) {
+  async updateCreditControls(input: {
+    enabled: boolean; minimum: number; inputRate: number; outputRate: number; negativeBalanceLimit: number;
+    creditValueEgp: number | null; usdToEgp: number | null;
+  }) {
     await requireAdmin();
     const values = [input.minimum, input.inputRate, input.outputRate, input.negativeBalanceLimit];
     if (values.some((value) => !Number.isSafeInteger(value) || value < 0 || value > 1_000_000_000)) {
       throw new Error("قيم الرصيد وحد الرصيد السالب يجب أن تكون أعدادًا صحيحة بين صفر ومليار.");
     }
-    const { data, error } = await supabase.rpc("suly_admin_update_credit_controls", {
+    for (const value of [input.creditValueEgp, input.usdToEgp]) {
+      if (value !== null && (!Number.isFinite(value) || value <= 0 || value > 1_000_000)) {
+        throw new Error("قيمة الـ Credit وسعر الصرف يجب أن يكونا أكبر من صفر أو يتركا فارغين.");
+      }
+    }
+    const { data, error } = await supabase.rpc("suly_admin_update_credit_finance_controls", {
       p_enabled: input.enabled,
       p_minimum_request_credits: input.minimum,
       p_input_credits_per_1k_tokens: input.inputRate,
       p_output_credits_per_1k_tokens: input.outputRate,
       p_negative_balance_limit: input.negativeBalanceLimit,
+      p_credit_value_egp: input.creditValueEgp,
+      p_usd_to_egp: input.usdToEgp,
     });
     if (error) throw error;
-    return data as { success?: boolean; negative_balance_limit?: number };
+    return data as { success?: boolean; negative_balance_limit?: number; credit_value_egp?: number | null; usd_to_egp?: number | null };
   },
   async updateNegativeBalanceLimit(limit: number) {
     await requireAdmin();
