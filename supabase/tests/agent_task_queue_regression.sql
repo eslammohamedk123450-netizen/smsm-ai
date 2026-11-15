@@ -20,6 +20,7 @@ declare
   v_usage public.brain_usage_daily%rowtype;
   v_event public.brain_usage_events%rowtype;
   v_retry uuid;
+  v_backoff uuid;
   v_claimed uuid;
 begin
   select array_agg(id order by created_at)
@@ -78,6 +79,25 @@ begin
   perform * from public.claim_agent_task_jobs('regression-reclaim-worker', 1, 30, v_a);
   if (select status from public.agent_task_jobs where id = v_retry) <> 'failed' then
     raise exception 'Retry exhaustion did not move the job to failed';
+  end if;
+
+  -- Interrupted jobs are requeued once with a future backoff, not reclaimed immediately.
+  insert into public.agent_task_jobs(user_id, job_type, payload, idempotency_key, max_attempts, priority)
+  values (v_a, 'brain_task', '{}'::jsonb, 'regression-backoff-' || gen_random_uuid()::text, 3, 99)
+  returning id into v_backoff;
+  select id into v_claimed from public.claim_agent_task_jobs('regression-backoff-worker', 1, 30, v_a);
+  if v_claimed is distinct from v_backoff then raise exception 'Backoff test claimed an unexpected job'; end if;
+  update public.agent_task_jobs set lease_until = now() - interval '1 second' where id = v_backoff;
+  perform * from public.claim_agent_task_jobs('regression-backoff-reaper', 1, 30, v_a);
+  if (select status from public.agent_task_jobs where id = v_backoff) <> 'queued'
+     or (select available_at <= now() from public.agent_task_jobs where id = v_backoff) then
+    raise exception 'Expired lease was not requeued with a future backoff';
+  end if;
+  update public.agent_task_jobs set available_at = now() - interval '1 second' where id = v_backoff;
+  select id into v_claimed from public.claim_agent_task_jobs('regression-backoff-retry', 1, 30, v_a);
+  if v_claimed is distinct from v_backoff
+     or (select attempt_count from public.agent_task_jobs where id = v_backoff) <> 2 then
+    raise exception 'Backoff job was not reclaimed as its second attempt';
   end if;
 
   -- Usage reservation is finalized once and reconciles reserved/used tokens.
