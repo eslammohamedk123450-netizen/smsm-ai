@@ -13,6 +13,7 @@ export function MediaScreen() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [filter, setFilter] = useState<"all" | "image" | "video" | "in_progress">("all");
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -41,6 +42,8 @@ export function MediaScreen() {
       setNotice(null);
     } finally { setBusy(null); }
   };
+
+  const visibleAssets = assets.filter((asset) => filter === "all" || (filter === "image" && asset.kind === "image") || (filter === "video" && asset.kind === "video"));
 
   const copy = async (url: string) => {
     try { await Clipboard.setStringAsync(url); setNotice("تم نسخ رابط الملف."); }
@@ -72,16 +75,27 @@ export function MediaScreen() {
     {notice ? <Text style={styles.success}>{notice}</Text> : null}
     {busy ? <ActivityIndicator color={colors.primary} /> : null}
 
-    {!loading && assets.length === 0 ? <Text style={styles.empty}>لا يوجد ملف بعد. ابدأ برفع صورة.</Text> : null}
+    <View style={styles.filters}>
+      {([
+        ["all", "الكل"],
+        ["image", "الصور"],
+        ["video", "الفيديوهات"],
+        ["in_progress", "قيد التنفيذ"],
+      ] as const).map(([key, label]) => <Pressable key={key} onPress={() => setFilter(key)} style={[styles.filterChip, filter === key && styles.filterChipSelected]}>
+        <Text style={[styles.filterText, filter === key && styles.filterTextSelected]}>{label}</Text>
+      </Pressable>)}
+    </View>
+    {filter === "in_progress" ? <Text style={styles.empty}>لا توجد مهام وسائط قيد التنفيذ مسجلة في الطابور حتى الآن.</Text> : null}
+    {!loading && filter !== "in_progress" && visibleAssets.length === 0 ? <Text style={styles.empty}>{assets.length === 0 ? "لا يوجد ملف بعد. ابدأ برفع صورة." : "لا توجد عناصر في هذا التصنيف."}</Text> : null}
     <View style={styles.grid}>
-      {assets.map((asset) => <View key={asset.id || asset.url} style={styles.card}>
+      {filter !== "in_progress" ? visibleAssets.map((asset) => <View key={asset.id || asset.url} style={styles.card}>
         {asset.kind === "raw" || asset.kind === "video"
           ? <View style={[styles.thumb, styles.fileThumb]}><Text style={styles.fileIcon}>{asset.kind === "video" ? "VIDEO" : "FILE"}</Text></View>
           : <Image source={{ uri: asset.url }} style={styles.thumb} resizeMode="cover" accessibilityLabel={asset.filename ?? "صورة"}/>}
         <Text numberOfLines={1} style={styles.filename}>{asset.filename ?? "ملف"}</Text>
         <Text style={styles.meta}>{asset.kind === "video" ? "فيديو" : asset.kind === "image" ? "صورة" : "ملف"} · {formatBytes(asset.sizeBytes)}</Text>
         <Pressable onPress={() => void copy(asset.url)}><Text style={styles.link}>نسخ الرابط</Text></Pressable>
-      </View>)}
+      </View>) : null}
     </View>
   </ScrollView>;
 }
@@ -93,6 +107,11 @@ const styles = StyleSheet.create({
   title: { color: colors.textPrimary, fontSize: 26, fontWeight: "800", textAlign: "right" },
   explainer: { color: colors.textSecondary, lineHeight: 21, textAlign: "right" },
   actions: { flexDirection: "row", gap: 10, flexWrap: "wrap" },
+  filters: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 7 },
+  filterChip: { borderWidth: 1, borderColor: colors.divider, borderRadius: 18, paddingHorizontal: 13, paddingVertical: 8 },
+  filterChipSelected: { borderColor: colors.primary, backgroundColor: colors.surfaceElevated },
+  filterText: { color: colors.textSecondary, fontSize: 11, fontWeight: "700" },
+  filterTextSelected: { color: colors.primary },
   actionButton: { flexGrow: 1, minWidth: 130, minHeight: 46, borderRadius: 10, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: 14 },
   actionText: { color: "#FFFFFF", fontWeight: "700" },
   ghostButton: { flexGrow: 1, minWidth: 130, minHeight: 46, borderRadius: 10, borderWidth: 1, borderColor: colors.accent, alignItems: "center", justifyContent: "center", paddingHorizontal: 14 },
