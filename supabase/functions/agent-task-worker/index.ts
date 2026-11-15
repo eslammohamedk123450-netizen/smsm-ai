@@ -1,7 +1,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { claimAgentTasks, finishAgentTask } from "../_shared/agent_task_queue.ts";
 import { readBrainTaskPayload } from "../_shared/brain_task_payload.ts";
+import { settleTerminalAgentTaskUsage, type TerminalAgentTaskStatus } from "../_shared/agent_usage_settlement.ts";
 
 declare const EdgeRuntime: {
   waitUntil(promise: Promise<unknown>): void;
@@ -9,6 +10,25 @@ declare const EdgeRuntime: {
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+}
+
+async function finishAndSettle(
+  admin: SupabaseClient,
+  jobId: string,
+  workerId: string,
+  userId: string,
+  taskId: string | null,
+  status: TerminalAgentTaskStatus,
+  options: { result?: Record<string, unknown>; errorCode?: string; errorMessage?: string } = {},
+): Promise<boolean> {
+  const finished = await finishAgentTask(admin, jobId, workerId, status, options);
+  if (finished && taskId) {
+    const settlement = await settleTerminalAgentTaskUsage(admin, { jobId, taskId, userId, status });
+    if (settlement.finalized !== true) {
+      console.warn("Agent task terminal billing remains pending:", String(settlement.reason ?? settlement.status ?? "unknown"));
+    }
+  }
+  return finished;
 }
 
 async function processOne(url: string, serviceKey: string, userId: string, userJwt: string): Promise<void> {
@@ -19,7 +39,7 @@ async function processOne(url: string, serviceKey: string, userId: string, userJ
   const job = jobs[0];
 
   if (job.job_type !== "brain_task") {
-    await finishAgentTask(admin, job.id, workerId, "failed", {
+    await finishAndSettle(admin, job.id, workerId, userId, job.task_id ?? null, "failed", {
       errorCode: "unsupported_job_type",
       errorMessage: "No handler is registered for this job type.",
     });
@@ -28,7 +48,7 @@ async function processOne(url: string, serviceKey: string, userId: string, userJ
 
   const task = readBrainTaskPayload(job);
   if (!task || task.userId !== userId) {
-    await finishAgentTask(admin, job.id, workerId, "failed", {
+    await finishAndSettle(admin, job.id, workerId, userId, job.task_id ?? null, "failed", {
       errorCode: "invalid_brain_payload",
       errorMessage: "The queued Brain task payload is incomplete or user-mismatched.",
     });
@@ -79,19 +99,19 @@ async function processOne(url: string, serviceKey: string, userId: string, userJ
     if (leaseLost) return;
     const result = await response.json().catch(() => ({}));
     if (response.ok && result?.status === "cancelled") {
-      await finishAgentTask(admin, job.id, workerId, "cancelled", {
+      await finishAndSettle(admin, job.id, workerId, userId, taskId, "cancelled", {
         result: { task_id: taskId, response: typeof result.response === "string" ? result.response : "تم إيقاف المهمة بناءً على طلبك.", status: "cancelled" },
       });
       return;
     }
     if (!response.ok || typeof result?.response !== "string" || !result.response.trim()) {
-      await finishAgentTask(admin, job.id, workerId, "failed", {
+      await finishAndSettle(admin, job.id, workerId, userId, taskId, "failed", {
         errorCode: "brain_execution_failed",
         errorMessage: "Brain could not complete this task. Review the task details and try again.",
       });
       return;
     }
-    await finishAgentTask(admin, job.id, workerId, "completed", {
+    await finishAndSettle(admin, job.id, workerId, userId, taskId, "completed", {
       result: {
         task_id: taskId,
         response: result.response,
