@@ -103,9 +103,11 @@ export function MediaGenerationModelsAdminScreen() {
         setSelectedId(modelId);
       }
       if (!modelId) throw new Error("معرّف النموذج غير متاح.");
-      const { error: clearDefaultError } = await supabase.from("suly_media_generation_models")
-        .update({ is_default: false }).eq("service_type", "image").neq("id", modelId);
-      if (clearDefaultError) throw clearDefaultError;
+      if (isDefault && isActive) {
+        const { error: clearDefaultError } = await supabase.from("suly_media_generation_models")
+          .update({ is_default: false }).eq("service_type", "image").neq("id", modelId);
+        if (clearDefaultError) throw clearDefaultError;
+      }
       const { error: defaultError } = await supabase.from("suly_media_generation_models")
         .update({ is_default: Boolean(isDefault && isActive) }).eq("id", modelId);
       if (defaultError) throw defaultError;
