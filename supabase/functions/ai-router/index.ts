@@ -24,6 +24,7 @@ import { CircuitBreaker } from "./circuit_breaker.ts";
 import { buildIndependentTaskPlan, mapWithConcurrency, mergePartAnswers, probeCandidates, splitTask, validateTaskPlan } from "./resilience.ts";
 import { parseAgentDecision, runAgentLoop, type AgentLoopStep, type AgentTool } from "./agent/orchestrator.ts";
 import { prioritizeModelCandidate } from "./agent/model_routing.ts";
+import { isModelEligibleForRequest, modelSupportsRole as supportsModelRole } from "./agent/model_eligibility.ts";
 import { getAgentToolsFromDatabase, getRegisteredTool, validateToolInput } from "./agent/tool_registry.ts";
 
 // Native Android/iOS clients do not require CORS. Web access must set WEB_CORS_ORIGIN
@@ -192,10 +193,7 @@ function modelSupportsRequest(model: ModelRow, required: readonly ModelCapabilit
 }
 
 function modelSupportsRole(model: ModelRow, role: "planner" | "worker" | "reviewer" | "summarizer"): boolean {
-  const roles = Array.isArray(model.task_roles) && model.task_roles.length > 0 ? model.task_roles : ["general"];
-  if (roles.includes("general")) return true;
-  if (role === "worker") return roles.includes("worker") || roles.includes("executor");
-  return roles.includes(role);
+  return supportsModelRole(model.task_roles, role);
 }
 
 function orderModelsByRoute(models: ModelRow[], assignments: RouteModelAssignment[], role: RouteModelAssignment["route_role"]): ModelRow[] {
@@ -990,10 +988,27 @@ async function handleRequest(req: Request): Promise<Response> {
   const providerById = new Map<number, ProviderRow>((providers ?? []).map((p: ProviderRow) => [p.id, p]));
   const orderedRouteAssignments = (routeAssignments ?? []) as RouteModelAssignment[];
   const healthyModels = (allModels ?? []).filter((model: ModelRow) => !healthByModel.get(model.id)?.auto_restricted);
-  const anyCapabilityEligible = healthyModels.some((model: ModelRow) => model.enabled
-    && (model.allowed_tiers ?? []).includes(userTier)
-    && (model.routing_group === "free_race" || (settings.paidFallbackEnabled && model.routing_group === "paid_fallback"))
-    && modelSupportsRequest(model, uniqueRequiredCapabilities));
+  const allowedAutoRoutingGroups: ModelRow["routing_group"][] = settings.paidFallbackEnabled
+    ? ["free_race", "paid_fallback"]
+    : ["free_race"];
+  const isEligibleModel = (
+    model: ModelRow,
+    requiredRole?: "chat" | "planner" | "worker" | "reviewer" | "summarizer",
+    allowedRoutingGroups?: ModelRow["routing_group"][],
+  ) => isModelEligibleForRequest({
+    enabled: model.enabled,
+    healthy: !healthByModel.get(model.id)?.auto_restricted,
+    allowedTiers: model.allowed_tiers ?? [],
+    userTier,
+    capabilities: model.capabilities_json,
+    requiredCapabilities: uniqueRequiredCapabilities,
+    taskRoles: model.task_roles,
+    requiredRole,
+    routingGroup: model.routing_group,
+    allowedRoutingGroups,
+  });
+  const anyCapabilityEligible = healthyModels.some((model: ModelRow) =>
+    isEligibleModel(model, undefined, allowedAutoRoutingGroups));
   if (routingMode === "auto" && !anyCapabilityEligible) {
     const labels = [...new Set([
       ...connectorCapabilities.map(capabilityLabel),
@@ -1012,7 +1027,7 @@ async function handleRequest(req: Request): Promise<Response> {
   } else {
     // Auto routing always starts with the free race. Paid models are selected only
     // after every free candidate has failed or no usable free candidate exists.
-    const tierFiltered = healthyModels.filter((m: ModelRow) => (m.allowed_tiers ?? []).includes(userTier) && modelSupportsRequest(m, uniqueRequiredCapabilities));
+    const tierFiltered = healthyModels.filter((model: ModelRow) => isEligibleModel(model));
     const routeRole: RouteModelAssignment["route_role"] = executionMode === "agent" ? "planner" : "chat";
     candidatesFrom = orderModelsByRoute(tierFiltered.filter(m => m.routing_group === "free_race"), orderedRouteAssignments, routeRole);
   }
@@ -1554,8 +1569,7 @@ async function handleRequest(req: Request): Promise<Response> {
     let paidPlanPool: Candidate[] = [];
     if (routingMode === "auto" && settings.paidFallbackEnabled) {
       const paidModels: ModelRow[] = healthyModels
-        .filter((model) => modelSupportsRole(model, "planner") && model.routing_group === "paid_fallback" && (model.allowed_tiers ?? []).includes(userTier) && modelSupportsRequest(model, uniqueRequiredCapabilities))
-        ;
+        .filter((model) => isEligibleModel(model, "planner", ["paid_fallback"]));
       const orderedPaidModels = orderModelsByRoute(paidModels, orderedRouteAssignments, "planner");
       const paidProviderIds = [...new Set(paidModels.map((model) => model.provider_id))];
       await Promise.all(paidProviderIds.map(async (providerId) => {
