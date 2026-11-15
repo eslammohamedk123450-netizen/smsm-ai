@@ -25,13 +25,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let active = true;
     let currentUserId: string | null = null;
-    let bootstrapTimer: ReturnType<typeof setTimeout> | undefined;
     const applySession = (nextSession: Session | null) => {
       if (!active) return;
-      if (bootstrapTimer) {
-        clearTimeout(bootstrapTimer);
-        bootstrapTimer = undefined;
-      }
       const nextUser = nextSession?.user ?? null;
       const nextUserId = nextUser?.id ?? null;
       if (currentUserId !== nextUserId) setProfileFullName(null);
@@ -41,13 +36,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStatus(nextUser ? "authenticated" : "unauthenticated");
       // Profile sync is started by the auth service and must not block auth state.
     };
-
-    // Never leave the browser trapped on the initial spinner if session storage
-    // or the first Supabase auth event stalls. A late session result can still
-    // upgrade this temporary signed-out state to the real authenticated state.
-    if (Platform.OS === "web") {
-      bootstrapTimer = setTimeout(() => applySession(null), 5000);
-    }
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       applySession(nextSession);
@@ -71,7 +59,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       active = false;
-      if (bootstrapTimer) clearTimeout(bootstrapTimer);
       subscription.unsubscribe();
       appStateSubscription?.remove();
     };
