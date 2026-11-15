@@ -139,6 +139,7 @@ declare
   v_input_tokens bigint;
   v_output_tokens bigint;
   v_actual_cost bigint;
+  v_hold_exists boolean := false;
   v_finalized jsonb;
 begin
   if coalesce(auth.role(), '') <> 'service_role' then
@@ -177,6 +178,25 @@ begin
   if v_input_tokens > 2147483647 or v_output_tokens > 2147483647
     or v_actual_cost > 1000000000 then
     raise exception 'agent_usage_exceeds_safe_limits' using errcode = '22003';
+  end if;
+
+  -- Brain queue jobs are backed by brain_usage_events, not suly_credit_holds.
+  -- Never call finalize_credits unless this task actually owns an active credit hold.
+  select exists (
+    select 1 from public.suly_credit_holds
+     where task_id = p_task_id and user_id = p_user_id and status = 'reserved'
+  ) into v_hold_exists;
+  if not v_hold_exists then
+    return jsonb_build_object(
+      'finalized', false,
+      'status', 'billing_pending',
+      'reason', 'credit_hold_not_found',
+      'usage', jsonb_build_object(
+        'input_tokens', v_input_tokens,
+        'output_tokens', v_output_tokens,
+        'actual_cost', v_actual_cost
+      )
+    );
   end if;
 
   v_finalized := public.finalize_credits(
