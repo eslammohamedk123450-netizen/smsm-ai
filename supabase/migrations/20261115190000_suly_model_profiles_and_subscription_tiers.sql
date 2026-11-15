@@ -144,7 +144,12 @@ from public.suly_model_profiles profile
 join public.ai_models model
   on model.enabled = true
  and model.routing_group <> 'disabled'
- and profile.profile_key = any(coalesce(model.allowed_tiers, array[]::text[]))
+ and exists (
+   select 1
+   from unnest(coalesce(model.allowed_tiers, array[]::text[])) as allowed_tier
+   where array_position(array['free','lite','pro','max']::text[], allowed_tier)
+     <= array_position(array['free','lite','pro','max']::text[], profile.profile_key)
+ )
 cross join lateral (
   select unnest(array['chat','planner','worker','reviewer','summarizer']::text[]) as route_role
 ) role
