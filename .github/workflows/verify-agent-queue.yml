@@ -65,7 +65,7 @@ jobs:
       - name: Typecheck mobile application
         run: npm run typecheck
       - name: Run mobile authentication regression tests
-        run: npm test -- --runInBand src/features/auth/auth-service.test.ts src/features/auth/auth-callback.test.ts
+        run: npm test -- --runInBand src/features/auth/auth-service.test.ts src/features/auth/auth-callback.test.ts src/features/chat/chat-service.test.ts
 
   edge-function-typecheck:
     name: Deno Edge Function typecheck
