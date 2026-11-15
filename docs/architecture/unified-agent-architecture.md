@@ -188,3 +188,9 @@ Daily and monthly budgets must be enforced server-side, not only displayed in th
 ### Dependency-aware execution
 - Added a bounded DAG executor to the central Agent worker path. It validates the plan before starting, runs ready independent steps in bounded waves, passes completed prerequisite outputs to dependants, and blocks only descendants of failed steps while allowing unrelated branches to continue.
 - The current user-facing plan builder still emits only explicit independent list items; model-generated dependency plans and durable cross-invocation DAG resumption remain follow-up work.
+
+
+### Brain usage accounting hardening
+- Brain finalization now records actual token usage even when it exceeds the enqueue-time reservation, stores the excess in `overage_tokens`, and includes the full actual amount in daily usage.
+- Finalization remains idempotent: repeated calls return the already-finalized totals without releasing/counting tokens twice.
+- The migration is additive and dev-branch only; it has not been applied to production.
