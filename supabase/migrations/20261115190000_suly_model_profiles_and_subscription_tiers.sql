@@ -8,15 +8,15 @@ alter table public.subscription_plans
   add column if not exists tier_key text;
 
 update public.subscription_plans
-set tier_key = case id
-  when 1 then 'free'
-  when 2 then 'lite'
-  when 3 then 'pro'
-  when 4 then 'max'
-  when 5 then 'ultra'
-  else coalesce(tier_key, 'free')
+set tier_key = case
+  when lower(regexp_replace(coalesce(name, ''), '[^a-z0-9]+', '', 'g')) in ('free','basic') then 'free'
+  when lower(regexp_replace(coalesce(name, ''), '[^a-z0-9]+', '', 'g')) = 'lite' then 'lite'
+  when lower(regexp_replace(coalesce(name, ''), '[^a-z0-9]+', '', 'g')) in ('pro','professional') then 'pro'
+  when lower(regexp_replace(coalesce(name, ''), '[^a-z0-9]+', '', 'g')) in ('max','maximum') then 'max'
+  when lower(regexp_replace(coalesce(name, ''), '[^a-z0-9]+', '', 'g')) = 'ultra' then 'ultra'
+  else coalesce(nullif(tier_key, ''), 'free')
 end
-where tier_key is null;
+where tier_key is null or tier_key = '';
 
 alter table public.subscription_plans
   alter column tier_key set default 'free',
@@ -32,7 +32,7 @@ alter table public.subscription_plans
 -- historical subscriptions and profile values remain intact for reconciliation.
 update public.subscription_plans
 set is_active = false, updated_at = now()
-where id = 5 and tier_key = 'ultra';
+where tier_key = 'ultra' and lower(name) = 'ultra';
 
 create table if not exists public.suly_model_profiles (
   profile_key text primary key check (profile_key in ('lite', 'pro', 'max')),
