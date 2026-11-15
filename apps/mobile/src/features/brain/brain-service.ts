@@ -3,7 +3,7 @@ import { supabase } from "../../lib/supabase/client";
 export type BrainTaskAccepted = {
   task_id: string;
   job_id: string;
-  status: "queued";
+  status: "queued" | "running" | "completed" | "failed" | "cancelled";
   queued: true;
   route: "brain-router";
 };
@@ -27,7 +27,8 @@ export async function runBrainTask(objective: string, taskId?: string): Promise<
     body: { objective, mode: "enqueue", ...(taskId ? { task_id: taskId } : {}) },
   });
   if (error) throw new Error(error.message || "تعذر إضافة المهمة إلى قائمة التنفيذ.");
-  if (!data || data.queued !== true || typeof data.task_id !== "string" || typeof data.job_id !== "string") {
+  if (!data || data.queued !== true || typeof data.task_id !== "string" || typeof data.job_id !== "string"
+    || !["queued", "running", "completed", "failed", "cancelled"].includes(String(data.status))) {
     throw new Error(String(data?.error ?? "تعذر إضافة المهمة إلى قائمة التنفيذ."));
   }
   void wakeBrainWorker();
