@@ -1,6 +1,8 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
   buildIndependentTaskPlan,
+  buildTaskPlan,
+  hasExplicitDependencyLanguage,
   executeTaskPlan,
   mapWithConcurrency,
   mergePartAnswers,
@@ -14,9 +16,21 @@ Deno.test("splitTask splits only explicit same-level independent lists", () => {
   assertEquals(parts[0].startsWith("1."), true);
 });
 
-Deno.test("splitTask keeps dependency-ordered work together", () => {
-  const parts = splitTask("1. اجمع البيانات\n2. بعد ذلك حلل النتائج\n3. اكتب التوصية", 3);
-  assertEquals(parts.length, 1);
+Deno.test("splitTask preserves explicit ordered steps for a dependency DAG", () => {
+  const request = "1. اجمع البيانات\n2. بعد ذلك حلل النتائج\n3. اكتب التوصية";
+  const parts = splitTask(request, 3);
+  assertEquals(parts.length, 3);
+  assertEquals(hasExplicitDependencyLanguage(request), true);
+  const plan = buildTaskPlan(parts, 3, true);
+  assertEquals(plan?.map((step) => step.depends_on), [[], ["part-1"], ["part-2"]]);
+  assertEquals(validateTaskPlan(plan ?? [], 3), true);
+});
+
+Deno.test("dependency plan selection fails closed for unstructured prose", () => {
+  const request = "اجمع البيانات ثم حلل النتائج ثم اكتب التوصية";
+  assertEquals(splitTask(request, 3).length, 1);
+  assertEquals(buildTaskPlan(["one", "two"], 3, true)?.length, 2);
+  assertEquals(buildTaskPlan(["one", "two"], 3, false)?.every((step) => step.depends_on.length === 0), true);
 });
 
 Deno.test("splitTask does not split long prose or mixed list types", () => {

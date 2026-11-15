@@ -21,7 +21,7 @@ import {
   upsertSharedTaskMemory,
 } from "../_shared/shared_task_memory.ts";
 import { CircuitBreaker } from "./circuit_breaker.ts";
-import { buildIndependentTaskPlan, executeTaskPlan, mergePartAnswers, probeCandidates, splitTask, validateTaskPlan } from "./resilience.ts";
+import { buildIndependentTaskPlan, buildTaskPlan, executeTaskPlan, hasExplicitDependencyLanguage, mergePartAnswers, probeCandidates, splitTask, validateTaskPlan } from "./resilience.ts";
 import { parseAgentDecision, runAgentLoop, type AgentLoopStep, type AgentTool } from "./agent/orchestrator.ts";
 import { prioritizeModelCandidate } from "./agent/model_routing.ts";
 import { isModelEligibleForRequest, modelSupportsRole as supportsModelRole } from "./agent/model_eligibility.ts";
@@ -1277,7 +1277,7 @@ async function handleRequest(req: Request): Promise<Response> {
     const proposedReservationParts = canDelegateReservation
       ? splitTask(latestUserMessage, settings.taskSplitMaxParts)
       : [latestUserMessage];
-    const reservationPlan = buildIndependentTaskPlan(proposedReservationParts, settings.taskSplitMaxParts);
+    const reservationPlan = buildTaskPlan(proposedReservationParts, settings.taskSplitMaxParts, hasExplicitDependencyLanguage(latestUserMessage));
     const boundedWorkerCalls = getAgentReservationCallCount({
       executionMode,
       splitPartCount: reservationPlan && validateTaskPlan(reservationPlan, settings.taskSplitMaxParts)
@@ -1556,7 +1556,7 @@ async function handleRequest(req: Request): Promise<Response> {
   const proposedParts = executionMode === "agent" && workerCandidates.length > 0
     ? splitTask(latestUserMessage, settings.taskSplitMaxParts)
     : [latestUserMessage];
-  let taskPlan = buildIndependentTaskPlan(proposedParts, settings.taskSplitMaxParts);
+  let taskPlan = buildTaskPlan(proposedParts, settings.taskSplitMaxParts, hasExplicitDependencyLanguage(latestUserMessage));
   if (!taskPlan || !validateTaskPlan(taskPlan, settings.taskSplitMaxParts)) taskPlan = null;
   const splitParts = taskPlan ? proposedParts : [latestUserMessage];
   // Every request gets a durable workspace. Compound requests reuse their
@@ -1571,6 +1571,9 @@ async function handleRequest(req: Request): Promise<Response> {
       depends_on: [],
     }];
   const resultStepKey = taskPlan ? "merge" : "final";
+  const taskPlanType = taskPlan
+    ? taskPlan.some((step) => step.depends_on.length > 0) ? "dependency_dag" : "independent_list"
+    : executionMode === "agent" ? "agent_loop" : "single_response";
   // Direct chat avoids workspace/ledger writes; durable tracking is reserved for Agent and split tasks.
   if (executionMode === "agent" || splitParts.length > 1) {
     const { data: workspaceRow, error: workspaceError } = await supabase.from("agent_workspaces").upsert({
@@ -1606,8 +1609,8 @@ async function handleRequest(req: Request): Promise<Response> {
   }
   await updateWorkspaceStep("plan", "running");
   await updateTaskLedger("plan", "running");
-  await updateWorkspaceStep("plan", "completed", { result: { plan_type: taskPlan ? "independent_list" : executionMode === "agent" ? "agent_loop" : "single_response", step_count: workspacePlan.length } });
-  await updateTaskLedger("plan", "completed", { plan_type: taskPlan ? "independent_list" : executionMode === "agent" ? "agent_loop" : "single_response", step_count: workspacePlan.length });
+  await updateWorkspaceStep("plan", "completed", { result: { plan_type: taskPlanType, step_count: workspacePlan.length, dependency_count: workspacePlan.reduce((sum, step) => sum + step.depends_on.length, 0) } });
+  await updateTaskLedger("plan", "completed", { plan_type: taskPlanType, step_count: workspacePlan.length, dependency_count: workspacePlan.reduce((sum, step) => sum + step.depends_on.length, 0) });
   await updateWorkspace("executing");
 
   if (splitParts.length > 1) {
