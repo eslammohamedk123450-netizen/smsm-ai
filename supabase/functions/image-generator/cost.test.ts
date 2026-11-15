@@ -98,3 +98,29 @@ Deno.test("rejects a path outside the OpenAI Images endpoint", () => {
     "https://soal.help/api/v1",
   )) throw new Error("non-image endpoint was accepted");
 });
+
+Deno.test("rejects a 100 percent gross margin", () => {
+  const result = validateEnabledMediaPrice({ ...validPrice, target_margin: 1 });
+  if (result.valid) throw new Error("100 percent margin must be rejected");
+});
+
+Deno.test("ignores negative and non-finite provider cost values", () => {
+  for (const invalid of [-1, Number.NaN, Number.POSITIVE_INFINITY, 100001]) {
+    const result = actualCostUsd({ usage: { cost_usd: invalid } }, 0.5);
+    if (result.confirmed || result.value !== 0.5) {
+      throw new Error(`invalid provider cost was accepted: ${String(invalid)}`);
+    }
+  }
+});
+
+Deno.test("rejects local DNS names and IPv6 literals as provider origins", () => {
+  const invalid = [
+    ["https://service.local/api/v1/images/generations", "https://service.local/api/v1"],
+    ["https://[::1]/api/v1/images/generations", "https://[::1]/api/v1"],
+  ];
+  for (const [endpoint, base] of invalid) {
+    if (providerEndpointAllowed(endpoint, base)) {
+      throw new Error(`local provider origin was accepted: ${endpoint}`);
+    }
+  }
+});
