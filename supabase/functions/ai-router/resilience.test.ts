@@ -98,6 +98,25 @@ Deno.test("dependency-aware executor runs prerequisites before dependants", asyn
   assertEquals(calls.indexOf("research") < calls.indexOf("recommend"), true);
 });
 
+Deno.test("executor resumes completed checkpoints without replay and passes them to dependants", async () => {
+  const plan = [
+    { step_id: "collect", description: "Collect", expected_inputs: {}, completion_criteria: "Collected", depends_on: [] },
+    { step_id: "analyze", description: "Analyze", expected_inputs: {}, completion_criteria: "Analyzed", depends_on: ["collect"] },
+    { step_id: "publish", description: "Publish", expected_inputs: {}, completion_criteria: "Published", depends_on: ["analyze"] },
+  ];
+  const resumed = new Map([["collect", "durable source data"]]);
+  const calls: string[] = [];
+  const outcomes = await executeTaskPlan(plan, 2, async (step, _index, completed) => {
+    calls.push(step.step_id);
+    if (step.step_id === "analyze") assertEquals(completed.get("collect"), "durable source data");
+    if (step.step_id === "publish") assertEquals(completed.get("analyze"), "analysis result");
+    return step.step_id === "analyze" ? "analysis result" : "published";
+  }, resumed);
+  assertEquals(calls, ["analyze", "publish"]);
+  assertEquals(outcomes.map((item) => item.status), ["completed", "completed", "completed"]);
+  assertEquals(outcomes[0].result, "durable source data");
+});
+
 Deno.test("failed prerequisite blocks only dependent steps", async () => {
   const plan = [
     { step_id: "broken", description: "Broken", expected_inputs: {}, completion_criteria: "Done", depends_on: [] },
