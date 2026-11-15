@@ -25,7 +25,7 @@ declare
   v_hold_exists boolean := false;
   v_finalized jsonb;
 begin
-  if coalesce(auth.role(), '') <> 'service_role' then
+  if coalesce(auth.role(), '') not in ('service_role', 'authenticated') then
     raise exception 'service_role_required' using errcode = '42501';
   end if;
   if p_status not in ('completed', 'failed', 'cancelled') then
@@ -242,3 +242,93 @@ drop trigger if exists agent_step_usage_auto_finalize on public.agent_step_usage
 create trigger agent_step_usage_auto_finalize
 after insert or update of usage_status, input_tokens, output_tokens, actual_cost on public.agent_step_usage
 for each row execute function public.auto_finalize_agent_task_usage_from_usage();
+
+
+-- Nested calls from the owner-checked queued-cancellation RPC can settle a hold.
+-- Direct authenticated execution remains revoked; only trusted definer paths can reach this.
+CREATE OR REPLACE FUNCTION public.finalize_credits(p_user_id uuid, p_task_id uuid, p_actual_cost bigint, p_input_tokens integer DEFAULT 0, p_output_tokens integer DEFAULT 0, p_model_id integer DEFAULT NULL::integer, p_source text DEFAULT 'ai_request'::text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'public', 'pg_temp'
+AS $function$
+declare
+  v_account public.suly_credit_accounts%rowtype;
+  v_hold public.suly_credit_holds%rowtype;
+  v_charge bigint;
+  v_extra bigint;
+  v_release bigint;
+  v_balance bigint;
+  v_reserved bigint;
+  v_negative_limit bigint := 5000;
+begin
+  if coalesce(auth.role(), '') not in ('service_role', 'authenticated') then
+    raise exception 'service role required' using errcode = '42501';
+  end if;
+  if p_user_id is null or p_task_id is null or p_actual_cost is null or p_actual_cost < 0
+    or p_actual_cost > 1000000000 or coalesce(p_input_tokens, 0) < 0 or coalesce(p_output_tokens, 0) < 0 then
+    raise exception 'invalid finalization parameters' using errcode = '22023';
+  end if;
+
+  select * into v_account from public.suly_credit_accounts where user_id = p_user_id for update;
+  if not found then
+    return jsonb_build_object('success', false, 'error', 'account_not_found');
+  end if;
+  select * into v_hold from public.suly_credit_holds where task_id = p_task_id and user_id = p_user_id for update;
+  if not found then
+    return jsonb_build_object('success', false, 'error', 'hold_not_found');
+  end if;
+  if v_hold.status in ('settled', 'expired') then
+    return jsonb_build_object('success', true, 'already_finalized', true,
+      'charged', coalesce(v_hold.charged_amount, 0), 'actual_cost', coalesce(v_hold.actual_cost, 0),
+      'balance', v_account.balance, 'reserved_balance', v_account.reserved_balance);
+  end if;
+  if v_account.reserved_balance < v_hold.reserved_amount then
+    raise exception 'reserved balance invariant violated' using errcode = '23514';
+  end if;
+
+  select coalesce(negative_balance_limit, 5000) into v_negative_limit
+  from public.suly_credit_pricing where id = 1;
+
+  -- The provider has already performed the work. Never cap settlement at the
+  -- remaining wallet balance: record the full charge and carry the overage as debt.
+  v_charge := p_actual_cost;
+  v_extra := greatest(v_charge - v_hold.reserved_amount, 0);
+  v_release := greatest(v_hold.reserved_amount - v_charge, 0);
+
+  update public.suly_credit_accounts
+    set balance = balance - v_extra + v_release,
+        reserved_balance = reserved_balance - v_hold.reserved_amount,
+        updated_at = now()
+    where user_id = p_user_id
+    returning balance, reserved_balance into v_balance, v_reserved;
+
+  update public.suly_credit_holds
+    set status = 'settled', actual_cost = p_actual_cost, charged_amount = v_charge,
+        input_tokens = coalesce(p_input_tokens, 0), output_tokens = coalesce(p_output_tokens, 0),
+        model_id = p_model_id, settled_at = now()
+    where task_id = p_task_id;
+
+  insert into public.suly_credit_transactions(
+    user_id, hold_id, event_type, amount, balance_delta, reserved_delta,
+    balance_after, reserved_after, actual_cost, input_tokens, output_tokens,
+    model_id, source, reason
+  ) values (
+    p_user_id, p_task_id, 'settle', v_charge, v_release - v_extra, -v_hold.reserved_amount,
+    v_balance, v_reserved, p_actual_cost, coalesce(p_input_tokens, 0),
+    coalesce(p_output_tokens, 0), p_model_id, coalesce(nullif(p_source, ''), 'ai_request'),
+    case when v_balance < -v_negative_limit
+      then 'Actual provider cost exceeded reservation and crossed the configured negative-balance alert threshold'
+      when v_extra > 0 then 'Actual cost exceeded the reserved amount; overage carried as negative balance'
+      else null end
+  );
+
+  return jsonb_build_object('success', true, 'charged', v_charge,
+    'actual_cost', p_actual_cost, 'balance', v_balance, 'reserved_balance', v_reserved,
+    'overage', v_extra, 'negative_limit', v_negative_limit,
+    'negative_limit_exceeded', v_balance < -v_negative_limit);
+end;
+$function$
+
+revoke all on function public.finalize_credits(uuid, uuid, bigint, integer, integer, integer, text) from public, anon, authenticated;
+grant execute on function public.finalize_credits(uuid, uuid, bigint, integer, integer, integer, text) to service_role;
