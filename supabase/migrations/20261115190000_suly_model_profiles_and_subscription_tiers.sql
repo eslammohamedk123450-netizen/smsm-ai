@@ -9,11 +9,11 @@ alter table public.subscription_plans
 
 update public.subscription_plans
 set tier_key = case
-  when lower(regexp_replace(coalesce(name, ''), '[^a-z0-9]+', '', 'g')) in ('free','basic') then 'free'
-  when lower(regexp_replace(coalesce(name, ''), '[^a-z0-9]+', '', 'g')) = 'lite' then 'lite'
-  when lower(regexp_replace(coalesce(name, ''), '[^a-z0-9]+', '', 'g')) in ('pro','professional') then 'pro'
-  when lower(regexp_replace(coalesce(name, ''), '[^a-z0-9]+', '', 'g')) in ('max','maximum') then 'max'
-  when lower(regexp_replace(coalesce(name, ''), '[^a-z0-9]+', '', 'g')) = 'ultra' then 'ultra'
+  when regexp_replace(lower(coalesce(name, '')), '[^a-z0-9]+', '', 'g') in ('free','basic') then 'free'
+  when regexp_replace(lower(coalesce(name, '')), '[^a-z0-9]+', '', 'g') = 'lite' then 'lite'
+  when regexp_replace(lower(coalesce(name, '')), '[^a-z0-9]+', '', 'g') in ('pro','professional') then 'pro'
+  when regexp_replace(lower(coalesce(name, '')), '[^a-z0-9]+', '', 'g') in ('max','maximum') then 'max'
+  when regexp_replace(lower(coalesce(name, '')), '[^a-z0-9]+', '', 'g') = 'ultra' then 'ultra'
   else coalesce(nullif(tier_key, ''), 'free')
 end
 where tier_key is null or tier_key = '';
