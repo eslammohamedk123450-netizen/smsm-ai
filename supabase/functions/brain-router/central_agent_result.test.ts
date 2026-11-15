@@ -53,7 +53,7 @@ Deno.test("central Agent steps map to the Brain progress table contract", () => 
 Deno.test("central Agent progress always contains at least one safe display step", () => {
   const rows = toBrainTaskStepRows("task-2", []);
   assertEquals(rows.length, 1);
-  assertEquals(rows[0].capability_key, "reasoning");
+  assertEquals(rows[0].capability_key, "text");
   assertEquals(rows[0].status, "completed");
 });
 
