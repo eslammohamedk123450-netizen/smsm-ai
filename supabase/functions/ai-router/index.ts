@@ -585,7 +585,7 @@ async function handleRequest(req: Request): Promise<Response> {
       p_task_id: billingTaskId,
       p_user_id: user.id,
       p_worker_id: agentWorkerId,
-      p_worker_attempt: agentWorkerAttempt,
+      p_worker_attempt: agentWorkerAttempt as number,
     });
     if (error) throw new Error("Could not verify Agent worker lease.");
     return asRecord(data);
@@ -2370,7 +2370,7 @@ async function handleRequest(req: Request): Promise<Response> {
         p_task_id: billingTaskId,
         p_user_id: user.id,
         p_worker_id: agentWorkerId,
-        p_worker_attempt: agentWorkerAttempt,
+        p_worker_attempt: agentWorkerAttempt as number,
         p_tool_name: tool,
         p_input_hash: inputHash,
         p_occurrence_no: occurrenceNo,
@@ -2397,13 +2397,16 @@ async function handleRequest(req: Request): Promise<Response> {
       const result = await executeToolImplementation(tool, input);
       const resultRecord = asRecord(result);
       const resultStatus = resultRecord.status === "failed" ? "failed" : "completed";
-      const safeResult = asRecord(sanitizeToolCheckpointResult(result));
+      const sanitizedResult = sanitizeToolCheckpointResult(result);
+      const safeResult = sanitizedResult && typeof sanitizedResult === "object" && !Array.isArray(sanitizedResult)
+        ? sanitizedResult as Record<string, unknown>
+        : { result: sanitizedResult };
       const { data: completeData, error: completeError } = await supabase.rpc("complete_agent_tool_execution", {
         p_job_id: agentJobId,
         p_task_id: billingTaskId,
         p_user_id: user.id,
         p_worker_id: agentWorkerId,
-        p_worker_attempt: agentWorkerAttempt,
+        p_worker_attempt: agentWorkerAttempt as number,
         p_checkpoint_id: claim.checkpoint_id,
         p_status: resultStatus,
         p_result: safeResult,
