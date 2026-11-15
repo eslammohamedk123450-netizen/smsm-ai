@@ -30,22 +30,21 @@ export default function UpgradeScreen() {
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
-    let [plansResult, featuresResult, tierResult, profileResult] = await Promise.all([
+    let [plansResult, featuresResult, tierResult] = await Promise.all([
       supabase.from("subscription_plans").select("id,name,tier_key,description,price,currency,billing_period,daily_credits,max_requests,sort_order").eq("is_active", true).order("sort_order").limit(20),
       supabase.from("subscription_plan_features").select("id,plan_id,title,value,sort_order").eq("is_active", true).order("sort_order").limit(200),
-      user ? supabase.rpc("suly_effective_subscription_tier", { p_user_id: user.id }) : Promise.resolve({ data: null, error: null }),
-      user ? supabase.from("suly_profiles").select("subscription_tier").eq("id", user.id).maybeSingle() : Promise.resolve({ data: null, error: null }),
+      user ? supabase.rpc("suly_effective_subscription_tier", { p_user_id: user.id }) : Promise.resolve({ data: "free", error: null }),
     ]);
     if (plansResult.error) {
       const legacyPlans = await supabase.from("subscription_plans").select("id,name,description,price,currency,billing_period,daily_credits,max_requests,sort_order").eq("is_active", true).order("sort_order").limit(20);
       if (!legacyPlans.error) plansResult = { ...legacyPlans, data: (legacyPlans.data ?? []).map((plan) => ({ ...plan, tier_key: planKey(plan.name) })) } as unknown as typeof plansResult;
     }
-    if (plansResult.error || featuresResult.error) setError("تعذر تحميل الباقات الآن. حاول مرة أخرى.");
+    if (plansResult.error || featuresResult.error || tierResult.error) setError("تعذر تحميل الباقات أو التحقق من اشتراكك الحالي. حاول مرة أخرى.");
     else {
       setPlans((plansResult.data ?? []) as Plan[]);
       setFeatures((featuresResult.data ?? []) as Feature[]);
-      const effectiveTier = typeof tierResult.data === "string" ? tierResult.data : profileResult.data?.subscription_tier ?? user?.user_metadata?.subscription_tier ?? "free";
-      setCurrentTier(String(effectiveTier).toLowerCase());
+      const effectiveTier = typeof tierResult.data === "string" ? tierResult.data : "free";
+      setCurrentTier(effectiveTier.toLowerCase());
     }
     setLoading(false);
   }, [user]);
