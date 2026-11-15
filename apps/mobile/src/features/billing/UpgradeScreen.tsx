@@ -10,7 +10,14 @@ import { useAuth } from "../auth/auth-provider";
 type Plan = { id: number; name: string; tier_key?: string | null; description: string | null; price: number; currency: string; billing_period: string; daily_credits: number; max_requests: number; sort_order: number };
 type Feature = { id: number; plan_id: number; title: string; value: string; sort_order: number };
 const PLAN_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = { free: "sparkles-outline", basic: "leaf-outline", standard: "leaf-outline", lite: "flash-outline", pro: "rocket-outline", max: "diamond-outline", ultra: "infinite-outline" };
-const planKey = (name: string) => name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+const planKey = (name: string) => {
+  const value = name.trim().toLowerCase();
+  if (value.includes("free")) return "free";
+  if (value.includes("max") || value.includes("ultra")) return "max";
+  if (value.includes("pro")) return "pro";
+  if (value.includes("lite")) return "lite";
+  return "free";
+};
 
 export default function UpgradeScreen() {
   const router = useRouter();
