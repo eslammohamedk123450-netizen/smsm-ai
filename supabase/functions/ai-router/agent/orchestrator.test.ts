@@ -194,3 +194,64 @@ Deno.test("Agent cancellation during a tool finishes that tool then starts no ne
   assertEqual(executions, 1, "in-flight tool is allowed to finish exactly once");
   assertEqual(result.steps.filter((step) => step.status === "completed").length, 1, "completed tool step is retained");
 });
+
+
+Deno.test("Agent loop resumes a completed tool checkpoint without replaying the tool", async () => {
+  const tool: AgentTool = {
+    name: "web.search",
+    description: "Search public web pages",
+    effect: "read",
+    available: true,
+  };
+  let executions = 0;
+  let planningCalls = 0;
+  let replayedEvidence = false;
+  const result = await runAgentLoop({
+    messages: [{ role: "user", content: "Find official docs" }],
+    tools: [tool],
+    resumeSteps: new Map([[0, {
+      decision: { action: "tool", tool: "web.search", input: { query: "official docs" } },
+      toolResultStatus: "completed" as const,
+      toolResult: { title: "Persisted official docs" },
+    }]]),
+    plan: async (history, _tools, step) => {
+      planningCalls += 1;
+      if (step !== 1) throw new Error("The completed step should not be replanned.");
+      replayedEvidence = history.some((message) => message.content.includes("Persisted official docs"));
+      return { action: "respond", answer: "Resumed successfully." };
+    },
+    execute: async () => { executions += 1; return { title: "should not execute" }; },
+  });
+  assertEqual(result.status, "completed", "resumed loop should finish");
+  assertEqual(executions, 0, "completed tool must not be replayed");
+  assertEqual(planningCalls, 1, "only the next planner step should run");
+  assert(replayedEvidence, "saved tool output must be restored as untrusted evidence");
+});
+
+Deno.test("Agent loop reuses a saved decision when interruption happened before tool completion", async () => {
+  const tool: AgentTool = {
+    name: "web.search",
+    description: "Search public web pages",
+    effect: "read",
+    available: true,
+  };
+  let executions = 0;
+  let planningCalls = 0;
+  const result = await runAgentLoop({
+    messages: [{ role: "user", content: "Find official docs" }],
+    tools: [tool],
+    resumeSteps: new Map([[0, {
+      decision: { action: "tool", tool: "web.search", input: { query: "official docs" } },
+    }]]),
+    plan: async (_history, _tools, step) => {
+      planningCalls += 1;
+      return step === 1
+        ? { action: "respond", answer: "Recovered." }
+        : { action: "respond", answer: "Unexpected replan." };
+    },
+    execute: async () => { executions += 1; return { title: "Recovered result" }; },
+  });
+  assertEqual(result.status, "completed", "saved decision should resume");
+  assertEqual(executions, 1, "unfinished read step should execute once");
+  assertEqual(planningCalls, 1, "saved decision must bypass a second planner call");
+});
