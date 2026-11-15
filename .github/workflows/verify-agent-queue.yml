@@ -54,6 +54,8 @@ jobs:
         run: npm ci
       - name: Typecheck mobile application
         run: npm run typecheck
+      - name: Run mobile authentication regression tests
+        run: npm test -- --runInBand src/features/auth/auth-service.test.ts
 
   edge-function-typecheck:
     name: Deno Edge Function typecheck
