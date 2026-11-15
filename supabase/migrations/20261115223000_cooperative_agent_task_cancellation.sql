@@ -126,7 +126,7 @@ begin
 end;
 $function$;
 
-revoke all on function public.cancel_agent_task_job(uuid) from public, anon;
+revoke all on function public.cancel_agent_task_job(uuid) from public, anon, service_role;
 grant execute on function public.cancel_agent_task_job(uuid) to authenticated;
 revoke all on function public.agent_task_cancel_requested(uuid, uuid, uuid) from public, anon, authenticated;
 grant execute on function public.agent_task_cancel_requested(uuid, uuid, uuid) to service_role;
