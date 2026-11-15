@@ -2182,7 +2182,7 @@ async function handleRequest(req: Request): Promise<Response> {
       throw new Error("No eligible model returned a valid Agent decision.");
     };
 
-    const execute = async (tool: string, input: Record<string, unknown>): Promise<unknown> => {
+    const executeToolImplementation = async (tool: string, input: Record<string, unknown>): Promise<unknown> => {
       const registeredTool = getRegisteredTool(tool);
       if (!registeredTool || !validateToolInput(registeredTool, input)) {
         throw new Error("tool_not_registered_or_invalid_input");
@@ -2315,6 +2315,103 @@ async function handleRequest(req: Request): Promise<Response> {
         }
       }
       throw new Error("The requested tool is not registered.");
+    };
+
+    const toolOccurrenceCounts = new Map<string, number>();
+    const canonicalToolInput = (value: unknown): string => {
+      if (Array.isArray(value)) return `[${value.map(canonicalToolInput).join(",")}]`;
+      if (value && typeof value === "object") {
+        const record = value as Record<string, unknown>;
+        return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${canonicalToolInput(record[key])}`).join(",")}}`;
+      }
+      return JSON.stringify(value) ?? "null";
+    };
+    const sanitizeToolCheckpointResult = (value: unknown, depth = 0): unknown => {
+      if (depth > 8) return "[depth-limited]";
+      if (typeof value === "string") return value.length > 8000 ? `${value.slice(0, 8000)}…[truncated]` : value;
+      if (Array.isArray(value)) return value.slice(0, 40).map((item) => sanitizeToolCheckpointResult(item, depth + 1));
+      if (value && typeof value === "object") {
+        const output: Record<string, unknown> = {};
+        for (const [key, item] of Object.entries(value as Record<string, unknown>).slice(0, 80)) {
+          output[key] = /token|secret|password|authorization|api.?key|credential|cookie/i.test(key)
+            ? "[redacted]"
+            : sanitizeToolCheckpointResult(item, depth + 1);
+        }
+        return output;
+      }
+      return value ?? null;
+    };
+    const execute = async (tool: string, input: Record<string, unknown>): Promise<unknown> => {
+      const registeredTool = getRegisteredTool(tool);
+      if (!registeredTool || !validateToolInput(registeredTool, input)) {
+        throw new Error("tool_not_registered_or_invalid_input");
+      }
+      if (registeredTool.effect !== "write" || !internalBrainCall || !agentJobId || !agentWorkerId || !agentWorkerAttempt) {
+        return await executeToolImplementation(tool, input);
+      }
+      // Approval is checked before claiming a side-effect checkpoint. An
+      // unapproved action has not started and remains safely retryable.
+      if (registeredTool.requiresApproval && !confirmedWrite) {
+        return await executeToolImplementation(tool, input);
+      }
+
+      const serialized = canonicalToolInput(input);
+      const digest = await crypto.subtle.digest(
+        "SHA-256",
+        new TextEncoder().encode(`${tool}:${serialized}`),
+      );
+      const inputHash = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+      const occurrenceKey = `${tool}:${inputHash}`;
+      const occurrenceNo = (toolOccurrenceCounts.get(occurrenceKey) ?? 0) + 1;
+      toolOccurrenceCounts.set(occurrenceKey, occurrenceNo);
+
+      const { data: claimData, error: claimError } = await supabase.rpc("claim_agent_tool_execution", {
+        p_job_id: agentJobId,
+        p_task_id: billingTaskId,
+        p_user_id: user.id,
+        p_worker_id: agentWorkerId,
+        p_worker_attempt: agentWorkerAttempt,
+        p_tool_name: tool,
+        p_input_hash: inputHash,
+        p_occurrence_no: occurrenceNo,
+      });
+      if (claimError) throw new Error("agent_tool_checkpoint_unavailable");
+      const claim = asRecord(claimData);
+      if (claim.status === "lease_lost") throw new Error("agent_worker_lease_lost");
+      if (claim.status === "cancelled") return { status: "cancelled", reason: "user_requested_stop" };
+      if (claim.status === "completed" || claim.status === "failed") {
+        return claim.result && typeof claim.result === "object"
+          ? claim.result
+          : { status: claim.status, reason: "saved_tool_result_unavailable" };
+      }
+      if (claim.status === "outcome_unknown") {
+        operationalReply = "لم أكرر الإجراء الخارجي لأن العامل السابق بدأه ولم تُحفظ نتيجة مؤكدة. أوقفت إعادة التنفيذ لتجنب تكرار أثر جانبي؛ يلزم التحقق من الخدمة المتصلة أولاً.";
+        return { status: "blocked", reason: "previous_write_outcome_unknown", tool };
+      }
+      if (claim.claimed !== true || typeof claim.checkpoint_id !== "string") {
+        throw new Error("agent_tool_checkpoint_claim_failed");
+      }
+
+      // If the process stops after the external action but before this durable
+      // completion write, the checkpoint remains running and retries are blocked.
+      const result = await executeToolImplementation(tool, input);
+      const resultRecord = asRecord(result);
+      const resultStatus = resultRecord.status === "failed" ? "failed" : "completed";
+      const safeResult = asRecord(sanitizeToolCheckpointResult(result));
+      const { data: completeData, error: completeError } = await supabase.rpc("complete_agent_tool_execution", {
+        p_job_id: agentJobId,
+        p_task_id: billingTaskId,
+        p_user_id: user.id,
+        p_worker_id: agentWorkerId,
+        p_worker_attempt: agentWorkerAttempt,
+        p_checkpoint_id: claim.checkpoint_id,
+        p_status: resultStatus,
+        p_result: safeResult,
+      });
+      if (completeError || asRecord(completeData).completed !== true) {
+        throw new Error("agent_tool_checkpoint_completion_failed");
+      }
+      return result;
     };
 
     const loopResult = await runAgentLoop({
