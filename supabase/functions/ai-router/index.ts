@@ -1629,7 +1629,32 @@ async function handleRequest(req: Request): Promise<Response> {
     }
   }
   if (!taskPlan || !validateTaskPlan(taskPlan, settings.taskSplitMaxParts)) taskPlan = null;
-  const splitParts = taskPlan ? proposedParts : [latestUserMessage];
+  let splitParts = taskPlan ? proposedParts : [latestUserMessage];
+
+  // A retried queue job must keep the exact plan that was first committed for
+  // this request. Re-planning could silently change dependency IDs and replay
+  // already completed external/model work.
+  let existingWorkspaceId: string | null = null;
+  if (executionMode === "agent" || splitParts.length > 1) {
+    const { data: existingWorkspace, error: existingWorkspaceError } = await supabase
+      .from("agent_workspaces")
+      .select("id,plan")
+      .eq("request_id", billingTaskId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (existingWorkspaceError) {
+      throw new Error("Could not load the durable Agent workspace checkpoint.");
+    }
+    if (existingWorkspace) {
+      existingWorkspaceId = String(existingWorkspace.id);
+      const storedPlan = Array.isArray(existingWorkspace.plan) ? existingWorkspace.plan as TaskPlanStep[] : [];
+      if (validateTaskPlan(storedPlan, settings.taskSplitMaxParts)) {
+        taskPlan = storedPlan;
+        proposedParts = storedPlan.map((step) => step.description);
+        splitParts = proposedParts;
+      }
+    }
+  }
 
   // Every request gets a durable workspace. Compound requests reuse their
   // deterministic plan; simple and Agent requests get one resumable step.
@@ -1656,8 +1681,13 @@ async function handleRequest(req: Request): Promise<Response> {
       plan: workspacePlan,
       metadata: { execution_mode: executionMode, intent: mind.intent },
     }, { onConflict: "request_id" }).select("id").single();
-    if (workspaceError || !workspaceRow) console.error("Could not create agent workspace:", workspaceError?.message);
-    else workspaceId = String(workspaceRow.id);
+    if (workspaceError || !workspaceRow) {
+      console.error("Could not create agent workspace:", workspaceError?.message);
+      throw new Error("Durable Agent workspace is unavailable; refusing to execute without checkpoints.");
+    } else workspaceId = String(workspaceRow.id);
+    if (existingWorkspaceId && workspaceId !== existingWorkspaceId) {
+      throw new Error("Durable Agent workspace identity changed during retry.");
+    }
   
     const workspaceSteps = [
       { workspace_id: workspaceId, step_key: "plan", sequence_order: 0, description: "تحديد خطة الطلب ومسار التنفيذ.", depends_on: [] },
@@ -1772,7 +1802,16 @@ async function handleRequest(req: Request): Promise<Response> {
                 ...(partSources.length > 0 ? { sources: partSources.slice(0, 3) } : {}),
               });
             } catch { console.warn("Could not update temporary task scratchpad."); }
-            await updateWorkspaceStep(stepKey, "completed", { selected_model_id: partWinner.model.id, result: { characters: trimmedPart.length, output_guard: collected.reason } });
+            const checkpoint = {
+              content: trimmedPart.slice(0, 30000),
+              model: partWinner.model.model_identifier,
+              model_id: partWinner.model.id,
+              input_tokens: partWinner.inputTokens > 0 ? partWinner.inputTokens : null,
+              output_tokens: partWinner.outputTokens > 0 ? partWinner.outputTokens : null,
+              output_guard: collected.reason,
+              characters: trimmedPart.length,
+            };
+            await updateWorkspaceStep(stepKey, "completed", { selected_model_id: partWinner.model.id, result: checkpoint });
             await updateTaskLedger(stepKey, "completed", { model_id: partWinner.model.id, characters: trimmedPart.length, output_guard: collected.reason });
             return { index, content, model: partWinner.model.model_identifier, candidate: partWinner, outputGuard: collected.reason };
           }
@@ -1788,11 +1827,42 @@ async function handleRequest(req: Request): Promise<Response> {
       return { index, content: "", model: null, candidate: null, outputGuard: null };
     };
     if (!taskPlan) throw new Error("A multi-part execution requires a validated task plan.");
+    const { data: checkpointRows, error: checkpointError } = workspaceId
+      ? await supabase.from("agent_workspace_steps")
+        .select("step_key,status,result,selected_model_id")
+        .eq("workspace_id", workspaceId)
+        .in("step_key", taskPlan.map((step) => step.step_id))
+      : { data: null, error: new Error("workspace_missing") };
+    if (checkpointError) throw new Error("Could not load durable Agent step checkpoints.");
+    const resumedResults = new Map<string, PartResult>();
+    for (const row of checkpointRows ?? []) {
+      const saved = asRecord(row.result);
+      if (row.status !== "completed" || typeof saved.content !== "string" || !saved.content.trim()) continue;
+      const index = taskPlan.findIndex((step) => step.step_id === row.step_key);
+      if (index < 0) continue;
+      const modelId = Number(saved.model_id ?? row.selected_model_id ?? 0);
+      const modelName = typeof saved.model === "string" ? saved.model : null;
+      resumedResults.set(String(row.step_key), {
+        index,
+        content: saved.content,
+        model: modelName,
+        candidate: null,
+        outputGuard: saved.output_guard === "repetition" || saved.output_guard === "max_output" ? saved.output_guard : null,
+      });
+      const storedInput = Number(saved.input_tokens);
+      const storedOutput = Number(saved.output_tokens);
+      if (Number.isSafeInteger(storedInput) && storedInput >= 0) workerInputTokens += storedInput;
+      else workerInputTokens += estimateTokens([...systemMessages.map((message) => message.content), splitParts[index]].join("\n"));
+      if (Number.isSafeInteger(storedOutput) && storedOutput >= 0) workerOutputTokens += storedOutput;
+      else workerOutputTokens += estimateTokens(saved.content);
+      workerBillingCandidate ??= routedWorkerCandidates.find((candidate) => candidate.model.id === modelId) ?? null;
+      pendingParts.delete(index);
+    }
     const taskExecution = await executeTaskPlan<PartResult>(taskPlan, 3, async (_step, index, completed) => {
       const result = await answerPart(index, completed);
       if (!result.candidate) throw new Error("worker_failed");
       return result;
-    });
+    }, resumedResults);
     const partResultsWithCandidates = await Promise.all(taskExecution.map(async (outcome, index) => {
       if (outcome.status === "completed" && outcome.result) return outcome.result;
       const stepKey = taskPlan![index].step_id;
@@ -1801,7 +1871,7 @@ async function handleRequest(req: Request): Promise<Response> {
       return { index, content: "", model: null, candidate: null, outputGuard: null };
     }));
     const partResults = partResultsWithCandidates.map(({ index, content, model }) => ({ index, content, model }));
-    const successfulParts = partResultsWithCandidates.filter((part) => part.candidate !== null);
+    const successfulParts = partResultsWithCandidates.filter((part) => part.content.trim().length > 0);
     const failedPartCount = splitParts.length - successfulParts.length;
     const bestCandidate = partResultsWithCandidates.find((part) => part.candidate)?.candidate ?? null;
     if (successfulParts.length === 0) {
@@ -1836,13 +1906,14 @@ async function handleRequest(req: Request): Promise<Response> {
       ? await persistAssistant(supabase, conversationId, user.id, billingTaskId, mergedModel, merged)
       : await persistAssistantText(supabase, conversationId, user.id, billingTaskId, null, merged);
     for (const part of successfulParts) {
+      if (!part.candidate) continue; // A resumed checkpoint already has its original attempt log.
       await logMessageModel({
         messageId,
-        modelId: part.candidate!.model.id,
-        modelIdentifier: part.candidate!.model.model_identifier,
-        providerType: part.candidate!.provider.provider_type,
+        modelId: part.candidate.model.id,
+        modelIdentifier: part.candidate.model.model_identifier,
+        providerType: part.candidate.provider.provider_type,
         route: "task_split",
-        durationMs: Date.now() - part.candidate!.startedAtMs,
+        durationMs: Date.now() - part.candidate.startedAtMs,
         partIndex: part.index + 1,
         partCount: splitParts.length,
       });
