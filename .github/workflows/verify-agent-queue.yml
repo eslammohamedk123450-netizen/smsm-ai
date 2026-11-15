@@ -86,6 +86,7 @@ jobs:
           deno test supabase/functions/_shared/ai_request_idempotency_test.ts
           deno test supabase/functions/_shared/intent_classifier_test.ts
           deno test supabase/functions/agent-task-scheduler/index.test.ts
+          deno test supabase/functions/brain-router/central_agent_result.test.ts
       - name: Typecheck Agent, Brain, and scheduler runtime
         run: |
           deno check --node-modules-dir=auto \
