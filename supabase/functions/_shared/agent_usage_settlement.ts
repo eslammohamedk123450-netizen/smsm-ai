@@ -1,4 +1,6 @@
-import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+type AgentSettlementClient = {
+  rpc(name: string, args: Record<string, unknown>): Promise<{ data: unknown; error: unknown }>;
+};
 
 export type TerminalAgentTaskStatus = "completed" | "failed" | "cancelled";
 
@@ -14,7 +16,7 @@ function asRecord(value: unknown): Record<string, unknown> {
  * wallet and Brain reservations pending for later reconciliation.
  */
 export async function settleTerminalAgentTaskUsage(
-  admin: SupabaseClient,
+  admin: AgentSettlementClient,
   input: { jobId: string; taskId: string; userId: string; status: TerminalAgentTaskStatus },
 ): Promise<Record<string, unknown>> {
   const { data, error } = await admin.rpc("finalize_agent_task_usage", {
