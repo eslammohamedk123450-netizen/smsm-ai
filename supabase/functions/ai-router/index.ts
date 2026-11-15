@@ -23,7 +23,7 @@ import {
 } from "../_shared/shared_task_memory.ts";
 import { CircuitBreaker } from "./circuit_breaker.ts";
 import { buildIndependentTaskPlan, buildTaskPlan, executeTaskPlan, hasExplicitDependencyLanguage, mergePartAnswers, parseModelGeneratedTaskPlan, probeCandidates, splitTask, validateTaskPlan, type TaskPlanStep } from "./resilience.ts";
-import { parseAgentDecision, runAgentLoop, type AgentLoopStep, type AgentTool } from "./agent/orchestrator.ts";
+import { parseAgentDecision, runAgentLoop, type AgentLoopResumeStep, type AgentLoopStep, type AgentTool, type AgentDecision } from "./agent/orchestrator.ts";
 import { prioritizeModelCandidate } from "./agent/model_routing.ts";
 import { isModelEligibleForRequest, modelSupportsRole as supportsModelRole } from "./agent/model_eligibility.ts";
 import { resolveExecutionMode } from "./execution_mode.ts";
@@ -1750,10 +1750,20 @@ async function handleRequest(req: Request): Promise<Response> {
       throw new Error("Durable Agent workspace identity changed during retry.");
     }
   
+    const agentLoopCheckpointSteps = executionMode === "agent" && splitParts.length === 1
+      ? Array.from({ length: 5 }, (_, index) => ({
+        workspace_id: workspaceId,
+        step_key: `agent-loop-step-${index}`,
+        sequence_order: workspacePlan.length + index + 1,
+        description: `استعادة خطوة الوكيل رقم ${index + 1} بعد الانقطاع.`,
+        depends_on: index === 0 ? ["agent-loop"] : [`agent-loop-step-${index - 1}`],
+      }))
+      : [];
     const workspaceSteps = [
       { workspace_id: workspaceId, step_key: "plan", sequence_order: 0, description: "تحديد خطة الطلب ومسار التنفيذ.", depends_on: [] },
       ...workspacePlan.map((step, index) => ({ workspace_id: workspaceId, step_key: step.step_id, sequence_order: index + 1, description: step.description, depends_on: step.depends_on ?? [] })),
-      { workspace_id: workspaceId, step_key: resultStepKey, sequence_order: workspacePlan.length + 1, description: "حفظ النتيجة النهائية أو سبب الفشل.", depends_on: workspacePlan.map((step) => step.step_id) },
+      ...agentLoopCheckpointSteps,
+      { workspace_id: workspaceId, step_key: resultStepKey, sequence_order: workspacePlan.length + agentLoopCheckpointSteps.length + 1, description: "حفظ النتيجة النهائية أو سبب الفشل.", depends_on: workspacePlan.map((step) => step.step_id) },
     ];
     if (workspaceId) {
       const { error: stepsError } = await supabase.from("agent_workspace_steps").upsert(workspaceSteps, { onConflict: "workspace_id,step_key" });
@@ -1762,7 +1772,8 @@ async function handleRequest(req: Request): Promise<Response> {
     const ledgerRows = [
       { task_key: "plan", task_description: "تحديد خطة الطلب ومسار التنفيذ.", sequence_order: 0 },
       ...workspacePlan.map((step, index) => ({ task_key: step.step_id, task_description: step.description.slice(0, 240), sequence_order: index + 1 })),
-      { task_key: resultStepKey, task_description: "حفظ النتيجة النهائية أو سبب الفشل.", sequence_order: workspacePlan.length + 1 },
+      ...agentLoopCheckpointSteps.map((step, index) => ({ task_key: step.step_key, task_description: step.description, sequence_order: step.sequence_order })),
+      { task_key: resultStepKey, task_description: "حفظ النتيجة النهائية أو سبب الفشل.", sequence_order: workspacePlan.length + agentLoopCheckpointSteps.length + 1 },
     ].map((step) => ({ conversation_id: conversationId, request_id: billingTaskId, workspace_id: workspaceId, ...step, status: "pending" }));
     if (conversationId && workspaceId) {
       const { error: ledgerError } = await supabase.from("task_ledger").upsert(ledgerRows, { onConflict: "request_id,task_key", ignoreDuplicates: true });
