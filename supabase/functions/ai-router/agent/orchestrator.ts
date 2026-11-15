@@ -35,12 +35,14 @@ export interface AgentLoopOptions {
   onToolError?(tool: string, input: Record<string, unknown>, reason: string): void | Promise<void>;
   onToolResult?(tool: string, input: Record<string, unknown>, result: unknown): void | Promise<void>;
   onStep?(step: AgentLoopStep): void | Promise<void>;
+  isCancelled?(): Promise<boolean>;
 }
 
 export type AgentLoopResult =
   | { status: "completed"; answer: string; steps: AgentLoopStep[] }
   | { status: "needs_confirmation"; tool: string; preview: Record<string, unknown>; steps: AgentLoopStep[] }
   | { status: "needs_clarification"; question: string; steps: AgentLoopStep[] }
+  | { status: "cancelled"; steps: AgentLoopStep[] }
   | { status: "failed"; reason: "max_steps" | "invalid_decision" | "unknown_tool" | "repeated_tool"; steps: AgentLoopStep[] };
 
 const MAX_DECISION_CHARS = 6000;
@@ -102,15 +104,22 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
   let writeAttempted = false;
 
   for (let index = 0; index < maxSteps; index += 1) {
+    if (await options.isCancelled?.()) return { status: "cancelled", steps };
     await options.onStep?.({ index, kind: "planning", status: "running" });
     let decision: AgentDecision;
     try { decision = await options.plan(messages, options.tools, index); }
     catch {
+      if (await options.isCancelled?.()) return { status: "cancelled", steps };
       const step: AgentLoopStep = { index, kind: "error", status: "failed" };
       steps.push(step);
       await options.onStep?.(step);
       return { status: "failed", reason: "invalid_decision", steps };
     }
+
+    // A cancellation requested while the planner was in flight is observed
+    // here: the provider call is allowed to finish so its usage is retained,
+    // but no new tool or model call is started.
+    if (await options.isCancelled?.()) return { status: "cancelled", steps };
 
     if (decision.action === "respond") {
       const step: AgentLoopStep = { index, kind: "final", status: "completed" };
