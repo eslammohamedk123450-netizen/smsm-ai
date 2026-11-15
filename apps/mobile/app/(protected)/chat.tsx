@@ -159,15 +159,13 @@ export default function ChatPage() {
     let active = true;
     if (!user?.id) { setSubscriptionTier("free"); return () => { active = false; }; }
     void (async () => {
-      const [tierResult, profileResult, modelResult] = await Promise.all([
+      const [tierResult, modelResult] = await Promise.all([
         supabase.rpc("suly_effective_subscription_tier", { p_user_id: user.id }),
-        supabase.from("suly_profiles").select("subscription_tier").eq("id", user.id).maybeSingle(),
         supabase.from("suly_model_profiles").select("profile_key,display_name,tagline,description,icon_key,minimum_subscription_tier").eq("is_active", true).order("sort_order"),
       ]);
       if (!active) return;
-      const tierValue = typeof tierResult.data === "string" ? tierResult.data : profileResult.data?.subscription_tier ?? user.user_metadata?.subscription_tier ?? "free";
-      const tier = String(tierValue).toLowerCase();
-      setSubscriptionTier(["free", "lite", "pro", "max"].includes(tier) ? tier : "free");
+      const tier = typeof tierResult.data === "string" ? tierResult.data.toLowerCase() : "free";
+      setSubscriptionTier(!tierResult.error && ["free", "lite", "pro", "max"].includes(tier) ? tier : "free");
       if (Array.isArray(modelResult.data) && modelResult.data.length) {
         setModelProfiles(modelResult.data as typeof DEFAULT_SULY_PROFILES);
       }

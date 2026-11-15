@@ -207,13 +207,15 @@ async function handleImageGeneratorRequest(req: Request): Promise<Response> {
   if (!prompt || prompt.length > 2048) return json(400, { error: "اكتب وصفًا للصورة بين حرف واحد و2048 حرفًا." });
   if (!["economy","standard","high","ultra"].includes(quality)) return json(400, { error: "جودة الصورة المحددة غير مدعومة." });
 
-  const { data: profile, error: profileError } = await service.from("suly_profiles").select("is_banned,subscription_tier").eq("id", userId).maybeSingle();
+  const { data: profile, error: profileError } = await service.from("suly_profiles").select("is_banned").eq("id", userId).maybeSingle();
   if (profileError || !profile) return json(403, { error: "تعذر التحقق من حسابك." });
   if (profile.is_banned) return json(403, { error: "هذا الحساب موقوف." });
   const { data: effectiveTier, error: effectiveTierError } = await service.rpc("suly_effective_subscription_tier", { p_user_id: userId });
-  if (effectiveTierError) console.warn("Effective media subscription lookup unavailable; using legacy profile tier.");
-  const resolvedTier = typeof effectiveTier === "string" ? effectiveTier : String(profile.subscription_tier ?? "free");
-  const userTier = ["free","lite","pro","max"].includes(resolvedTier) ? resolvedTier : "free";
+  if (effectiveTierError || typeof effectiveTier !== "string") {
+    console.error("Effective media subscription entitlement verification failed.");
+    return json(503, { error: "تعذر التحقق من صلاحيات الباقة. حاول مرة أخرى." });
+  }
+  const userTier = ["free","lite","pro","max"].includes(effectiveTier) ? effectiveTier : "free";
 
   if (!studioRequest) {
     const { data: conversation, error: conversationError } = await service.from("suly_conversations").select("id").eq("id", conversationId).eq("user_id", userId).maybeSingle();

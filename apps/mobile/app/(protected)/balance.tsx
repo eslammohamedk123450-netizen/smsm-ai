@@ -87,16 +87,16 @@ export default function BalanceScreen() {
     void Promise.all([
       supabase.rpc("suly_claim_daily_credits", { p_user_id: user.id }),
       getCreditLedger(100),
-      supabase.from("suly_profiles").select("subscription_tier").eq("id", user.id).maybeSingle(),
+      supabase.rpc("suly_effective_subscription_tier", { p_user_id: user.id }),
     ])
-      .then(async ([dailyGrantResult, ledger, profileResult]) => {
+      .then(async ([dailyGrantResult, ledger, tierResult]) => {
         if (dailyGrantResult.error) console.warn("Daily credit grant could not be refreshed:", dailyGrantResult.error.message);
         if (!active) return;
         setBalance(ledger.balance);
         setTransactions(mapCreditEntries(ledger.entries));
-        setPlanTier(String(profileResult.data?.subscription_tier ?? user.user_metadata?.subscription_tier ?? "").toLowerCase() || null);
-        const tier = String(profileResult.data?.subscription_tier ?? user.user_metadata?.subscription_tier ?? "free").toLowerCase();
-        if (tier === "free") setMonthlyAllowance(null);
+        const tier = !tierResult.error && typeof tierResult.data === "string" ? tierResult.data.toLowerCase() : null;
+        setPlanTier(tier);
+        if (!tier || tier === "free") setMonthlyAllowance(null);
         else {
           const { data: plan } = await supabase.from("subscription_plans").select("monthly_credits,daily_credits").eq("id", tier === "lite" ? 2 : tier === "pro" ? 3 : tier === "max" ? 4 : tier === "ultra" ? 5 : 1).maybeSingle();
           const monthly = Number(plan?.monthly_credits ?? 0) || Number(plan?.daily_credits ?? 0) * 30;
