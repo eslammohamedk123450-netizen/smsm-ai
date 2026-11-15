@@ -29,7 +29,6 @@ import { resolveExecutionMode } from "./execution_mode.ts";
 import { isSubscriptionTierEligible, resolveSulyProfileKey } from "./agent/suly_profile_routing.ts";
 import { getAgentReservationCallCount } from "./agent/agent_budget_policy.ts";
 import { buildAgentRoleGuidance, loadAgentProfiles, selectAgentProfile } from "./agent/agent_profiles.ts";
-import { buildAgentRoleGuidance, loadAgentProfiles, selectAgentProfile } from "./agent/agent_profiles.ts";
 import { getAgentToolsFromDatabase, getRegisteredTool, validateToolInput } from "./agent/tool_registry.ts";
 
 // Native Android/iOS clients do not require CORS. Web access must set WEB_CORS_ORIGIN
@@ -1555,7 +1554,7 @@ async function handleRequest(req: Request): Promise<Response> {
   // always answered in a single response.
   // Only the central Agent may delegate. Explicit chat requests, connector
   // operations, live search, and attachment work stay on their dedicated paths.
-  const proposedParts = executionMode === "agent" && workerCandidates.length > 0
+  let proposedParts = executionMode === "agent" && workerCandidates.length > 0
     ? splitTask(latestUserMessage, settings.taskSplitMaxParts)
     : [latestUserMessage];
   let taskPlan = buildTaskPlan(proposedParts, settings.taskSplitMaxParts, hasExplicitDependencyLanguage(latestUserMessage));
@@ -1596,7 +1595,6 @@ async function handleRequest(req: Request): Promise<Response> {
       if (parsedPlan.length >= 2) {
         taskPlan = parsedPlan;
         proposedParts = parsedPlan.map((step) => step.description);
-        taskPlanSource = "model_generated";
         taskPlannerUsage = { candidate: ready, inputTokens, outputTokens };
       }
       break;
