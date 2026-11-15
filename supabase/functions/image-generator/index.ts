@@ -217,7 +217,11 @@ Deno.serve(async (req: Request) => {
   else modelQuery = modelQuery.eq("is_default", true);
   const { data: model, error: modelError } = await modelQuery.maybeSingle();
   if (modelError || !model) return json(503, { error: "لا يوجد نموذج صور خارجي مفعّل. اطلب من المشرف ربط مزود ونموذج صور." });
-  if (!(model.allowed_tiers ?? []).includes(userTier)) return json(403, { error: "هذا النموذج غير متاح ضمن اشتراكك الحالي." });
+  const mediaTierRank: Record<string, number> = { free: 0, lite: 1, pro: 2, max: 3 };
+  const mediaUserRank = mediaTierRank[userTier] ?? 0;
+  const mediaTierAllowed = (model.allowed_tiers ?? []).some((tier: string) =>
+    mediaTierRank[tier] !== undefined && mediaTierRank[tier] <= mediaUserRank);
+  if (!mediaTierAllowed) return json(403, { error: "هذا النموذج غير متاح ضمن اشتراكك الحالي." });
   if (!(model.supported_qualities ?? []).includes(quality)) return json(422, { error: "الجودة المحددة غير مدعومة لهذا النموذج." });
 
   const { data: price, error: priceError } = await service.from("suly_media_generation_prices")
