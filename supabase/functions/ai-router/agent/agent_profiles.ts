@@ -28,7 +28,7 @@ export function normalizeAgentProfiles(rows: unknown): AgentProfile[] {
     if (name.length < 2 || systemPrompt.length < 10) continue;
     seen.add(row.id);
     const modelFallbackChain = Array.isArray(row.model_fallback_chain)
-      ? row.model_fallback_chain.map((item) => String(item).trim()).filter((item) => /^\\d{1,10}$/.test(item)).slice(0, 20)
+      ? row.model_fallback_chain.map((item) => String(item).trim()).filter((item) => /^\d{1,10}$/.test(item)).slice(0, 20)
       : [];
     profiles.push({ id: row.id, name, role: row.role as AgentRole, systemPrompt, modelFallbackChain });
   }
