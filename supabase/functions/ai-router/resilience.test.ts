@@ -153,4 +153,5 @@ Deno.test("model-generated DAG parser rejects unknown dependencies, cycles, and 
   assertEquals(parseModelGeneratedTaskPlan(make([step("a", []), step("b", []), step("c", []), step("d", []), step("e", []), step("f", [])]), 5), null);
   assertEquals(parseModelGeneratedTaskPlan(make([step("a", []), { ...step("b", []), extra: true }]), 4), null);
   assertEquals(parseModelGeneratedTaskPlan("not json", 4), null);
+  assertEquals(parseModelGeneratedTaskPlan(JSON.stringify({ steps: [] }), 4), []);
 });
