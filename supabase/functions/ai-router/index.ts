@@ -2079,11 +2079,19 @@ async function handleRequest(req: Request): Promise<Response> {
       [selectAgentProfile(agentProfiles, "planner"), selectAgentProfile(agentProfiles, "coordinator")].filter((profile) => profile !== null),
     );
     const freeSummarizerPool = prioritizeAgentProfileCandidates(
-      orderCandidatesByRoute(raceCandidates.filter((candidate) => modelSupportsRole(candidate.model, "summarizer")), orderedRouteAssignments, "summarizer"),
+      orderCandidatesByRoute(
+        restrictModelsToAssignedRoute(raceCandidates.filter((candidate) => modelSupportsRole(candidate.model, "summarizer")), orderedRouteAssignments, "summarizer"),
+        orderedRouteAssignments,
+        "summarizer",
+      ),
       selectAgentProfile(agentProfiles, "summarizer"),
     );
     const freeReviewerPool = prioritizeAgentProfileCandidates(
-      orderCandidatesByRoute(raceCandidates.filter((candidate) => modelSupportsRole(candidate.model, "reviewer")), orderedRouteAssignments, "reviewer"),
+      orderCandidatesByRoute(
+        restrictModelsToAssignedRoute(raceCandidates.filter((candidate) => modelSupportsRole(candidate.model, "reviewer")), orderedRouteAssignments, "reviewer"),
+        orderedRouteAssignments,
+        "reviewer",
+      ),
       selectAgentProfile(agentProfiles, "reviewer"),
     );
     let paidPlanPool: Candidate[] = [];
