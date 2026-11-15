@@ -200,7 +200,7 @@ begin
     'overage', v_extra, 'negative_limit', v_negative_limit,
     'negative_limit_exceeded', v_balance < -v_negative_limit);
 end;
-$function$
+$function$;
 
 
 revoke all on function public.finalize_agent_task_step_usage(uuid, uuid, uuid, text) from public, anon, authenticated;
