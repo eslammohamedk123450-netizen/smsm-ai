@@ -83,6 +83,7 @@ jobs:
       - name: Run Agent and scheduler regression tests
         run: |
           deno test supabase/functions/ai-router/agent/orchestrator.test.ts
+          deno test supabase/functions/ai-router/resilience.test.ts
           deno test supabase/functions/ai-router/agent/model_eligibility.test.ts
           deno test supabase/functions/ai-router/execution_mode.test.ts
           deno test supabase/functions/_shared/ai_request_idempotency_test.ts
