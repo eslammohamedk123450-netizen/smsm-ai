@@ -39,11 +39,45 @@ create index if not exists suly_media_generation_jobs_model_idx
 
 alter table public.suly_media_generation_jobs enable row level security;
 drop policy if exists suly_media_generation_jobs_owner_read on public.suly_media_generation_jobs;
-create policy suly_media_generation_jobs_owner_read on public.suly_media_generation_jobs
-  for select to authenticated using (user_id = auth.uid() or public.suly_is_admin());
+drop policy if exists suly_media_generation_jobs_admin_read on public.suly_media_generation_jobs;
+create policy suly_media_generation_jobs_admin_read on public.suly_media_generation_jobs
+  for select to authenticated using (public.suly_is_admin());
 
 revoke all on public.suly_media_generation_jobs from public, anon, authenticated;
 grant select on public.suly_media_generation_jobs to authenticated;
 grant all on public.suly_media_generation_jobs to service_role;
+
+create or replace function public.suly_list_my_media_generation_jobs()
+returns table (
+  id uuid,
+  service_type text,
+  status text,
+  prompt text,
+  quality text,
+  estimated_credits bigint,
+  charged_credits bigint,
+  output_asset_id uuid,
+  created_at timestamptz,
+  started_at timestamptz,
+  completed_at timestamptz,
+  error_message text
+)
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $
+  select job.id, job.service_type, job.status, job.prompt, job.quality,
+    job.estimated_credits, job.charged_credits, job.output_asset_id,
+    job.created_at, job.started_at, job.completed_at, job.error_message
+  from public.suly_media_generation_jobs job
+  where auth.uid() is not null and job.user_id = auth.uid()
+    and job.status in ('queued','running')
+  order by job.created_at desc
+  limit 100;
+$;
+
+revoke all on function public.suly_list_my_media_generation_jobs() from public, anon;
+grant execute on function public.suly_list_my_media_generation_jobs() to authenticated;
 
 commit;
