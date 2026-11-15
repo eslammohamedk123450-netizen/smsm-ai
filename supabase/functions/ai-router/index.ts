@@ -793,7 +793,7 @@ async function handleRequest(req: Request): Promise<Response> {
     if (error) console.error("Could not update agent workspace step:", error.message);
   };
   const updateTaskLedger = async (taskKey: string, status: "running" | "completed" | "failed", result?: Record<string, unknown>) => {
-    if (!conversationId) return;
+    if (!conversationId || !workspaceId) return;
     const timestamp = new Date().toISOString();
     const { error } = await supabase.from("task_ledger").update({
       status,
@@ -1007,6 +1007,7 @@ async function handleRequest(req: Request): Promise<Response> {
   ) => isModelEligibleForRequest({
     enabled: model.enabled,
     healthy: !healthByModel.get(model.id)?.auto_restricted,
+    providerEnabled: providerById.get(model.provider_id)?.enabled === true,
     allowedTiers: model.allowed_tiers ?? [],
     userTier,
     capabilities: model.capabilities_json,
@@ -1362,35 +1363,39 @@ async function handleRequest(req: Request): Promise<Response> {
       completion_criteria: "نتيجة نهائية محفوظة أو سبب فشل تشغيلي واضح.",
       depends_on: [],
     }];
-  const { data: workspaceRow, error: workspaceError } = await supabase.from("agent_workspaces").upsert({
-    request_id: billingTaskId,
-    conversation_id: conversationId,
-    user_id: user.id,
-    status: "planning",
-    plan: workspacePlan,
-    metadata: { execution_mode: executionMode, intent: mind.intent },
-  }, { onConflict: "request_id" }).select("id").single();
-  if (workspaceError || !workspaceRow) console.error("Could not create agent workspace:", workspaceError?.message);
-  else workspaceId = String(workspaceRow.id);
-
-  const resultStepKey = taskPlan ? "merge" : "final";
-  const workspaceSteps = [
-    { workspace_id: workspaceId, step_key: "plan", sequence_order: 0, description: "تحديد خطة الطلب ومسار التنفيذ.", depends_on: [] },
-    ...workspacePlan.map((step, index) => ({ workspace_id: workspaceId, step_key: step.step_id, sequence_order: index + 1, description: step.description, depends_on: step.depends_on ?? [] })),
-    { workspace_id: workspaceId, step_key: resultStepKey, sequence_order: workspacePlan.length + 1, description: "حفظ النتيجة النهائية أو سبب الفشل.", depends_on: workspacePlan.map((step) => step.step_id) },
-  ];
-  if (workspaceId) {
-    const { error: stepsError } = await supabase.from("agent_workspace_steps").upsert(workspaceSteps, { onConflict: "workspace_id,step_key" });
-    if (stepsError) console.error("Could not create task workspace steps:", stepsError.message);
-  }
-  const ledgerRows = [
-    { task_key: "plan", task_description: "تحديد خطة الطلب ومسار التنفيذ.", sequence_order: 0 },
-    ...workspacePlan.map((step, index) => ({ task_key: step.step_id, task_description: step.description.slice(0, 240), sequence_order: index + 1 })),
-    { task_key: resultStepKey, task_description: "حفظ النتيجة النهائية أو سبب الفشل.", sequence_order: workspacePlan.length + 1 },
-  ].map((step) => ({ conversation_id: conversationId, request_id: billingTaskId, workspace_id: workspaceId, ...step, status: "pending" }));
-  if (conversationId) {
-    const { error: ledgerError } = await supabase.from("task_ledger").upsert(ledgerRows, { onConflict: "request_id,task_key", ignoreDuplicates: true });
-    if (ledgerError) console.error("Could not create task ledger:", ledgerError.message);
+  // Direct chat avoids workspace/ledger writes; durable tracking is reserved for Agent and split tasks.
+  if (executionMode === "agent" || splitParts.length > 1) {
+    const { data: workspaceRow, error: workspaceError } = await supabase.from("agent_workspaces").upsert({
+      request_id: billingTaskId,
+      conversation_id: conversationId,
+      user_id: user.id,
+      status: "planning",
+      plan: workspacePlan,
+      metadata: { execution_mode: executionMode, intent: mind.intent },
+    }, { onConflict: "request_id" }).select("id").single();
+    if (workspaceError || !workspaceRow) console.error("Could not create agent workspace:", workspaceError?.message);
+    else workspaceId = String(workspaceRow.id);
+  
+    const resultStepKey = taskPlan ? "merge" : "final";
+    const workspaceSteps = [
+      { workspace_id: workspaceId, step_key: "plan", sequence_order: 0, description: "تحديد خطة الطلب ومسار التنفيذ.", depends_on: [] },
+      ...workspacePlan.map((step, index) => ({ workspace_id: workspaceId, step_key: step.step_id, sequence_order: index + 1, description: step.description, depends_on: step.depends_on ?? [] })),
+      { workspace_id: workspaceId, step_key: resultStepKey, sequence_order: workspacePlan.length + 1, description: "حفظ النتيجة النهائية أو سبب الفشل.", depends_on: workspacePlan.map((step) => step.step_id) },
+    ];
+    if (workspaceId) {
+      const { error: stepsError } = await supabase.from("agent_workspace_steps").upsert(workspaceSteps, { onConflict: "workspace_id,step_key" });
+      if (stepsError) console.error("Could not create task workspace steps:", stepsError.message);
+    }
+    const ledgerRows = [
+      { task_key: "plan", task_description: "تحديد خطة الطلب ومسار التنفيذ.", sequence_order: 0 },
+      ...workspacePlan.map((step, index) => ({ task_key: step.step_id, task_description: step.description.slice(0, 240), sequence_order: index + 1 })),
+      { task_key: resultStepKey, task_description: "حفظ النتيجة النهائية أو سبب الفشل.", sequence_order: workspacePlan.length + 1 },
+    ].map((step) => ({ conversation_id: conversationId, request_id: billingTaskId, workspace_id: workspaceId, ...step, status: "pending" }));
+    if (conversationId) {
+      const { error: ledgerError } = await supabase.from("task_ledger").upsert(ledgerRows, { onConflict: "request_id,task_key", ignoreDuplicates: true });
+      if (ledgerError) console.error("Could not create task ledger:", ledgerError.message);
+    }
+  
   }
   await updateWorkspaceStep("plan", "running");
   await updateTaskLedger("plan", "running");
