@@ -26,6 +26,7 @@ import { parseAgentDecision, runAgentLoop, type AgentLoopStep, type AgentTool } 
 import { prioritizeModelCandidate } from "./agent/model_routing.ts";
 import { isModelEligibleForRequest, modelSupportsRole as supportsModelRole } from "./agent/model_eligibility.ts";
 import { resolveExecutionMode } from "./execution_mode.ts";
+import { resolveSulyProfileKey } from "./agent/suly_profile_routing.ts";
 import { getAgentToolsFromDatabase, getRegisteredTool, validateToolInput } from "./agent/tool_registry.ts";
 
 // Native Android/iOS clients do not require CORS. Web access must set WEB_CORS_ORIGIN
@@ -648,7 +649,14 @@ async function handleRequest(req: Request): Promise<Response> {
   const rawModelId = Number(body.model_id);
   const modelId = Number.isSafeInteger(rawModelId) && rawModelId > 0 ? rawModelId : 0;
   const hasExplicitModel = modelId > 0;
-  const routingMode = body.routing_mode === "manual" || (hasExplicitModel && body.routing_mode !== "auto") ? "manual" : "auto";
+  const rawProfileKey = typeof body.model_profile_key === "string" ? body.model_profile_key.trim().toLowerCase() : "";
+  const requestedProfileKey = ["auto", "lite", "pro", "max"].includes(rawProfileKey) ? rawProfileKey : null;
+  const hasManualProfile = requestedProfileKey === "lite" || requestedProfileKey === "pro" || requestedProfileKey === "max";
+  const routingMode = hasManualProfile || body.routing_mode === "manual" || (hasExplicitModel && body.routing_mode !== "auto") ? "manual" : "auto";
+  if (hasManualProfile) {
+    const access = resolveSulyProfileKey({ requestedProfileKey, userTier, intent: "chat" });
+    if (!access.allowed) return jsonResponse({ error: `يتطلب اختيار ${requestedProfileKey === "pro" ? "SULY Pro" : "SULY Max"} اشتراكًا أعلى. لم يتم تغيير اختيارك.`, required_profile: requestedProfileKey }, 403, req);
+  }
   // New clients select Chat or Agent explicitly. Legacy clients remain Agent
   // compatible so existing connected-app requests do not silently lose tools.
   let executionMode: "chat" | "agent" = body.execution_mode === "chat" ? "chat" : "agent";
@@ -669,6 +677,7 @@ async function handleRequest(req: Request): Promise<Response> {
     routingMode,
     executionMode: typeof body.execution_mode === "string" ? body.execution_mode : "legacy",
     modelId: hasExplicitModel ? modelId : null,
+    modelProfileKey: requestedProfileKey,
     temperature,
     maxTokens,
   });
@@ -773,6 +782,9 @@ async function handleRequest(req: Request): Promise<Response> {
     requiresLiveSearch: isWebSearchRequest(latestUserMessage),
     internalBrainCall,
   });
+  const selectedProfileKey = requestedProfileKey
+    ? resolveSulyProfileKey({ requestedProfileKey, userTier, intent: mind.intent }).profileKey
+    : null;
   const maxOutputChars = outputLimitForRequest(mind.intent, latestUserMessage, maxTokens);
   const streamRequested = body.stream === true;
   let himsActivated = profile.hims_activated === true;
@@ -1018,7 +1030,28 @@ async function handleRequest(req: Request): Promise<Response> {
     allowedRoutingGroups,
   });
   const requiredModelRole = executionMode === "agent" ? "planner" : "chat";
-  const anyCapabilityEligible = healthyModels.some((model: ModelRow) =>
+  const routeRole: RouteModelAssignment["route_role"] = executionMode === "agent" ? "planner" : "chat";
+  const { data: selectedProfileAssignments, error: profileAssignmentsError } = selectedProfileKey
+    ? await supabase.from("suly_model_profile_models")
+      .select("model_id,route_role,priority,enabled")
+      .eq("profile_key", selectedProfileKey)
+      .eq("enabled", true)
+      .limit(500)
+    : { data: [], error: null };
+  if (selectedProfileKey && profileAssignmentsError) {
+    console.error("Could not load SULY profile model assignments:", profileAssignmentsError.message);
+    return await failedResponse(jsonResponse({ error: "تعذر تحميل نماذج مستوى SULY المحدد." }, 503, req), "suly_profile_unavailable");
+  }
+  const profileModelIds = selectedProfileKey
+    ? new Set((selectedProfileAssignments ?? []).filter((item: { route_role: string }) => item.route_role === routeRole).map((item: { model_id: number }) => Number(item.model_id)))
+    : null;
+  const workerProfileModelIds = selectedProfileKey
+    ? new Set((selectedProfileAssignments ?? []).filter((item: { route_role: string }) => item.route_role === "worker").map((item: { model_id: number }) => Number(item.model_id)))
+    : null;
+  const profileEligibleModels = profileModelIds
+    ? healthyModels.filter((model: ModelRow) => profileModelIds.has(model.id))
+    : healthyModels;
+  const anyCapabilityEligible = profileEligibleModels.some((model: ModelRow) =>
     isEligibleModel(model, requiredModelRole, allowedAutoRoutingGroups));
   if (routingMode === "auto" && !anyCapabilityEligible) {
     const labels = [...new Set([
@@ -1034,16 +1067,22 @@ async function handleRequest(req: Request): Promise<Response> {
   }
   let candidatesFrom: ModelRow[] = [];
   if (routingMode === "manual") {
-    candidatesFrom = healthyModels.filter((model: ModelRow) => model.id === modelId && isEligibleModel(model, requiredModelRole));
+    candidatesFrom = profileModelIds
+      ? profileEligibleModels.filter((model: ModelRow) => isEligibleModel(model, requiredModelRole))
+      : healthyModels.filter((model: ModelRow) => model.id === modelId && isEligibleModel(model, requiredModelRole));
   } else {
-    // Auto routing always starts with the free race. Paid models are selected only
-    // after every free candidate has failed or no usable free candidate exists.
-    const tierFiltered = healthyModels.filter((model: ModelRow) => isEligibleModel(model, requiredModelRole));
-    const routeRole: RouteModelAssignment["route_role"] = executionMode === "agent" ? "planner" : "chat";
+    // Auto chooses a SULY profile first, then routes only within that profile.
+    // The user's selected profile is never silently replaced with another one.
+    const tierFiltered = profileEligibleModels.filter((model: ModelRow) => isEligibleModel(model, requiredModelRole));
     candidatesFrom = orderModelsByRoute(tierFiltered.filter(m => m.routing_group === "free_race"), orderedRouteAssignments, routeRole);
   }
 
-  if (routingMode === "manual" && candidatesFrom.length === 0) return await failedResponse(jsonResponse({ error: manuallyRequested ? "النموذج المحدد لا يملك القدرات المطلوبة لهذا المرفق." : "Model not found or disabled." }, manuallyRequested ? 422 : 404, req), "manual_model_unavailable");
+  if (routingMode === "manual" && candidatesFrom.length === 0) {
+    const message = selectedProfileKey
+      ? `لا توجد نماذج مفعّلة ومؤهلة حاليًا ضمن ${selectedProfileKey.toUpperCase()} لهذا الطلب. لم يتم التحويل إلى مستوى آخر.`
+      : manuallyRequested ? "النموذج المحدد لا يملك القدرات المطلوبة لهذا المرفق." : "Model not found or disabled.";
+    return await failedResponse(jsonResponse({ error: message }, manuallyRequested ? 422 : selectedProfileKey ? 503 : 404, req), "manual_model_unavailable");
+  }
   if (routingMode === "manual" && !(candidatesFrom[0].allowed_tiers ?? []).includes(userTier)) return await failedResponse(jsonResponse({ error: "This model is not available on your current plan." }, 403, req), "tier_not_allowed");
 
   // Queued Brain compound tasks may delegate independent list items to
@@ -1057,7 +1096,8 @@ async function handleRequest(req: Request): Promise<Response> {
     && !requestedConnector
     && !requestedMultiReadToolkits?.length
     && !isWebSearchRequest(latestUserMessage)
-    ? healthyModels.filter((model: ModelRow) => isEligibleModel(model, "worker", ["free_race"]))
+    ? healthyModels.filter((model: ModelRow) =>
+      (!workerProfileModelIds || workerProfileModelIds.has(model.id)) && isEligibleModel(model, "worker", ["free_race"]))
     : [];
   const orderedWorkerModels = orderModelsByRoute(workerModels, orderedRouteAssignments, "worker");
   const requiredProviderIds: number[] = [...new Set<number>([
@@ -1655,7 +1695,7 @@ async function handleRequest(req: Request): Promise<Response> {
     let paidPlanPool: Candidate[] = [];
     if (routingMode === "auto" && settings.paidFallbackEnabled) {
       const paidModels: ModelRow[] = healthyModels
-        .filter((model) => isEligibleModel(model, "planner", ["paid_fallback"]));
+        .filter((model) => (!profileModelIds || profileModelIds.has(model.id)) && isEligibleModel(model, "planner", ["paid_fallback"]));
       const orderedPaidModels = orderModelsByRoute(paidModels, orderedRouteAssignments, "planner");
       const paidProviderIds = [...new Set(paidModels.map((model) => model.provider_id))];
       await Promise.all(paidProviderIds.map(async (providerId) => {
@@ -2189,7 +2229,7 @@ async function handleRequest(req: Request): Promise<Response> {
 
   if (!winner && routingMode === "auto" && settings.paidFallbackEnabled) {
     const paidModels: ModelRow[] = healthyModels
-      .filter((model: ModelRow) => isEligibleModel(model, "chat", ["paid_fallback"]));
+      .filter((model: ModelRow) => (!profileModelIds || profileModelIds.has(model.id)) && isEligibleModel(model, "chat", ["paid_fallback"]));
     const orderedPaidModels = orderModelsByRoute(paidModels, orderedRouteAssignments, "chat");
     const paidProviderIds: number[] = [...new Set<number>(orderedPaidModels.map((m: ModelRow) => m.provider_id))];
     await Promise.all(paidProviderIds.map(async (providerId) => {
