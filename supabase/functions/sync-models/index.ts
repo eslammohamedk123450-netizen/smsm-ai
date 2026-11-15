@@ -13,7 +13,6 @@ import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supa
 import { handleCorsPreflight, withCors } from "../_shared/cors.ts";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
@@ -297,6 +296,11 @@ Deno.serve(async (request: Request) => {
   const configuredOrigins = Deno.env.get("WEB_CORS_ORIGIN") ?? "";
   const preflight = handleCorsPreflight(request, configuredOrigins);
   if (preflight) return preflight;
-  const response = await handleSyncModelsRequest(request);
+  let response: Response;
+  try {
+    response = await handleSyncModelsRequest(request);
+  } catch {
+    response = jsonResponse({ error: "تعذر إكمال طلب إدارة النماذج." }, 500);
+  }
   return withCors(request, response, configuredOrigins);
 });
