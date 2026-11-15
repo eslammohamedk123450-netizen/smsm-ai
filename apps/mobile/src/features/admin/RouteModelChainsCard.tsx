@@ -26,7 +26,9 @@ const ROLES: Array<[Role, string, string]> = [
 ];
 
 function modelSupportsRoute(model: ModelChoice, role: Role): boolean {
+  const roles = model.task_roles?.length ? model.task_roles : ["general"];
   if (role === "chat") {
+    if (!roles.includes("general")) return false;
     let capabilities: Record<string, unknown> = {};
     if (typeof model.capabilities_json === "string") {
       try { const parsed: unknown = JSON.parse(model.capabilities_json); if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) capabilities = parsed as Record<string, unknown>; }
@@ -36,7 +38,6 @@ function modelSupportsRoute(model: ModelChoice, role: Role): boolean {
     }
     return capabilities.chat !== false;
   }
-  const roles = model.task_roles?.length ? model.task_roles : ["general"];
   return roles.includes("general") || roles.includes(role) || (role === "worker" && roles.includes("executor"));
 }
 
