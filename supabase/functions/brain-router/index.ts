@@ -107,7 +107,7 @@ async function main(req: Request): Promise<Response> {
         status: "failed",
         updated_at: new Date().toISOString(),
       }, { onConflict: "task_id" });
-      await admin.from("brain_task_steps").upsert(toBrainTaskStepRows(taskId, agentSteps), { onConflict: "task_id,step_index" });
+      await admin.from("brain_task_steps").upsert(toBrainTaskStepRows(taskId, agentSteps, "failed"), { onConflict: "task_id,step_index" });
       await admin.rpc("brain_finalize_usage", { p_task_id: taskId, p_actual_tokens: actualTokens, p_status: "failed" });
       return json({ error: "Central Agent could not complete this task", task_id: taskId }, response.status >= 400 ? response.status : 502);
     }
