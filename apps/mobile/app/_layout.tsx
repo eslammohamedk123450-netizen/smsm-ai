@@ -1,7 +1,7 @@
 import { Stack, type ErrorBoundaryProps } from "expo-router";
 import { useEffect, useState } from "react";
 import { useFonts } from "expo-font";
-import { Pressable, Text, View } from "react-native";
+import { Platform, Pressable, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider } from "../src/features/auth/auth-provider";
