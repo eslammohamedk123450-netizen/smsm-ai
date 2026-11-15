@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { parseCentralAgentResult } from "./central_agent_result.ts";
 
 const CAPABILITIES = ["text", "coding", "image", "video", "vision", "audio", "reasoning", "web_search"] as const;
 type Capability = typeof CAPABILITIES[number];
@@ -85,30 +86,24 @@ async function main(req: Request): Promise<Response> {
         max_tokens: 4096,
       }),
     });
-    const routed = asRecord(await response.json().catch(() => ({})));
-    const responseEnvelope = asRecord(routed.response);
-    const choices = Array.isArray(responseEnvelope.choices) ? responseEnvelope.choices : [];
-    const firstChoice = asRecord(choices[0]);
-    const assistantMessage = asRecord(firstChoice.message);
-    const finalResponse = cleanText(assistantMessage.content);
-    const usage = asRecord(routed.usage);
-    const inputTokens = numericTokens(usage.input_tokens) ?? 0;
-    const outputTokens = numericTokens(usage.output_tokens) ?? 0;
-    const actualTokens = inputTokens + outputTokens;
-    const agentSteps = Array.isArray(routed.agent_steps) ? routed.agent_steps : [];
-    const completedSteps = agentSteps.filter((item) => asRecord(item).status === "completed").length;
-    const complexity = agentSteps.length > 2 ? "complex" : "easy";
-    const capabilities = agentSteps.some((item) => asRecord(item).tool === "web.search") ? ["text", "web_search"] : ["text"];
+    const centralResult = parseCentralAgentResult(await response.json().catch(() => ({})));
+    const finalResponse = centralResult?.response ?? "";
+    const actualTokens = (centralResult?.inputTokens ?? 0) + (centralResult?.outputTokens ?? 0);
+    const agentSteps = centralResult?.agentSteps ?? [];
+    const completedSteps = centralResult?.completedSteps ?? 0;
+    const estimatedSteps = centralResult?.estimatedSteps ?? 1;
+    const complexity = centralResult?.complexity ?? "easy";
+    const capabilities = centralResult?.capabilities ?? ["text"];
 
-    if (!response.ok || !finalResponse) {
+    if (!response.ok || !centralResult) {
       await admin.from("brain_task_contexts").upsert({
         task_id: taskId,
         user_id: userId,
         objective,
         complexity,
         capabilities,
-        estimated_steps: Math.max(1, agentSteps.length),
-        context: { objective, complexity, capabilities, estimated_steps: Math.max(1, agentSteps.length), steps: agentSteps },
+        estimated_steps: estimatedSteps,
+        context: { objective, complexity, capabilities, estimated_steps: estimatedSteps, steps: agentSteps },
         status: "failed",
         updated_at: new Date().toISOString(),
       }, { onConflict: "task_id" });
@@ -116,7 +111,6 @@ async function main(req: Request): Promise<Response> {
       return json({ error: "Central Agent could not complete this task", task_id: taskId }, response.status >= 400 ? response.status : 502);
     }
 
-    const estimatedSteps = Math.max(1, agentSteps.length);
     const context = {
       objective,
       complexity,
