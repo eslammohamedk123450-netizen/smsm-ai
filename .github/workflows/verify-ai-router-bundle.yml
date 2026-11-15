@@ -1,4 +1,4 @@
-name: Verify ai-router deployment artifact
+name: Verify Edge Function deployment artifacts
 
 on:
   pull_request:
@@ -16,10 +16,12 @@ on:
     branches: [release/v1, feat/agent-worker-brain-queue]
     paths:
       - "supabase/functions/ai-router/**"
+      - "supabase/functions/sync-models/**"
       - "supabase/functions/image-generator/**"
       - "apps/mobile/src/features/admin/MediaGenerationModelsAdminScreen.tsx"
       - "supabase/migrations/**"
       - "supabase/deploy-artifacts/ai-router.bundle.js"
+      - "supabase/deploy-artifacts/sync-models.bundle.js"
       - "package.json"
       - ".github/workflows/verify-ai-router-bundle.yml"
   workflow_dispatch:
@@ -29,7 +31,7 @@ permissions:
 
 jobs:
   verify-bundle:
-    name: Build and verify ai-router bundle
+    name: Build and verify Edge Function bundles
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -63,7 +65,7 @@ jobs:
           SOURCE_SHA: ${{ steps.source.outputs.sha }}
         run: |
           if [ -z "$(git status --porcelain supabase/deploy-artifacts/ai-router.bundle.js supabase/deploy-artifacts/sync-models.bundle.js)" ]; then
-            echo "The committed ai-router bundle is already current."
+            echo "The committed Edge Function bundles are already current."
             exit 0
           fi
           git config user.name "github-actions[bot]"
@@ -83,7 +85,7 @@ jobs:
             echo "An Edge Function bundle is stale. Regenerate with 'npm run bundle:ai-router && npm run bundle:sync-models'."
             exit 1
           fi
-          echo "ai-router bundle matches the current source."
+          echo "Edge Function bundles match the current source."
 
   media-billing:
     name: Currency-safe media billing tests
