@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { handleCorsPreflight, withCors } from "../_shared/cors.ts";
 import { claimAgentTasks, finishAgentTask } from "../_shared/agent_task_queue.ts";
 import { readBrainTaskPayload } from "../_shared/brain_task_payload.ts";
 import { settleTerminalAgentTaskUsage, type AgentSettlementClient, type TerminalAgentTaskStatus } from "../_shared/agent_usage_settlement.ts";
@@ -126,7 +127,7 @@ async function processOne(url: string, serviceKey: string, userId: string, userJ
   }
 }
 
-Deno.serve(async (req: Request) => {
+async function handleAgentTaskWorker(req: Request): Promise<Response> {
   if (req.method !== "POST") return json({ error: "POST required" }, 405);
   const url = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -144,4 +145,17 @@ Deno.serve(async (req: Request) => {
   // runtime stops it, the lease expires and a later app wake can retry safely.
   EdgeRuntime.waitUntil(processOne(url, serviceKey, userId, userJwt).catch(() => undefined));
   return json({ accepted: true, status: "processing", scope: "current_user" }, 202);
+}
+
+Deno.serve(async (req: Request) => {
+  const configuredOrigins = Deno.env.get("WEB_CORS_ORIGIN") ?? "";
+  const preflight = handleCorsPreflight(req, configuredOrigins);
+  if (preflight) return preflight;
+  let response: Response;
+  try {
+    response = await handleAgentTaskWorker(req);
+  } catch {
+    response = json({ error: "Worker request failed." }, 500);
+  }
+  return withCors(req, response, configuredOrigins);
 });

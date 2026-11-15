@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { handleCorsPreflight, withCors } from "../_shared/cors.ts";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-suly-health-check-secret",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
@@ -379,6 +379,9 @@ async function runScheduledChecks(serviceClient: SupabaseClient): Promise<Respon
   // (~every 2 hours by default) until a passing probe restores them.
   const results = await mapLimit(models, SCHEDULED_CONCURRENCY, async (model): Promise<"success" | "error" | "skipped"> => {
     const provider = providers.get(model.provider_id);
+    // A model whose provider was removed or is not loaded cannot be probed.
+    // Skip it rather than dereferencing an absent provider or recording a false failure.
+    if (!provider) return "skipped";
     const eligibility = probeEligibility(model, provider, autoRestricted.get(model.id) === true, intervals);
     if (eligibility.skip) return "skipped";
     const checkKey = slotKeyFor(model.id, eligibility.intervalMinutes);
@@ -408,7 +411,7 @@ async function runScheduledChecks(serviceClient: SupabaseClient): Promise<Respon
   return jsonResponse(summary);
 }
 
-Deno.serve(async (request: Request): Promise<Response> => {
+async function handleModelHealthCheckRequest(request: Request): Promise<Response> {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (request.method !== "POST") return jsonResponse({ error: "Method not allowed." }, 405);
 
@@ -438,4 +441,17 @@ Deno.serve(async (request: Request): Promise<Response> => {
   }
   try { return await runManualTest(serviceClient, Number(body.model_id)); }
   catch { return jsonResponse({ error: "Model test failed." }, 500); }
+}
+
+Deno.serve(async (request: Request) => {
+  const configuredOrigins = Deno.env.get("WEB_CORS_ORIGIN") ?? "";
+  const preflight = handleCorsPreflight(request, configuredOrigins);
+  if (preflight) return preflight;
+  let response: Response;
+  try {
+    response = await handleModelHealthCheckRequest(request);
+  } catch {
+    response = jsonResponse({ error: "Model health check failed." }, 500);
+  }
+  return withCors(request, response, configuredOrigins);
 });

@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, View, useColorScheme } from "react-native";
-import { PremiumText as Text } from "../../src/components/ui/PremiumText";
+import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { supabase } from "../../src/lib/supabase/client";
-import { getThemeColors } from "../../src/theme/colors";
+import { supabase } from "../../lib/supabase/client";
+import { getThemeColors } from "../../theme/colors";
 
 type SharedMessage = { role: "user" | "assistant"; content: string; created_at: string };
 type SharedConversation = { title: string; messages: SharedMessage[] };

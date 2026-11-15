@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { handleCorsPreflight, withCors } from "../_shared/cors.ts";
 import {
   COMPOSIO_TOOLKITS,
   createComposioConnectLink,
@@ -13,7 +14,6 @@ import {
 } from "../_shared/composio.ts";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
@@ -31,7 +31,7 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-Deno.serve(async (req: Request) => {
+async function handleCompositoIntegrationRequest(req: Request): Promise<Response> {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return jsonResponse({ error: "Method not allowed." }, 405);
 
@@ -143,4 +143,17 @@ Deno.serve(async (req: Request) => {
     const safeMessage = message.length <= 240 ? message : "The connected-apps service could not complete this request.";
     return jsonResponse({ error: safeMessage, error_code: "integration_operation_failed" }, 502);
   }
+}
+
+Deno.serve(async (request: Request) => {
+  const configuredOrigins = Deno.env.get("WEB_CORS_ORIGIN") ?? "";
+  const preflight = handleCorsPreflight(request, configuredOrigins);
+  if (preflight) return preflight;
+  let response: Response;
+  try {
+    response = await handleCompositoIntegrationRequest(request);
+  } catch {
+    response = jsonResponse({ error: "The connected-apps service could not complete this request." }, 500);
+  }
+  return withCors(request, response, configuredOrigins);
 });

@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { handleCorsPreflight, withCors } from "../_shared/cors.ts";
 import { parseCentralAgentResult, toBrainTaskStepRows } from "./central_agent_result.ts";
 
 function json(body: unknown, status = 200): Response {
@@ -377,5 +378,14 @@ async function main(req: Request): Promise<Response> {
   return json({ error: "legacy_brain_route_disabled" }, 410);
 }
 Deno.serve(async (req) => {
-  try { return await main(req); } catch { return json({ error: "Internal brain-router error" }, 500); }
+  const configuredOrigins = Deno.env.get("WEB_CORS_ORIGIN") ?? "";
+  const preflight = handleCorsPreflight(req, configuredOrigins);
+  if (preflight) return preflight;
+  let response: Response;
+  try {
+    response = await main(req);
+  } catch {
+    response = json({ error: "Internal brain-router error" }, 500);
+  }
+  return withCors(req, response, configuredOrigins);
 });
