@@ -7,9 +7,9 @@
 
 ## Scope
 
-Read-only inventory of public-table RLS, policies and grants; SECURITY DEFINER functions and search paths; admin authorization predicates; conversation sharing; Storage and Vault access; exposed Edge Function authentication; and Supabase Security Advisor findings.
+Inventory of public-table RLS, policies and grants; SECURITY DEFINER functions and search paths; admin authorization predicates; conversation sharing; Storage and Vault access; Edge Function authentication; password storage; and Supabase Security Advisor findings.
 
-No production data, balances, subscriptions, provider credentials, or user records were changed. The SQL authorization tests ran inside transactions and were rolled back. No migration was applied in this audit.
+The initial authorization checks ran in rollback-only transactions. A follow-up password-storage migration was applied: it preserved the legacy `public.users` row and its non-credential fields, replaced only its old credential value with an unusable random bcrypt hash, added a bcrypt-format constraint, and revoked direct table access from `PUBLIC`, `anon`, `authenticated`, and `service_role`. No balances, subscriptions, provider credentials, or user rows were deleted.
 
 ## Findings
 
@@ -69,7 +69,18 @@ The following deployed functions have `verify_jwt=false`; source inspection foun
 
 Other deployed functions inspected in the inventory require JWT verification. This was a source/configuration audit, not an external HTTP penetration test.
 
-### 6. Remaining hardening findings
+### 6. Password storage and authentication
+
+- Seven users exist in `auth.users`; all seven have a non-NULL `encrypted_password` field. Password hashes were never selected or displayed during the audit.
+- Supabase's documented password storage uses bcrypt with a randomly generated salt. The `encrypted_password` column name is historical; it stores a password hash, not reversible ciphertext.
+- The active Expo client uses `supabase.auth.signUp()` and `supabase.auth.signInWithPassword()`. The reviewed auth service does not write password values to application tables or logs.
+- The only password-like application column found was `public.users.hashed_password`, in a legacy table with one admin row. Its stored value was 13 characters and did not match bcrypt, Argon2, or the common encoded hash formats checked. The audit cannot prove whether that legacy value was plaintext or a custom format, so it was treated as unsafe.
+- Migration `20261115172009_password_storage_hardening_legacy_users` was applied successfully. It replaced the legacy credential with a random bcrypt hash (not derived from the old value), preserved the row and its other fields, added a bcrypt-only CHECK constraint, and revoked all table privileges from `PUBLIC`, `anon`, `authenticated`, and `service_role`. Post-migration verification confirmed one row remains, one bcrypt-format value, the constraint exists, and all four roles lack SELECT access.
+- No database routine or deployed Edge Function references `public.users` or `hashed_password`. The reviewed Expo login path uses Supabase Auth.
+- Separate session-storage note: the Expo auth adapter stores Supabase session tokens in native AsyncStorage and browser localStorage. These are session credentials, not passwords. Native OS-backed secure storage remains a follow-up hardening item; browser localStorage remains subject to the usual XSS exposure.
+- The login UI currently accepts a six-character minimum, while the stronger Supabase Auth password settings have not been configured. HaveIBeenPwned leaked-password protection remains unavailable on the Free plan.
+
+### 7. Remaining hardening findings
 
 #### Leaked-password protection is disabled
 
@@ -105,6 +116,6 @@ There are no `storage` RLS policies. This is secure by default but means direct 
 
 ## Stage 1 decision
 
-**Not complete.** Core table RLS, ownership isolation, admin guards, fixed search paths, Vault isolation, and application-level authentication checks passed the checks listed above. Remaining blockers are leaked-password protection (plan-gated Auth setting) and the pg_net schema's overbroad grants/exposure verification. No risky production change was made merely to silence Advisor warnings.
+**Not complete.** Core table RLS, ownership isolation, admin guards, fixed search paths, Vault isolation, and application-level authentication checks passed the checks listed above. Legacy password storage has been neutralized and access closed. Remaining blockers/follow-ups are the `pg_net` schema's overbroad grants/exposure verification, Auth password-strength configuration, the Free-plan leaked-password-protection limitation, and native session-token secure storage. No risky ownership transfer or extension change was made merely to silence Advisor warnings.
 
 Do not begin Stage 2 until the remaining Stage 1 items are resolved or explicitly documented as accepted risks by the project owner.
