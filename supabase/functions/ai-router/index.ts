@@ -188,9 +188,6 @@ function modelSupportsChat(model: ModelRow): boolean {
 
 type TrustedChatAttachment = { id: string; capability: ModelCapability; url: string; filename: string; extractedText?: string };
 
-function modelSupportsRequest(model: ModelRow, required: readonly ModelCapability[]): boolean {
-  return supportsModelCapabilities(model.capabilities_json, required);
-}
 
 function modelSupportsRole(model: ModelRow, role: "planner" | "worker" | "reviewer" | "summarizer"): boolean {
   return supportsModelRole(model.task_roles, role);
@@ -2096,7 +2093,7 @@ async function handleRequest(req: Request): Promise<Response> {
 
   if (!winner && routingMode === "auto" && settings.paidFallbackEnabled) {
     const paidModels: ModelRow[] = healthyModels
-      .filter((m: ModelRow) => m.routing_group === "paid_fallback" && (m.allowed_tiers ?? []).includes(userTier) && modelSupportsRequest(m, uniqueRequiredCapabilities))
+      .filter((model: ModelRow) => isEligibleModel(model, executionMode === "agent" ? "planner" : "chat", ["paid_fallback"]))
     const orderedPaidModels = orderModelsByRoute(paidModels, orderedRouteAssignments, executionMode === "agent" ? "planner" : "chat");
     const paidProviderIds: number[] = [...new Set<number>(orderedPaidModels.map((m: ModelRow) => m.provider_id))];
     await Promise.all(paidProviderIds.map(async (providerId) => {
