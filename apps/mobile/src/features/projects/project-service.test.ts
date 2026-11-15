@@ -1,4 +1,4 @@
-import { normalizeProjectInput } from "./project-service";
+import { normalizeProjectInput } from "./project-validation";
 
 describe("normalizeProjectInput", () => {
   it("trims and normalizes valid project details", () => {
