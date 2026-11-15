@@ -9,6 +9,8 @@ on:
       - "supabase/functions/agent-task-worker/**"
       - "supabase/functions/agent-task-scheduler/**"
       - "supabase/functions/_shared/agent_task_queue.ts"
+      - "supabase/functions/_shared/model_capabilities.ts"
+      - "supabase/functions/ai-router/agent/model_eligibility.ts"
       - "supabase/migrations/**"
       - "supabase/config.toml"
       - ".github/workflows/verify-agent-queue.yml"
@@ -71,6 +73,7 @@ jobs:
       - name: Run Agent and scheduler regression tests
         run: |
           deno test supabase/functions/ai-router/agent/orchestrator.test.ts
+          deno test supabase/functions/ai-router/agent/model_eligibility.test.ts
           deno test supabase/functions/agent-task-scheduler/index.test.ts
       - name: Typecheck Agent, Brain, and scheduler runtime
         run: |
