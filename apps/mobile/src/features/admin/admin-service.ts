@@ -354,17 +354,12 @@ export const adminService = {
   async saveRouteModelAssignments(routeRole: "chat" | "planner" | "worker" | "reviewer" | "summarizer", modelIds: number[]) {
     await requireAdmin();
     const ids = [...new Set(modelIds)].filter((id) => Number.isSafeInteger(id) && id > 0).slice(0, 2);
-    const { error: deleteError } = await supabase.from("ai_route_model_assignments").delete().eq("route_role", routeRole);
-    if (deleteError) throw deleteError;
-    if (!ids.length) return;
-    const { error: insertError } = await supabase.from("ai_route_model_assignments").insert(ids.map((model_id, index) => ({
-      route_role: routeRole,
-      model_id,
-      priority: index + 1,
-      enabled: true,
-      updated_at: new Date().toISOString(),
-    })));
-    if (insertError) throw insertError;
+    const { data, error } = await supabase.rpc("suly_admin_save_route_models", {
+      p_route_role: routeRole,
+      p_model_ids: ids,
+    });
+    if (error) throw error;
+    if (data?.success !== true) throw new Error("تعذر حفظ اختيارات النماذج لهذا القسم.");
   },
 
   async resetModelHealth(modelId: number) {
