@@ -1259,7 +1259,15 @@ async function handleRequest(req: Request): Promise<Response> {
   if (creditPricing.enabled && !internalBrainCall) {
     // Reserve room for up to five bounded saved memories before embedding/retrieval runs.
     const inputUpperBound = messages.reduce((sum, item) => sum + item.content.length, 0) + 22000;
-    const proposedReservationParts = settings.taskSplitEnabled && trustedAttachments.length === 0 && mind.intent === "complex_task"
+    const canDelegateReservation = executionMode === "agent"
+      && workerCandidates.length > 0
+      && settings.taskSplitEnabled
+      && trustedAttachments.length === 0
+      && !requestedConnector
+      && !requestedMultiReadToolkits?.length
+      && !isWebSearchRequest(latestUserMessage)
+      && mind.intent === "complex_task";
+    const proposedReservationParts = canDelegateReservation
       ? splitTask(latestUserMessage, settings.taskSplitMaxParts)
       : [latestUserMessage];
     const reservationPlan = buildIndependentTaskPlan(proposedReservationParts, settings.taskSplitMaxParts);
