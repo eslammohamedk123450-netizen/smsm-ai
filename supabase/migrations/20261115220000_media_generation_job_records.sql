@@ -102,4 +102,61 @@ $;
 revoke all on function public.suly_get_my_media_generation_job(uuid) from public, anon;
 grant execute on function public.suly_get_my_media_generation_job(uuid) to authenticated;
 
+create or replace function public.suly_service_recover_stale_media_jobs()
+returns integer
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $
+declare
+  v_job public.suly_media_generation_jobs%rowtype;
+  v_asset public.global_media_assets%rowtype;
+  v_recovered integer := 0;
+  v_credits bigint;
+begin
+  if coalesce(auth.role(), '') <> 'service_role' then
+    raise exception 'service role required' using errcode = '42501';
+  end if;
+
+  for v_job in
+    select * from public.suly_media_generation_jobs
+    where status = 'running'
+      and coalesce(started_at, created_at) < now() - interval '10 minutes'
+    order by created_at
+    for update skip locked
+    limit 50
+  loop
+    select * into v_asset
+    from public.global_media_assets
+    where user_id = v_job.user_id
+      and metadata ->> 'request_id' = v_job.id::text
+    order by created_at desc
+    limit 1;
+
+    if found then
+      v_credits := coalesce(nullif(v_asset.metadata ->> 'charged_credits','')::bigint, v_job.charged_credits, 0);
+      update public.suly_media_generation_jobs
+      set status = 'completed', output_asset_id = v_asset.id,
+          charged_credits = greatest(v_credits,0), completed_at = coalesce(completed_at, now()),
+          updated_at = now(),
+          metadata = metadata || jsonb_build_object('recovered_after_worker_interruption', true)
+      where id = v_job.id;
+    else
+      perform public.finalize_credits(v_job.user_id, v_job.id, 0, 0, 0, null, 'media_generation_recovery');
+      update public.suly_media_generation_jobs
+      set status = 'failed', error_code = 'worker_interrupted',
+          error_message = 'انقطع تنفيذ المهمة قبل حفظ النتيجة. تم تحرير الرصيد المحجوز.',
+          completed_at = now(), updated_at = now()
+      where id = v_job.id;
+    end if;
+    v_recovered := v_recovered + 1;
+  end loop;
+
+  return v_recovered;
+end;
+$;
+
+revoke all on function public.suly_service_recover_stale_media_jobs() from public, anon, authenticated;
+grant execute on function public.suly_service_recover_stale_media_jobs() to service_role;
+
 commit;
