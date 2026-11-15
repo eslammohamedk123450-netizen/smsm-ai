@@ -105,7 +105,7 @@ begin
            and existing_usage.step_key = p_step_key
            and existing_usage.attempt_no = p_attempt_no
            and existing_usage.model_call_key = p_model_call_key
-           and existing_usage.usage_status in ('unknown', 'partial')
+           and existing_usage.usage_status in ('unknown', 'partial', 'completed')
       )
     ) then
     raise exception 'agent_job_not_active_for_new_usage' using errcode = 'P0002';
