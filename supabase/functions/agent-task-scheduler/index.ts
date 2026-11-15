@@ -80,6 +80,12 @@ async function processJob(
 
     if (leaseLost) return;
     const result = await response.json().catch(() => ({}));
+    if (response.ok && result?.status === "cancelled") {
+      await finishAgentTask(admin, job.id, workerId, "cancelled", {
+        result: { task_id: task.taskId, response: typeof result.response === "string" ? result.response : "تم إيقاف المهمة بناءً على طلبك.", status: "cancelled" },
+      });
+      return;
+    }
     if (!response.ok || typeof result?.response !== "string" || !result.response.trim()) {
       // Release the enqueue-time reservation on a confirmed terminal response.
       // Network errors/timeouts do not reach this branch, so another lease attempt
