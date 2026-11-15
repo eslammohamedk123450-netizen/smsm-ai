@@ -3,10 +3,10 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View }
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
-import { PremiumText as Text } from "../../src/components/ui/PremiumText";
-import { useToast } from "../../src/components/ui/Toast";
-import { projectService, type SulyProject } from "../../src/features/projects/project-service";
-import { colors } from "../../src/theme/colors";
+import { PremiumText as Text } from "../../components/ui/PremiumText";
+import { useToast } from "../../components/ui/Toast";
+import { projectService, type SulyProject } from "./project-service";
+import { colors } from "../../theme/colors";
 
 const ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   folder: "folder-outline",
