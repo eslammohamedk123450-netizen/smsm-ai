@@ -2,7 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { claimAgentTasks, finishAgentTask } from "../_shared/agent_task_queue.ts";
 import { readBrainTaskPayload } from "../_shared/brain_task_payload.ts";
-import { settleTerminalAgentTaskUsage, type AgentSettlementClient, type TerminalAgentTaskStatus } from "../_shared/agent_usage_settlement.ts";
+import { handleCorsPreflight, withCors } from "../_shared/cors.ts";
 
 declare const EdgeRuntime: {
   waitUntil(promise: Promise<unknown>): void;
@@ -10,25 +10,6 @@ declare const EdgeRuntime: {
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
-}
-
-async function finishAndSettle(
-  admin: Parameters<typeof finishAgentTask>[0],
-  jobId: string,
-  workerId: string,
-  userId: string,
-  taskId: string | null,
-  status: TerminalAgentTaskStatus,
-  options: { result?: Record<string, unknown>; errorCode?: string; errorMessage?: string } = {},
-): Promise<boolean> {
-  const finished = await finishAgentTask(admin, jobId, workerId, status, options);
-  if (finished && taskId) {
-    const settlement = await settleTerminalAgentTaskUsage(admin as unknown as AgentSettlementClient, { jobId, taskId, userId, status });
-    if (settlement.finalized !== true) {
-      console.warn("Agent task terminal billing remains pending:", String(settlement.reason ?? settlement.status ?? "unknown"));
-    }
-  }
-  return finished;
 }
 
 async function processOne(url: string, serviceKey: string, userId: string, userJwt: string): Promise<void> {
@@ -39,7 +20,7 @@ async function processOne(url: string, serviceKey: string, userId: string, userJ
   const job = jobs[0];
 
   if (job.job_type !== "brain_task") {
-    await finishAndSettle(admin, job.id, workerId, userId, job.task_id ?? null, "failed", {
+    await finishAgentTask(admin, job.id, workerId, "failed", {
       errorCode: "unsupported_job_type",
       errorMessage: "No handler is registered for this job type.",
     });
@@ -48,7 +29,7 @@ async function processOne(url: string, serviceKey: string, userId: string, userJ
 
   const task = readBrainTaskPayload(job);
   if (!task || task.userId !== userId) {
-    await finishAndSettle(admin, job.id, workerId, userId, job.task_id ?? null, "failed", {
+    await finishAgentTask(admin, job.id, workerId, "failed", {
       errorCode: "invalid_brain_payload",
       errorMessage: "The queued Brain task payload is incomplete or user-mismatched.",
     });
@@ -85,33 +66,19 @@ async function processOne(url: string, serviceKey: string, userId: string, userJ
         "Content-Type": "application/json",
         "x-suly-internal-brain-key": serviceKey,
       },
-      body: JSON.stringify({
-        objective,
-        task_id: taskId,
-        job_id: job.id,
-        user_id: userId,
-        worker_id: workerId,
-        worker_attempt: job.attempt_count,
-        internal_worker: true,
-      }),
+      body: JSON.stringify({ objective, task_id: taskId, user_id: userId, internal_worker: true }),
       signal: controller.signal,
     });
     if (leaseLost) return;
     const result = await response.json().catch(() => ({}));
-    if (response.ok && result?.status === "cancelled") {
-      await finishAndSettle(admin, job.id, workerId, userId, taskId, "cancelled", {
-        result: { task_id: taskId, response: typeof result.response === "string" ? result.response : "تم إيقاف المهمة بناءً على طلبك.", status: "cancelled" },
-      });
-      return;
-    }
     if (!response.ok || typeof result?.response !== "string" || !result.response.trim()) {
-      await finishAndSettle(admin, job.id, workerId, userId, taskId, "failed", {
+      await finishAgentTask(admin, job.id, workerId, "failed", {
         errorCode: "brain_execution_failed",
         errorMessage: "Brain could not complete this task. Review the task details and try again.",
       });
       return;
     }
-    await finishAndSettle(admin, job.id, workerId, userId, taskId, "completed", {
+    await finishAgentTask(admin, job.id, workerId, "completed", {
       result: {
         task_id: taskId,
         response: result.response,
@@ -127,21 +94,39 @@ async function processOne(url: string, serviceKey: string, userId: string, userJ
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method !== "POST") return json({ error: "POST required" }, 405);
+  const configuredOrigins = Deno.env.get("WEB_CORS_ORIGIN") ?? "";
+  const preflight = handleCorsPreflight(req, configuredOrigins);
+  if (preflight) return preflight;
+
+  let response: Response;
+  if (req.method !== "POST") {
+    response = json({ error: "POST required" }, 405);
+    return withCors(req, response, configuredOrigins);
+  }
   const url = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!url || !serviceKey) return json({ error: "Worker configuration is incomplete" }, 500);
+  if (!url || !serviceKey) {
+    response = json({ error: "Worker configuration is incomplete" }, 500);
+    return withCors(req, response, configuredOrigins);
+  }
 
   // A normal authenticated user can wake only their own queued work.
-  const userJwt = req.headers.get("Authorization")?.replace(/^Bearer\s+/i, "");
-  if (!userJwt) return json({ error: "Authentication required" }, 401);
+  const userJwt = req.headers.get("Authorization")?.replace(/^Bearer\\s+/i, "");
+  if (!userJwt) {
+    response = json({ error: "Authentication required" }, 401);
+    return withCors(req, response, configuredOrigins);
+  }
   const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const { data: authData, error: authError } = await admin.auth.getUser(userJwt);
-  if (authError || !authData.user) return json({ error: "Invalid access token" }, 401);
+  if (authError || !authData.user) {
+    response = json({ error: "Invalid access token" }, 401);
+    return withCors(req, response, configuredOrigins);
+  }
   const userId = authData.user.id;
 
   // Supabase EdgeRuntime keeps this work alive after the HTTP response. If the
   // runtime stops it, the lease expires and a later app wake can retry safely.
   EdgeRuntime.waitUntil(processOne(url, serviceKey, userId, userJwt).catch(() => undefined));
-  return json({ accepted: true, status: "processing", scope: "current_user" }, 202);
+  response = json({ accepted: true, status: "processing", scope: "current_user" }, 202);
+  return withCors(req, response, configuredOrigins);
 });
