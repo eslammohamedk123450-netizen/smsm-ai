@@ -62,6 +62,102 @@ async function main(req: Request): Promise<Response> {
   if (profileError || !profile) return json({ error: "Application profile is missing" }, 403);
   if (profile.is_banned) return json({ error: "This account is suspended" }, 403);
   if (tiersError) return json({ error: "Brain tiers could not be loaded" }, 500);
+
+  if (internalWorker) {
+    // Brain is an intake/billing adapter only. The central ai-router Agent owns
+    // planning, model eligibility, tool policy, execution, and final response.
+    const response = await fetch(`${supabaseUrl}/functions/v1/ai-router`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-suly-internal-brain-key": serviceRoleKey,
+      },
+      body: JSON.stringify({
+        message: objective,
+        user_id: userId,
+        feature_key: "brain_system",
+        request_id: taskId,
+        execution_mode: "agent",
+        routing_mode: "auto",
+        stream: false,
+        max_tokens: 4096,
+      }),
+    });
+    const routed = asRecord(await response.json().catch(() => ({})));
+    const responseEnvelope = asRecord(routed.response);
+    const choices = Array.isArray(responseEnvelope.choices) ? responseEnvelope.choices : [];
+    const firstChoice = asRecord(choices[0]);
+    const assistantMessage = asRecord(firstChoice.message);
+    const finalResponse = cleanText(assistantMessage.content);
+    const usage = asRecord(routed.usage);
+    const inputTokens = numericTokens(usage.input_tokens) ?? 0;
+    const outputTokens = numericTokens(usage.output_tokens) ?? 0;
+    const actualTokens = inputTokens + outputTokens;
+    const agentSteps = Array.isArray(routed.agent_steps) ? routed.agent_steps : [];
+    const completedSteps = agentSteps.filter((item) => asRecord(item).status === "completed").length;
+    const complexity = agentSteps.length > 2 ? "complex" : "easy";
+    const capabilities = agentSteps.some((item) => asRecord(item).tool === "web.search") ? ["text", "web_search"] : ["text"];
+
+    if (!response.ok || !finalResponse) {
+      await admin.from("brain_task_contexts").upsert({
+        task_id: taskId,
+        user_id: userId,
+        objective,
+        complexity,
+        capabilities,
+        estimated_steps: Math.max(1, agentSteps.length),
+        context: { objective, complexity, capabilities, estimated_steps: Math.max(1, agentSteps.length), steps: agentSteps },
+        status: "failed",
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "task_id" });
+      await admin.rpc("brain_finalize_usage", { p_task_id: taskId, p_actual_tokens: actualTokens, p_status: "failed" });
+      return json({ error: "Central Agent could not complete this task", task_id: taskId }, response.status >= 400 ? response.status : 502);
+    }
+
+    const estimatedSteps = Math.max(1, agentSteps.length);
+    const context = {
+      objective,
+      complexity,
+      capabilities,
+      estimated_steps: estimatedSteps,
+      steps: agentSteps,
+      results: [],
+      final_response: finalResponse,
+      route: "central-agent",
+    };
+    const { error: contextError } = await admin.from("brain_task_contexts").upsert({
+      task_id: taskId,
+      user_id: userId,
+      objective,
+      complexity,
+      capabilities,
+      estimated_steps: estimatedSteps,
+      context,
+      final_response: finalResponse,
+      status: "completed",
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "task_id" });
+    if (contextError) {
+      await admin.rpc("brain_finalize_usage", { p_task_id: taskId, p_actual_tokens: actualTokens, p_status: "failed" });
+      return json({ error: "Could not persist the central Agent result", task_id: taskId }, 500);
+    }
+    const { error: finalizationError } = await admin.rpc("brain_finalize_usage", {
+      p_task_id: taskId,
+      p_actual_tokens: actualTokens,
+      p_status: "completed",
+    });
+    if (finalizationError) return json({ error: "Could not finalize Brain task usage", task_id: taskId }, 500);
+
+    return json({
+      task_id: taskId,
+      complexity,
+      capabilities,
+      estimated_steps: estimatedSteps,
+      steps_completed: completedSteps,
+      response: finalResponse,
+      route: "central-agent",
+    });
+  }
   const tiers = (tierRows ?? []) as unknown as TierRow[];
   const byTier = (name: Tier, requiredCapability: Capability = "text") => tiers
     .filter((row) => row.tier_name === name && row.model?.is_active && row.model.model_capabilities?.some((item) => item.capability_key === requiredCapability))
