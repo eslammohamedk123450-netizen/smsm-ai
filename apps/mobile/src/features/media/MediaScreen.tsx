@@ -111,7 +111,6 @@ export function MediaScreen() {
         {typeof asset.metadata.prompt === "string" ? <Text numberOfLines={2} style={styles.promptMeta}>{asset.metadata.prompt}</Text> : null}
         {typeof asset.metadata.public_model_name === "string" ? <Text style={styles.meta}>{asset.metadata.public_model_name} · {String(asset.metadata.quality ?? "")}</Text> : null}
         {typeof asset.metadata.charged_credits === "number" ? <Text style={styles.meta}>{asset.metadata.charged_credits.toLocaleString("ar-EG")} Credits</Text> : null}
-        {typeof asset.metadata.provider_cost_usd === "number" ? <Text style={styles.meta}>تكلفة المزود: ${asset.metadata.provider_cost_usd.toFixed(4)} · {String(asset.metadata.provider_cost_status ?? "estimated")}</Text> : null}
         <Pressable onPress={() => void copy(asset.url)}><Text style={styles.link}>نسخ الرابط</Text></Pressable>
       </View>) : null}
     </View>
