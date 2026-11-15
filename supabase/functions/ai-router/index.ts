@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { corsHeadersForRequest } from "../_shared/cors.ts";
 import { prepareAgentMemory, saveAgentMemory } from "./agent/memory.ts";
 import { activationOutcomeMessage, parseActivationCommand, shouldReportActivationFailure } from "../_shared/activation_command.ts";
 import { activateFeatureByCode, buildFeatureSystemContext, getFeatureContext } from "../_shared/feature_flags.ts";
@@ -31,19 +32,10 @@ import { getAgentReservationCallCount } from "./agent/agent_budget_policy.ts";
 import { buildAgentRoleGuidance, loadAgentProfiles, prioritizeAgentProfileCandidates, selectAgentProfile } from "./agent/agent_profiles.ts";
 import { getAgentToolsFromDatabase, getRegisteredTool, validateToolInput } from "./agent/tool_registry.ts";
 
-// Native Android/iOS clients do not require CORS. Web access must set WEB_CORS_ORIGIN
-// explicitly; never fall back to a wildcard in a deployed environment.
-const configuredCorsOrigin = Deno.env.get("WEB_CORS_ORIGIN")?.trim();
+// Native clients do not require CORS. Browser access is restricted to the
+// exact GitHub Pages origin, explicitly configured origins, and local previews.
 function corsHeadersFor(req: Request): Record<string, string> {
-  const requestOrigin = req.headers.get("origin")?.trim() ?? "";
-  const trustedPreviewOrigin = /^https:\/\/[a-z0-9-]+\.manus\.computer$/i.test(requestOrigin)
-    || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(requestOrigin);
-  const origin = configuredCorsOrigin || (trustedPreviewOrigin ? requestOrigin : "");
-  return {
-    ...(origin ? { "Access-Control-Allow-Origin": origin, "Vary": "Origin" } : {}),
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, cache-control",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-  };
+  return corsHeadersForRequest(req, Deno.env.get("WEB_CORS_ORIGIN") ?? "");
 }
 const activeAiClaims = new WeakMap<Request, { supabase: any; requestId: string; userId: string }>();
 
