@@ -371,21 +371,25 @@ async function firstReady(candidates: Candidate[], waitMs: number, recordAttempt
     };
     const controller = new AbortController();
     const startedAtMs = Date.now();
+    let providerCallStarted = false;
     const promise = (async () => {
       await recordAttempt(attemptCandidate, "cancelled", 0, "provider_attempt_started", null, "started");
+      providerCallStarted = true;
       return await openCandidate(attemptCandidate, controller);
     })().catch(async (error) => {
       const errorText = error instanceof Error ? error.message : String(error);
-      const cancelledByWinner = raceState.winnerSelected && controller.signal.aborted;
-      const status: AttemptStatus = cancelledByWinner
-        ? "cancelled"
-        : controller.signal.aborted || raceState.deadlineExpired || /timeout|timed out|abort/i.test(errorText)
-          ? "timeout"
-          : /no text|empty/i.test(errorText)
-            ? "empty"
-            : "error";
-      const errorCode = status === "timeout" ? "model_timeout" : status === "empty" ? "empty_response" : "provider_error";
-      await recordAttempt(attemptCandidate, status, Math.max(0, Date.now() - startedAtMs), errorCode, errorText, "finished");
+      if (providerCallStarted) {
+        const cancelledByWinner = raceState.winnerSelected && controller.signal.aborted;
+        const status: AttemptStatus = cancelledByWinner
+          ? "cancelled"
+          : controller.signal.aborted || raceState.deadlineExpired || /timeout|timed out|abort/i.test(errorText)
+            ? "timeout"
+            : /no text|empty/i.test(errorText)
+              ? "empty"
+              : "error";
+        const errorCode = status === "timeout" ? "model_timeout" : status === "empty" ? "empty_response" : "provider_error";
+        await recordAttempt(attemptCandidate, status, Math.max(0, Date.now() - startedAtMs), errorCode, errorText, "finished");
+      }
       throw error;
     });
     return { candidate: attemptCandidate, controller, promise, startedAtMs };
@@ -572,26 +576,37 @@ async function handleRequest(req: Request): Promise<Response> {
   const billingTaskId = typeof body.request_id === "string" ? body.request_id : crypto.randomUUID();
   if (!uuidPattern.test(billingTaskId)) return jsonResponse({ error: "request_id must be a valid UUID." }, 400);
   const agentJobId = internalBrainCall && typeof body.agent_job_id === "string" ? body.agent_job_id : null;
+  const agentWorkerId = internalBrainCall && typeof body.agent_worker_id === "string" ? body.agent_worker_id : null;
+  const agentWorkerAttempt = internalBrainCall ? Number(body.agent_worker_attempt) : null;
+  const getAgentExecutionState = async () => {
+    if (!internalBrainCall || !agentJobId || !agentWorkerId || !Number.isInteger(agentWorkerAttempt)) return null;
+    const { data, error } = await supabase.rpc("agent_task_execution_state", {
+      p_job_id: agentJobId,
+      p_task_id: billingTaskId,
+      p_user_id: user.id,
+      p_worker_id: agentWorkerId,
+      p_worker_attempt: agentWorkerAttempt,
+    });
+    if (error) throw new Error("Could not verify Agent worker lease.");
+    return asRecord(data);
+  };
   if (internalBrainCall) {
-    if (!agentJobId || !uuidPattern.test(agentJobId)) return jsonResponse({ error: "A valid internal Agent job identity is required." }, 400);
-    const { data: job, error: jobError } = await supabase.from("agent_task_jobs")
-      .select("id,status,cancel_requested_at")
-      .eq("id", agentJobId).eq("task_id", billingTaskId).eq("user_id", user.id).maybeSingle();
-    if (jobError) return jsonResponse({ error: "Could not validate Agent job ownership." }, 503);
-    if (!job || job.status !== "running") return jsonResponse({ error: "Agent job is not actively leased." }, 409);
-    if (job.cancel_requested_at) {
+    if (!agentJobId || !uuidPattern.test(agentJobId)
+      || !agentWorkerId || agentWorkerId.length > 120
+      || !Number.isInteger(agentWorkerAttempt) || agentWorkerAttempt < 1 || agentWorkerAttempt > 10) {
+      return jsonResponse({ error: "A valid internal Agent worker lease identity is required." }, 400);
+    }
+    const state = await getAgentExecutionState();
+    if (!state || state.lease_valid !== true) return jsonResponse({ error: "Agent worker lease is not active." }, 409);
+    if (state.cancel_requested === true) {
       return jsonResponse({ agent_status: "cancelled", usage: { input_tokens: 0, output_tokens: 0 }, response: "تم إيقاف المهمة قبل بدء التنفيذ بناءً على طلبك." }, 200, req);
     }
   }
   const checkAgentCancellation = async (): Promise<boolean> => {
     if (!internalBrainCall || !agentJobId) return false;
-    const { data, error } = await supabase.rpc("agent_task_cancel_requested", {
-      p_job_id: agentJobId,
-      p_task_id: billingTaskId,
-      p_user_id: user.id,
-    });
-    if (error) throw new Error("Could not verify Agent cancellation state.");
-    return data === true;
+    const state = await getAgentExecutionState();
+    if (!state || state.lease_valid !== true) throw new Error("agent_worker_lease_lost");
+    return state.cancel_requested === true;
   };
   if (conversationId) {
     if (!uuidPattern.test(conversationId)) return jsonResponse({ error: "conversation_id must be a valid UUID." }, 400);
@@ -1243,6 +1258,11 @@ async function handleRequest(req: Request): Promise<Response> {
   const recordAttempt: AttemptRecorder = async (candidate, status, durationMs, errorCode = null, errorReason = null, stage = "finished") => {
     const safeReason = safeOperationalSummary(errorReason ?? "", 1000);
     if (internalBrainCall && agentJobId && candidate.usageCallKey) {
+      if (stage === "started") {
+        const state = await getAgentExecutionState();
+        if (!state || state.lease_valid !== true) throw new Error("agent_worker_lease_lost");
+        if (state.cancel_requested === true) throw new Error("agent_task_cancel_requested");
+      }
       const hasProviderUsage = candidate.usageReported === true
         && Number.isSafeInteger(candidate.inputTokens) && candidate.inputTokens >= 0
         && Number.isSafeInteger(candidate.outputTokens) && candidate.outputTokens >= 0;
@@ -1907,6 +1927,16 @@ async function handleRequest(req: Request): Promise<Response> {
       if (!result.candidate) throw new Error("worker_failed");
       return result;
     }, resumedResults);
+    if (await checkAgentCancellation()) {
+      await updateWorkspace("cancelled", { parts: splitParts.length, completed: resumedResults.size, cancelled: true });
+      await clearSharedTaskMemory(supabase, billingTaskId);
+      return jsonResponse({
+        agent_status: "cancelled",
+        response: "تم إيقاف المهمة بناءً على طلبك، واحتفظت بالخطوات التي اكتملت قبل الإيقاف.",
+        completed_parts: resumedResults.size,
+        ...(internalBrainCall ? { usage: { input_tokens: workerInputTokens, output_tokens: workerOutputTokens } } : {}),
+      }, 200, req);
+    }
     const partResultsWithCandidates = await Promise.all(taskExecution.map(async (outcome, index) => {
       if (outcome.status === "completed" && outcome.result) return outcome.result;
       const stepKey = taskPlan![index].step_id;
