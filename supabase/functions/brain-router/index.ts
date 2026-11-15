@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { parseCentralAgentResult, toBrainTaskStepRows } from "./central_agent_result.ts";
+import { shouldLoadLegacyBrainTiers } from "./route_policy.ts";
 
 const CAPABILITIES = ["text", "coding", "image", "video", "vision", "audio", "reasoning", "web_search"] as const;
 type Capability = typeof CAPABILITIES[number];
@@ -56,15 +57,19 @@ async function main(req: Request): Promise<Response> {
   const taskId = cleanText(body.task_id) || crypto.randomUUID();
   if (!/^[0-9a-f-]{36}$/i.test(taskId)) return json({ error: "task_id must be a UUID" }, 400);
 
+  // Queued Brain requests are executed by the central ai-router Agent. They
+  // must not depend on the retired/legacy Brain model catalog; only the
+  // backward-compatible synchronous path still reads brain_tiers.
+  const loadLegacyTiers = shouldLoadLegacyBrainTiers(body.mode, internalWorker);
   const [{ data: profile, error: profileError }, { data: tierRows, error: tiersError }] = await Promise.all([
     admin.from("suly_profiles").select("subscription_tier,is_banned").eq("id", userId).maybeSingle(),
-    internalWorker
-      ? Promise.resolve({ data: [], error: null })
-      : admin.from("brain_tiers").select("tier_name,priority,model_id,max_tokens_per_task,model:models(id,name,legacy_ai_model_id,is_active,model_capabilities(capability_key))").eq("is_active", true).order("tier_name").order("priority").limit(100),
+    loadLegacyTiers
+      ? admin.from("brain_tiers").select("tier_name,priority,model_id,max_tokens_per_task,model:models(id,name,legacy_ai_model_id,is_active,model_capabilities(capability_key))").eq("is_active", true).order("tier_name").order("priority").limit(100)
+      : Promise.resolve({ data: [], error: null }),
   ]);
   if (profileError || !profile) return json({ error: "Application profile is missing" }, 403);
   if (profile.is_banned) return json({ error: "This account is suspended" }, 403);
-  if (tiersError) return json({ error: "Brain tiers could not be loaded" }, 500);
+  if (loadLegacyTiers && tiersError) return json({ error: "Brain tiers could not be loaded" }, 500);
 
   if (internalWorker) {
     // A worker may be reclaimed after the result was persisted but before the
