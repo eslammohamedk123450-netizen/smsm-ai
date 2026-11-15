@@ -4,7 +4,7 @@ import { PremiumText as Text } from "../../src/components/ui/PremiumText";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { DrawerActions } from "@react-navigation/native";
-import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter, type ErrorBoundaryProps } from "expo-router";
 import { useAuth } from "../../src/features/auth/auth-provider";
 import { chatService, type ChatMessage } from "../../src/features/chat/chat-service";
 import { getRotatingSuggestions } from "../../src/features/chat/suggestions";
@@ -27,6 +27,25 @@ import { randomUUID } from "expo-crypto";
 
 const STREAMING_ID = "local-streaming-assistant";
 const TASK_SUGGESTIONS = getRotatingSuggestions(Date.now(), 4);
+
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  return (
+    <SafeAreaView style={styles.safe}>
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 14 }}>
+        <Ionicons name="alert-circle-outline" size={42} color={colors.error} />
+        <Text style={{ color: colors.textPrimary, fontSize: 19, fontWeight: "700", textAlign: "center" }}>
+          تعذّر فتح المحادثة
+        </Text>
+        <Text selectable style={{ color: colors.textSecondary, textAlign: "center", lineHeight: 22 }}>
+          {error.message || "حدث خطأ غير متوقع أثناء تجهيز الشاشة."}
+        </Text>
+        <Pressable onPress={() => void retry()} style={{ backgroundColor: colors.primary, borderRadius: 12, paddingHorizontal: 22, paddingVertical: 12 }}>
+          <Text style={{ color: colors.background, fontWeight: "700" }}>إعادة المحاولة</Text>
+        </Pressable>
+      </View>
+    </SafeAreaView>
+  );
+}
 
 type DisplayMessage = ChatMessage & {
   responseVariants?: Array<{ id: string; content: string }>;
