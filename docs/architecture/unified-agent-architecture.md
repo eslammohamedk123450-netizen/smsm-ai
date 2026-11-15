@@ -194,3 +194,9 @@ Daily and monthly budgets must be enforced server-side, not only displayed in th
 - Brain finalization now records actual token usage even when it exceeds the enqueue-time reservation, stores the excess in `overage_tokens`, and includes the full actual amount in daily usage.
 - Finalization remains idempotent: repeated calls return the already-finalized totals without releasing/counting tokens twice.
 - The migration is additive and dev-branch only; it has not been applied to production.
+
+
+### Admin queue observability
+- Added an admin-only SECURITY DEFINER overview RPC guarded by `suly_is_admin()`. It returns queue counts, expired leases, oldest queued timestamp, and recent task metadata.
+- The RPC intentionally omits payloads and results. A new Admin Dashboard card displays queue health and recent job status without exposing task contents.
+- The migration is additive and remains dev-only until release approval.
