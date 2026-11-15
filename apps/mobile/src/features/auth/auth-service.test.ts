@@ -8,7 +8,10 @@ jest.mock("../../lib/supabase/client", () => ({
       signInWithOtp: jest.fn(),
       signInWithPassword: jest.fn(),
       verifyOtp: jest.fn(),
-      signInWithOAuth: jest.fn(),\n      getSession: jest.fn(),\n      setSession: jest.fn(),\n      exchangeCodeForSession: jest.fn(),
+      signInWithOAuth: jest.fn(),
+      getSession: jest.fn(),
+      setSession: jest.fn(),
+      exchangeCodeForSession: jest.fn(),
     },
     rpc: jest.fn(),
   },
@@ -21,15 +24,26 @@ const auth = supabase.auth as unknown as {
   signInWithOtp: jest.Mock;
   signInWithPassword: jest.Mock;
   verifyOtp: jest.Mock;
-  signInWithOAuth: jest.Mock;\n  getSession: jest.Mock;\n  setSession: jest.Mock;\n  exchangeCodeForSession: jest.Mock;
+  signInWithOAuth: jest.Mock;
+  getSession: jest.Mock;
+  setSession: jest.Mock;
+  exchangeCodeForSession: jest.Mock;
 };
 const rpc = (supabase as unknown as { rpc: jest.Mock }).rpc;
 
 describe("email authentication", () => {
   beforeEach(() => {
+    jest.clearAllMocks();
     auth.signInWithOtp.mockResolvedValue({ error: null });
-    auth.signInWithPassword.mockResolvedValue({ data: { user: { id: "user-123", email: "person@example.com" }, session: { user: { id: "user-123", email: "person@example.com" } } }, error: null });
-    auth.verifyOtp.mockResolvedValue({ data: { user: { id: "user-123", email: "person@example.com" }, session: { user: { id: "user-123", email: "person@example.com" } } }, error: null });
+    auth.signInWithPassword.mockResolvedValue({
+      data: { user: { id: "user-123", email: "person@example.com" }, session: { user: { id: "user-123", email: "person@example.com" } } },
+      error: null,
+    });
+    auth.verifyOtp.mockResolvedValue({
+      data: { user: { id: "user-123", email: "person@example.com" }, session: { user: { id: "user-123", email: "person@example.com" } } },
+      error: null,
+    });
+    auth.getSession.mockResolvedValue({ data: { session: null }, error: null });
     rpc.mockResolvedValue({ error: null });
   });
 
@@ -41,8 +55,10 @@ describe("email authentication", () => {
     });
   });
 
-  it("signs in existing users with email and password", async () => {
-    await authService.signInWithPassword("person@example.com", "secret123");
+  it("signs in existing users with email and password without waiting for profile sync", async () => {
+    rpc.mockImplementation(() => new Promise(() => undefined));
+    const result = await authService.signInWithPassword("person@example.com", "secret123");
+    expect(result.session).toBeTruthy();
     expect(auth.signInWithPassword).toHaveBeenCalledWith({ email: "person@example.com", password: "secret123" });
   });
 
@@ -60,9 +76,8 @@ describe("email authentication", () => {
     expect(auth.verifyOtp).toHaveBeenCalledWith({ email: "person@example.com", token: "123456", type: "email" });
   });
 
-  it("starts the real Google OAuth flow and reports cancellation", async () => {
-    auth.signInWithOAuth.mockResolvedValue({ data: { url: "https://accounts.google.com/o/oauth2/auth" }, error: null });\n    auth.getSession.mockResolvedValue({ data: { session: null }, error: null });
-
+  it("starts Google OAuth and reports cancellation without hanging", async () => {
+    auth.signInWithOAuth.mockResolvedValue({ data: { url: "https://accounts.google.com/o/oauth2/auth" }, error: null });
     await expect(authService.signInWithGoogle()).rejects.toThrow("cancelled");
     expect(auth.signInWithOAuth).toHaveBeenCalledWith(expect.objectContaining({
       provider: "google",
