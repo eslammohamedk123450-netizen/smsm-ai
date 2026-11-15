@@ -1,8 +1,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { claimAgentTasks, finishAgentTask } from "../_shared/agent_task_queue.ts";
 import { readBrainTaskPayload } from "../_shared/brain_task_payload.ts";
-import { settleTerminalAgentTaskUsage, type TerminalAgentTaskStatus } from "../_shared/agent_usage_settlement.ts";
+import { settleTerminalAgentTaskUsage, type AgentSettlementClient, type TerminalAgentTaskStatus } from "../_shared/agent_usage_settlement.ts";
 
 declare const EdgeRuntime: {
   waitUntil(promise: Promise<unknown>): void;
@@ -13,7 +13,7 @@ function json(body: unknown, status = 200): Response {
 }
 
 async function finishAndSettle(
-  admin: SupabaseClient,
+  admin: AgentSettlementClient,
   jobId: string,
   workerId: string,
   userId: string,
