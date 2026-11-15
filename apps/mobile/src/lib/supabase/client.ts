@@ -14,7 +14,9 @@ export const supabase = createClient(
       storage: authStorage,
       autoRefreshToken: true,
       persistSession: true,
-      detectSessionInUrl: Platform.OS === "web",
+      // AuthCallbackScreen performs the PKCE/token-hash exchange itself. Disable
+      // Supabase URL auto-detection to prevent a second concurrent exchange.
+      detectSessionInUrl: false,
       flowType: "pkce",
     },
   },
