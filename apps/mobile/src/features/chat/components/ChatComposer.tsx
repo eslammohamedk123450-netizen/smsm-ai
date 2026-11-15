@@ -384,13 +384,13 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
             </Pressable>
           ) : (
             <Pressable
-              style={[styles.blueButton, (!text.trim() && !attachment && !voiceActive) && styles.blueButtonIdle]}
+              style={[styles.blueButton, Platform.OS === "web" && styles.webSendButton, (!text.trim() && !attachment && !voiceActive) && styles.blueButtonIdle]}
               onPress={submit}
               disabled={disabled || (!text.trim() && !attachment)}
               accessibilityLabel="إرسال"
             >
               {text.trim() || attachment ? (
-                <Ionicons name="arrow-up" size={18} color="#FFFFFF" />
+                <><Ionicons name="arrow-up" size={18} color="#FFFFFF" />{Platform.OS === "web" ? <Text style={styles.webSendLabel}>إرسال</Text> : null}</>
               ) : (
                 <Ionicons name="radio-outline" size={18} color="#FFFFFF" />
               )}
@@ -478,6 +478,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#2563EB",
   },
   blueButtonIdle: { backgroundColor: "#2563EB", opacity: 0.9 },
+  webSendButton: { width: "auto", minWidth: 72, paddingHorizontal: 12, flexDirection: "row", gap: 5, borderRadius: 20 },
+  webSendLabel: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
   attachmentChip: {
     alignSelf: "flex-start",
     flexDirection: "row",
