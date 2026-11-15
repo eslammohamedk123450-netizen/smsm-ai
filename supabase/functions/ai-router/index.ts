@@ -1046,7 +1046,17 @@ async function handleRequest(req: Request): Promise<Response> {
   if (routingMode === "manual" && candidatesFrom.length === 0) return await failedResponse(jsonResponse({ error: manuallyRequested ? "النموذج المحدد لا يملك القدرات المطلوبة لهذا المرفق." : "Model not found or disabled." }, manuallyRequested ? 422 : 404, req), "manual_model_unavailable");
   if (routingMode === "manual" && !(candidatesFrom[0].allowed_tiers ?? []).includes(userTier)) return await failedResponse(jsonResponse({ error: "This model is not available on your current plan." }, 403, req), "tier_not_allowed");
 
-  const requiredProviderIds: number[] = [...new Set<number>((candidatesFrom as ModelRow[]).map((m: ModelRow) => m.provider_id))];
+  // Queued Brain compound tasks may delegate independent list items to
+  // worker-role models. Keep this pool separate from the planner pool so a
+  // planner is never silently reused as a worker.
+  const workerModels = internalBrainCall && settings.taskSplitEnabled && mind.intent === "complex_task"
+    ? healthyModels.filter((model: ModelRow) => isEligibleModel(model, "worker", ["free_race"]))
+    : [];
+  const orderedWorkerModels = orderModelsByRoute(workerModels, orderedRouteAssignments, "worker");
+  const requiredProviderIds: number[] = [...new Set<number>([
+    ...(candidatesFrom as ModelRow[]).map((m: ModelRow) => m.provider_id),
+    ...orderedWorkerModels.map((m: ModelRow) => m.provider_id),
+  ])];
   const providerKeys = new Map<number, string>();
   await Promise.all(requiredProviderIds.map(async (providerId) => {
     const provider = providerById.get(providerId);
@@ -1064,6 +1074,7 @@ async function handleRequest(req: Request): Promise<Response> {
   });
 
   const usableInitial = makeCandidates(candidatesFrom);
+  const workerCandidates = makeCandidates(orderedWorkerModels);
   const recordAttempt: AttemptRecorder = async (candidate, status, durationMs, errorCode = null, errorReason = null) => {
     const safeReason = safeOperationalSummary(errorReason ?? "", 1000);
     const { error } = await supabase.rpc("record_ai_model_attempt", {
@@ -1346,7 +1357,13 @@ async function handleRequest(req: Request): Promise<Response> {
   // answers are merged so a single provider hiccup never fails the request.
   // Only compound tasks pay the decomposition cost; chat and simple tasks are
   // always answered in a single response.
-  const proposedParts = executionMode !== "agent" && settings.taskSplitEnabled && trustedAttachments.length === 0 && mind.intent === "complex_task"
+  const canUseWorkerSplit = !internalBrainCall || workerCandidates.length > 0;
+  const proposedParts = (executionMode !== "agent" || internalBrainCall)
+    && canUseWorkerSplit
+    && settings.taskSplitEnabled
+    && trustedAttachments.length === 0
+    && !isWebSearchRequest(latestUserMessage)
+    && mind.intent === "complex_task"
     ? splitTask(latestUserMessage, settings.taskSplitMaxParts)
     : [latestUserMessage];
   let taskPlan = buildIndependentTaskPlan(proposedParts, settings.taskSplitMaxParts);
@@ -1444,7 +1461,8 @@ async function handleRequest(req: Request): Promise<Response> {
         { role: "system", content: workerBrief },
         { role: "user", content: splitParts[index] },
       ];
-      let remaining = raceCandidates.slice(0, 3).map((candidate) => ({ ...candidate, requestMessages: partMessages }));
+      const workerPool = internalBrainCall ? workerCandidates : raceCandidates;
+      let remaining = workerPool.slice(0, 3).map((candidate) => ({ ...candidate, requestMessages: partMessages }));
       for (let attempt = 0; attempt < Math.min(2, remaining.length); attempt += 1) {
         const partWinner = await firstReady(remaining, settings.freeRaceTimeoutMs, recordAttempt, countModelStarts);
         if (!partWinner) break;
