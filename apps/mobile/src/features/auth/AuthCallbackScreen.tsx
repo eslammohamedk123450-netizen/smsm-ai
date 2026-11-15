@@ -66,7 +66,7 @@ export default function AuthCallbackScreen() {
 
       // The database trigger creates the profile. A profile refresh is best-effort:
       // it must never discard a valid session or prevent the user from entering the app.
-      await authService.syncProfile(sessionData.session.user).catch(() => undefined);
+      void authService.syncProfile(sessionData.session.user).catch(() => undefined);
       setCallbackStatus("finished");
       router.replace("/(protected)/chat");
     } catch (cause) {
