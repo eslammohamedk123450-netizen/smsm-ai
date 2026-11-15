@@ -1,8 +1,11 @@
 // Billing and provider-origin guards are enforced before a media credit hold is created.
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { actualChargeCredits, actualCostUsd, providerEndpointAllowed, validateEnabledMediaPrice } from "./cost.ts";
+
+declare const EdgeRuntime: {
+  waitUntil(promise: Promise<unknown>): void;
+};
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
