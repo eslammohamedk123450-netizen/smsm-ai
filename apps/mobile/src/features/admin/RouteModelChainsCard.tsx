@@ -36,7 +36,8 @@ function modelSupportsRoute(model: ModelChoice, role: Role): boolean {
     } else if (model.capabilities_json && typeof model.capabilities_json === "object") {
       capabilities = model.capabilities_json;
     }
-    return capabilities.chat !== false;
+    return capabilities.chat !== false
+      && !/(embed|embedding|whisper|tts|speech|audio|image|imagen|dall-e|flux|stable-diffusion|kling|seedance|seedream|ideogram|nano-banana|minimax|lyria|transcrib|robotics|deep-research|computer-use|guard|moderation|rerank)/i.test(model.model_identifier);
   }
   return roles.includes("general") || roles.includes(role) || (role === "worker" && roles.includes("executor"));
 }
