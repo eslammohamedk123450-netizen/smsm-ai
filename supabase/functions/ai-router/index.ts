@@ -1055,7 +1055,7 @@ async function handleRequest(req: Request): Promise<Response> {
     && mind.intent === "complex_task"
     && trustedAttachments.length === 0
     && !requestedConnector
-    && requestedMultiReadToolkits.length === 0
+    && !requestedMultiReadToolkits?.length
     && !isWebSearchRequest(latestUserMessage)
     ? healthyModels.filter((model: ModelRow) => isEligibleModel(model, "worker", ["free_race"]))
     : [];
