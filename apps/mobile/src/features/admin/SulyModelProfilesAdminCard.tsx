@@ -10,6 +10,7 @@ type Profile = {
   tagline: string;
   description: string;
   minimum_subscription_tier: string;
+  capabilities_json: Record<string, boolean>;
   is_active: boolean;
 };
 type Model = { id: number; name: string; model_identifier: string; provider_id: number; enabled: boolean; task_roles: string[] | null; allowed_tiers: string[] | null };
@@ -40,7 +41,7 @@ export function SulyModelProfilesAdminCard() {
   const load = useCallback(async () => {
     setLoading(true); setError(null);
     const [profileResult, modelResult, mappingResult] = await Promise.all([
-      supabase.from("suly_model_profiles").select("profile_key,display_name,tagline,description,minimum_subscription_tier,is_active").order("sort_order"),
+      supabase.from("suly_model_profiles").select("profile_key,display_name,tagline,description,minimum_subscription_tier,capabilities_json,is_active").order("sort_order"),
       supabase.from("ai_models").select("id,name,model_identifier,provider_id,enabled,task_roles,allowed_tiers").eq("enabled", true).order("priority", { ascending: false }).limit(200),
       supabase.from("suly_model_profile_models").select("profile_key,model_id,route_role,enabled").limit(2000),
     ]);
@@ -71,6 +72,7 @@ export function SulyModelProfilesAdminCard() {
       tagline: profile.tagline.trim(),
       description: profile.description.trim(),
       is_active: profile.is_active,
+      capabilities_json: profile.capabilities_json,
       updated_at: new Date().toISOString(),
     }).eq("profile_key", profile.profile_key);
     if (writeError) setError("تعذر حفظ بيانات مستوى SULY.");
@@ -128,6 +130,17 @@ export function SulyModelProfilesAdminCard() {
         <TextInput value={profile.display_name} onChangeText={(value) => updateProfile(profile.profile_key, { display_name: value })} placeholder="اسم المستوى" placeholderTextColor={colors.textMuted} style={{ color: colors.textPrimary, backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, borderWidth: 1, borderRadius: 9, padding: 10, textAlign: "right" }} />
         <TextInput value={profile.tagline} onChangeText={(value) => updateProfile(profile.profile_key, { tagline: value })} placeholder="وصف قصير" placeholderTextColor={colors.textMuted} style={{ color: colors.textPrimary, backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, borderWidth: 1, borderRadius: 9, padding: 10, textAlign: "right" }} />
         <TextInput value={profile.description} onChangeText={(value) => updateProfile(profile.profile_key, { description: value })} placeholder="شرح القدرات" placeholderTextColor={colors.textMuted} multiline style={{ minHeight: 64, color: colors.textPrimary, backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, borderWidth: 1, borderRadius: 9, padding: 10, textAlign: "right", textAlignVertical: "top" }} />
+        <Text style={{ color: colors.textSecondary, fontSize: 11, textAlign: "right", fontWeight: "700" }}>القدرات المتاحة لهذا المستوى</Text>
+        {[
+          ["web_search", "البحث على الويب"],
+          ["multi_step_agent", "تنفيذ المهام متعددة الخطوات"],
+          ["advanced_reasoning", "التحليل والاستدلال المتقدم"],
+          ["extended_context", "سياق أطول"],
+          ["priority_execution", "أولوية التنفيذ"],
+        ].map(([key, label]) => <View key={key} style={{ flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between" }}>
+          <Text style={{ color: colors.textSecondary, fontSize: 11 }}>{label}</Text>
+          <Switch value={profile.capabilities_json?.[key] === true} onValueChange={(value) => updateProfile(profile.profile_key, { capabilities_json: { ...(profile.capabilities_json ?? {}), [key]: value } })} />
+        </View>)}
         <Pressable disabled={busyKey === `profile:${profile.profile_key}`} onPress={() => void saveProfile(profile)} style={{ alignSelf: "flex-start", backgroundColor: colors.primary, borderRadius: 9, paddingHorizontal: 14, paddingVertical: 8, opacity: busyKey === `profile:${profile.profile_key}` ? 0.5 : 1 }}>
           <Text style={{ color: colors.background, fontWeight: "800" }}>{busyKey === `profile:${profile.profile_key}` ? "جارٍ الحفظ…" : "حفظ بيانات المستوى"}</Text>
         </Pressable>
