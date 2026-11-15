@@ -1571,6 +1571,9 @@ async function handleRequest(req: Request): Promise<Response> {
       depends_on: [],
     }];
   const resultStepKey = taskPlan ? "merge" : "final";
+  const taskPlanType = taskPlan
+    ? taskPlan.some((step) => step.depends_on.length > 0) ? "dependency_dag" : "independent_list"
+    : executionMode === "agent" ? "agent_loop" : "single_response";
   // Direct chat avoids workspace/ledger writes; durable tracking is reserved for Agent and split tasks.
   if (executionMode === "agent" || splitParts.length > 1) {
     const { data: workspaceRow, error: workspaceError } = await supabase.from("agent_workspaces").upsert({
@@ -1606,8 +1609,8 @@ async function handleRequest(req: Request): Promise<Response> {
   }
   await updateWorkspaceStep("plan", "running");
   await updateTaskLedger("plan", "running");
-  await updateWorkspaceStep("plan", "completed", { result: { plan_type: taskPlan ? "independent_list" : executionMode === "agent" ? "agent_loop" : "single_response", step_count: workspacePlan.length } });
-  await updateTaskLedger("plan", "completed", { plan_type: taskPlan ? "independent_list" : executionMode === "agent" ? "agent_loop" : "single_response", step_count: workspacePlan.length });
+  await updateWorkspaceStep("plan", "completed", { result: { plan_type: taskPlanType, step_count: workspacePlan.length, dependency_count: workspacePlan.reduce((sum, step) => sum + step.depends_on.length, 0) } });
+  await updateTaskLedger("plan", "completed", { plan_type: taskPlanType, step_count: workspacePlan.length, dependency_count: workspacePlan.reduce((sum, step) => sum + step.depends_on.length, 0) });
   await updateWorkspace("executing");
 
   if (splitParts.length > 1) {
