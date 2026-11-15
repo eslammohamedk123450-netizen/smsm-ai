@@ -21,24 +21,22 @@ The default path must optimize time-to-first-token: simple chat should use a dir
 - It already supports role-based ordering for `chat`, `planner`, `worker`, `reviewer`, and `summarizer`.
 - It imports and invokes the provider-neutral `runAgentLoop` from `agent/orchestrator.ts`.
 - The request execution mode currently defaults to `agent`; only an explicit `execution_mode: "chat"` selects the non-agent chat path. This default must be reviewed before changing client behavior because legacy requests may rely on Agent tools.
-- The Agent loop has bounded steps, validates model decisions, checks registered tools, and requires confirmation for write-effect tools.
+- The Agent loop has bounded steps, validates model decisions, checks registered tools, and requires confirmation for write-effect tools. Queued Brain worker calls now enter this same loop; they are no longer routed through Brain's separate planner/worker/merger model-selection loop.
 - `agent/model_routing.ts` only moves a preferred model to the front if it is already in the eligible candidate pool; it does not independently grant eligibility.
 
 ### 2. Separate Brain path
 
 - Entry point: `supabase/functions/brain-router/index.ts`.
-- It loads a second catalog from `models`, `model_capabilities`, and `brain_tiers`.
-- Brain models link back to operational `ai_models` using `legacy_ai_model_id`.
-- Brain invokes `ai-router` with a manually selected model ID, so it is a second orchestration/routing layer over the general router rather than an isolated model runtime.
-- Brain owns separate usage reservation/finalization, task contexts, tier fallback, and attempt logs.
-- The Brain admin screen manages this second catalog and its tiers/plans.
+- For queued tasks, it now acts as an intake, authentication, usage-reservation/finalization, and result-persistence adapter. The worker path calls `ai-router` with the internal Brain identity and `execution_mode: "agent"`; the central Agent owns model selection, planning, tool policy, execution, and review.
+- The queued worker path no longer loads or uses `brain_tiers` / `models` for model selection. The legacy synchronous Brain execution path and its tables/admin screen remain for compatibility and must be audited before retirement.
+- Brain still owns its task contexts and usage reservation/finalization contract so existing mobile task status and credit behavior remain compatible.
 
 ### 3. Queue worker
 
 - Entry point: `supabase/functions/agent-task-worker/index.ts`.
 - The worker currently accepts only `brain_task`; unsupported job types are failed.
-- It claims one job, renews a lease, calls `brain-router`, and finalizes the queue job.
-- Therefore this is currently a Brain-specific worker, not yet a general worker runtime for all Agent tasks.
+- It claims one job, renews a lease, calls `brain-router`, and finalizes the queue job. For queued Brain jobs, `brain-router` delegates the actual work to the central `ai-router` Agent.
+- The queue worker and scheduler still recognize only `brain_task`; generic job-handler registration and a general dependency-aware task graph remain unfinished.
 
 ### 4. Admin surfaces and data duplication
 
@@ -104,7 +102,7 @@ A model may support multiple capabilities, roles, and plans through relations/co
 ## Performance policy
 
 - Mobile chat sends `execution_mode: "auto"`. The server preserves explicit `chat` and `agent` modes and resolves `auto` using the deterministic intent classifier.
-- Auto requests classified as chat or single-reply tasks use the direct streaming model path. Complex tasks, connected-app operations, live web search, attachments, and internal Brain calls remain on the Agent path.
+- Auto requests classified as chat or single-reply tasks use the direct streaming model path. Complex tasks, connected-app operations, live web search, attachments, and internal Brain calls remain on the Agent path. Internal Brain worker calls now execute the same bounded Agent loop and unified model eligibility rules.
 - Legacy clients that omit the execution mode remain Agent-compatible.
 - Direct chat does not create an Agent workspace or task-ledger rows; request/message/usage records remain in place. Durable workspace tracking is reserved for Agent and split-task execution.
 - Simple chat: no planner, worker queue, or merger hop. Select a chat-eligible model and stream its first token as soon as possible.
@@ -144,10 +142,13 @@ Daily and monthly budgets must be enforced server-side, not only displayed in th
 - Add latency and route observability.
 - Preserve legacy request compatibility while clients are migrated.
 
-### Phase 3 — Unified task orchestration
-- Move Brain task planning behind the central Agent API.
-- Generalize durable task jobs and worker handlers.
-- Add parallel execution for independent steps, idempotency, lease recovery, cancellation, and bounded retries.
+### Phase 3 — Unified task orchestration (in progress)
+- [x] Route queued Brain execution through the central Agent API; retain Brain only as the compatibility intake/usage/result adapter.
+- [x] Stop using the legacy Brain model/tier catalog for queued worker model selection.
+- [ ] Generalize durable task jobs and worker handlers beyond `brain_task`.
+- [ ] Add a dependency-aware task graph and parallel execution for independent steps.
+- [ ] Unify retry/backoff, cancellation, lease recovery, and result synthesis across task types.
+- [ ] Add end-to-end tests for duplicate enqueue, lease expiry, worker interruption, cross-user isolation, and usage finalization.
 - Keep worker execution separate from orchestration policy.
 
 ### Phase 4 — Unified admin and economics
