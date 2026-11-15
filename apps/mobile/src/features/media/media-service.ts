@@ -29,6 +29,7 @@ export interface MediaAsset {
   width: number | null;
   height: number | null;
   durationSeconds: number | null;
+  metadata: Record<string, unknown>;
 }
 export interface PickedMedia { part: UploadFilePart; kind: MediaKind; width?: number; height?: number; sourceBytes: number; }
 function normalizeFeatureKey(value: string | undefined): "chat" | "support" | "hims" | "general" {
@@ -162,6 +163,7 @@ export async function listMyMedia(limit = 60): Promise<MediaAsset[]> {
       filename: typeof row.original_filename === "string" ? row.original_filename : null, kind: asKind(metadata.kind ?? row.storage_provider),
       createdAt: String(row.created_at ?? ""), width: typeof metadata.width === "number" ? metadata.width : null,
       height: typeof metadata.height === "number" ? metadata.height : null, durationSeconds: typeof metadata.duration_seconds === "number" ? metadata.duration_seconds : null,
+      metadata,
     };
   }).filter((asset) => asset.url.length > 0);
 }
