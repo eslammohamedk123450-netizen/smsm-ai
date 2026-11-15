@@ -12,11 +12,11 @@ type Props = { visible: boolean; conversationId: string | null; title: string; p
 function makeShareUrl(token: string): string {
   if (Platform.OS === "web" && typeof window !== "undefined") {
     const base = (process.env.EXPO_PUBLIC_WEB_BASE_URL ?? "").replace(/\/$/, "");
-    return `${window.location.origin}${base}/share/${token}`;
+    return `${window.location.origin}${base}/share?token=${encodeURIComponent(token)}`;
   }
   const explicitBase = process.env.EXPO_PUBLIC_SHARE_BASE_URL;
   if (explicitBase) return `${explicitBase.replace(/\/$/, "")}/share/${token}`;
-  return ExpoLinking.createURL(`share/${token}`);
+  return ExpoLinking.createURL("share", { queryParams: { token } });
 }
 export function ShareConversationSheet({ visible, conversationId, title, plainText, onClose }: Props) {
   const [isPublic, setIsPublic] = useState(false);
