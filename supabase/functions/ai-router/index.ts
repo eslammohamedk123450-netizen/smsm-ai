@@ -1684,6 +1684,10 @@ async function handleRequest(req: Request): Promise<Response> {
           .map((profile) => buildAgentRoleGuidance(profile))
           .filter(Boolean)
           .map((content) => ({ role: "system" as const, content })),
+        ...[selectAgentProfile(agentProfiles, "worker", index), selectAgentProfile(agentProfiles, "thinker", index)]
+          .map((profile) => buildAgentRoleGuidance(profile))
+          .filter(Boolean)
+          .map((content) => ({ role: "system" as const, content })),
         ...(dependencyBrief ? [{ role: "system" as const, content: `مخرجات الاعتماديات السابقة التي يجب البناء عليها:\n${dependencyBrief}` }] : []),
         { role: "user", content: splitParts[index] },
       ];
