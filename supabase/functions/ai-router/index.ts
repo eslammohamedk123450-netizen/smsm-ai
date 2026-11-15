@@ -1023,7 +1023,7 @@ async function handleRequest(req: Request): Promise<Response> {
   }
   let candidatesFrom: ModelRow[] = [];
   if (routingMode === "manual") {
-    candidatesFrom = healthyModels.filter((m: ModelRow) => m.id === modelId && m.routing_group !== "disabled" && modelSupportsRequest(m, uniqueRequiredCapabilities));
+    candidatesFrom = healthyModels.filter((model: ModelRow) => model.id === modelId && isEligibleModel(model));
   } else {
     // Auto routing always starts with the free race. Paid models are selected only
     // after every free candidate has failed or no usable free candidate exists.
