@@ -30,23 +30,25 @@ interface TransactionItem {
 
 function mapCreditEntries(entries: CreditEntry[]): TransactionItem[] {
   return entries
-    .filter((entry) => entry.event_type === "settle" || entry.event_type === "admin_adjust" || entry.event_type === "expire")
+    .filter((entry) => entry.event_type === "settle" || entry.event_type === "admin_adjust" || entry.event_type === "expire" || entry.event_type === "daily_grant")
     .map((entry) => {
       const isCredit = entry.balance_delta > 0;
       const isSettlement = entry.event_type === "settle";
+      const isDailyGrant = entry.event_type === "daily_grant";
       const isReward = entry.source === "rewarded_ad";
       const date = new Date(entry.created_at);
       const points = isSettlement ? Math.max(0, entry.amount) : Math.abs(entry.balance_delta || entry.amount);
       const title = isSettlement
         ? entry.task_title ? `مهمة: ${entry.task_title}` : "استخدام رصيد لمهمة"
-        : isReward ? "مكافأة إعلان مكتملة"
+        : isDailyGrant ? "الرصيد اليومي"
+          : isReward ? "مكافأة إعلان مكتملة"
           : entry.event_type === "expire" ? "إعادة الرصيد غير المستخدم"
             : entry.reason || "تعديل رصيد";
       return {
         id: entry.id,
         title,
         type: isSettlement ? "chat" : isCredit ? "recharge" : "other",
-        typeLabel: isSettlement ? "استهلاك" : isReward ? "مكافأة" : isCredit ? "إضافة رصيد" : "تعديل",
+        typeLabel: isSettlement ? "استهلاك" : isDailyGrant ? "رصيد يومي" : isReward ? "مكافأة" : isCredit ? "إضافة رصيد" : "تعديل",
         points,
         isCredit,
         time: Number.isNaN(date.getTime()) ? "—" : date.toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
@@ -83,10 +85,12 @@ export default function BalanceScreen() {
     setLoading(true);
     setMonthlyConsumed(null);
     void Promise.all([
+      supabase.rpc("suly_claim_daily_credits", { p_user_id: user.id }),
       getCreditLedger(100),
       supabase.from("suly_profiles").select("subscription_tier").eq("id", user.id).maybeSingle(),
     ])
-      .then(async ([ledger, profileResult]) => {
+      .then(async ([dailyGrantResult, ledger, profileResult]) => {
+        if (dailyGrantResult.error) console.warn("Daily credit grant could not be refreshed:", dailyGrantResult.error.message);
         if (!active) return;
         setBalance(ledger.balance);
         setTransactions(mapCreditEntries(ledger.entries));
