@@ -13,7 +13,7 @@ type MediaModel = {
 };
 type Price = {
   quality: string; price_credits: number; estimated_provider_cost_usd: number; target_margin: number;
-  credit_value_egp: number; usd_to_egp: number; resolution: string; enabled: boolean;
+  credit_value_egp: number; usd_to_egp: number; resolution: string; enabled: boolean; price_version: number;
 };
 const QUALITY_OPTIONS = [
   { key: "economy", label: "اقتصادية" },
@@ -23,7 +23,7 @@ const QUALITY_OPTIONS = [
 ];
 const emptyPrices = (): Price[] => QUALITY_OPTIONS.map((item) => ({
   quality: item.key, price_credits: 10, estimated_provider_cost_usd: 0,
-  target_margin: 0.3, credit_value_egp: 0, usd_to_egp: 0, resolution: "1024x1024", enabled: false,
+  target_margin: 0.3, credit_value_egp: 0, usd_to_egp: 0, resolution: "1024x1024", enabled: false, price_version: 1,
 }));
 
 export function MediaGenerationModelsAdminScreen() {
@@ -63,7 +63,7 @@ export function MediaGenerationModelsAdminScreen() {
     setModelIdentifier(model.model_identifier); setEndpointUrl(model.endpoint_url);
     setIsActive(model.is_active); setIsDefault(model.is_default);
     const { data } = await supabase.from("suly_media_generation_prices")
-      .select("quality,price_credits,estimated_provider_cost_usd,target_margin,credit_value_egp,usd_to_egp,resolution,enabled")
+      .select("quality,price_credits,estimated_provider_cost_usd,target_margin,credit_value_egp,usd_to_egp,resolution,enabled,price_version")
       .eq("generation_model_id", model.id);
     const rows = (data ?? []) as Price[];
     setPrices(emptyPrices().map((item) => rows.find((row) => row.quality === item.quality) ?? item));
@@ -103,6 +103,12 @@ export function MediaGenerationModelsAdminScreen() {
         setSelectedId(modelId);
       }
       if (!modelId) throw new Error("معرّف النموذج غير متاح.");
+      const { error: clearDefaultError } = await supabase.from("suly_media_generation_models")
+        .update({ is_default: false }).eq("service_type", "image").neq("id", modelId);
+      if (clearDefaultError) throw clearDefaultError;
+      const { error: defaultError } = await supabase.from("suly_media_generation_models")
+        .update({ is_default: Boolean(isDefault && isActive) }).eq("id", modelId);
+      if (defaultError) throw defaultError;
       for (const item of prices) {
         const { error: priceError } = await supabase.from("suly_media_generation_prices").upsert({
           generation_model_id: modelId, quality: item.quality, price_credits: Math.max(1, Math.floor(Number(item.price_credits) || 1)),
@@ -111,7 +117,7 @@ export function MediaGenerationModelsAdminScreen() {
           credit_value_egp: Math.max(0, Number(item.credit_value_egp) || 0),
           usd_to_egp: Math.max(0, Number(item.usd_to_egp) || 0),
           resolution: item.resolution.trim() || "1024x1024", unit_type: "image", enabled: item.enabled,
-          price_version: 1, updated_at: new Date().toISOString(),
+          price_version: Math.max(1, Number(item.price_version || 1) + (selectedId ? 1 : 0)), updated_at: new Date().toISOString(),
         }, { onConflict: "generation_model_id,quality" });
         if (priceError) throw priceError;
       }
