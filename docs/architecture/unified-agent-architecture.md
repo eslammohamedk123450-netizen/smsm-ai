@@ -146,6 +146,7 @@ Daily and monthly budgets must be enforced server-side, not only displayed in th
 - [x] Route queued Brain execution through the central Agent API; retain Brain only as the compatibility intake/usage/result adapter.
 - [x] Stop using the legacy Brain model/tier catalog for queued worker model selection.
 - [x] Reuse the central Agent's intent classifier, model eligibility, parallel independent-part execution, and quality review for queued Brain tasks.
+- [x] For eligible complex Agent requests, select workers from the `worker` role pool (not the planner pool); only independent explicit list items may run in parallel, up to three workers. Connector, attachment, and live-search requests remain on their dedicated Agent paths.
 - [x] Persist central Agent steps into the existing Brain task-progress table and return actual/estimated token usage for Brain accounting.
 - [x] Recover duplicate queue submissions by the same task ID and return an already-persisted task result after worker reclamation.
 - [ ] Generalize durable task jobs and worker handlers beyond `brain_task`.
