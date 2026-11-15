@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Image, Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
+import { useRouter } from "expo-router";
+import { chatService } from "../chat/chat-service";
 import * as Clipboard from "expo-clipboard";
 import { supabase } from "../../lib/supabase/client";
 import { colors } from "../../theme/colors";
@@ -14,6 +16,8 @@ export function MediaScreen() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [reuseBusyId, setReuseBusyId] = useState<string | null>(null);
+  const router = useRouter();
   const [filter, setFilter] = useState<"all" | "image" | "video" | "in_progress">("all");
 
   const load = useCallback(async () => {
@@ -53,6 +57,26 @@ export function MediaScreen() {
   const copy = async (url: string) => {
     try { await Clipboard.setStringAsync(url); setNotice("تم نسخ رابط الملف."); }
     catch { setError("تعذر النسخ. اضغط مطولًا على الرابط لنسخه."); }
+  };
+
+  const reuseImageInChat = async (asset: MediaAsset) => {
+    if (asset.kind !== "image" || reuseBusyId) return;
+    setReuseBusyId(asset.id); setError(null); setNotice(null);
+    try {
+      const conversation = await chatService.createConversation("محادثة حول صورة من مكتبتي");
+      await chatService.sendMessage({
+        conversationId: conversation.id,
+        content: "حلّل الصورة المرفقة من مكتبتي. صف محتواها وأسلوبها، واقترح طرقًا عملية لتطويرها.",
+        modelProfileKey: "auto",
+        mediaAsset: asset,
+        signal: new AbortController().signal,
+        onUserSaved: () => undefined,
+        onChunk: () => undefined,
+      });
+      router.push("/(protected)/chat");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر بدء محادثة حول الصورة.");
+    } finally { setReuseBusyId(null); }
   };
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -111,7 +135,11 @@ export function MediaScreen() {
         {typeof asset.metadata.prompt === "string" ? <Text numberOfLines={2} style={styles.promptMeta}>{asset.metadata.prompt}</Text> : null}
         {typeof asset.metadata.public_model_name === "string" ? <Text style={styles.meta}>{asset.metadata.public_model_name} · {String(asset.metadata.quality ?? "")}</Text> : null}
         {typeof asset.metadata.charged_credits === "number" ? <Text style={styles.meta}>{asset.metadata.charged_credits.toLocaleString("ar-EG")} Credits</Text> : null}
-        <Pressable onPress={() => void copy(asset.url)}><Text style={styles.link}>نسخ الرابط</Text></Pressable>
+        <View style={styles.assetActions}>
+          <Pressable onPress={() => void Linking.openURL(asset.url)}><Text style={styles.link}>فتح / تنزيل</Text></Pressable>
+          <Pressable onPress={() => void copy(asset.url)}><Text style={styles.link}>نسخ الرابط</Text></Pressable>
+          {asset.kind === "image" ? <Pressable disabled={reuseBusyId !== null} onPress={() => void reuseImageInChat(asset)}><Text style={[styles.link, reuseBusyId === asset.id && styles.disabledText]}>{reuseBusyId === asset.id ? "جارٍ فتح المحادثة…" : "استخدم في محادثة"}</Text></Pressable> : null}
+        </View>
       </View>) : null}
     </View>
   </ScrollView>;
@@ -124,6 +152,8 @@ const styles = StyleSheet.create({
   title: { color: colors.textPrimary, fontSize: 26, fontWeight: "800", textAlign: "right" },
   explainer: { color: colors.textSecondary, lineHeight: 21, textAlign: "right" },
   actions: { flexDirection: "row", gap: 10, flexWrap: "wrap" },
+  assetActions: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 12 },
+  disabledText: { opacity: 0.5 },
   filters: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 7 },
   jobsList: { gap: 9 },
   jobCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.primary, borderRadius: 12, padding: 12, gap: 7 },
