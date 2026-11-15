@@ -18,6 +18,16 @@ set tier_key = case
 end
 where tier_key is null or tier_key = '';
 
+update public.subscription_plans
+set description = case tier_key
+  when 'free' then 'SULY Lite المجاني للمهام السريعة واليومية، مع حدود استخدام أساسية.'
+  when 'lite' then 'SULY Lite بحدود استخدام أكبر للمحادثات والطلبات اليومية الخفيفة.'
+  when 'pro' then 'SULY Pro للتوازن بين السرعة والذكاء والقدرات، مناسب للبرمجة والبحث والتحليل والمهام المركبة.'
+  when 'max' then 'SULY Max للمهام المعقدة والتحليل العميق والبرمجة المتقدمة، مع حدود تنفيذ وقدرات أوسع.'
+  else description
+end
+where tier_key in ('free', 'lite', 'pro', 'max');
+
 alter table public.subscription_plans
   alter column tier_key set default 'free',
   alter column tier_key set not null;
