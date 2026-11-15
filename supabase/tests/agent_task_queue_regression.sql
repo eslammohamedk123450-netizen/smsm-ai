@@ -99,11 +99,36 @@ begin
      or (select available_at <= now() from public.agent_task_jobs where id = v_backoff) then
     raise exception 'Expired lease was not requeued with a future backoff';
   end if;
+  if abs(extract(epoch from ((select available_at from public.agent_task_jobs where id = v_backoff) - now())) - 15) > 2 then
+    raise exception 'First retry backoff was not approximately 15 seconds';
+  end if;
+  -- A later scheduler tick must not keep pushing an already queued retry away.
+  perform * from public.claim_agent_task_jobs('regression-backoff-no-extend', 1, 30, v_a);
+  if (select status from public.agent_task_jobs where id = v_backoff) <> 'queued' then
+    raise exception 'Backoff retry was unexpectedly claimed before available_at';
+  end if;
   update public.agent_task_jobs set available_at = now() - interval '1 second' where id = v_backoff;
-  select id into v_claimed from public.claim_agent_task_jobs('regression-backoff-retry', 1, 30, v_a);
+  select id into v_claimed from public.claim_agent_task_jobs('regression-backoff-retry-2', 1, 30, v_a);
   if v_claimed is distinct from v_backoff
      or (select attempt_count from public.agent_task_jobs where id = v_backoff) <> 2 then
     raise exception 'Backoff job was not reclaimed as its second attempt';
+  end if;
+  update public.agent_task_jobs set lease_until = now() - interval '1 second' where id = v_backoff;
+  perform * from public.claim_agent_task_jobs('regression-backoff-reaper-2', 1, 30, v_a);
+  if (select status from public.agent_task_jobs where id = v_backoff) <> 'queued'
+     or abs(extract(epoch from ((select available_at from public.agent_task_jobs where id = v_backoff) - now())) - 30) > 2 then
+    raise exception 'Second retry backoff was not approximately 30 seconds';
+  end if;
+  update public.agent_task_jobs set available_at = now() - interval '1 second' where id = v_backoff;
+  select id into v_claimed from public.claim_agent_task_jobs('regression-backoff-retry-3', 1, 30, v_a);
+  if v_claimed is distinct from v_backoff
+     or (select attempt_count from public.agent_task_jobs where id = v_backoff) <> 3 then
+    raise exception 'Backoff job was not reclaimed as its third attempt';
+  end if;
+  update public.agent_task_jobs set lease_until = now() - interval '1 second' where id = v_backoff;
+  perform * from public.claim_agent_task_jobs('regression-backoff-exhausted', 1, 30, v_a);
+  if (select status from public.agent_task_jobs where id = v_backoff) <> 'failed' then
+    raise exception 'Backoff job did not become terminal after exhausting attempts';
   end if;
 
   -- Usage reservation is finalized once and reconciles reserved/used tokens.
