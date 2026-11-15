@@ -145,10 +145,13 @@ Daily and monthly budgets must be enforced server-side, not only displayed in th
 ### Phase 3 — Unified task orchestration (in progress)
 - [x] Route queued Brain execution through the central Agent API; retain Brain only as the compatibility intake/usage/result adapter.
 - [x] Stop using the legacy Brain model/tier catalog for queued worker model selection.
+- [x] Reuse the central Agent's intent classifier, model eligibility, parallel independent-part execution, and quality review for queued Brain tasks.
+- [x] Persist central Agent steps into the existing Brain task-progress table and return actual/estimated token usage for Brain accounting.
+- [x] Recover duplicate queue submissions by the same task ID and return an already-persisted task result after worker reclamation.
 - [ ] Generalize durable task jobs and worker handlers beyond `brain_task`.
-- [ ] Add a dependency-aware task graph and parallel execution for independent steps.
+- [ ] Add a dependency-aware task graph; current parallel execution is limited to independent parts (up to three concurrent workers).
 - [ ] Unify retry/backoff, cancellation, lease recovery, and result synthesis across task types.
-- [ ] Add end-to-end tests for duplicate enqueue, lease expiry, worker interruption, cross-user isolation, and usage finalization.
+- [ ] Add authenticated end-to-end tests for duplicate enqueue, lease expiry, worker interruption, cross-user isolation, and usage finalization.
 - Keep worker execution separate from orchestration policy.
 
 ### Phase 4 — Unified admin and economics
