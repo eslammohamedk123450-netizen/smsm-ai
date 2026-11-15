@@ -1,17 +1,41 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { finishAgentTask } from "../_shared/agent_task_queue.ts";
 import { readBrainTaskPayload } from "../_shared/brain_task_payload.ts";
+import { settleTerminalAgentTaskUsage, type TerminalAgentTaskStatus } from "../_shared/agent_usage_settlement.ts";
 
 declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void };
 
-type QueueJob = { id: string; user_id: string; job_type: string; payload: Record<string, unknown> | null; attempt_count: number };
+type QueueJob = { id: string; user_id: string; task_id?: string | null; job_type: string; payload: Record<string, unknown> | null; attempt_count: number };
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
   });
+}
+
+async function finishAndSettle(
+  admin: SupabaseClient,
+  job: QueueJob,
+  workerId: string,
+  taskId: string | null,
+  status: TerminalAgentTaskStatus,
+  options: { result?: Record<string, unknown>; errorCode?: string; errorMessage?: string } = {},
+): Promise<boolean> {
+  const finished = await finishAgentTask(admin, job.id, workerId, status, options);
+  if (finished && taskId) {
+    const settlement = await settleTerminalAgentTaskUsage(admin, {
+      jobId: job.id,
+      taskId,
+      userId: job.user_id,
+      status,
+    });
+    if (settlement.finalized !== true) {
+      console.warn("Agent task terminal billing remains pending:", String(settlement.reason ?? settlement.status ?? "unknown"));
+    }
+  }
+  return finished;
 }
 
 
@@ -24,7 +48,7 @@ async function processJob(
   workerId: string,
 ): Promise<void> {
   if (job.job_type !== "brain_task") {
-    await finishAgentTask(admin, job.id, workerId, "failed", {
+    await finishAndSettle(admin, job, workerId, job.task_id ?? null, "failed", {
       errorCode: "unsupported_job_type",
       errorMessage: "No scheduled handler is registered for this job type.",
     });
@@ -33,7 +57,7 @@ async function processJob(
 
   const task = readBrainTaskPayload(job);
   if (!task) {
-    await finishAgentTask(admin, job.id, workerId, "failed", {
+    await finishAndSettle(admin, job, workerId, job.task_id ?? null, "failed", {
       errorCode: "invalid_brain_payload",
       errorMessage: "The queued Brain task payload is incomplete or user-mismatched.",
     });
@@ -83,7 +107,7 @@ async function processJob(
     if (leaseLost) return;
     const result = await response.json().catch(() => ({}));
     if (response.ok && result?.status === "cancelled") {
-      await finishAgentTask(admin, job.id, workerId, "cancelled", {
+      await finishAndSettle(admin, job, workerId, task.taskId, "cancelled", {
         result: { task_id: task.taskId, response: typeof result.response === "string" ? result.response : "تم إيقاف المهمة بناءً على طلبك.", status: "cancelled" },
       });
       return;
@@ -91,14 +115,14 @@ async function processJob(
     if (!response.ok || typeof result?.response !== "string" || !result.response.trim()) {
       // The terminal job transition settles only after all provider usage rows are known.
       // Unknown usage keeps both reservations pending for late reconciliation.
-      await finishAgentTask(admin, job.id, workerId, "failed", {
+      await finishAndSettle(admin, job, workerId, task.taskId, "failed", {
         errorCode: `brain_execution_http_${response.status}`,
         errorMessage: "Brain could not complete this task. Review the task details and try again.",
       });
       return;
     }
 
-    await finishAgentTask(admin, job.id, workerId, "completed", {
+    await finishAndSettle(admin, job, workerId, task.taskId, "completed", {
       result: {
         task_id: task.taskId,
         response: result.response,
@@ -161,6 +185,15 @@ Deno.serve(async (req: Request) => {
   const jobs = (data ?? []) as QueueJob[];
   if (!jobs.length) return json({ accepted: true, claimed: 0, status: "idle" }, 200);
 
-  EdgeRuntime.waitUntil(processBatch(jobs, supabaseUrl, serviceRoleKey, admin, workerId));
+  EdgeRuntime.waitUntil((async () => {
+    await processBatch(jobs, supabaseUrl, serviceRoleKey, admin, workerId);
+    // Also reconcile terminal jobs created by exhausted leases or a prior
+    // worker interruption. Unknown provider usage remains held for late reports.
+    const { data: settlementBatch, error: settlementError } = await admin.rpc("settle_terminal_agent_task_usage_batch", {
+      p_limit: 100,
+    });
+    if (settlementError) console.error("Terminal Agent settlement sweep failed:", settlementError.code ?? "database_error");
+    else console.info("Terminal Agent settlement sweep:", settlementBatch);
+  })());
   return json({ accepted: true, claimed: jobs.length, status: "processing" }, 202);
 });
