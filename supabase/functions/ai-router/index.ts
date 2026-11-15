@@ -782,7 +782,7 @@ async function handleRequest(req: Request): Promise<Response> {
     requiresLiveSearch: isWebSearchRequest(latestUserMessage),
     internalBrainCall,
   });
-  const selectedProfileKey = requestedProfileKey
+  let selectedProfileKey = requestedProfileKey
     ? resolveSulyProfileKey({ requestedProfileKey, userTier, intent: mind.intent }).profileKey
     : null;
   const maxOutputChars = outputLimitForRequest(mind.intent, latestUserMessage, maxTokens);
@@ -1040,7 +1040,12 @@ async function handleRequest(req: Request): Promise<Response> {
     : { data: [], error: null };
   if (selectedProfileKey && profileAssignmentsError) {
     console.error("Could not load SULY profile model assignments:", profileAssignmentsError.message);
-    return await failedResponse(jsonResponse({ error: "تعذر تحميل نماذج مستوى SULY المحدد." }, 503, req), "suly_profile_unavailable");
+    if (requestedProfileKey === "auto") {
+      // Keep existing clients usable until the additive profile migration is applied.
+      selectedProfileKey = null;
+    } else {
+      return await failedResponse(jsonResponse({ error: "تعذر تحميل نماذج مستوى SULY المحدد. لم يتم تغيير اختيارك." }, 503, req), "suly_profile_unavailable");
+    }
   }
   const profileModelIds = selectedProfileKey
     ? new Set((selectedProfileAssignments ?? []).filter((item: { route_role: string }) => item.route_role === routeRole).map((item: { model_id: number }) => Number(item.model_id)))
