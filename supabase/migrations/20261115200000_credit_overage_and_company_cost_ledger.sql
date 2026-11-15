@@ -133,9 +133,6 @@ begin
   update public.suly_credit_pricing
     set negative_balance_limit = p_limit, updated_by = v_admin, updated_at = now()
     where id = 1;
-  insert into public.admin_audit_logs(admin_id, action, target_table, target_id, new_value, created_at)
-  values (v_admin, 'negative_balance_alert_threshold_updated', 'suly_credit_pricing', '1',
-    jsonb_build_object('negative_balance_limit', p_limit), now());
   return jsonb_build_object('success', true, 'negative_balance_limit', p_limit);
 end;
 $;
