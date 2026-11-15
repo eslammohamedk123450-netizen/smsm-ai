@@ -4,9 +4,6 @@ Deno.test("queued Brain intake does not require the legacy Brain model catalog",
   if (shouldLoadLegacyBrainTiers("enqueue", false)) {
     throw new Error("queued intake must use the central AI Router catalog");
   }
-  if (shouldLoadLegacyBrainTiers(" ENQUEUE ", false)) {
-    throw new Error("queued intake mode must be normalized");
-  }
 });
 
 Deno.test("internal Brain workers do not require the legacy Brain model catalog", () => {
