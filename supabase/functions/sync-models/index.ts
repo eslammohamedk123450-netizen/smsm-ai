@@ -167,7 +167,7 @@ async function insertMissingModels(
   return { created: rows.length, failed: null };
 }
 
-async function handleSyncModelsRequest(request: Request): Promise<Response>: Promise<Response> => {
+async async function handleSyncModelsRequest(request: Request): Promise<Response> {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (request.method !== "POST") return jsonResponse({ error: "Method not allowed." }, 405);
 
