@@ -32,10 +32,10 @@ export function AdminCreditCommandScreen() {
     if (!await confirmAdminAction("تأكيد تعديل تسعير وحد الرصيد السالب؟", "يُسمح بتسوية المهام الجارية حتى لو تجاوزت الحجز، ويُمنع بدء طلبات جديدة إذا تجاوز الرصيد السالب الحد المحدد.", "حفظ الإعدادات")) return;
     setBusy(true); setError(null);
     try {
-      const result = await adminService.updateCreditPricing({ enabled, minimum: values[0], inputRate: values[1], outputRate: values[2] });
+      const result = await adminService.updateCreditControls({
+        enabled, minimum: values[0], inputRate: values[1], outputRate: values[2], negativeBalanceLimit: values[3],
+      });
       if (result.success !== true) throw new Error();
-      const overdraft = await adminService.updateNegativeBalanceLimit(values[3]);
-      if (overdraft.success !== true) throw new Error();
       await load();
     }
     catch { setError("تعذر حفظ أسعار الرصيد عبر الإجراء الإداري."); }
