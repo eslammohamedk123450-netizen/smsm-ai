@@ -86,6 +86,7 @@ jobs:
         run: |
           deno test supabase/functions/ai-router/agent/orchestrator.test.ts
           deno test supabase/functions/ai-router/resilience.test.ts
+          deno test supabase/functions/ai-router/agent_usage_ledger.test.ts
           deno test supabase/functions/ai-router/agent/agent_profiles.test.ts
           deno test supabase/functions/ai-router/agent/model_eligibility.test.ts
           deno test supabase/functions/ai-router/agent/agent_budget_policy.test.ts
