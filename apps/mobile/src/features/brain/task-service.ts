@@ -72,3 +72,11 @@ export async function getTaskProgress(taskId: string, jobId?: string): Promise<T
     errorMessage: job?.error_message == null ? null : String(job.error_message),
   };
 }
+
+
+/** Cancel the current user's queued/running task through the owner-scoped RPC. */
+export async function cancelTask(jobId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc("cancel_agent_task_job", { p_job_id: jobId });
+  if (error) throw new Error(error.message || "تعذر إلغاء المهمة.");
+  return data === true;
+}
