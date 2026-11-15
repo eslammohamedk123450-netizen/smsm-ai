@@ -21,9 +21,16 @@ type Mapping = { profile_key: string; model_id: number; route_role: string; enab
 
 function rolesForModel(model: Model): string[] {
   const roles = model.task_roles?.length ? model.task_roles : ["general"];
+  let capabilities: Record<string, unknown> = {};
+  if (typeof model.capabilities_json === "string") {
+    try { const parsed: unknown = JSON.parse(model.capabilities_json); if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) capabilities = parsed as Record<string, unknown>; }
+    catch { capabilities = {}; }
+  } else if (model.capabilities_json && typeof model.capabilities_json === "object") {
+    capabilities = model.capabilities_json;
+  }
   const general = roles.includes("general");
   return [
-    ...(model.capabilities_json?.chat === false ? [] : ["chat"]),
+    ...(capabilities.chat === false ? [] : ["chat"]),
     ...(general || roles.includes("planner") ? ["planner"] : []),
     ...(general || roles.includes("worker") || roles.includes("executor") ? ["worker"] : []),
     ...(general || roles.includes("reviewer") ? ["reviewer"] : []),
