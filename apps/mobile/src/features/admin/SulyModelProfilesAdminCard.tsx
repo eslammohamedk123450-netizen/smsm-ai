@@ -9,6 +9,8 @@ type Profile = {
   display_name: string;
   tagline: string;
   description: string;
+  icon_key: string;
+  sort_order: number;
   minimum_subscription_tier: string;
   capabilities_json: Record<string, boolean>;
   is_active: boolean;
@@ -41,7 +43,7 @@ export function SulyModelProfilesAdminCard() {
   const load = useCallback(async () => {
     setLoading(true); setError(null);
     const [profileResult, modelResult, mappingResult] = await Promise.all([
-      supabase.from("suly_model_profiles").select("profile_key,display_name,tagline,description,minimum_subscription_tier,capabilities_json,is_active").order("sort_order"),
+      supabase.from("suly_model_profiles").select("profile_key,display_name,tagline,description,icon_key,sort_order,minimum_subscription_tier,capabilities_json,is_active").order("sort_order"),
       supabase.from("ai_models").select("id,name,model_identifier,provider_id,enabled,task_roles,allowed_tiers").eq("enabled", true).order("priority", { ascending: false }).limit(200),
       supabase.from("suly_model_profile_models").select("profile_key,model_id,route_role,enabled").limit(2000),
     ]);
@@ -71,6 +73,8 @@ export function SulyModelProfilesAdminCard() {
       display_name: profile.display_name.trim(),
       tagline: profile.tagline.trim(),
       description: profile.description.trim(),
+      icon_key: profile.icon_key.trim() || "sparkles",
+      sort_order: Math.max(0, Math.floor(profile.sort_order)),
       is_active: profile.is_active,
       capabilities_json: profile.capabilities_json,
       updated_at: new Date().toISOString(),
@@ -130,6 +134,16 @@ export function SulyModelProfilesAdminCard() {
         <TextInput value={profile.display_name} onChangeText={(value) => updateProfile(profile.profile_key, { display_name: value })} placeholder="اسم المستوى" placeholderTextColor={colors.textMuted} style={{ color: colors.textPrimary, backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, borderWidth: 1, borderRadius: 9, padding: 10, textAlign: "right" }} />
         <TextInput value={profile.tagline} onChangeText={(value) => updateProfile(profile.profile_key, { tagline: value })} placeholder="وصف قصير" placeholderTextColor={colors.textMuted} style={{ color: colors.textPrimary, backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, borderWidth: 1, borderRadius: 9, padding: 10, textAlign: "right" }} />
         <TextInput value={profile.description} onChangeText={(value) => updateProfile(profile.profile_key, { description: value })} placeholder="شرح القدرات" placeholderTextColor={colors.textMuted} multiline style={{ minHeight: 64, color: colors.textPrimary, backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, borderWidth: 1, borderRadius: 9, padding: 10, textAlign: "right", textAlignVertical: "top" }} />
+        <View style={{ flexDirection: "row-reverse", gap: 8 }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: colors.textMuted, fontSize: 10, textAlign: "right" }}>مفتاح الأيقونة</Text>
+            <TextInput value={profile.icon_key} onChangeText={(value) => updateProfile(profile.profile_key, { icon_key: value })} placeholder="zap / rocket / diamond" placeholderTextColor={colors.textMuted} style={{ color: colors.textPrimary, backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, borderWidth: 1, borderRadius: 9, padding: 9, textAlign: "right" }} />
+          </View>
+          <View style={{ width: 95 }}>
+            <Text style={{ color: colors.textMuted, fontSize: 10, textAlign: "right" }}>ترتيب العرض</Text>
+            <TextInput value={String(profile.sort_order)} onChangeText={(value) => updateProfile(profile.profile_key, { sort_order: Number.parseInt(value, 10) || 0 })} keyboardType="number-pad" placeholder="1" placeholderTextColor={colors.textMuted} style={{ color: colors.textPrimary, backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, borderWidth: 1, borderRadius: 9, padding: 9, textAlign: "right" }} />
+          </View>
+        </View>
         <Text style={{ color: colors.textSecondary, fontSize: 11, textAlign: "right", fontWeight: "700" }}>القدرات المتاحة لهذا المستوى</Text>
         {[
           ["web_search", "البحث على الويب"],
