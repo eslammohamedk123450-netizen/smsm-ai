@@ -11,7 +11,11 @@ where hashed_password is not null;
 
 alter table public.users
   add constraint users_hashed_password_bcrypt_only
-  check (hashed_password ~ '^\\$2[aby]\\$[0-9]{2}\\$[./A-Za-z0-9]{53}$');
+  check (
+    left(hashed_password, 4) in ('$2a$', '$2b$', '$2y$')
+    and substring(hashed_password from 5 for 2) ~ '^[0-9]{2}$'
+    and substring(hashed_password from 7) ~ '^[./A-Za-z0-9]{53}$'
+  );
 
 revoke all privileges on table public.users
   from public, anon, authenticated, service_role;
