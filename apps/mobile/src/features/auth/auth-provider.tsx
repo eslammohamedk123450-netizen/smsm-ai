@@ -43,7 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     void authService.getSession().then(applySession).catch(() => {
       if (!active) return;
-      void supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
+      // A transient session-read failure must not erase a persisted user session.
       applySession(null);
     });
 
