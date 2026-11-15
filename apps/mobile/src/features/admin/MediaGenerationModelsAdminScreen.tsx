@@ -32,6 +32,7 @@ export function MediaGenerationModelsAdminScreen() {
   const [prices, setPrices] = useState<Price[]>(emptyPrices());
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [providerId, setProviderId] = useState<number | null>(null);
+  const [allowedTiers, setAllowedTiers] = useState<string[]>(["free","lite","pro","max"]);
   const [displayName, setDisplayName] = useState("");
   const [modelIdentifier, setModelIdentifier] = useState("");
   const [endpointUrl, setEndpointUrl] = useState("");
@@ -64,7 +65,7 @@ export function MediaGenerationModelsAdminScreen() {
   const chooseModel = async (model: MediaModel) => {
     setSelectedId(model.id); setProviderId(model.provider_id); setDisplayName(model.display_name);
     setModelIdentifier(model.model_identifier); setEndpointUrl(model.endpoint_url);
-    setIsActive(model.is_active); setIsDefault(model.is_default);
+    setIsActive(model.is_active); setIsDefault(model.is_default); setAllowedTiers(model.allowed_tiers ?? []);
     const { data } = await supabase.from("suly_media_generation_prices")
       .select("quality,price_credits,estimated_provider_cost_usd,target_margin,credit_value_egp,usd_to_egp,resolution,enabled,price_version")
       .eq("generation_model_id", model.id);
@@ -91,7 +92,7 @@ export function MediaGenerationModelsAdminScreen() {
       const modelPayload = {
         service_type: "image", display_name: displayName.trim(), provider_id: providerId,
         model_identifier: modelIdentifier.trim(), protocol: "openai_images", endpoint_url: endpoint.toString(),
-        allowed_tiers: ["free","lite","pro","max"], supported_qualities: prices.filter((item) => item.enabled).map((item) => item.quality),
+        allowed_tiers: allowedTiers, supported_qualities: prices.filter((item) => item.enabled).map((item) => item.quality),
         capabilities_json: { text_to_image: true, image_to_image: false }, is_default: isDefault,
         is_active: isActive, updated_at: new Date().toISOString(),
       };
@@ -135,7 +136,7 @@ export function MediaGenerationModelsAdminScreen() {
 
   const reset = () => {
     setSelectedId(null); setProviderId(null); setDisplayName(""); setModelIdentifier(""); setEndpointUrl("");
-    setIsActive(false); setIsDefault(false); setPrices(emptyPrices()); setError(null); setNotice(null);
+    setIsActive(false); setIsDefault(false); setAllowedTiers(["free","lite","pro","max"]); setPrices(emptyPrices()); setError(null); setNotice(null);
   };
 
   return <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: 16, gap: 13, maxWidth: 950, width: "100%", alignSelf: "center" }} keyboardShouldPersistTaps="handled">
@@ -170,6 +171,12 @@ export function MediaGenerationModelsAdminScreen() {
         <Text style={{ color: colors.textSecondary, textAlign: "right", fontSize: 11 }}>{String(label)}</Text>
         <TextInput value={String(value)} onChangeText={setter as (value: string) => void} autoCapitalize="none" placeholderTextColor={colors.textMuted} style={{ color: colors.textPrimary, backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, borderWidth: 1, borderRadius: 9, padding: 10, textAlign: "left" }} />
       </View>)}
+      <Text style={{ color: colors.textSecondary, textAlign: "right", fontSize: 11, fontWeight: "700" }}>الاشتراكات التي يمكنها استخدام النموذج</Text>
+      <View style={{ flexDirection: "row-reverse", flexWrap: "wrap", gap: 7 }}>
+        {([["free","مجاني"],["lite","Lite"],["pro","Pro"],["max","Max"]] as const).map(([tier,label]) => <Pressable key={tier} onPress={() => setAllowedTiers((current) => current.includes(tier) ? current.filter((item) => item !== tier) : [...current,tier])} style={{ paddingHorizontal: 11, paddingVertical: 7, borderRadius: 18, borderWidth: 1, borderColor: allowedTiers.includes(tier) ? colors.primary : colors.divider }}>
+          <Text style={{ color: allowedTiers.includes(tier) ? colors.primary : colors.textMuted, fontSize: 11 }}>{label}</Text>
+        </Pressable>)}
+      </View>
       <View style={{ flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center" }}><Text style={{ color: colors.textSecondary }}>تفعيل النموذج للمستخدمين</Text><Switch value={isActive} onValueChange={setIsActive} /></View>
       <View style={{ flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center" }}><Text style={{ color: colors.textSecondary }}>النموذج الافتراضي لاستوديو الصور</Text><Switch value={isDefault} onValueChange={setIsDefault} /></View>
       <Text style={{ color: colors.textPrimary, textAlign: "right", fontWeight: "800" }}>تسعير الجودة والربحية</Text>
