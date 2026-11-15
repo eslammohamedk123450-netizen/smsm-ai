@@ -57,9 +57,11 @@ async function main(req: Request): Promise<Response> {
   const taskId = cleanText(body.task_id) || crypto.randomUUID();
   if (!/^[0-9a-f-]{36}$/i.test(taskId)) return json({ error: "task_id must be a UUID" }, 400);
 
-  // Queued Brain requests are executed by the central ai-router Agent. They
-  // must not depend on the retired/legacy Brain model catalog; only the
-  // backward-compatible synchronous path still reads brain_tiers.
+  // All Brain tasks must use the queued central Agent path. The legacy
+  // synchronous Brain catalog/router is intentionally disabled in this rollout.
+  if (!internalWorker && body.mode !== "enqueue") {
+    return json({ error: "legacy_brain_route_disabled", message: "أرسل المهمة عبر مسار الوكيل المركزي." }, 410);
+  }
   const loadLegacyTiers = shouldLoadLegacyBrainTiers(body.mode, internalWorker);
   const [{ data: profile, error: profileError }, { data: tierRows, error: tiersError }] = await Promise.all([
     admin.from("suly_profiles").select("subscription_tier,is_banned").eq("id", userId).maybeSingle(),
