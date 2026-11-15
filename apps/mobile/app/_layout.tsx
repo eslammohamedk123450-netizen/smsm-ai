@@ -36,7 +36,10 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
 }
 
 export default function RootLayout() {
-  const [loading, setLoading] = useState(true);
+  // The animated native splash can fail to complete on web when browser animation
+  // drivers are unavailable. Start web directly in the router; keep the branded
+  // splash on native platforms only.
+  const [loading, setLoading] = useState(Platform.OS !== "web");
   useFonts({
     Cairo_400Regular: require("../assets/fonts/Cairo-Regular.ttf"),
     Cairo_700Bold: require("../assets/fonts/Cairo-Bold.ttf"),
