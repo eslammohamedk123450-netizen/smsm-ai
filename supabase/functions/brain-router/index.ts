@@ -57,7 +57,9 @@ async function main(req: Request): Promise<Response> {
 
   const [{ data: profile, error: profileError }, { data: tierRows, error: tiersError }] = await Promise.all([
     admin.from("suly_profiles").select("subscription_tier,is_banned").eq("id", userId).maybeSingle(),
-    admin.from("brain_tiers").select("tier_name,priority,model_id,max_tokens_per_task,model:models(id,name,legacy_ai_model_id,is_active,model_capabilities(capability_key))").eq("is_active", true).order("tier_name").order("priority").limit(100),
+    internalWorker
+      ? Promise.resolve({ data: [], error: null })
+      : admin.from("brain_tiers").select("tier_name,priority,model_id,max_tokens_per_task,model:models(id,name,legacy_ai_model_id,is_active,model_capabilities(capability_key))").eq("is_active", true).order("tier_name").order("priority").limit(100),
   ]);
   if (profileError || !profile) return json({ error: "Application profile is missing" }, 403);
   if (profile.is_banned) return json({ error: "This account is suspended" }, 403);
