@@ -320,6 +320,7 @@ export async function executeTaskPlan<T>(
   plan: TaskPlanStep[],
   concurrency: number,
   execute: (step: TaskPlanStep, index: number, completed: ReadonlyMap<string, T>) => Promise<T>,
+  resumeResults: ReadonlyMap<string, T> = new Map(),
 ): Promise<TaskPlanStepOutcome<T>[]> {
   if (!validateTaskPlan(plan, Math.max(2, plan.length))) {
     throw new Error("Invalid task plan: duplicate IDs, missing fields, dependencies, or cycle.");
@@ -328,6 +329,15 @@ export async function executeTaskPlan<T>(
   const state = new Map<string, TaskPlanStepOutcome<T>>();
   const completed = new Map<string, T>();
   const pending = new Set(plan.map((step) => step.step_id));
+  // Restore only checkpoints belonging to the currently validated plan.
+  // A completed step is never replayed; its durable output is supplied to dependants.
+  for (const step of plan) {
+    if (!resumeResults.has(step.step_id)) continue;
+    const result = resumeResults.get(step.step_id) as T;
+    state.set(step.step_id, { step_id: step.step_id, status: "completed", result });
+    completed.set(step.step_id, result);
+    pending.delete(step.step_id);
+  }
   const limit = Math.max(1, Math.min(5, Math.floor(concurrency) || 1));
 
   while (pending.size > 0) {
