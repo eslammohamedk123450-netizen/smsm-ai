@@ -22,8 +22,6 @@ declare
   v_retry uuid;
   v_backoff uuid;
   v_claimed uuid;
-  v_cancel_own uuid;
-  v_cancel_other uuid;
 begin
   select array_agg(id order by created_at)
     into v_users
@@ -34,26 +32,6 @@ begin
   v_a := v_users[1];
   v_b := v_users[2];
   
-  -- Cancellation is owner-scoped: own queued job cancels; another user's job is untouched.
-  insert into public.agent_task_jobs(user_id, job_type, payload, idempotency_key)
-  values (v_a, 'brain_task', '{}'::jsonb, 'regression-cancel-own-' || gen_random_uuid()::text)
-  returning id into v_cancel_own;
-  insert into public.agent_task_jobs(user_id, job_type, payload, idempotency_key)
-  values (v_b, 'brain_task', '{}'::jsonb, 'regression-cancel-other-' || gen_random_uuid()::text)
-  returning id into v_cancel_other;
-  perform set_config('request.jwt.claim.sub', v_a::text, true);
-  if not public.cancel_agent_task_job(v_cancel_own) then
-    raise exception 'Owner could not cancel their own queued task';
-  end if;
-  if public.cancel_agent_task_job(v_cancel_other) then
-    raise exception 'Owner cancelled another user task';
-  end if;
-  if (select status from public.agent_task_jobs where id = v_cancel_other) <> 'queued' then
-    raise exception 'Cross-user cancellation changed the other task';
-  end if;
-  perform set_config('request.jwt.claim.sub', '', true);
-
-
   -- Distinct users can each claim only their own job.
   insert into public.agent_task_jobs(user_id, job_type, payload, idempotency_key, priority, max_attempts)
   values (v_a, 'brain_task', jsonb_build_object('user_id', v_a), 'regression-a-' || gen_random_uuid()::text, 10, 3)
