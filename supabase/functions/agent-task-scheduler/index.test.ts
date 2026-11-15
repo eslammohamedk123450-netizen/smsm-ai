@@ -7,16 +7,13 @@ const taskId = "123e4567-e89b-42d3-a456-426614174002";
 
 Deno.test("scheduled Brain payload accepts matching owner and UUID task", () => {
   assertEquals(readBrainTaskPayload({
-    id: "job-1",
     user_id: owner,
-    job_type: "brain_task",
     payload: { user_id: owner, task_id: taskId, objective: "  build a feature  " },
   }), { userId: owner, taskId, objective: "build a feature" });
 });
 
 Deno.test("scheduled Brain payload rejects cross-user identity", () => {
-  assertEquals(readBrainTask({
-    id: "job-2",
+  assertEquals(readBrainTaskPayload({
     user_id: owner,
     job_type: "brain_task",
     payload: { user_id: other, task_id: taskId, objective: "do work" },
@@ -24,8 +21,7 @@ Deno.test("scheduled Brain payload rejects cross-user identity", () => {
 });
 
 Deno.test("scheduled Brain payload rejects missing task IDs and empty objectives", () => {
-  assertEquals(readBrainTask({
-    id: "job-3",
+  assertEquals(readBrainTaskPayload({
     user_id: owner,
     job_type: "brain_task",
     payload: { user_id: owner, task_id: "not-a-uuid", objective: " " },
