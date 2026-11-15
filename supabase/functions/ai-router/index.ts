@@ -98,6 +98,9 @@ type Candidate = {
   inputTokens: number;
   outputTokens: number;
   providerCostEgp: number | null;
+  usageStepKey?: string;
+  usageAttemptNo?: number;
+  usageCallKey?: string;
 };
 type ReadyCandidate = Candidate & {
   controller: AbortController;
@@ -107,7 +110,7 @@ type ReadyCandidate = Candidate & {
   firstChunkAtMs: number;
   cleanup: () => void;
 };
-type AttemptRecorder = (candidate: Candidate, status: AttemptStatus, durationMs: number, errorCode?: string | null, errorReason?: string | null) => Promise<void>;
+type AttemptRecorder = (candidate: Candidate, status: AttemptStatus, durationMs: number, errorCode?: string | null, errorReason?: string | null, stage?: "started" | "finished") => Promise<void>;
 
 function jsonResponse(body: unknown, status = 200, req?: Request): Response {
   return new Response(JSON.stringify(body), {
@@ -357,9 +360,18 @@ async function firstReady(candidates: Candidate[], waitMs: number, recordAttempt
   if (candidates.length === 0) return null;
   const raceState = { winnerSelected: false, deadlineExpired: false };
   const attempts = candidates.map((candidate) => {
+    const attemptCandidate: Candidate = {
+      ...candidate,
+      usageStepKey: candidate.usageStepKey ?? "agent-runtime",
+      usageAttemptNo: Math.max(1, Math.min(20, Math.floor(candidate.usageAttemptNo ?? 1))),
+      usageCallKey: crypto.randomUUID(),
+    };
     const controller = new AbortController();
     const startedAtMs = Date.now();
-    const promise = openCandidate(candidate, controller).catch(async (error) => {
+    const promise = (async () => {
+      await recordAttempt(attemptCandidate, "cancelled", 0, "provider_attempt_started", null, "started");
+      return await openCandidate(attemptCandidate, controller);
+    })().catch(async (error) => {
       const errorText = error instanceof Error ? error.message : String(error);
       const cancelledByWinner = raceState.winnerSelected && controller.signal.aborted;
       const status: AttemptStatus = cancelledByWinner
@@ -370,10 +382,10 @@ async function firstReady(candidates: Candidate[], waitMs: number, recordAttempt
             ? "empty"
             : "error";
       const errorCode = status === "timeout" ? "model_timeout" : status === "empty" ? "empty_response" : "provider_error";
-      await recordAttempt(candidate, status, Math.max(0, Date.now() - startedAtMs), errorCode, errorText);
+      await recordAttempt(attemptCandidate, status, Math.max(0, Date.now() - startedAtMs), errorCode, errorText, "finished");
       throw error;
     });
-    return { candidate, controller, promise, startedAtMs };
+    return { candidate: attemptCandidate, controller, promise, startedAtMs };
   });
   onStart?.(attempts.length);
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -391,7 +403,7 @@ async function firstReady(candidates: Candidate[], waitMs: number, recordAttempt
       if (winner) {
         void attempt.promise.then(async (loser) => {
           loser.cleanup();
-          await recordAttempt(attempt.candidate, "cancelled", Math.max(0, Date.now() - attempt.startedAtMs), "race_lost", "Another model returned text first; this attempt was cancelled to avoid duplicate generation.");
+          await recordAttempt(attempt.candidate, "cancelled", Math.max(0, Date.now() - attempt.startedAtMs), "race_lost", "Another model returned text first; this attempt was cancelled to avoid duplicate generation.", "finished");
         }).catch(() => {});
       }
     }
@@ -1225,8 +1237,38 @@ async function handleRequest(req: Request): Promise<Response> {
 
   const usableInitial = makeCandidates(candidatesFrom);
   const workerCandidates = makeCandidates(orderedWorkerModels);
-  const recordAttempt: AttemptRecorder = async (candidate, status, durationMs, errorCode = null, errorReason = null) => {
+  const recordAttempt: AttemptRecorder = async (candidate, status, durationMs, errorCode = null, errorReason = null, stage = "finished") => {
     const safeReason = safeOperationalSummary(errorReason ?? "", 1000);
+    if (internalBrainCall && agentJobId && candidate.usageCallKey) {
+      const hasProviderUsage = Number.isSafeInteger(candidate.inputTokens) && candidate.inputTokens >= 0
+        && Number.isSafeInteger(candidate.outputTokens) && candidate.outputTokens >= 0;
+      const usageStatus = stage === "started" ? "unknown" : hasProviderUsage ? status === "success" ? "completed" : "partial" : "unknown";
+      const usageSource = usageStatus === "completed" ? "provider_reported" : usageStatus === "partial" ? "provider_reported_partial" : "unavailable";
+      const actualCost = hasProviderUsage && stage !== "started"
+        ? Math.ceil((candidate.inputTokens * creditPricing.input_credits_per_1k_tokens + candidate.outputTokens * creditPricing.output_credits_per_1k_tokens) / 1000)
+        : null;
+      const { error: usageError } = await supabase.rpc("record_agent_step_usage", {
+        p_job_id: agentJobId,
+        p_task_id: billingTaskId,
+        p_user_id: user.id,
+        p_step_key: (candidate.usageStepKey ?? "agent-runtime").slice(0, 160),
+        p_attempt_no: candidate.usageAttemptNo ?? 1,
+        p_model_call_key: candidate.usageCallKey,
+        p_model_id: candidate.model.id,
+        p_provider_type: candidate.provider.provider_type,
+        p_input_tokens: stage === "started" || !Number.isSafeInteger(candidate.inputTokens) ? null : candidate.inputTokens,
+        p_output_tokens: stage === "started" || !Number.isSafeInteger(candidate.outputTokens) ? null : candidate.outputTokens,
+        p_actual_cost: actualCost,
+        p_usage_status: usageStatus,
+        p_usage_source: usageSource,
+        p_metadata: { attempt_status: stage === "started" ? "started" : status, duration_ms: Math.max(0, Math.floor(durationMs)), error_code: errorCode, error_summary: safeReason || null },
+      });
+      if (usageError) {
+        console.error("Could not persist Agent provider usage:", usageError.message);
+        if (stage === "started") throw new Error("agent_usage_ledger_unavailable");
+      }
+    }
+    if (stage === "started") return;
     const { error } = await supabase.rpc("record_ai_model_attempt", {
       p_model_id: candidate.model.id,
       p_provider_id: candidate.provider.id,
