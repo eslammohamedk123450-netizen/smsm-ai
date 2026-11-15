@@ -87,14 +87,8 @@ async function processJob(
       return;
     }
     if (!response.ok || typeof result?.response !== "string" || !result.response.trim()) {
-      // Release the enqueue-time reservation on a confirmed terminal response.
-      // Network errors/timeouts do not reach this branch, so another lease attempt
-      // can safely continue the same task without a premature billing finalization.
-      await admin.rpc("brain_finalize_usage", {
-        p_task_id: task.taskId,
-        p_actual_tokens: 0,
-        p_status: "failed",
-      });
+      // The terminal job transition settles only after all provider usage rows are known.
+      // Unknown usage keeps both reservations pending for late reconciliation.
       await finishAgentTask(admin, job.id, workerId, "failed", {
         errorCode: `brain_execution_http_${response.status}`,
         errorMessage: "Brain could not complete this task. Review the task details and try again.",
