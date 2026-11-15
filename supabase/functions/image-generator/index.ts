@@ -281,8 +281,9 @@ Deno.serve(async (req: Request) => {
       bucket: MEDIA_BUCKET, object_key: objectKey, public_url: null, mime_type: format.mimeType,
       size_bytes: generated.bytes.byteLength, original_filename: `suly-image.${format.extension}`,
       metadata: {
-        kind: "image", format: format.format, generated: true, generation_provider_id: typedModel.provider_id,
-        generation_provider: typedModel.display_name, generation_model_id: typedModel.id,
+        kind: "image", format: format.format, generated: true, prompt,
+        public_model_name: typedModel.display_name, generation_provider_id: typedModel.provider_id,
+        generation_model_id: typedModel.id, provider_model_identifier: typedModel.model_identifier,
         model_identifier: typedModel.model_identifier, quality, resolution: typedPrice.resolution,
         estimated_credits: typedPrice.price_credits, charged_credits: actualCredits,
         provider_cost_usd: generated.costUsd, provider_cost_status: generated.costConfirmed ? "confirmed" : "estimated",
