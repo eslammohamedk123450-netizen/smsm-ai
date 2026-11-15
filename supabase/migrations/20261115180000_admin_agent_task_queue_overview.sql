@@ -1,4 +1,9 @@
 -- Admin-only operational visibility for the durable Agent queue.
+create index if not exists agent_task_jobs_status_updated_idx
+  on public.agent_task_jobs(status, updated_at desc);
+create index if not exists agent_task_jobs_created_desc_idx
+  on public.agent_task_jobs(created_at desc);
+
 -- Payloads and task results are intentionally excluded from this overview.
 create or replace function public.suly_admin_agent_task_overview()
 returns jsonb
@@ -28,7 +33,7 @@ begin
     count(*) filter (where status = 'failed'),
     count(*) filter (where status = 'cancelled'),
     count(*) filter (where status = 'running' and lease_until <= now()),
-    min(available_at) filter (where status = 'queued')
+    min(created_at) filter (where status = 'queued')
   into v_queued, v_running, v_completed, v_failed, v_cancelled, v_expired, v_oldest_queued
   from public.agent_task_jobs;
 
