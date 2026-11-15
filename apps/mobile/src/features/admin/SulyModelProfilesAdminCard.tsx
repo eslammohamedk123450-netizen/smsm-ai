@@ -30,7 +30,7 @@ function rolesForModel(model: Model): string[] {
   }
   const general = roles.includes("general");
   return [
-    ...(general && capabilities.chat !== false && !/(embed|embedding|whisper|tts|speech|audio|image|imagen|dall-e|flux|stable-diffusion|kling|seedance|seedream|ideogram|nano-banana|minimax|lyria|transcrib|robotics|deep-research|computer-use|guard|moderation|rerank)/i.test(model.model_identifier) ? ["chat"] : []),
+    ...((general || roles.includes("chat")) && capabilities.chat !== false && !/(embed|embedding|whisper|tts|speech|audio|image|imagen|dall-e|flux|stable-diffusion|kling|seedance|seedream|ideogram|nano-banana|minimax|lyria|transcrib|robotics|deep-research|computer-use|guard|moderation|rerank)/i.test(model.model_identifier) ? ["chat"] : []),
     ...(general || roles.includes("planner") ? ["planner"] : []),
     ...(general || roles.includes("worker") || roles.includes("executor") ? ["worker"] : []),
     ...(general || roles.includes("reviewer") ? ["reviewer"] : []),
