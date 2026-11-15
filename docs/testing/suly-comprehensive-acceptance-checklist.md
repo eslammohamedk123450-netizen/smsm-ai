@@ -179,3 +179,11 @@ Record each case as **PASS**, **FAIL**, or **BLOCKED**. For every failure, captu
 - [ ] Verify editing a model with a capability-link write failure preserves its previous capability links.
 - [ ] Verify model capability changes add selected links before removing deselected links.
 - [ ] Verify tier and plan update failures are displayed rather than silently ignored.
+
+
+### Dependency-aware Agent execution
+- [ ] Verify independent DAG branches execute concurrently within the configured limit.
+- [ ] Verify a dependent step receives completed prerequisite outputs and never starts early.
+- [ ] Verify a failed prerequisite blocks its descendants but does not stop unrelated branches.
+- [ ] Verify cyclic or malformed plans are rejected before any worker starts.
+- [ ] Verify persisted workspace and ledger statuses match completed, failed, and blocked DAG outcomes.
