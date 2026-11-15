@@ -9,7 +9,6 @@ declare const EdgeRuntime: {
 };
 
 const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, apikey, x-client-info, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Content-Type": "application/json; charset=utf-8",
@@ -416,6 +415,11 @@ Deno.serve(async (request: Request) => {
   const configuredOrigins = Deno.env.get("WEB_CORS_ORIGIN") ?? "";
   const preflight = handleCorsPreflight(request, configuredOrigins);
   if (preflight) return preflight;
-  const response = await handleImageGeneratorRequest(request);
+  let response: Response;
+  try {
+    response = await handleImageGeneratorRequest(request);
+  } catch {
+    response = json(500, { error: "تعذر إكمال طلب إنشاء الصورة." });
+  }
   return withCors(request, response, configuredOrigins);
 });
