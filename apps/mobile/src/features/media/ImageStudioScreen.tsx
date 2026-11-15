@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Image, Pressable, ScrollView, TextInput, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { randomUUID } from "expo-crypto";
