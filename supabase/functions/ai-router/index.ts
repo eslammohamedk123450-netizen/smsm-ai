@@ -1855,12 +1855,12 @@ async function handleRequest(req: Request): Promise<Response> {
     ];
     let plannerInputTokens = 0;
     let plannerOutputTokens = 0;
-    let plannerAttemptCount = 0;
     const plannerCandidatesUsed: ReadyCandidate[] = [];
     const agentEvidence: Array<{ tool: string; result: string }> = [];
     let agentEvidenceChars = 0;
     const agentStartedAt = Date.now();
     const plan = async (history: Array<{ role: string; content: string }>, tools: AgentTool[], step: number) => {
+      let plannerAttemptCount = 0;
       if (multiConnectorRequest) return { action: "respond" as const, answer: operationalReply! };
       if (operationalReply) return { action: "respond" as const, answer: operationalReply };
       if (step === 0 && requestedMultiReadToolkits) {
