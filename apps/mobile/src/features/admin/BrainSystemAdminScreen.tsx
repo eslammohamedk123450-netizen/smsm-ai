@@ -75,21 +75,101 @@ export function BrainSystemAdminScreen() {
     setLegacyId(String(operational.id));
   };
   const saveModel = async () => {
-    if (!name.trim() || !provider.trim() || selectedKeys.length === 0) { setError("أدخل الاسم والشركة واختر قدرة واحدة على الأقل."); return; }
+    if (!name.trim() || !provider.trim() || selectedKeys.length === 0) {
+      setError("أدخل الاسم والشركة واختر قدرة واحدة على الأقل.");
+      return;
+    }
     const parsedLegacyId = legacyId.trim() ? Number(legacyId) : null;
-    if (parsedLegacyId !== null && (!Number.isSafeInteger(parsedLegacyId) || parsedLegacyId < 1)) { setError("معرّف النموذج التشغيلي غير صالح."); return; }
-    setBusy(true); setError(null);
-    const payload = { name: name.trim(), provider: provider.trim(), icon_url: iconUrl.trim() || null, cost_level: cost, legacy_ai_model_id: parsedLegacyId };
-    const result = editingId ? await supabase.from("models").update(payload).eq("id", editingId).select("id").single() : await supabase.from("models").insert(payload).select("id").single();
+    if (parsedLegacyId !== null && (!Number.isSafeInteger(parsedLegacyId) || parsedLegacyId < 1)) {
+      setError("معرّف النموذج التشغيلي غير صالح.");
+      return;
+    }
+
+    setBusy(true);
+    setError(null);
+    const payload = {
+      name: name.trim(),
+      provider: provider.trim(),
+      icon_url: iconUrl.trim() || null,
+      cost_level: cost,
+      legacy_ai_model_id: parsedLegacyId,
+    };
+    const result = editingId
+      ? await supabase.from("models").update(payload).eq("id", editingId).select("id").single()
+      : await supabase.from("models").insert(payload).select("id").single();
     const modelId = editingId ?? result.data?.id;
-    if (result.error || !modelId) { setError(result.error?.message ?? "تعذر حفظ النموذج."); setBusy(false); return; }
-    await supabase.from("model_capabilities").delete().eq("model_id", modelId);
-    const linkResult = await supabase.from("model_capabilities").insert(selectedKeys.map((capability_key) => ({ model_id: modelId, capability_key })));
-    if (linkResult.error) setError("تم حفظ النموذج لكن تعذر حفظ قدراته.");
-    resetForm(); await load(); setBusy(false);
+
+    if (result.error || !modelId) {
+      setError(result.error?.message ?? "تعذر حفظ النموذج.");
+      setBusy(false);
+      return;
+    }
+
+    // Add/confirm the selected links before removing anything. If an upsert
+    // fails while editing, the model keeps its previous working capabilities.
+    const linkResult = await supabase.from("model_capabilities").upsert(
+      selectedKeys.map((capability_key) => ({ model_id: modelId, capability_key })),
+      { onConflict: "model_id,capability_key" },
+    );
+    if (linkResult.error) {
+      if (!editingId) {
+        await supabase.from("models").delete().eq("id", modelId);
+      }
+      setError("تعذر حفظ قدرات النموذج؛ لم نحذف القدرات السابقة.");
+      setBusy(false);
+      return;
+    }
+
+    const previousKeys = links
+      .filter((link) => link.model_id === modelId)
+      .map((link) => link.capability_key);
+    const removedKeys = previousKeys.filter((key) => !selectedKeys.includes(key));
+    for (const capabilityKey of removedKeys) {
+      const { error: deleteError } = await supabase.from("model_capabilities")
+        .delete().eq("model_id", modelId).eq("capability_key", capabilityKey);
+      if (deleteError) {
+        setError("تم حفظ القدرات الجديدة، لكن تعذر حذف بعض القدرات القديمة. أعد المحاولة للمزامنة.");
+        await load();
+        setBusy(false);
+        return;
+      }
+    }
+
+    resetForm();
+    await load();
+    setBusy(false);
   };
-  const updateTier = async (tier: Tier, field: "priority" | "max_tokens_per_task", value: string) => { const parsed = Number(value); if (!Number.isSafeInteger(parsed) || parsed < 1 || (field === "priority" && parsed > 3) || (field === "max_tokens_per_task" && parsed > 120000)) return; await supabase.from("brain_tiers").update({ [field]: parsed }).eq("id", tier.id); await load(); };
-  const updatePlan = async (plan: Plan, field: "starting_brain_tier" | "daily_tasks_limit" | "daily_tokens_limit", value: string) => { if (field === "starting_brain_tier") await supabase.from("plans").update({ starting_brain_tier: value }).eq("id", plan.id); else { const parsed = Number(value); if (!Number.isSafeInteger(parsed) || parsed < 1) return; await supabase.from("plans").update({ [field]: parsed }).eq("id", plan.id); } await load(); };
+
+  const updateTier = async (tier: Tier, field: "priority" | "max_tokens_per_task", value: string) => {
+    const parsed = Number(value);
+    if (!Number.isSafeInteger(parsed) || parsed < 1
+      || (field === "priority" && parsed > 3)
+      || (field === "max_tokens_per_task" && parsed > 120000)) return;
+    setBusy(true);
+    setError(null);
+    const { error: updateError } = await supabase.from("brain_tiers")
+      .update({ [field]: parsed }).eq("id", tier.id);
+    if (updateError) setError("تعذر تحديث إعدادات مسار النموذج.");
+    await load();
+    setBusy(false);
+  };
+
+  const updatePlan = async (plan: Plan, field: "starting_brain_tier" | "daily_tasks_limit" | "daily_tokens_limit", value: string) => {
+    let update: Record<string, string | number>;
+    if (field === "starting_brain_tier") {
+      update = { starting_brain_tier: value };
+    } else {
+      const parsed = Number(value);
+      if (!Number.isSafeInteger(parsed) || parsed < 1) return;
+      update = { [field]: parsed };
+    }
+    setBusy(true);
+    setError(null);
+    const { error: updateError } = await supabase.from("plans").update(update).eq("id", plan.id);
+    if (updateError) setError("تعذر تحديث حدود الخطة.");
+    await load();
+    setBusy(false);
+  };
 
   if (loading) return <View style={styles.center}><ActivityIndicator color={colors.primary} /><Text style={styles.muted}>جارٍ تحميل نظام العقول…</Text></View>;
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
