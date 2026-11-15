@@ -204,6 +204,46 @@ export function buildTaskPlan(parts: string[], maxParts: number, dependencyOrder
   }));
 }
 
+/** Parse a model-proposed DAG without trusting model output.
+ * Only a bounded JSON object with explicit step IDs and dependency IDs is accepted.
+ * The caller must still validate model/tier eligibility and authorize execution.
+ */
+export function parseModelGeneratedTaskPlan(raw: string, maxParts: number): TaskPlanStep[] | null {
+  if (typeof raw !== "string" || raw.length === 0 || raw.length > 12000) return null;
+  const limit = Math.max(2, Math.min(5, Math.floor(maxParts) || 4));
+  const normalized = raw.trim().replace(/^\x60\x60\x60(?:json)?\s*/i, "").replace(/\s*\x60\x60\x60$/, "");
+  let parsed: unknown;
+  try { parsed = JSON.parse(normalized); } catch { return null; }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+  const root = parsed as Record<string, unknown>;
+  if (Object.keys(root).some((key) => key !== "steps") || !Array.isArray(root.steps)) return null;
+  if (root.steps.length < 2 || root.steps.length > limit) return null;
+
+  const plan: TaskPlanStep[] = [];
+  for (const value of root.steps) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+    const row = value as Record<string, unknown>;
+    const allowedKeys = new Set(["step_id", "description", "expected_inputs", "completion_criteria", "depends_on"]);
+    if (Object.keys(row).some((key) => !allowedKeys.has(key))) return null;
+    if (typeof row.step_id !== "string" || !/^[a-z][a-z0-9_-]{0,39}$/i.test(row.step_id)) return null;
+    if (typeof row.description !== "string" || row.description.trim().length < 3 || row.description.length > 500) return null;
+    if (typeof row.completion_criteria !== "string" || row.completion_criteria.trim().length < 3 || row.completion_criteria.length > 300) return null;
+    if (!row.expected_inputs || typeof row.expected_inputs !== "object" || Array.isArray(row.expected_inputs)) return null;
+    if (JSON.stringify(row.expected_inputs).length > 1000) return null;
+    if (!Array.isArray(row.depends_on) || row.depends_on.length > limit - 1 || row.depends_on.some((id) => typeof id !== "string")) return null;
+    const dependencies = row.depends_on as string[];
+    if (new Set(dependencies).size !== dependencies.length) return null;
+    plan.push({
+      step_id: row.step_id,
+      description: row.description.trim(),
+      expected_inputs: row.expected_inputs as Record<string, unknown>,
+      completion_criteria: row.completion_criteria.trim(),
+      depends_on: [...dependencies],
+    });
+  }
+  return validateTaskPlan(plan, limit) ? plan : null;
+}
+
 /** Validates ids, bounds, required fields and an acyclic dependency graph. */
 export function validateTaskPlan(plan: TaskPlanStep[], maxParts: number): boolean {
   const limit = Math.max(2, Math.min(5, Math.floor(maxParts) || 4));
