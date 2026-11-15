@@ -36,12 +36,14 @@ export function parseCentralAgentResult(value: unknown): CentralAgentResult | nu
   const firstChoice = asRecord(choices[0]);
   const message = asRecord(firstChoice.message);
   const response = cleanText(message.content);
-  if (!response) return null;
-
   const usage = asRecord(payload.usage);
+  const hasUsage = Object.keys(usage).length > 0;
   const agentSteps = Array.isArray(payload.agent_steps)
     ? payload.agent_steps.map(asRecord).slice(0, 100)
     : [];
+  // Failed central Agent attempts can still incur provider usage. Preserve that
+  // usage even when no assistant response was produced so Brain can finalize it.
+  if (!response && !hasUsage && agentSteps.length === 0) return null;
   const completedSteps = agentSteps.filter((step) => step.status === "completed").length;
   const capabilities = agentSteps.some((step) => step.tool === "web.search")
     ? ["text", "web_search"]
