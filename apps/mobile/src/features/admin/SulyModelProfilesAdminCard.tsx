@@ -24,13 +24,13 @@ function rolesForModel(model: Model): string[] {
   let capabilities: Record<string, unknown> = {};
   if (typeof model.capabilities_json === "string") {
     try { const parsed: unknown = JSON.parse(model.capabilities_json); if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) capabilities = parsed as Record<string, unknown>; }
-    catch { capabilities = {}; }
+    catch { capabilities = { chat: false }; }
   } else if (model.capabilities_json && typeof model.capabilities_json === "object") {
     capabilities = model.capabilities_json;
   }
   const general = roles.includes("general");
   return [
-    ...(capabilities.chat === false ? [] : ["chat"]),
+    ...(capabilities.chat !== false && !/(embed|embedding|whisper|tts|speech|audio|image|imagen|dall-e|flux|stable-diffusion|kling|seedance|seedream|ideogram|nano-banana|minimax|lyria|transcrib|robotics|deep-research|computer-use|guard|moderation|rerank)/i.test(model.model_identifier) ? ["chat"] : []),
     ...(general || roles.includes("planner") ? ["planner"] : []),
     ...(general || roles.includes("worker") || roles.includes("executor") ? ["worker"] : []),
     ...(general || roles.includes("reviewer") ? ["reviewer"] : []),
