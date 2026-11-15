@@ -194,3 +194,10 @@ Record each case as **PASS**, **FAIL**, or **BLOCKED**. For every failure, captu
 - [ ] Verify failed tasks release the full reservation and count reported actual tokens.
 - [ ] Verify repeated finalization never double-counts tokens or releases reservations twice.
 - [ ] Verify subsequent reservations respect the updated daily usage after an overage.
+
+
+### Admin queue monitoring
+- [ ] Verify only authenticated administrators can call the Agent queue overview RPC.
+- [ ] Verify non-admin callers are rejected and no task payload/result is exposed.
+- [ ] Verify queue counts, expired lease count, oldest queued timestamp, and recent job metadata match database rows.
+- [ ] Verify dashboard handles RPC unavailable/permission errors without crashing.
