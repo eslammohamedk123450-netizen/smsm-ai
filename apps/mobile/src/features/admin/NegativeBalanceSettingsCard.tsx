@@ -12,12 +12,16 @@ export function NegativeBalanceSettingsCard() {
   const [notice, setNotice] = useState<string | null>(null);
   useEffect(() => {
     let active = true;
-    void supabase.from("suly_credit_pricing").select("negative_balance_limit").eq("id", 1).maybeSingle()
-      .then(({ data, error: queryError }) => {
+    void (async () => {
+      try {
+        const { data, error: queryError } = await supabase.from("suly_credit_pricing").select("negative_balance_limit").eq("id", 1).maybeSingle();
         if (!active) return;
         if (queryError) setError("تعذر تحميل حد تنبيه الرصيد السالب.");
         else setValue(String(data?.negative_balance_limit ?? 5000));
-      }).finally(() => { if (active) setLoading(false); });
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
     return () => { active = false; };
   }, []);
   const save = async () => {
