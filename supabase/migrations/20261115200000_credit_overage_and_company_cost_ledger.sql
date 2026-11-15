@@ -120,7 +120,7 @@ returns jsonb
 language plpgsql
 security definer
 set search_path = public, pg_temp
-as $
+as $$
 declare
   v_admin uuid := auth.uid();
 begin
@@ -135,7 +135,7 @@ begin
     where id = 1;
   return jsonb_build_object('success', true, 'negative_balance_limit', p_limit);
 end;
-$;
+$$;
 revoke all on function public.suly_admin_update_negative_balance_limit(bigint) from public, anon;
 grant execute on function public.suly_admin_update_negative_balance_limit(bigint) to authenticated;
 
