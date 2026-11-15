@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { actualChargeCredits, actualCostUsd, validateEnabledMediaPrice } from "./cost.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -131,25 +132,36 @@ async function uploadImageToStorage(input: { bytes: Uint8Array; mimeType: string
 async function removeStoredImage(service: SupabaseClient<any, "public", any>, objectKey: string): Promise<void> {
   try { await service.storage.from(MEDIA_BUCKET).remove([objectKey]); } catch { /* best-effort cleanup */ }
 }
-function actualCostUsd(payload: Record<string, unknown>, fallback: number): { value: number; confirmed: boolean } {
-  const usage = asRecord(payload.usage);
-  const candidates = [usage.cost_usd, usage.cost, payload.cost_usd, payload.cost];
-  for (const candidate of candidates) {
-    if (candidate === null || candidate === undefined || candidate === "") continue;
-    const value = Number(candidate);
-    if (Number.isFinite(value) && value >= 0 && value <= 100000) return { value, confirmed: true };
+function providerEndpointAllowed(endpointUrl: string, providerBaseUrl: string): boolean {
+  try {
+    const endpoint = new URL(endpointUrl);
+    const base = new URL(providerBaseUrl);
+    if (
+      endpoint.protocol !== "https:" ||
+      base.protocol !== "https:" ||
+      endpoint.origin !== base.origin ||
+      endpoint.username || endpoint.password ||
+      base.username || base.password ||
+      endpoint.search || endpoint.hash
+    ) return false;
+
+    const host = base.hostname.toLowerCase();
+    if (
+      host === "localhost" ||
+      host.endsWith(".localhost") ||
+      host.endsWith(".local") ||
+      host === "metadata.google.internal" ||
+      host.includes(":") ||
+      /^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)
+    ) return false;
+
+    const basePath = base.pathname.replace(/\/+$/, "");
+    return endpoint.pathname.startsWith(`${basePath}/`);
+  } catch {
+    return false;
   }
-  return { value: fallback, confirmed: false };
 }
-function actualChargeCredits(costUsd: number, price: MediaPrice, costConfirmed: boolean): number {
-  if (!costConfirmed) return price.price_credits;
-  if (price.credit_value_egp > 0 && price.usd_to_egp > 0 && price.target_margin < 1) {
-    const revenueEgp = (costUsd * price.usd_to_egp) / (1 - price.target_margin);
-    const computed = Math.ceil(revenueEgp / price.credit_value_egp);
-    if (Number.isSafeInteger(computed) && computed >= 0) return Math.min(1000000000, computed);
-  }
-  return price.price_credits;
-}
+
 async function callImageProvider(input: {
   model: MediaModel; price: MediaPrice; apiKey: string; prompt: string; quality: string;
 }): Promise<{ bytes: Uint8Array; costUsd: number; costConfirmed: boolean; providerRequestId: string | null }> {
@@ -279,6 +291,16 @@ Deno.serve(async (req: Request) => {
   if (priceError || !price) return json(503, { error: "لم يحدد المشرف سعر هذه الجودة بعد." });
   const typedModel = model as MediaModel;
   const typedPrice = price as MediaPrice;
+  const priceValidation = validateEnabledMediaPrice(typedPrice);
+  if (!priceValidation.valid) {
+    return json(503, { error: "إعدادات سعر هذه الجودة غير مكتملة أو أقل من تكلفة المزود والهامش المحدد." });
+  }
+
+  const { data: provider, error: providerError } = await service.from("ai_providers")
+    .select("base_url,enabled").eq("id", typedModel.provider_id).maybeSingle();
+  if (providerError || !provider?.enabled || !providerEndpointAllowed(typedModel.endpoint_url, provider.base_url)) {
+    return json(503, { error: "عنوان نقطة توليد الصور لا يطابق عنوان المزود الموثوق أو أن المزود غير مفعّل." });
+  }
 
   const { data: apiKey, error: keyError } = await service.rpc("suly_service_get_provider_api_key", { p_provider_id: typedModel.provider_id });
   if (keyError || typeof apiKey !== "string" || !apiKey) return json(503, { error: "مفتاح مزود الصور غير متاح في Vault. راجع إعدادات المزود." });
