@@ -26,7 +26,7 @@ export function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
         toValue: 1,
         duration: 1600,
         easing: Easing.linear,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== "web",
       })
     );
 
