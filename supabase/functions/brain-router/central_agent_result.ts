@@ -59,10 +59,14 @@ export function parseCentralAgentResult(value: unknown): CentralAgentResult | nu
   };
 }
 
-export function toBrainTaskStepRows(taskId: string, agentSteps: Record<string, unknown>[]): Array<Record<string, unknown>> {
+export function toBrainTaskStepRows(
+  taskId: string,
+  agentSteps: Record<string, unknown>[],
+  fallbackStatus: "completed" | "failed" = "completed",
+): Array<Record<string, unknown>> {
   const sourceSteps = agentSteps.length > 0
     ? agentSteps.slice(0, 100)
-    : [{ kind: "final", status: "completed" }];
+    : [{ kind: "final", status: fallbackStatus }];
   return sourceSteps.map((step, index) => {
     const tool = typeof step.tool === "string" ? step.tool.slice(0, 80) : null;
     const kind = typeof step.kind === "string" ? step.kind : "planning";
