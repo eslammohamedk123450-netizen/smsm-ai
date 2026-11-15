@@ -114,6 +114,7 @@ export function SulyModelProfilesAdminCard() {
     {loading ? <ActivityIndicator color={colors.primary} /> : null}
     {error ? <Text style={{ color: colors.error, textAlign: "right" }}>{error}</Text> : null}
     {notice ? <Text style={{ color: colors.success, textAlign: "right" }}>{notice}</Text> : null}
+    <TextInput value={search} onChangeText={setSearch} placeholder="بحث في النماذج الداخلية" placeholderTextColor={colors.textMuted} style={{ color: colors.textPrimary, backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, borderWidth: 1, borderRadius: 9, padding: 10, textAlign: "right" }} />
     {profiles.map((profile) => {
       const profileModels = new Set(mappings.filter((item) => item.profile_key === profile.profile_key && item.enabled).map((item) => item.model_id));
       return <View key={profile.profile_key} style={{ borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 12, gap: 8 }}>
@@ -144,7 +145,6 @@ export function SulyModelProfilesAdminCard() {
         })}
       </View>;
     })}
-    <TextInput value={search} onChangeText={setSearch} placeholder="بحث في النماذج الداخلية" placeholderTextColor={colors.textMuted} style={{ color: colors.textPrimary, backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, borderWidth: 1, borderRadius: 9, padding: 10, textAlign: "right" }} />
     <Text style={{ color: colors.textMuted, fontSize: 9, textAlign: "right" }}>يُعاد استخدام سجل ai_models ومزودي ai_providers الحاليين؛ لا يتم إنشاء كتالوج مزودين مكرر.</Text>
   </View>;
 }
