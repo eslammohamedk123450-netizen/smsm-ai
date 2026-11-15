@@ -2,6 +2,7 @@ import {
   actualChargeCredits,
   actualCostUsd,
   validateEnabledMediaPrice,
+  providerEndpointAllowed,
 } from "./cost.ts";
 
 const validPrice = {
@@ -63,4 +64,37 @@ Deno.test("uses the fixed reservation when provider cost is not confirmed", () =
 Deno.test("settles credits using confirmed USD cost and FX", () => {
   const result = actualChargeCredits(0.25, validPrice, true);
   if (result !== 179) throw new Error(`unexpected settled credits: ${result}`);
+});
+
+Deno.test("accepts an image endpoint under the configured provider base path", () => {
+  if (!providerEndpointAllowed(
+    "https://soal.help/api/v1/images/generations",
+    "https://soal.help/api/v1",
+  )) throw new Error("valid provider image endpoint was rejected");
+});
+
+Deno.test("rejects endpoints on a different host", () => {
+  if (providerEndpointAllowed(
+    "https://attacker.example/api/v1/images/generations",
+    "https://soal.help/api/v1",
+  )) throw new Error("cross-host endpoint was accepted");
+});
+
+Deno.test("rejects insecure and private endpoint URLs", () => {
+  const invalid = [
+    ["http://soal.help/api/v1/images/generations", "https://soal.help/api/v1"],
+    ["https://127.0.0.1/api/v1/images/generations", "https://127.0.0.1/api/v1"],
+    ["https://localhost/api/v1/images/generations", "https://localhost/api/v1"],
+    ["https://soal.help/api/v1/images/generations?redirect=https://evil.example", "https://soal.help/api/v1"],
+  ];
+  for (const [endpoint, base] of invalid) {
+    if (providerEndpointAllowed(endpoint, base)) throw new Error(`unsafe endpoint accepted: ${endpoint}`);
+  }
+});
+
+Deno.test("rejects a path outside the OpenAI Images endpoint", () => {
+  if (providerEndpointAllowed(
+    "https://soal.help/api/v1/admin",
+    "https://soal.help/api/v1",
+  )) throw new Error("non-image endpoint was accepted");
 });
