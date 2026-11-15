@@ -5,7 +5,7 @@ import { readBrainTaskPayload } from "../_shared/brain_task_payload.ts";
 
 declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void };
 
-type QueueJob = { id: string; user_id: string; job_type: string; payload: Record<string, unknown> | null };
+type QueueJob = { id: string; user_id: string; job_type: string; payload: Record<string, unknown> | null; attempt_count: number };
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -73,6 +73,8 @@ async function processJob(
         task_id: task.taskId,
         job_id: task.jobId,
         user_id: task.userId,
+        worker_id: workerId,
+        worker_attempt: job.attempt_count,
         internal_worker: true,
       }),
       signal: controller.signal,
