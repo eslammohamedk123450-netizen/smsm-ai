@@ -2002,6 +2002,7 @@ async function handleRequest(req: Request): Promise<Response> {
       for (const pool of plannerPools) {
         for (const baseCandidate of pool.candidates) {
           if (plannerAttemptCount >= 3) break;
+          if (await checkAgentCancellation()) throw new Error("agent_cancelled");
           plannerAttemptCount += 1;
           const ready = await firstReady(
             [makePlanningCandidate(baseCandidate)],
@@ -2014,6 +2015,7 @@ async function handleRequest(req: Request): Promise<Response> {
           plannerCandidatesUsed.push(ready);
           plannerInputTokens += ready.inputTokens > 0 ? ready.inputTokens : estimateTokens(requestMessages.map((message) => typeof message.content === "string" ? message.content : JSON.stringify(message.content)).join("\n"));
           plannerOutputTokens += ready.outputTokens > 0 ? ready.outputTokens : estimateTokens(collected.content);
+          if (await checkAgentCancellation()) throw new Error("agent_cancelled");
           const decision = parseAgentDecision(collected.content);
           if (decision) {
             const genericConnectorRefusal = (connectorReadCompleted || connectorWriteCompleted)
