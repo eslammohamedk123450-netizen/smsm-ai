@@ -25,6 +25,7 @@ import { buildIndependentTaskPlan, mapWithConcurrency, mergePartAnswers, probeCa
 import { parseAgentDecision, runAgentLoop, type AgentLoopStep, type AgentTool } from "./agent/orchestrator.ts";
 import { prioritizeModelCandidate } from "./agent/model_routing.ts";
 import { isModelEligibleForRequest, modelSupportsRole as supportsModelRole } from "./agent/model_eligibility.ts";
+import { resolveExecutionMode } from "./execution_mode.ts";
 import { getAgentToolsFromDatabase, getRegisteredTool, validateToolInput } from "./agent/tool_registry.ts";
 
 // Native Android/iOS clients do not require CORS. Web access must set WEB_CORS_ORIGIN
@@ -650,7 +651,7 @@ async function handleRequest(req: Request): Promise<Response> {
   const routingMode = body.routing_mode === "manual" || (hasExplicitModel && body.routing_mode !== "auto") ? "manual" : "auto";
   // New clients select Chat or Agent explicitly. Legacy clients remain Agent
   // compatible so existing connected-app requests do not silently lose tools.
-  const executionMode = body.execution_mode === "chat" ? "chat" : "agent";
+  let executionMode: "chat" | "agent" = body.execution_mode === "chat" ? "chat" : "agent";
   const temperatureInput = typeof body.temperature === "number" ? body.temperature : 0.7;
   const temperature = Math.min(2, Math.max(0, temperatureInput));
   const maxTokensInput = typeof body.max_tokens === "number" ? body.max_tokens : 1024;
@@ -761,6 +762,16 @@ async function handleRequest(req: Request): Promise<Response> {
   const mind = internalBrainCall
     ? { intent: "simple_task" as const, maxSources: 1, reason: "internal_brain_worker" }
     : classifyIntent(latestUserMessage);
+  executionMode = resolveExecutionMode({
+    requestedMode: body.execution_mode === "chat" || body.execution_mode === "agent" || body.execution_mode === "auto"
+      ? body.execution_mode
+      : undefined,
+    intent: mind.intent,
+    hasConnectorRequest: Boolean(requestedConnector || requestedMultiReadToolkits),
+    hasAttachments: trustedAttachments.length > 0,
+    requiresLiveSearch: isWebSearchRequest(latestUserMessage),
+    internalBrainCall,
+  });
   const maxOutputChars = outputLimitForRequest(mind.intent, latestUserMessage, maxTokens);
   const streamRequested = body.stream === true;
   let himsActivated = profile.hims_activated === true;
@@ -1004,8 +1015,9 @@ async function handleRequest(req: Request): Promise<Response> {
     routingGroup: model.routing_group,
     allowedRoutingGroups,
   });
+  const requiredModelRole = executionMode === "agent" ? "planner" : "chat";
   const anyCapabilityEligible = healthyModels.some((model: ModelRow) =>
-    isEligibleModel(model, undefined, allowedAutoRoutingGroups));
+    isEligibleModel(model, requiredModelRole, allowedAutoRoutingGroups));
   if (routingMode === "auto" && !anyCapabilityEligible) {
     const labels = [...new Set([
       ...connectorCapabilities.map(capabilityLabel),
@@ -1020,11 +1032,11 @@ async function handleRequest(req: Request): Promise<Response> {
   }
   let candidatesFrom: ModelRow[] = [];
   if (routingMode === "manual") {
-    candidatesFrom = healthyModels.filter((model: ModelRow) => model.id === modelId && isEligibleModel(model));
+    candidatesFrom = healthyModels.filter((model: ModelRow) => model.id === modelId && isEligibleModel(model, requiredModelRole));
   } else {
     // Auto routing always starts with the free race. Paid models are selected only
     // after every free candidate has failed or no usable free candidate exists.
-    const tierFiltered = healthyModels.filter((model: ModelRow) => isEligibleModel(model));
+    const tierFiltered = healthyModels.filter((model: ModelRow) => isEligibleModel(model, requiredModelRole));
     const routeRole: RouteModelAssignment["route_role"] = executionMode === "agent" ? "planner" : "chat";
     candidatesFrom = orderModelsByRoute(tierFiltered.filter(m => m.routing_group === "free_race"), orderedRouteAssignments, routeRole);
   }
