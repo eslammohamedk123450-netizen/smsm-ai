@@ -4,6 +4,23 @@ import * as WebBrowser from "expo-web-browser";
 import { supabase } from "../../lib/supabase/client";
 import { parseAuthCallbackUrl } from "./auth-callback";
 
+const AUTH_REQUEST_TIMEOUT_MS = 20_000;
+const OAUTH_BROWSER_TIMEOUT_MS = 120_000;
+
+function withTimeout<T>(operation: PromiseLike<T>, timeoutMs: number, action: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  return Promise.race([
+    Promise.resolve(operation),
+    new Promise<T>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${action} timed out after ${Math.round(timeoutMs / 1000)} seconds. Please check your connection and try again.`)), timeoutMs);
+    }),
+  ]).finally(() => clearTimeout(timer));
+}
+
+function syncProfileInBackground(user: User): void {
+  void authService.syncProfile(user).catch(() => undefined);
+}
+
 export const EMAIL_LINK_REDIRECT = "suly-agent-ai://auth/callback";
 export const GOOGLE_AUTH_REDIRECT = EMAIL_LINK_REDIRECT;
 
@@ -18,13 +35,13 @@ export interface AuthResult {
 
 export const authService = {
   async getSession(): Promise<Session | null> {
-    const { data, error } = await supabase.auth.getSession();
+    const { data, error } = await withTimeout(supabase.auth.getSession(), AUTH_REQUEST_TIMEOUT_MS, "Loading your session");
     if (error) throw error;
     return data.session;
   },
 
   async sendEmailOtp(email: string): Promise<void> {
-    const { error } = await supabase.auth.signInWithOtp({
+    const { error } = await withTimeout(supabase.auth.signInWithOtp({
       email,
       options: { shouldCreateUser: false },
     });
@@ -32,18 +49,18 @@ export const authService = {
   },
 
   async signInWithPassword(email: string, password: string): Promise<AuthResult> {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await withTimeout(supabase.auth.signInWithPassword({ email, password }), AUTH_REQUEST_TIMEOUT_MS, "Signing in");
     if (error) throw error;
     if (!data.session?.user) throw new Error("Password authentication did not return a session.");
-    await this.syncProfile(data.session.user);
+    syncProfileInBackground(data.session.user);
     return { user: data.user, session: data.session };
   },
 
   async verifyEmailOtp(email: string, token: string): Promise<AuthResult> {
-    const { data, error } = await supabase.auth.verifyOtp({ email, token, type: "email" });
+    const { data, error } = await withTimeout(supabase.auth.verifyOtp({ email, token, type: "email" }), AUTH_REQUEST_TIMEOUT_MS, "Verifying the email code");
     if (error) throw error;
     if (!data.session?.user) throw new Error("Email verification did not return a session.");
-    await this.syncProfile(data.session.user);
+    syncProfileInBackground(data.session.user);
     return { user: data.user, session: data.session };
   },
 
@@ -59,7 +76,7 @@ export const authService = {
   },
 
   async signUp(email: string, password: string, fullName: string): Promise<AuthResult> {
-    const { data, error } = await supabase.auth.signUp({
+    const { data, error } = await withTimeout(supabase.auth.signUp({
       email,
       password,
       options: { data: { full_name: fullName }, emailRedirectTo: getAuthRedirect() },
@@ -72,7 +89,7 @@ export const authService = {
     const redirectTo = Platform.OS === "web"
       ? `${window.location.origin}/auth/callback`
       : GOOGLE_AUTH_REDIRECT;
-    const { data, error } = await supabase.auth.signInWithOAuth({
+    const { data, error } = await withTimeout(supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
         redirectTo,
@@ -82,7 +99,7 @@ export const authService = {
     if (error) throw error;
     if (!data.url) throw new Error("OAuth redirect URL was not returned.");
     if (Platform.OS !== "web") {
-      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+      const result = await withTimeout(WebBrowser.openAuthSessionAsync(data.url, redirectTo), OAUTH_BROWSER_TIMEOUT_MS, "Waiting for Google sign-in");
       if (result.type === "cancel" || result.type === "dismiss") {
         throw new Error("Authentication session was cancelled.");
       }
@@ -93,13 +110,13 @@ export const authService = {
       const params = parseAuthCallbackUrl(result.url);
       if (params.errorDescription) throw new Error(params.errorDescription);
 
-      const current = await supabase.auth.getSession();
+      const current = await withTimeout(supabase.auth.getSession(), AUTH_REQUEST_TIMEOUT_MS, "Checking the Google session");
       if (!current.data.session) {
         if (params.accessToken && params.refreshToken) {
-          const { error: sessionError } = await supabase.auth.setSession({ access_token: params.accessToken, refresh_token: params.refreshToken });
+          const { error: sessionError } = await withTimeout(supabase.auth.setSession({ access_token: params.accessToken, refresh_token: params.refreshToken }), AUTH_REQUEST_TIMEOUT_MS, "Finishing Google sign-in");
           if (sessionError) throw sessionError;
         } else if (params.code) {
-          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(params.code);
+          const { error: exchangeError } = await withTimeout(supabase.auth.exchangeCodeForSession(params.code), AUTH_REQUEST_TIMEOUT_MS, "Finishing Google sign-in");
           if (exchangeError) throw exchangeError;
         } else {
           throw new Error("Google authentication did not return a session.");
@@ -107,10 +124,10 @@ export const authService = {
       }
     }
 
-    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    const { data: sessionData, error: sessionError } = await withTimeout(supabase.auth.getSession(), AUTH_REQUEST_TIMEOUT_MS, "Loading the signed-in session");
     if (sessionError) throw sessionError;
     if (!sessionData.session?.user) throw new Error("Google authentication did not return a session.");
-    await this.syncProfile(sessionData.session.user);
+    syncProfileInBackground(sessionData.session.user);
     return sessionData.session;
   },
 
