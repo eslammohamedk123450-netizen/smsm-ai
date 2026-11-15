@@ -28,9 +28,9 @@ import { randomUUID } from "expo-crypto";
 const STREAMING_ID = "local-streaming-assistant";
 const TASK_SUGGESTIONS = getRotatingSuggestions(Date.now(), 4);
 const DEFAULT_SULY_PROFILES = [
-  { profile_key: "lite" as const, display_name: "SULY Lite", tagline: "للمهام السريعة واليومية", description: "للمحادثات والأسئلة والكتابة والطلبات اليومية الخفيفة.", minimum_subscription_tier: "free" },
-  { profile_key: "pro" as const, display_name: "SULY Pro", tagline: "توازن بين السرعة والذكاء والقدرات", description: "للبرمجة والبحث والتحليل والمهام المتوسطة والمركبة.", minimum_subscription_tier: "pro" },
-  { profile_key: "max" as const, display_name: "SULY Max", tagline: "للمهام المعقدة والتحليل العميق", description: "للتخطيط والتحليل العميق والبرمجة المتقدمة والمهام متعددة الخطوات.", minimum_subscription_tier: "max" },
+  { profile_key: "lite" as const, display_name: "SULY Lite", tagline: "للمهام السريعة واليومية", description: "للمحادثات والأسئلة والكتابة والطلبات اليومية الخفيفة.", icon_key: "zap", minimum_subscription_tier: "free" },
+  { profile_key: "pro" as const, display_name: "SULY Pro", tagline: "توازن بين السرعة والذكاء والقدرات", description: "للبرمجة والبحث والتحليل والمهام المتوسطة والمركبة.", icon_key: "rocket", minimum_subscription_tier: "pro" },
+  { profile_key: "max" as const, display_name: "SULY Max", tagline: "للمهام المعقدة والتحليل العميق", description: "للتخطيط والتحليل العميق والبرمجة المتقدمة والمهام متعددة الخطوات.", icon_key: "diamond", minimum_subscription_tier: "max" },
 ];
 
 export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
@@ -162,7 +162,7 @@ export default function ChatPage() {
       const [tierResult, profileResult, modelResult] = await Promise.all([
         supabase.rpc("suly_effective_subscription_tier", { p_user_id: user.id }),
         supabase.from("suly_profiles").select("subscription_tier").eq("id", user.id).maybeSingle(),
-        supabase.from("suly_model_profiles").select("profile_key,display_name,tagline,description,minimum_subscription_tier").eq("is_active", true).order("sort_order"),
+        supabase.from("suly_model_profiles").select("profile_key,display_name,tagline,description,icon_key,minimum_subscription_tier").eq("is_active", true).order("sort_order"),
       ]);
       if (!active) return;
       const tierValue = typeof tierResult.data === "string" ? tierResult.data : profileResult.data?.subscription_tier ?? user.user_metadata?.subscription_tier ?? "free";
@@ -792,6 +792,7 @@ export default function ChatPage() {
               const locked = (tierRank[subscriptionTier] ?? 0) < (tierRank[profile.minimum_subscription_tier] ?? 3);
               const selected = selectedModelProfile === profile.profile_key;
               return <Pressable key={profile.profile_key} disabled={locked} onPress={() => setSelectedModelProfile(profile.profile_key)} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 18, borderWidth: 1, borderColor: selected ? colors.primary : colors.divider, backgroundColor: selected ? colors.surfaceElevated : colors.surface, opacity: locked ? 0.45 : 1, flexDirection: "row", alignItems: "center", gap: 5 }}>
+                <Ionicons name={profile.icon_key === "diamond" ? "diamond-outline" : profile.icon_key === "rocket" ? "rocket-outline" : "flash-outline"} size={13} color={selected ? colors.primary : colors.textSecondary} />
                 <Text style={{ color: selected ? colors.primary : colors.textSecondary, fontSize: 12, fontWeight: "700" }}>{profile.display_name}</Text>
                 {locked ? <Ionicons name="lock-closed" size={11} color={colors.textMuted} /> : null}
               </Pressable>;
