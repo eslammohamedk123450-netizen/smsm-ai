@@ -42,7 +42,7 @@ begin
       update public.brain_task_contexts
          set status = 'cancelled', updated_at = now()
        where task_id = v_job.task_id and user_id = v_user_id
-         and status in ('queued', 'running');
+         and status = 'running';
 
       update public.brain_task_steps
          set status = 'cancelled'
