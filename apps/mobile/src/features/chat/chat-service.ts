@@ -333,7 +333,7 @@ export const chatService = {
       request_id: options.writeApproval?.requestId ?? retryRequestId(String(inserted.id)),
       messages: history,
       routing_mode: "auto",
-      execution_mode: "agent",
+      execution_mode: "auto",
       stream: true,
       connector_approval_request_id: options.writeApproval?.requestId,
       connector_approval_original_text: options.writeApproval?.originalText,
@@ -364,7 +364,7 @@ export const chatService = {
       request_id: options.requestId ?? randomUUID(),
       messages,
       routing_mode: "auto",
-      execution_mode: "agent",
+      execution_mode: "auto",
       stream: true,
     }, { onChunk: options.onChunk, onTaskUpdate: options.onTaskUpdate, onDone() {} }, options.signal);
   },
