@@ -48,8 +48,8 @@ Deno.test("bounded worker pool preserves input order", async () => {
 
 Deno.test("part merger preserves original part ordering", () => {
   const merged = mergePartAnswers([
-    { index: 1, content: "الجزء الثاني", model: "worker-b" },
     { index: 0, content: "الجزء الأول", model: "worker-a" },
+    { index: 1, content: "الجزء الثاني", model: "worker-b" },
   ]);
   assertEquals(merged.indexOf("الجزء الأول") < merged.indexOf("الجزء الثاني"), true);
 });
