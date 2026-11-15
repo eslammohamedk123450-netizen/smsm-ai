@@ -488,6 +488,22 @@ export const adminService = {
     if (error) throw error;
     return data as { success?: boolean };
   },
+  async updateCreditControls(input: { enabled: boolean; minimum: number; inputRate: number; outputRate: number; negativeBalanceLimit: number }) {
+    await requireAdmin();
+    const values = [input.minimum, input.inputRate, input.outputRate, input.negativeBalanceLimit];
+    if (values.some((value) => !Number.isSafeInteger(value) || value < 0 || value > 1_000_000_000)) {
+      throw new Error("قيم الرصيد وحد الرصيد السالب يجب أن تكون أعدادًا صحيحة بين صفر ومليار.");
+    }
+    const { data, error } = await supabase.rpc("suly_admin_update_credit_controls", {
+      p_enabled: input.enabled,
+      p_minimum_request_credits: input.minimum,
+      p_input_credits_per_1k_tokens: input.inputRate,
+      p_output_credits_per_1k_tokens: input.outputRate,
+      p_negative_balance_limit: input.negativeBalanceLimit,
+    });
+    if (error) throw error;
+    return data as { success?: boolean; negative_balance_limit?: number };
+  },
   async updateNegativeBalanceLimit(limit: number) {
     await requireAdmin();
     if (!Number.isSafeInteger(limit) || limit < 0 || limit > 1_000_000_000) {
