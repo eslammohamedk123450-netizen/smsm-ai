@@ -6,7 +6,6 @@ import { colors } from "../../theme/colors";
 
 type CostRow = { service_type: string; provider_cost_usd: number | null; cost_status: string; user_credits_charged: number; revenue_egp: number | null; provider_cost_egp: number | null; gross_profit_egp: number | null; created_at: string };
 const money = (value: number, currency: string) => `${value.toLocaleString("en-US", { maximumFractionDigits: 2 })} ${currency}`;
-const moneyOrUnknown = (value: number | null, currency: string) => value === null ? "غير متاح" : money(value, currency);
 
 export function SulyFinanceOverviewCard() {
   const [rows, setRows] = useState<CostRow[]>([]);
