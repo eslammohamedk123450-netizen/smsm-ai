@@ -11,6 +11,7 @@ on:
       - "supabase/functions/_shared/agent_task_queue.ts"
       - "supabase/functions/_shared/model_capabilities.ts"
       - "supabase/functions/_shared/intent_classifier.ts"
+      - "supabase/functions/_shared/tavily.ts"
       - "supabase/functions/_shared/ai_request_idempotency.ts"
       - "supabase/functions/ai-router/agent/model_eligibility.ts"
       - "supabase/functions/ai-router/execution_mode.ts"
@@ -28,6 +29,7 @@ on:
       - "supabase/functions/_shared/agent_task_queue.ts"
       - "supabase/functions/_shared/model_capabilities.ts"
       - "supabase/functions/_shared/intent_classifier.ts"
+      - "supabase/functions/_shared/tavily.ts"
       - "supabase/functions/_shared/ai_request_idempotency.ts"
       - "supabase/functions/ai-router/agent/model_eligibility.ts"
       - "supabase/functions/ai-router/execution_mode.ts"
@@ -85,6 +87,7 @@ jobs:
           deno test supabase/functions/ai-router/execution_mode.test.ts
           deno test supabase/functions/_shared/ai_request_idempotency_test.ts
           deno test supabase/functions/_shared/intent_classifier_test.ts
+          deno test supabase/functions/_shared/tavily.test.ts
           deno test supabase/functions/agent-task-scheduler/index.test.ts
           deno test supabase/functions/brain-router/central_agent_result.test.ts
       - name: Typecheck Agent, Brain, and scheduler runtime
