@@ -23,17 +23,18 @@ type Props = {
   onSelect(modelId: number | null): void;
 };
 
-function supportsChat(value: ModelChoice["capabilities_json"]): boolean {
+function supportsChat(value: ModelChoice["capabilities_json"], modelIdentifier: string): boolean {
   let capabilities: Record<string, unknown> = {};
   if (typeof value === "string") {
     try {
       const parsed: unknown = JSON.parse(value);
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) capabilities = parsed as Record<string, unknown>;
-    } catch { return true; }
+    } catch { return false; }
   } else if (value && typeof value === "object" && !Array.isArray(value)) {
     capabilities = value;
   }
-  return capabilities.chat !== false;
+  return capabilities.chat !== false
+    && !/(embed|embedding|whisper|tts|speech|audio|image|imagen|dall-e|flux|stable-diffusion|kling|seedance|seedream|ideogram|nano-banana|minimax|lyria|transcrib|robotics|deep-research|computer-use|guard|moderation|rerank)/i.test(modelIdentifier);
 }
 
 export function AgentModelPickerCard({ role, models, selectedModelId, busy, onSelect }: Props) {
@@ -43,7 +44,7 @@ export function AgentModelPickerCard({ role, models, selectedModelId, busy, onSe
     const query = search.trim().toLocaleLowerCase();
     return models.filter((model) => model.provider_enabled === true && model.enabled
       && model.routing_group !== "disabled" && !model.health?.auto_restricted
-      && supportsChat(model.capabilities_json)
+      && supportsChat(model.capabilities_json, model.model_identifier)
       && `${model.name} ${model.model_identifier} ${model.provider_name}`.toLocaleLowerCase().includes(query));
   }, [models, search]);
   const selectedModel = models.find((model) => model.id === selectedModelId);
