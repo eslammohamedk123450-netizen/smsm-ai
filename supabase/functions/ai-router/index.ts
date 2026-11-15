@@ -1604,7 +1604,7 @@ async function handleRequest(req: Request): Promise<Response> {
   }
   if (!taskPlan || !validateTaskPlan(taskPlan, settings.taskSplitMaxParts)) taskPlan = null;
   const splitParts = taskPlan ? proposedParts : [latestUserMessage];
-  const agentProfiles = executionMode === "agent" && (splitParts.length > 1 || mind.intent === "complex_task" || Boolean(requestedConnector || requestedMultiReadToolkits?.length || internalBrainCall))
+  const agentProfiles = executionMode === "agent"
     ? await loadAgentProfiles(supabase)
     : [];
   const agentProfiles = executionMode === "agent" && (splitParts.length > 1 || mind.intent === "complex_task" || Boolean(requestedConnector || requestedMultiReadToolkits?.length || internalBrainCall))
