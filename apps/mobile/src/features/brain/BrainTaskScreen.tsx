@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { useToast } from "../../components/ui/Toast";
 import { colors } from "../../theme/colors";
-import { runBrainTask, wakeBrainWorker, type BrainTaskResult } from "./brain-service";
+import { cancelBrainTask, runBrainTask, wakeBrainWorker, type BrainTaskResult } from "./brain-service";
 import { getTaskProgress, type TaskSnapshot } from "./task-service";
 
 const TASK_TEMPLATES = [
@@ -21,6 +21,18 @@ export function BrainTaskScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<TaskSnapshot | null>(null);
+  const cancellationRequested = useRef<string | null>(null);
+
+  const cancelQueuedTask = async (jobId: string) => {
+    try {
+      await cancelBrainTask(jobId);
+      cancellationRequested.current = jobId;
+      setProgress((current) => current ? { ...current, status: "cancelled" } : current);
+      show("تم إلغاء المهمة قبل أن يبدأ العامل تنفيذها.", "success");
+    } catch (cause) {
+      show(cause instanceof Error ? cause.message : "تعذر إلغاء المهمة.", "error");
+    }
+  };
 
   const submit = async () => {
     const value = objective.trim();
@@ -36,12 +48,14 @@ export function BrainTaskScreen() {
     setError(null);
     setResult(null);
     setProgress(null);
+    cancellationRequested.current = null;
     try {
       const accepted = await runBrainTask(value);
       let latest: TaskSnapshot | null = null;
       for (let attempt = 0; attempt < 180; attempt += 1) {
         latest = await getTaskProgress(accepted.task_id, accepted.job_id);
         if (latest) setProgress(latest);
+        if (cancellationRequested.current === accepted.job_id || latest?.status === "cancelled") return;
         if (latest?.status === "completed" && latest.result && typeof latest.result.response === "string") {
           setResult({
             task_id: accepted.task_id,
@@ -141,6 +155,11 @@ export function BrainTaskScreen() {
             </View>
           ))}
           {progress.review ? <Text style={styles.review}>المراجعة: {progress.review.verdict}{progress.review.feedback ? ` — ${progress.review.feedback}` : ""}</Text> : null}
+          {progress.status === "queued" && progress.jobId ? (
+            <Pressable onPress={() => void cancelQueuedTask(progress.jobId!)} style={styles.cancelButton} accessibilityRole="button">
+              <Text style={styles.cancelText}>إلغاء المهمة قبل بدء التنفيذ</Text>
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
     </ScrollView>
@@ -180,4 +199,6 @@ const styles = StyleSheet.create({
   stepText: { flex: 1, color: colors.textSecondary, fontSize: 10, textAlign: "right" },
   stepStatus: { color: colors.primary, fontSize: 9, fontWeight: "800" },
   review: { color: colors.textMuted, fontSize: 10, textAlign: "right", lineHeight: 18 },
+  cancelButton: { alignSelf: "flex-end", borderWidth: 1, borderColor: colors.error, borderRadius: 8, paddingVertical: 9, paddingHorizontal: 12 },
+  cancelText: { color: colors.error, fontSize: 10, fontWeight: "800" },
 });
