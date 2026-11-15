@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Image, Linking, Pressable, ScrollView, TextInput, View } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Animated, Easing, Image, Linking, Pressable, ScrollView, TextInput, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { randomUUID } from "expo-crypto";
 import { useRouter } from "expo-router";
@@ -28,6 +28,23 @@ export function ImageStudioScreen() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [result, setResult] = useState<GeneratedImage | null>(null);
+  const breathingScale = useRef(new Animated.Value(1)).current;
+  const resultOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!generating) { breathingScale.setValue(1); return; }
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(breathingScale, { toValue: 1.018, duration: 1250, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      Animated.timing(breathingScale, { toValue: 1, duration: 1250, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [generating, breathingScale]);
+
+  useEffect(() => {
+    if (!result) { resultOpacity.setValue(0); return; }
+    Animated.timing(resultOpacity, { toValue: 1, duration: 420, easing: Easing.out(Easing.ease), useNativeDriver: true }).start();
+  }, [result, resultOpacity]);
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -158,18 +175,18 @@ export function ImageStudioScreen() {
         <View style={{ flexDirection: "row-reverse", justifyContent: "space-between" }}><Text style={{ color: colors.textSecondary }}>الرصيد بعد الحجز</Text><Text style={{ color: remainingAfterReserve !== null && remainingAfterReserve < 0 ? colors.error : colors.textPrimary, fontWeight: "700" }}>{remainingAfterReserve === null ? "—" : remainingAfterReserve.toLocaleString("ar-EG")}</Text></View>
       </View>
       <Pressable disabled={!canGenerate} onPress={() => void generate()} style={{ backgroundColor: colors.primary, borderRadius: 12, padding: 14, opacity: canGenerate ? 1 : 0.45, alignItems: "center" }}>
-        <Text style={{ color: colors.background, fontWeight: "900" }}>{generating ? "جاري تجهيز طلبك…" : "تأكيد وإنشاء الصورة"}</Text>
+        <Text style={{ color: colors.background, fontWeight: "900" }}>{generating ? "جاري تجهيز طلبك…" : result ? "إعادة توليد الصورة" : "تأكيد وإنشاء الصورة"}</Text>
       </Pressable>
       {balance !== null && selectedPrice && balance < estimatedCredits ? <Text style={{ color: colors.error, textAlign: "right", fontSize: 11 }}>رصيدك غير كافٍ لهذا الطلب. اشحن رصيدك للمتابعة.</Text> : null}
     </View>
 
-    {generating ? <View style={{ backgroundColor: colors.surface, borderColor: colors.primary, borderWidth: 1, borderRadius: 16, padding: 24, alignItems: "center", gap: 12 }}>
+    {generating ? <Animated.View style={{ backgroundColor: "#17150D", borderColor: "#D4AF37", borderWidth: 1, borderRadius: 16, padding: 24, alignItems: "center", gap: 12, transform: [{ scale: breathingScale }] }}>
       <ActivityIndicator size="large" color={colors.primary} />
       <Text style={{ color: colors.primary, fontSize: 17, fontWeight: "900" }}>جاري التوليد</Text>
       <Text style={{ color: colors.textSecondary, textAlign: "center", fontSize: 11 }}>نموذج SULY يعمل على إنشاء صورتك. اترك المهمة تكمل.</Text>
-    </View> : null}
+    </Animated.View> : null}
 
-    {result ? <View style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 16, padding: 12, gap: 10 }}>
+    {result ? <Animated.View style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 16, padding: 12, gap: 10, opacity: resultOpacity }}>
       <Text style={{ color: colors.textPrimary, textAlign: "right", fontWeight: "900" }}>الصورة الناتجة</Text>
       <Image source={{ uri: result.url }} resizeMode="contain" style={{ width: "100%", aspectRatio: 1, borderRadius: 12, backgroundColor: colors.surfaceElevated }} />
       <Text style={{ color: colors.textSecondary, textAlign: "right", fontSize: 10 }}>{result.modelName} · {QUALITY_LABELS[result.quality]} · {result.credits} Credits</Text>
@@ -179,6 +196,6 @@ export function ImageStudioScreen() {
         <Pressable onPress={() => router.push("/(protected)/media")} style={{ borderWidth: 1, borderColor: colors.divider, borderRadius: 9, padding: 10 }}><Text style={{ color: colors.textPrimary, fontSize: 11 }}>فتح مكتبتي</Text></Pressable>
         <Pressable disabled={openingChat} onPress={() => void startConversationAboutImage()} style={{ backgroundColor: colors.primary, borderRadius: 9, padding: 10, opacity: openingChat ? 0.55 : 1 }}><Text style={{ color: colors.background, fontSize: 11, fontWeight: "800" }}>{openingChat ? "جارٍ بدء المحادثة…" : "ابدأ محادثة عنها"}</Text></Pressable>
       </View>
-    </View> : null}
+    </Animated.View> : null}
   </ScrollView>;
 }
