@@ -1706,10 +1706,12 @@ async function handleRequest(req: Request): Promise<Response> {
       index: number,
       completedDependencies: ReadonlyMap<string, PartResult> = new Map(),
     ): Promise<PartResult> => {
-      const stepKey = `part-${index + 1}`;
+      const step = taskPlan?.[index];
+      // Model-generated DAGs use model-authored IDs; persist against the exact
+      // workspace/ledger key rather than assuming deterministic part-N IDs.
+      const stepKey = step?.step_id ?? `part-${index + 1}`;
       await updateWorkspaceStep(stepKey, "running");
       await updateTaskLedger(stepKey, "running");
-      const step = taskPlan?.[index];
       const dependencyBrief = (step?.depends_on ?? [])
         .map((dependencyId) => {
           const dependency = completedDependencies.get(dependencyId);
