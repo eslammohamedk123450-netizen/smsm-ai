@@ -11,6 +11,7 @@ type ModelChoice = {
   enabled: boolean;
   provider_enabled?: boolean;
   routing_group: string;
+  task_roles?: string[] | null;
   capabilities_json?: string | Record<string, unknown> | null;
   health: { auto_restricted?: boolean } | null;
 };
@@ -22,6 +23,11 @@ type Props = {
   busy: boolean;
   onSelect(modelId: number | null): void;
 };
+
+function supportsRole(model: ModelChoice, role: "planner" | "summarizer"): boolean {
+  const roles = model.task_roles?.length ? model.task_roles : ["general"];
+  return roles.includes("general") || roles.includes(role);
+}
 
 function supportsChat(value: ModelChoice["capabilities_json"], modelIdentifier: string): boolean {
   let capabilities: Record<string, unknown> = {};
@@ -44,6 +50,7 @@ export function AgentModelPickerCard({ role, models, selectedModelId, busy, onSe
     const query = search.trim().toLocaleLowerCase();
     return models.filter((model) => model.provider_enabled === true && model.enabled
       && model.routing_group !== "disabled" && !model.health?.auto_restricted
+      && supportsRole(model, role)
       && supportsChat(model.capabilities_json, model.model_identifier)
       && `${model.name} ${model.model_identifier} ${model.provider_name}`.toLocaleLowerCase().includes(query));
   }, [models, search]);
