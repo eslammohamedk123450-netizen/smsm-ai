@@ -254,9 +254,14 @@ async function main(req: Request): Promise<Response> {
         }
         return json({ task_id: taskId, job_id: existing.id, status: existing.status, queued: true, route: "brain-router" }, 202);
       }
-      // Keep the original usage reservation intact if the idempotent job lookup
-      // is temporarily unavailable; a retry with the same task ID can recover it.
-      return json({ error: "Could not recover the existing Brain task" }, 503);
+      if (existingError) {
+        // Keep the original usage reservation intact if the idempotent job
+        // lookup is temporarily unavailable; a retry can recover it.
+        return json({ error: "Could not recover the existing Brain task" }, 503);
+      }
+      // A different active job already occupies this user's queue slot.
+      await admin.rpc("brain_finalize_usage", { p_task_id: taskId, p_actual_tokens: 0, p_status: "failed" });
+      return json({ error: "task_in_progress" }, 409);
     }
     if (queueError || !queued) {
       await admin.rpc("brain_finalize_usage", { p_task_id: taskId, p_actual_tokens: 0, p_status: "failed" });
