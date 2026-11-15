@@ -93,6 +93,7 @@ type Candidate = {
   maxTokens: number;
   inputTokens: number;
   outputTokens: number;
+  providerCostEgp: number | null;
 };
 type ReadyCandidate = Candidate & {
   controller: AbortController;
@@ -225,7 +226,7 @@ function capabilityLabel(capability: ModelCapability): string {
 
 async function* readOpenAiStream(
   body: ReadableStream<Uint8Array>,
-  onUsage: (inputTokens: number, outputTokens: number) => void,
+  onUsage: (inputTokens: number | null, outputTokens: number | null, providerCostEgp: number | null) => void,
 ): AsyncGenerator<string> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
@@ -244,10 +245,14 @@ async function* readOpenAiStream(
           if (data) {
             try {
               const parsed = JSON.parse(data);
-              const inputTokens = Number(parsed?.usage?.prompt_tokens ?? parsed?.usage?.input_tokens);
-              const outputTokens = Number(parsed?.usage?.completion_tokens ?? parsed?.usage?.output_tokens);
-              if (Number.isFinite(inputTokens) && inputTokens >= 0 && Number.isFinite(outputTokens) && outputTokens >= 0) {
-                onUsage(Math.floor(inputTokens), Math.floor(outputTokens));
+              const rawInputTokens = Number(parsed?.usage?.prompt_tokens ?? parsed?.usage?.input_tokens);
+              const rawOutputTokens = Number(parsed?.usage?.completion_tokens ?? parsed?.usage?.output_tokens);
+              const rawProviderCostEgp = Number(parsed?.x_billing?.cost_egp);
+              const inputTokens = Number.isFinite(rawInputTokens) && rawInputTokens >= 0 ? Math.floor(rawInputTokens) : null;
+              const outputTokens = Number.isFinite(rawOutputTokens) && rawOutputTokens >= 0 ? Math.floor(rawOutputTokens) : null;
+              const providerCostEgp = Number.isFinite(rawProviderCostEgp) && rawProviderCostEgp >= 0 ? rawProviderCostEgp : null;
+              if (inputTokens !== null || outputTokens !== null || providerCostEgp !== null) {
+                onUsage(inputTokens, outputTokens, providerCostEgp);
               }
               const content = parsed?.choices?.[0]?.delta?.content;
               if (typeof content === "string" && content.length > 0) yield content;
@@ -265,10 +270,14 @@ async function* readOpenAiStream(
       if (data && data !== "[DONE]") {
         try {
           const parsed = JSON.parse(data);
-          const inputTokens = Number(parsed?.usage?.prompt_tokens ?? parsed?.usage?.input_tokens);
-          const outputTokens = Number(parsed?.usage?.completion_tokens ?? parsed?.usage?.output_tokens);
-          if (Number.isFinite(inputTokens) && inputTokens >= 0 && Number.isFinite(outputTokens) && outputTokens >= 0) {
-            onUsage(Math.floor(inputTokens), Math.floor(outputTokens));
+          const rawInputTokens = Number(parsed?.usage?.prompt_tokens ?? parsed?.usage?.input_tokens);
+          const rawOutputTokens = Number(parsed?.usage?.completion_tokens ?? parsed?.usage?.output_tokens);
+          const rawProviderCostEgp = Number(parsed?.x_billing?.cost_egp);
+          const inputTokens = Number.isFinite(rawInputTokens) && rawInputTokens >= 0 ? Math.floor(rawInputTokens) : null;
+          const outputTokens = Number.isFinite(rawOutputTokens) && rawOutputTokens >= 0 ? Math.floor(rawOutputTokens) : null;
+          const providerCostEgp = Number.isFinite(rawProviderCostEgp) && rawProviderCostEgp >= 0 ? rawProviderCostEgp : null;
+          if (inputTokens !== null || outputTokens !== null || providerCostEgp !== null) {
+            onUsage(inputTokens, outputTokens, providerCostEgp);
           }
           const content = parsed?.choices?.[0]?.delta?.content;
           if (typeof content === "string" && content.length > 0) yield content;
@@ -307,13 +316,22 @@ async function openCandidate(candidate: Candidate, controller: AbortController):
       const body = await response.text().catch(() => "");
       throw new Error(`provider_http_${response.status}${body ? `: ${body.slice(0, 300)}` : ""}`);
     }
-    const iterator = readOpenAiStream(response.body, (inputTokens, outputTokens) => {
-      candidate.inputTokens = inputTokens;
-      candidate.outputTokens = outputTokens;
+    let readyCandidate: ReadyCandidate | null = null;
+    const iterator = readOpenAiStream(response.body, (inputTokens, outputTokens, providerCostEgp) => {
+      if (inputTokens !== null) candidate.inputTokens = inputTokens;
+      if (outputTokens !== null) candidate.outputTokens = outputTokens;
+      if (providerCostEgp !== null) candidate.providerCostEgp = providerCostEgp;
+      // Keep the live candidate in sync after the first streamed chunk so
+      // final usage and provider-reported EGP costs survive the shallow copy.
+      if (readyCandidate) {
+        if (inputTokens !== null) readyCandidate.inputTokens = inputTokens;
+        if (outputTokens !== null) readyCandidate.outputTokens = outputTokens;
+        if (providerCostEgp !== null) readyCandidate.providerCostEgp = providerCostEgp;
+      }
     });
     const first = await iterator.next();
     if (first.done || !first.value) throw new Error("provider returned no text");
-    return {
+    readyCandidate = {
       ...candidate,
       controller,
       iterator,
@@ -322,6 +340,7 @@ async function openCandidate(candidate: Candidate, controller: AbortController):
       firstChunkAtMs: Date.now(),
       cleanup: () => clearTimeout(timeoutId),
     };
+    return readyCandidate;
   } catch (error) {
     clearTimeout(timeoutId);
     controller.abort();
@@ -1166,7 +1185,7 @@ async function handleRequest(req: Request): Promise<Response> {
     const apiKey = providerKeys.get(model.provider_id);
     const endpoint = safeChatEndpoint(provider?.base_url);
     if (!provider || !provider.enabled || !apiKey || !endpoint) return [];
-    return [{ model, provider, apiKey, endpoint, requestMessages: providerMessagesForModel(messages, trustedAttachments), temperature, maxTokens, inputTokens: 0, outputTokens: 0 }];
+    return [{ model, provider, apiKey, endpoint, requestMessages: providerMessagesForModel(messages, trustedAttachments), temperature, maxTokens, inputTokens: 0, outputTokens: 0, providerCostEgp: null }];
   });
 
   const usableInitial = makeCandidates(candidatesFrom);
@@ -1353,9 +1372,41 @@ async function handleRequest(req: Request): Promise<Response> {
       return { status: "pending", task_id: billingTaskId, requested_cost: actualCost };
     }
     const result = asRecord(data);
-    return result.success === true
-      ? { ...result, status: "settled", task_id: billingTaskId, input_tokens: inputTokens, output_tokens: outputTokens }
-      : { status: "pending", task_id: billingTaskId, requested_cost: actualCost };
+    if (result.success !== true) return { status: "pending", task_id: billingTaskId, requested_cost: actualCost };
+
+    if (candidate && billForAttempt) {
+      const providerCostEgp = candidate.providerCostEgp;
+      const { error: ledgerError } = await supabase.from("suly_company_cost_ledger").upsert({
+        request_id: billingTaskId,
+        user_id: user.id,
+        service_type: "chat",
+        provider_id: candidate.model.provider_id,
+        model_id: candidate.model.id,
+        provider_model_identifier: candidate.model.model_identifier,
+        provider_cost_usd: null,
+        cost_status: providerCostEgp === null ? "unknown" : "confirmed_egp",
+        user_credits_charged: actualCost,
+        credit_value_egp: null,
+        usd_to_egp: null,
+        revenue_egp: null,
+        provider_cost_egp: providerCostEgp,
+        other_cost_egp: 0,
+        gross_profit_egp: null,
+        price_version: null,
+        metadata: {
+          input_tokens: inputTokens,
+          output_tokens: outputTokens,
+          provider_cost_currency: providerCostEgp === null ? null : "EGP",
+          provider_cost_source: providerCostEgp === null ? "not_reported_by_provider" : "provider_response.x_billing.cost_egp",
+          execution_mode: executionMode,
+          suly_profile: selectedProfileKey,
+          billing_source: source,
+        },
+      }, { onConflict: "request_id", ignoreDuplicates: true });
+      if (ledgerError) console.error("Could not record provider cost ledger entry.", ledgerError.code ?? "database_error");
+    }
+
+    return { ...result, status: "settled", task_id: billingTaskId, input_tokens: inputTokens, output_tokens: outputTokens };
   };
 
   // Global semantic cache: a sufficiently similar earlier answer is served
