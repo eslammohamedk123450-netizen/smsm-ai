@@ -1,10 +1,8 @@
 name: Build Android APK (GitHub)
 
 on:
-  # Build a test APK whenever the agent-worker development branch changes.
-  push:
-    branches:
-      - feat/agent-worker-brain-queue
+  # APKs are expensive to build and download. Build only when explicitly requested
+  # after the development branch is ready for a consolidated device-test cycle.
   workflow_dispatch:
 
 permissions:
