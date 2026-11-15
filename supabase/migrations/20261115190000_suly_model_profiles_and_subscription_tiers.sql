@@ -69,6 +69,28 @@ alter table public.ai_models
   add constraint ai_models_allowed_tiers_check
   check (allowed_tiers <@ array['free','lite','pro','max']::text[]);
 
+update public.subscription_plans
+set name = case tier_key
+    when 'free' then 'SULY Lite Free'
+    when 'lite' then 'SULY Lite'
+    when 'pro' then 'SULY Pro'
+    when 'max' then 'SULY Max'
+    else name
+  end,
+  description = case tier_key
+    when 'free' then 'SULY Lite مجانًا للمهام السريعة واليومية مع حدود استخدام أساسية.'
+    when 'lite' then 'SULY Lite المدفوع للمهام اليومية مع حدود استخدام ورصيد أكبر.'
+    when 'pro' then 'SULY Pro: توازن بين السرعة والذكاء والقدرات للبرمجة والبحث والتحليل.'
+    when 'max' then 'SULY Max: للمهام المعقدة والتحليل العميق والبرمجة المتقدمة مع سياق أطول.'
+    else description
+  end,
+  updated_at = now()
+where tier_key in ('free','lite','pro','max');
+
+update public.subscription_plans
+set name = 'SULY Ultra (Retired)', updated_at = now()
+where is_active = false and tier_key = 'max' and id = 5;
+
 create table if not exists public.suly_model_profiles (
   profile_key text primary key check (profile_key in ('lite', 'pro', 'max')),
   display_name text not null check (length(btrim(display_name)) between 1 and 80),
