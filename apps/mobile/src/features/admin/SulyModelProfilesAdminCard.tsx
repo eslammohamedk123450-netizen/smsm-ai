@@ -150,7 +150,6 @@ export function SulyModelProfilesAdminCard() {
           ["multi_step_agent", "تنفيذ المهام متعددة الخطوات"],
           ["advanced_reasoning", "التحليل والاستدلال المتقدم"],
           ["extended_context", "سياق أطول"],
-          ["priority_execution", "أولوية التنفيذ"],
         ].map(([key, label]) => <View key={key} style={{ flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between" }}>
           <Text style={{ color: colors.textSecondary, fontSize: 11 }}>{label}</Text>
           <Switch value={profile.capabilities_json?.[key] === true} onValueChange={(value) => updateProfile(profile.profile_key, { capabilities_json: { ...(profile.capabilities_json ?? {}), [key]: value } })} />
