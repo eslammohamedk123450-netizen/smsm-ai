@@ -763,7 +763,7 @@ export function AgentsAdminScreen() {
   const [name, setName] = useState("");
   const [prompt, setPrompt] = useState("");
   const [chain, setChain] = useState<string[]>([]);
-  const [role, setRole] = useState<"planner" | "thinker" | "worker" | "reviewer" | "coordinator">("worker");
+  const [role, setRole] = useState<"planner" | "thinker" | "worker" | "reviewer" | "summarizer" | "coordinator">("worker");
   const [modelSearch, setModelSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -788,7 +788,7 @@ export function AgentsAdminScreen() {
     finally { setBusy(false); }
   };
   const toggleModel = (id: string) => setChain((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
-  const roleLabel = role === "planner" ? "العقل المخطط" : role === "thinker" ? "العقل المفكر" : role === "reviewer" ? "المراجع" : role === "coordinator" ? "المنسق" : "عامل متخصص";
+  const roleLabel = role === "planner" ? "العقل المخطط" : role === "thinker" ? "العقل المفكر" : role === "reviewer" ? "المراجع" : role === "summarizer" ? "الملخّص" : role === "coordinator" ? "المنسق" : "عامل متخصص";
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <PageHeader title="إدارة المساعدين" />
     <Text style={styles.explainer}>أضف العقل والمراجع والمساعدين المتخصصين وحدد تعليماتهم وسلسلة نماذج غير محدودة عملياً حسب الأولوية.</Text>
