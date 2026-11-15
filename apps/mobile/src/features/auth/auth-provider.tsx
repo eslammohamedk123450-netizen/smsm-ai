@@ -42,8 +42,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     void authService.getSession().then(applySession).catch(() => {
-      if (!active) return;
-      // A transient session-read failure must not erase a persisted user session.
+      if (!active || currentUserId) return;
+      // A transient session-read failure must not erase a session already restored by an auth event.
       applySession(null);
     });
 
