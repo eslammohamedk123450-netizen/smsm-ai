@@ -289,13 +289,9 @@ Deno.serve(async (req: Request) => {
       size_bytes: generated.bytes.byteLength, original_filename: `suly-image.${format.extension}`,
       metadata: {
         kind: "image", format: format.format, generated: true, prompt,
-        public_model_name: typedModel.display_name, generation_provider_id: typedModel.provider_id,
-        generation_model_id: typedModel.id, provider_model_identifier: typedModel.model_identifier,
-        model_identifier: typedModel.model_identifier, quality, resolution: typedPrice.resolution,
+        public_model_name: typedModel.display_name, quality, resolution: typedPrice.resolution,
         estimated_credits: typedPrice.price_credits, charged_credits: actualCredits,
-        provider_cost_usd: generated.costUsd, provider_cost_status: generated.costConfirmed ? "confirmed" : "estimated",
-        provider_request_id: generated.providerRequestId, price_version: typedPrice.price_version, request_id: requestId,
-        source: studioRequest ? "image_studio" : "chat",
+        request_id: requestId, source: studioRequest ? "image_studio" : "chat",
       },
       delivery_type: "authenticated", conversation_id: studioRequest ? null : conversationId, message_id: assistantMessageId, support_ticket_id: null,
     });
@@ -326,9 +322,8 @@ Deno.serve(async (req: Request) => {
     if (!studioRequest) await service.from("suly_conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId).eq("user_id", userId);
     return json(200, {
       success: true, request_id: requestId, message_id: assistantMessageId, media_id: imageId,
-      model: typedModel.display_name, model_identifier: typedModel.model_identifier,
+      model: typedModel.display_name,
       estimated_credits: typedPrice.price_credits, charged_credits: actualCredits,
-      provider_cost_usd: generated.costUsd, provider_cost_status: generated.costConfirmed ? "confirmed" : "estimated",
       billing_status: creditsSettled ? "settled" : "pending_reconciliation",
     });
   } catch (error) {
