@@ -40,6 +40,31 @@ export interface AgentConfig {
   updated_at: string;
 }
 
+export interface AgentTaskQueueOverview {
+  queued_count: number;
+  running_count: number;
+  completed_count: number;
+  failed_count: number;
+  cancelled_count: number;
+  expired_lease_count: number;
+  oldest_queued_at: string | null;
+  generated_at: string | null;
+  recent_jobs: Array<{
+    id: string;
+    user_id: string;
+    job_type: string;
+    status: "queued" | "running" | "completed" | "failed" | "cancelled";
+    priority: number;
+    attempt_count: number;
+    max_attempts: number;
+    created_at: string;
+    updated_at: string;
+    started_at: string | null;
+    completed_at: string | null;
+    error_code: string | null;
+  }>;
+}
+
 export interface HimsActivationCode {
   id: string;
   feature_key: string;
@@ -564,6 +589,26 @@ export const adminService = {
     const { error } = await supabase.from("system_settings").upsert(toUpdate, { onConflict: "key" });
     if (error) throw error;
   },
+  async getAgentTaskOverview(): Promise<AgentTaskQueueOverview> {
+    await requireAdmin();
+    const { data, error } = await supabase.rpc("suly_admin_agent_task_overview");
+    if (error) throw new Error("تعذر تحميل مراقبة مهام الوكيل. تحقق من نشر ترحيل لوحة الإدارة.");
+    const row = (Array.isArray(data) ? data[0] : data) ?? {};
+    const count = (key: string) => Math.max(0, Number(row[key] ?? 0));
+    const recentJobs = Array.isArray(row.recent_jobs) ? row.recent_jobs : [];
+    return {
+      queued_count: count("queued_count"),
+      running_count: count("running_count"),
+      completed_count: count("completed_count"),
+      failed_count: count("failed_count"),
+      cancelled_count: count("cancelled_count"),
+      expired_lease_count: count("expired_lease_count"),
+      oldest_queued_at: typeof row.oldest_queued_at === "string" ? row.oldest_queued_at : null,
+      generated_at: typeof row.generated_at === "string" ? row.generated_at : null,
+      recent_jobs: recentJobs.filter((job: any) => job && typeof job.id === "string").slice(0, 20),
+    };
+  },
+
   async getAgents(): Promise<AgentConfig[]> {
     await requireAdmin();
     const { data, error } = await supabase.from("agent_registry")
