@@ -10,6 +10,7 @@
 // and never written to a column readable by `authenticated`.
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { handleCorsPreflight, withCors } from "../_shared/cors.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -166,7 +167,7 @@ async function insertMissingModels(
   return { created: rows.length, failed: null };
 }
 
-Deno.serve(async (request: Request): Promise<Response> => {
+async function handleSyncModelsRequest(request: Request): Promise<Response>: Promise<Response> => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (request.method !== "POST") return jsonResponse({ error: "Method not allowed." }, 405);
 
@@ -290,4 +291,12 @@ Deno.serve(async (request: Request): Promise<Response> => {
     created: insertion.created,
     warning: insertion.failed ?? discovery.warning,
   });
+}
+
+Deno.serve(async (request: Request) => {
+  const configuredOrigins = Deno.env.get("WEB_CORS_ORIGIN") ?? "";
+  const preflight = handleCorsPreflight(request, configuredOrigins);
+  if (preflight) return preflight;
+  const response = await handleSyncModelsRequest(request);
+  return withCors(request, response, configuredOrigins);
 });
