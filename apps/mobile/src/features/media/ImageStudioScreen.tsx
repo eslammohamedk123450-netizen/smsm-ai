@@ -7,7 +7,8 @@ import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { colors } from "../../theme/colors";
 import { supabase } from "../../lib/supabase/client";
 import { getCurrentCreditBalance } from "../credits/credit-service";
-import { getMediaDeliveryUrl } from "../media/media-service";
+import { getMediaDeliveryUrl, type MediaAsset } from "../media/media-service";
+import { chatService } from "../chat/chat-service";
 
 type Model = { id: string; display_name: string; model_identifier: string; allowed_tiers: string[]; supported_qualities: string[]; is_default: boolean };
 type Price = { generation_model_id: string; quality: string; price_credits: number; resolution: string; enabled: boolean };
@@ -24,6 +25,7 @@ export function ImageStudioScreen() {
   const [balance, setBalance] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [openingChat, setOpeningChat] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [result, setResult] = useState<GeneratedImage | null>(null);
@@ -94,6 +96,42 @@ export function ImageStudioScreen() {
     setNotice("تم نسخ رابط الصورة.");
   };
 
+  const startConversationAboutImage = async () => {
+    if (!result || openingChat) return;
+    setOpeningChat(true); setError(null);
+    try {
+      const conversation = await chatService.createConversation("محادثة حول صورة من استوديو الصور");
+      const { data: row, error: assetError } = await supabase.from("global_media_assets")
+        .select("id,mime_type,size_bytes,original_filename,created_at,metadata")
+        .eq("id", result.id).eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "")
+        .maybeSingle();
+      if (assetError || !row) throw new Error("تعذر تحميل بيانات الصورة لربطها بالمحادثة.");
+      const metadata = row.metadata && typeof row.metadata === "object" ? row.metadata as Record<string, unknown> : {};
+      const attachment: MediaAsset = {
+        id: result.id, featureKey: "chat", url: result.url,
+        mimeType: typeof row.mime_type === "string" ? row.mime_type : null,
+        sizeBytes: Number(row.size_bytes ?? 0),
+        filename: typeof row.original_filename === "string" ? row.original_filename : "SULY generated image",
+        kind: "image", createdAt: String(row.created_at ?? new Date().toISOString()),
+        width: typeof metadata.width === "number" ? metadata.width : null,
+        height: typeof metadata.height === "number" ? metadata.height : null,
+        durationSeconds: null, metadata,
+      };
+      await chatService.sendMessage({
+        conversationId: conversation.id,
+        content: "حلّل الصورة التي أنشأتها للتو. صف عناصرها وأسلوبها، واذكر اقتراحات عملية لتحسينها أو تطويرها.",
+        modelProfileKey: selectedModelProfile,
+        mediaAsset: attachment,
+        signal: new AbortController().signal,
+        onUserSaved: () => undefined,
+        onChunk: () => undefined,
+      });
+      router.push("/(protected)/chat");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر بدء محادثة حول الصورة.");
+    } finally { setOpeningChat(false); }
+  };
+
   return <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: 16, gap: 14, maxWidth: 1000, width: "100%", alignSelf: "center" }} keyboardShouldPersistTaps="handled">
     <View style={{ gap: 4 }}>
       <Text style={{ color: colors.primary, textAlign: "right", fontSize: 11, fontWeight: "800" }}>SULY CREATIVE</Text>
@@ -147,7 +185,7 @@ export function ImageStudioScreen() {
         <Pressable onPress={() => void Linking.openURL(result.url)} style={{ borderWidth: 1, borderColor: colors.divider, borderRadius: 9, padding: 10 }}><Text style={{ color: colors.textPrimary, fontSize: 11 }}>فتح / تنزيل الصورة</Text></Pressable>
         <Pressable onPress={() => void copyResultLink()} style={{ borderWidth: 1, borderColor: colors.divider, borderRadius: 9, padding: 10 }}><Text style={{ color: colors.textPrimary, fontSize: 11 }}>نسخ رابط الصورة</Text></Pressable>
         <Pressable onPress={() => router.push("/(protected)/media")} style={{ borderWidth: 1, borderColor: colors.divider, borderRadius: 9, padding: 10 }}><Text style={{ color: colors.textPrimary, fontSize: 11 }}>فتح مكتبتي</Text></Pressable>
-        <Pressable onPress={() => router.push("/(protected)/chat")} style={{ backgroundColor: colors.primary, borderRadius: 9, padding: 10 }}><Text style={{ color: colors.background, fontSize: 11, fontWeight: "800" }}>ابدأ محادثة عنها</Text></Pressable>
+        <Pressable disabled={openingChat} onPress={() => void startConversationAboutImage()} style={{ backgroundColor: colors.primary, borderRadius: 9, padding: 10, opacity: openingChat ? 0.55 : 1 }}><Text style={{ color: colors.background, fontSize: 11, fontWeight: "800" }}>{openingChat ? "جارٍ بدء المحادثة…" : "ابدأ محادثة عنها"}</Text></Pressable>
       </View>
     </View> : null}
   </ScrollView>;
