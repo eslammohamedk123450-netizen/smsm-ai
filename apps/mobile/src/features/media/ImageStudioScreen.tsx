@@ -44,7 +44,10 @@ export function ImageStudioScreen() {
         ? await supabase.from("suly_profiles").select("subscription_tier").eq("id", userData.user.id).maybeSingle()
         : { data: null };
       const tier = String(profile?.subscription_tier ?? "free");
-      const allowed = ((modelResult.data ?? []) as Model[]).filter((model) => model.allowed_tiers.includes(tier));
+      const tierRank: Record<string, number> = { free: 0, lite: 1, pro: 2, max: 3 };
+      const userRank = tierRank[tier] ?? 0;
+      const allowed = ((modelResult.data ?? []) as Model[]).filter((model) =>
+        model.allowed_tiers.some((allowedTier) => tierRank[allowedTier] !== undefined && tierRank[allowedTier] <= userRank));
       setModels(allowed);
       setPrices((priceResult.data ?? []) as Price[]);
       setSelectedModelId((current) => current && allowed.some((model) => model.id === current) ? current : allowed[0]?.id ?? null);
