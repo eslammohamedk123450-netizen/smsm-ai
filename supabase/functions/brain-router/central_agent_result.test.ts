@@ -73,3 +73,9 @@ Deno.test("failed central Agent responses retain provider usage without a final 
   assertEquals(result?.inputTokens, 250);
   assertEquals(result?.outputTokens, 0);
 });
+
+Deno.test("delegated worker steps receive clear progress descriptions", () => {
+  const rows = toBrainTaskStepRows("task-4", [{ kind: "worker", status: "completed" }]);
+  assertEquals(rows[0].description, "تنفيذ الجزء 1 بواسطة Worker");
+  assertEquals(rows[0].capability_key, "text");
+});
