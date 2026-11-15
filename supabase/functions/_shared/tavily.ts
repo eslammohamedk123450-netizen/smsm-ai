@@ -11,10 +11,10 @@ export async function readTavilyApiKey(supabase: { rpc: Function }): Promise<str
 }
 
 export function isWebSearchRequest(text: string): boolean {
-  // Keep live-search routing explicit. Broad phrases such as "معلومات عن" or
-  // "حديث" commonly appear in ordinary educational questions and should not
-  // force a tool-backed Agent hop.
-  return /\\b(search(?:\\s+(?:for|the web|online))?|browse|web search|internet search|online search|news|latest|recent|today|right now|look up|research|find current)\\b|ابحث|دور على|على النت|على الإنترنت|أخبار|آخر الأخبار|الأخبار|اليوم|حاليًا|الآن|مصادر متعددة|في جوجل|على جوجل/iu.test(text);
+  // Explicit search verbs, news/freshness terms, or direct Arabic search
+  // requests trigger live search. Generic mentions of the internet or
+  // "معلومات عن" stay on the normal chat path.
+  return /\\b(search|browse|news|latest|recent|today|right now|look up|research|find out)\\b|ابحث|دور على|على النت|على الإنترنت|أخبار|آخر الأخبار|الأخبار|اليوم|حاليًا|الآن|مصادر متعددة|في جوجل|على جوجل/iu.test(text);
 }
 
 export async function runTavilySearch(apiKey: string, query: string): Promise<JsonRecord> {
