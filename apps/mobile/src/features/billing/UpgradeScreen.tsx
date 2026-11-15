@@ -30,7 +30,7 @@ export default function UpgradeScreen() {
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
-    const [plansResult, featuresResult, tierResult] = await Promise.all([
+    let [plansResult, featuresResult, tierResult] = await Promise.all([
       supabase.from("subscription_plans").select("id,name,tier_key,description,price,currency,billing_period,daily_credits,max_requests,sort_order").eq("is_active", true).order("sort_order").limit(20),
       supabase.from("subscription_plan_features").select("id,plan_id,title,value,sort_order").eq("is_active", true).order("sort_order").limit(200),
       user ? supabase.rpc("suly_effective_subscription_tier", { p_user_id: user.id }) : Promise.resolve({ data: "free", error: null }),
