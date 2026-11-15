@@ -115,6 +115,33 @@ $$;
 revoke all on function public.finalize_credits(uuid, uuid, bigint, integer, integer, integer, text) from public, anon, authenticated;
 grant execute on function public.finalize_credits(uuid, uuid, bigint, integer, integer, integer, text) to service_role;
 
+create or replace function public.suly_admin_update_negative_balance_limit(p_limit bigint)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $
+declare
+  v_admin uuid := auth.uid();
+begin
+  if v_admin is null or not public.suly_is_admin() then
+    raise exception 'administrator privileges required' using errcode = '42501';
+  end if;
+  if p_limit is null or p_limit < 0 or p_limit > 1000000000 then
+    raise exception 'negative balance alert threshold is invalid' using errcode = '22023';
+  end if;
+  update public.suly_credit_pricing
+    set negative_balance_limit = p_limit, updated_by = v_admin, updated_at = now()
+    where id = 1;
+  insert into public.admin_audit_logs(admin_id, action, target_table, target_id, new_value, created_at)
+  values (v_admin, 'negative_balance_alert_threshold_updated', 'suly_credit_pricing', '1',
+    jsonb_build_object('negative_balance_limit', p_limit), now());
+  return jsonb_build_object('success', true, 'negative_balance_limit', p_limit);
+end;
+$;
+revoke all on function public.suly_admin_update_negative_balance_limit(bigint) from public, anon;
+grant execute on function public.suly_admin_update_negative_balance_limit(bigint) to authenticated;
+
 create table if not exists public.suly_company_cost_ledger (
   id uuid primary key default gen_random_uuid(),
   request_id uuid not null unique,
