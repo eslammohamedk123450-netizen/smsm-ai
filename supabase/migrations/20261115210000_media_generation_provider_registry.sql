@@ -97,7 +97,7 @@ language plpgsql
 stable
 security definer
 set search_path = public, pg_temp
-as $
+as $$
 declare
   v_user_id uuid := auth.uid();
   v_tier text;
@@ -127,7 +127,7 @@ begin
   having count(price.id) > 0
   order by model.is_default desc, model.display_name;
 end;
-$;
+$$;
 
 revoke all on function public.suly_list_public_image_models() from public, anon;
 grant execute on function public.suly_list_public_image_models() to authenticated;
