@@ -11,7 +11,7 @@ export function mapAuthError(error: unknown): string {
     return "تم إلغاء تسجيل الدخول باستخدام Google.";
   }
 
-  if (normalized.includes("not confirmed") || normalized.includes("email_not_confirmed") || normalized.includes("email not confirmed")) {
+  if (normalized.includes("timed out") || normalized.includes("timeout") || normalized.includes("request_timeout") || normalized.includes("504")) {\n    return "استغرق الاتصال بخدمة المصادقة وقتًا أطول من المتوقع. قد يكون الطلب اكتمل بالفعل؛ افحص بريدك أو جرّب تسجيل الدخول قبل إنشاء الحساب مرة أخرى.";\n  }\n  if (normalized.includes("not confirmed") || normalized.includes("email_not_confirmed") || normalized.includes("email not confirmed")) {
     return "لم يتم تأكيد هذا البريد الإلكتروني بعد. تحقّق من رسالة التأكيد في بريدك ثم حاول مجددًا.";
   }
   if (
