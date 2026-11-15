@@ -93,8 +93,22 @@ begin
    where id = p_job_id and task_id = p_task_id and user_id = p_user_id
    for update;
 
-  if not found or v_job.status not in ('running', 'cancelled') then
+  if not found then
     raise exception 'agent_job_not_found_or_not_active' using errcode = 'P0002';
+  end if;
+  if v_job.status not in ('running', 'cancelled')
+    and not (
+      p_usage_status in ('partial', 'completed')
+      and exists (
+        select 1 from public.agent_step_usage existing_usage
+         where existing_usage.task_id = p_task_id
+           and existing_usage.step_key = p_step_key
+           and existing_usage.attempt_no = p_attempt_no
+           and existing_usage.model_call_key = p_model_call_key
+           and existing_usage.usage_status in ('unknown', 'partial')
+      )
+    ) then
+    raise exception 'agent_job_not_active_for_new_usage' using errcode = 'P0002';
   end if;
 
   insert into public.agent_step_usage (
