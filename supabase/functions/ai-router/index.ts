@@ -1893,9 +1893,18 @@ async function handleRequest(req: Request): Promise<Response> {
       "web.search": isWebSearchRequest(latestUserMessage),
     });
     const taskUpdates: Array<{ task: string; status: "pending" | "running" | "completed" | "failed" }> = [];
-    const freePlanPool = orderCandidatesByRoute(raceCandidates.filter((candidate) => modelSupportsRole(candidate.model, "planner")), orderedRouteAssignments, "planner");
-    const freeSummarizerPool = orderCandidatesByRoute(raceCandidates.filter((candidate) => modelSupportsRole(candidate.model, "summarizer")), orderedRouteAssignments, "summarizer");
-    const freeReviewerPool = orderCandidatesByRoute(raceCandidates.filter((candidate) => modelSupportsRole(candidate.model, "reviewer")), orderedRouteAssignments, "reviewer");
+    const freePlanPool = prioritizeAgentProfileCandidates(
+      orderCandidatesByRoute(raceCandidates.filter((candidate) => modelSupportsRole(candidate.model, "planner")), orderedRouteAssignments, "planner"),
+      [selectAgentProfile(agentProfiles, "planner"), selectAgentProfile(agentProfiles, "coordinator")].filter((profile) => profile !== null),
+    );
+    const freeSummarizerPool = prioritizeAgentProfileCandidates(
+      orderCandidatesByRoute(raceCandidates.filter((candidate) => modelSupportsRole(candidate.model, "summarizer")), orderedRouteAssignments, "summarizer"),
+      selectAgentProfile(agentProfiles, "summarizer"),
+    );
+    const freeReviewerPool = prioritizeAgentProfileCandidates(
+      orderCandidatesByRoute(raceCandidates.filter((candidate) => modelSupportsRole(candidate.model, "reviewer")), orderedRouteAssignments, "reviewer"),
+      selectAgentProfile(agentProfiles, "reviewer"),
+    );
     let paidPlanPool: Candidate[] = [];
     if (routingMode === "auto" && settings.paidFallbackEnabled) {
       const paidModels: ModelRow[] = healthyModels
@@ -1909,7 +1918,10 @@ async function handleRequest(req: Request): Promise<Response> {
         if (!error && typeof data === "string" && data.length > 0) providerKeys.set(providerId, data);
       }));
       await recordPreflightProblems(orderedPaidModels);
-      paidPlanPool = makeCandidates(orderedPaidModels);
+      paidPlanPool = prioritizeAgentProfileCandidates(
+        makeCandidates(orderedPaidModels),
+        [selectAgentProfile(agentProfiles, "planner"), selectAgentProfile(agentProfiles, "coordinator")].filter((profile) => profile !== null),
+      );
     }
 
     const preferredGmailModelId = connectorRequest?.toolkit === "gmail" || requestedMultiReadToolkits?.includes("gmail") ? settings.gmailTaskModelId : null;
@@ -2218,8 +2230,8 @@ async function handleRequest(req: Request): Promise<Response> {
     // Shared with the reviewer retry below, including when initial summarization is skipped.
     const summarizerModelId = settings.agentSummarizerModelId ?? plannerCandidatesUsed.at(-1)?.model.id ?? preferredGmailModelId;
     const summarizerPools = [
-      { candidates: prioritizeModelCandidate(freeSummarizerPool, summarizerModelId), timeoutMs: settings.freeRaceTimeoutMs },
-      { candidates: prioritizeModelCandidate(paidPlanPool.filter((candidate) => modelSupportsRole(candidate.model, "summarizer")), summarizerModelId), timeoutMs: settings.paidFallbackTimeoutMs },
+      { candidates: prioritizeModelCandidate(prioritizeAgentProfileCandidates(freeSummarizerPool, selectAgentProfile(agentProfiles, "summarizer")), summarizerModelId), timeoutMs: settings.freeRaceTimeoutMs },
+      { candidates: prioritizeModelCandidate(prioritizeAgentProfileCandidates(paidPlanPool.filter((candidate) => modelSupportsRole(candidate.model, "summarizer")), selectAgentProfile(agentProfiles, "summarizer")), summarizerModelId), timeoutMs: settings.paidFallbackTimeoutMs },
     ];
     if (loopResult.status === "completed" && !operationalReply && !connectorWriteCompleted && agentEvidence.length > 0) {
       const summarizerTask = "مراجعة نتائج القراءة وصياغة الإجابة";
@@ -2278,8 +2290,8 @@ async function handleRequest(req: Request): Promise<Response> {
     let reviewVerdict: "approved" | "retry" | "rejected" = "approved";
     let reviewFeedback = "";
     const reviewerPools = [
-      { candidates: prioritizeModelCandidate(freeReviewerPool, settings.agentPlannerModelId), timeoutMs: settings.freeRaceTimeoutMs },
-      { candidates: prioritizeModelCandidate(paidPlanPool.filter((candidate) => modelSupportsRole(candidate.model, "reviewer")), settings.agentPlannerModelId), timeoutMs: settings.paidFallbackTimeoutMs },
+      { candidates: prioritizeModelCandidate(prioritizeAgentProfileCandidates(freeReviewerPool, selectAgentProfile(agentProfiles, "reviewer")), settings.agentPlannerModelId), timeoutMs: settings.freeRaceTimeoutMs },
+      { candidates: prioritizeModelCandidate(prioritizeAgentProfileCandidates(paidPlanPool.filter((candidate) => modelSupportsRole(candidate.model, "reviewer")), selectAgentProfile(agentProfiles, "reviewer")), settings.agentPlannerModelId), timeoutMs: settings.paidFallbackTimeoutMs },
     ];
     const reviewTask = "مراجعة جودة النتيجة قبل التسليم";
     if (loopResult.status === "completed" && !operationalReply) {
