@@ -285,7 +285,7 @@ export const adminService = {
     if (Object.keys(changes).some((key) => !allowed.includes(key))) throw new Error("حقل تعديل غير مسموح.");
     if ("task_roles" in changes) {
       const roles = changes.task_roles;
-      const supportedRoles = ["general", "planner", "worker", "executor", "reviewer", "summarizer"];
+      const supportedRoles = ["general", "chat", "planner", "worker", "executor", "reviewer", "summarizer"];
       if (!Array.isArray(roles) || roles.length === 0 || roles.some((role) => typeof role !== "string" || !supportedRoles.includes(role))) {
         throw new Error("يجب تحديد دور واحد صالح على الأقل للنموذج.");
       }
