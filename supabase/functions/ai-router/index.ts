@@ -1564,6 +1564,9 @@ async function handleRequest(req: Request): Promise<Response> {
   const agentProfiles = executionMode === "agent" && (splitParts.length > 1 || mind.intent === "complex_task" || Boolean(requestedConnector || requestedMultiReadToolkits?.length || internalBrainCall))
     ? await loadAgentProfiles(supabase)
     : [];
+  const agentProfiles = executionMode === "agent" && (splitParts.length > 1 || mind.intent === "complex_task" || Boolean(requestedConnector || requestedMultiReadToolkits?.length || internalBrainCall))
+    ? await loadAgentProfiles(supabase)
+    : [];
   // Every request gets a durable workspace. Compound requests reuse their
   // deterministic plan; simple and Agent requests get one resumable step.
   const workspacePlan = taskPlan
