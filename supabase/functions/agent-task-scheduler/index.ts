@@ -16,7 +16,7 @@ function json(body: unknown, status = 200): Response {
 }
 
 async function finishAndSettle(
-  admin: AgentSettlementClient,
+  admin: Parameters<typeof finishAgentTask>[0],
   job: QueueJob,
   workerId: string,
   taskId: string | null,
@@ -25,7 +25,7 @@ async function finishAndSettle(
 ): Promise<boolean> {
   const finished = await finishAgentTask(admin, job.id, workerId, status, options);
   if (finished && taskId) {
-    const settlement = await settleTerminalAgentTaskUsage(admin, {
+    const settlement = await settleTerminalAgentTaskUsage(admin as unknown as AgentSettlementClient, {
       jobId: job.id,
       taskId,
       userId: job.user_id,
