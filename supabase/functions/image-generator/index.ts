@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { actualChargeCredits, actualCostUsd, validateEnabledMediaPrice } from "./cost.ts";
+import { actualChargeCredits, actualCostUsd, providerEndpointAllowed, validateEnabledMediaPrice } from "./cost.ts";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -132,36 +132,6 @@ async function uploadImageToStorage(input: { bytes: Uint8Array; mimeType: string
 async function removeStoredImage(service: SupabaseClient<any, "public", any>, objectKey: string): Promise<void> {
   try { await service.storage.from(MEDIA_BUCKET).remove([objectKey]); } catch { /* best-effort cleanup */ }
 }
-function providerEndpointAllowed(endpointUrl: string, providerBaseUrl: string): boolean {
-  try {
-    const endpoint = new URL(endpointUrl);
-    const base = new URL(providerBaseUrl);
-    if (
-      endpoint.protocol !== "https:" ||
-      base.protocol !== "https:" ||
-      endpoint.origin !== base.origin ||
-      endpoint.username || endpoint.password ||
-      base.username || base.password ||
-      endpoint.search || endpoint.hash
-    ) return false;
-
-    const host = base.hostname.toLowerCase();
-    if (
-      host === "localhost" ||
-      host.endsWith(".localhost") ||
-      host.endsWith(".local") ||
-      host === "metadata.google.internal" ||
-      host.includes(":") ||
-      /^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)
-    ) return false;
-
-    const basePath = base.pathname.replace(/\/+$/, "");
-    return endpoint.pathname.startsWith(`${basePath}/`);
-  } catch {
-    return false;
-  }
-}
-
 async function callImageProvider(input: {
   model: MediaModel; price: MediaPrice; apiKey: string; prompt: string; quality: string;
 }): Promise<{ bytes: Uint8Array; costUsd: number; costConfirmed: boolean; providerRequestId: string | null }> {
