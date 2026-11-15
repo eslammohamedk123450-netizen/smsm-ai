@@ -522,7 +522,7 @@ export function ModelsAdminScreen() {
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
               {([
                 ["all", `الكل · ${models.length}`],
-                ["enabled", `جاهزة · ${models.filter((model) => model.provider_enabled !== false && model.enabled && model.routing_group !== "disabled" && !model.health?.auto_restricted).length}`],
+                ["enabled", `جاهزة · ${models.filter((model) => model.provider_enabled === true && model.enabled && model.routing_group !== "disabled" && !model.health?.auto_restricted).length}`],
                 ["disabled", `معطّلة · ${models.filter((model) => model.provider_enabled === false || !model.enabled || model.routing_group === "disabled").length}`],
                 ["restricted", `مقيّدة · ${models.filter((model) => model.health?.auto_restricted).length}`],
               ] as const).map(([filter, label]) => <Pressable key={filter} accessibilityRole="button" accessibilityState={{ selected: modelFilter === filter }} onPress={() => setModelFilter(filter)} style={[styles.filterChip, modelFilter === filter && styles.filterChipSelected]}><Text style={[styles.filterText, modelFilter === filter && styles.filterTextSelected]}>{label}</Text></Pressable>)}
