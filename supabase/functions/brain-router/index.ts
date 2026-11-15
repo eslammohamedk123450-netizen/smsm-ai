@@ -239,10 +239,21 @@ async function main(req: Request): Promise<Response> {
 
   if (!internalWorker && body.mode === "enqueue") {
     const objective = cleanText(body.objective ?? body.message);
+    const idempotencyKey = `brain:${taskId}`;
     const { data: queued, error: queueError } = await admin.from("agent_task_jobs").insert({
-      user_id: userId, task_id: taskId, job_type: "brain_task", idempotency_key: `brain:${taskId}`,
+      user_id: userId, task_id: taskId, job_type: "brain_task", idempotency_key: idempotencyKey,
       payload: { user_id: userId, task_id: taskId, objective }, priority: 10, max_attempts: 3,
     }).select("id,status").single();
+    if (queueError?.code === "23505") {
+      const { data: existing, error: existingError } = await admin.from("agent_task_jobs")
+        .select("id,status").eq("user_id", userId).eq("idempotency_key", idempotencyKey).maybeSingle();
+      if (!existingError && existing) {
+        return json({ task_id: taskId, job_id: existing.id, status: existing.status, queued: true, route: "brain-router" }, 202);
+      }
+      // Keep the original usage reservation intact if the idempotent job lookup
+      // is temporarily unavailable; a retry with the same task ID can recover it.
+      return json({ error: "Could not recover the existing Brain task" }, 503);
+    }
     if (queueError || !queued) {
       await admin.rpc("brain_finalize_usage", { p_task_id: taskId, p_actual_tokens: 0, p_status: "failed" });
       return json({ error: "Could not enqueue Brain task" }, 503);
