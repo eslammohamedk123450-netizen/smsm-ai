@@ -254,6 +254,65 @@ $$;
 revoke all on function public.suly_admin_update_negative_balance_limit(bigint) from public, anon;
 grant execute on function public.suly_admin_update_negative_balance_limit(bigint) to authenticated;
 
+create or replace function public.suly_admin_update_credit_controls(
+  p_enabled boolean,
+  p_minimum_request_credits bigint,
+  p_input_credits_per_1k_tokens bigint,
+  p_output_credits_per_1k_tokens bigint,
+  p_negative_balance_limit bigint
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $
+declare
+  v_admin uuid := auth.uid();
+begin
+  if v_admin is null or not public.suly_is_admin() then
+    raise exception 'administrator privileges required' using errcode = '42501';
+  end if;
+  if p_enabled is null
+    or p_minimum_request_credits is null or p_minimum_request_credits < 0 or p_minimum_request_credits > 1000000000
+    or p_input_credits_per_1k_tokens is null or p_input_credits_per_1k_tokens < 0 or p_input_credits_per_1k_tokens > 1000000000
+    or p_output_credits_per_1k_tokens is null or p_output_credits_per_1k_tokens < 0 or p_output_credits_per_1k_tokens > 1000000000
+    or p_negative_balance_limit is null or p_negative_balance_limit < 0 or p_negative_balance_limit > 1000000000 then
+    raise exception 'invalid credit controls' using errcode = '22023';
+  end if;
+
+  update public.suly_credit_pricing
+    set enabled = p_enabled,
+        minimum_request_credits = p_minimum_request_credits,
+        input_credits_per_1k_tokens = p_input_credits_per_1k_tokens,
+        output_credits_per_1k_tokens = p_output_credits_per_1k_tokens,
+        negative_balance_limit = p_negative_balance_limit,
+        updated_by = v_admin,
+        updated_at = now()
+    where id = 1;
+
+  if not found then
+    raise exception 'credit pricing row is missing' using errcode = 'P0002';
+  end if;
+
+  insert into public.admin_audit_logs(admin_id, action, target_table, target_id, new_value, created_at)
+  values (
+    v_admin, 'credit_controls_updated', 'suly_credit_pricing', '1',
+    jsonb_build_object(
+      'enabled', p_enabled,
+      'minimum_request_credits', p_minimum_request_credits,
+      'input_credits_per_1k_tokens', p_input_credits_per_1k_tokens,
+      'output_credits_per_1k_tokens', p_output_credits_per_1k_tokens,
+      'negative_balance_limit', p_negative_balance_limit
+    ), now()
+  );
+
+  return jsonb_build_object('success', true, 'negative_balance_limit', p_negative_balance_limit);
+end;
+$;
+
+revoke all on function public.suly_admin_update_credit_controls(boolean,bigint,bigint,bigint,bigint) from public, anon;
+grant execute on function public.suly_admin_update_credit_controls(boolean,bigint,bigint,bigint,bigint) to authenticated;
+
 create table if not exists public.suly_company_cost_ledger (
   id uuid primary key default gen_random_uuid(),
   request_id uuid not null unique,
