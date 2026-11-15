@@ -59,14 +59,14 @@ do $$
 declare
   v_job_id bigint;
 begin
-  select jobid into v_job_id
-  from cron.job
-  where jobname = 'suly-agent-task-scheduler-every-minute'
-  limit 1;
-
-  if v_job_id is not null then
+  -- Replace both the previous scheduler job and this migration's name.
+  -- Leaving the legacy job active would dispatch the same queue twice per minute.
+  for v_job_id in
+    select jobid from cron.job
+    where jobname in ('suly-agent-task-scheduler', 'suly-agent-task-scheduler-every-minute')
+  loop
     perform cron.unschedule(v_job_id);
-  end if;
+  end loop;
 
   perform cron.schedule(
     'suly-agent-task-scheduler-every-minute',
