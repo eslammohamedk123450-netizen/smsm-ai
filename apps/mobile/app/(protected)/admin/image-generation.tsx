@@ -1,2 +1,2 @@
-import { CloudflareImageSettingsScreen } from "../../../src/features/admin/CloudflareImageSettingsScreen";
-export default CloudflareImageSettingsScreen;
+import { MediaGenerationModelsAdminScreen } from "../../../src/features/admin/MediaGenerationModelsAdminScreen";
+export default MediaGenerationModelsAdminScreen;
