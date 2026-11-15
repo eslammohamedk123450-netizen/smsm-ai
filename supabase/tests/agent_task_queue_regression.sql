@@ -24,6 +24,10 @@ declare
   v_retry uuid;
   v_backoff uuid;
   v_claimed uuid;
+  v_cancel_task uuid := gen_random_uuid();
+  v_cancel_job uuid;
+  v_running_job uuid;
+  v_cancel_result jsonb;
 begin
   select array_agg(id order by created_at)
     into v_users
@@ -132,6 +136,56 @@ begin
   if (select status from public.agent_task_jobs where id = v_backoff) <> 'failed' then
     raise exception 'Backoff job did not become terminal after exhausting attempts';
   end if;
+
+  -- A queued Brain job can be cancelled by its owner and its unused reservation is released.
+  insert into public.agent_task_jobs(user_id, task_id, job_type, payload, idempotency_key)
+  values (v_a, v_cancel_task, 'brain_task',
+    jsonb_build_object('user_id', v_a, 'task_id', v_cancel_task, 'objective', 'cancel queued regression'),
+    'regression-cancel-' || gen_random_uuid()::text)
+  returning id into v_cancel_job;
+  v_reserved := public.brain_reserve_usage(v_a, v_cancel_task, 100);
+  if coalesce((v_reserved->>'allowed')::boolean, false) is not true then
+    raise exception 'Cancellation usage reservation failed: %', v_reserved;
+  end if;
+  perform set_config('request.jwt.claim.role', 'authenticated', true);
+  perform set_config('request.jwt.claim.sub', v_a::text, true);
+  v_cancel_result := public.cancel_agent_task_job(v_cancel_job);
+  if coalesce((v_cancel_result->>'success')::boolean, false) is not true
+     or (select status from public.agent_task_jobs where id = v_cancel_job) <> 'cancelled' then
+    raise exception 'Owner could not cancel queued task: %', v_cancel_result;
+  end if;
+  select * into v_event from public.brain_usage_events where task_id = v_cancel_task;
+  select * into v_usage from public.brain_usage_daily where user_id = v_a and usage_date = current_date;
+  if v_event.status <> 'cancelled' or v_event.actual_tokens <> 0
+     or v_usage.tokens_reserved <> 0 then
+    raise exception 'Queued cancellation did not release the full unused Brain reservation';
+  end if;
+  v_cancel_result := public.cancel_agent_task_job(v_cancel_job);
+  if coalesce((v_cancel_result->>'success')::boolean, true)
+     or v_cancel_result->>'reason' <> 'already_terminal' then
+    raise exception 'Repeated cancellation was not idempotently rejected: %', v_cancel_result;
+  end if;
+
+  -- A running job is never mutated by this queued-only cancellation RPC.
+  insert into public.agent_task_jobs(user_id, job_type, payload, idempotency_key, status, locked_by, lease_until)
+  values (v_a, 'brain_task', '{}'::jsonb, 'regression-running-cancel-' || gen_random_uuid()::text,
+    'running', 'regression-active-worker', now() + interval '2 minutes')
+  returning id into v_running_job;
+  v_cancel_result := public.cancel_agent_task_job(v_running_job);
+  if coalesce((v_cancel_result->>'success')::boolean, true)
+     or v_cancel_result->>'reason' <> 'already_running'
+     or (select status from public.agent_task_jobs where id = v_running_job) <> 'running' then
+    raise exception 'Running job was incorrectly mutated by queued cancellation: %', v_cancel_result;
+  end if;
+
+  -- A different authenticated user cannot discover or cancel another user's job.
+  perform set_config('request.jwt.claim.sub', v_b::text, true);
+  v_cancel_result := public.cancel_agent_task_job(v_running_job);
+  if coalesce((v_cancel_result->>'success')::boolean, true)
+     or v_cancel_result->>'reason' <> 'not_found' then
+    raise exception 'Cross-user cancellation was not denied: %', v_cancel_result;
+  end if;
+  perform set_config('request.jwt.claim.role', 'service_role', true);
 
   -- Usage reservation is finalized once and reconciles reserved/used tokens.
   v_reserved := public.brain_reserve_usage(v_a, v_task, 100);
