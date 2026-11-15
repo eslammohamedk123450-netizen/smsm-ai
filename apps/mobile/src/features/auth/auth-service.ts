@@ -3,6 +3,7 @@ import { Platform } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import { supabase } from "../../lib/supabase/client";
 import { parseAuthCallbackUrl } from "./auth-callback";
+import { buildWebAuthRedirect } from "./auth-redirect";
 
 const AUTH_REQUEST_TIMEOUT_MS = 20_000;
 const OAUTH_BROWSER_TIMEOUT_MS = 120_000;
@@ -25,7 +26,7 @@ export const EMAIL_LINK_REDIRECT = "suly-agent-ai://auth/callback";
 export const GOOGLE_AUTH_REDIRECT = EMAIL_LINK_REDIRECT;
 
 function getAuthRedirect(): string {
-  return Platform.OS === "web" ? `${window.location.origin}/auth/callback` : EMAIL_LINK_REDIRECT;
+  return Platform.OS === "web" ? buildWebAuthRedirect(window.location.origin, process.env.EXPO_PUBLIC_WEB_BASE_URL ?? "") : EMAIL_LINK_REDIRECT;
 }
 
 export interface AuthResult {
