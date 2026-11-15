@@ -12,7 +12,7 @@ import { chatService } from "../chat/chat-service";
 
 type Price = { quality: string; price_credits: number; resolution: string };
 type Model = { id: string; display_name: string; supported_qualities: string[]; is_default: boolean; prices: Price[] };
-type GeneratedImage = { id: string; url: string; prompt: string; modelName: string; quality: string; credits: number };
+type GeneratedImage = { id: string; url: string; prompt: string; modelName: string; quality: string; credits: number; billingStatus: string };
 const QUALITY_LABELS: Record<string, string> = { economy: "اقتصادية", standard: "متوسطة", high: "عالية", ultra: "فائقة" };
 
 export function ImageStudioScreen() {
@@ -91,8 +91,10 @@ export function ImageStudioScreen() {
         throw new Error(message);
       }
       const url = await getMediaDeliveryUrl(data.media_id);
-      setResult({ id: data.media_id, url, prompt: prompt.trim(), modelName: selectedModel.display_name, quality: effectiveQuality, credits: Number(data.charged_credits ?? estimatedCredits) });
-      setNotice("تم إنشاء الصورة وحفظها تلقائيًا في مكتبتك.");
+      setResult({ id: data.media_id, url, prompt: prompt.trim(), modelName: selectedModel.display_name, quality: effectiveQuality, credits: Number(data.charged_credits ?? estimatedCredits), billingStatus: String(data.billing_status ?? "settled") });
+      setNotice(data.billing_status === "pending_reconciliation"
+        ? "تم إنشاء الصورة وحفظها. تسوية الرصيد قيد المراجعة؛ لا تعاود إرسال الطلب نفسه."
+        : "تم إنشاء الصورة وحفظها تلقائيًا في مكتبتك.");
       setBalance(await getCurrentCreditBalance().catch(() => null));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "تعذر إكمال توليد الصورة.");
@@ -190,6 +192,7 @@ export function ImageStudioScreen() {
       <Text style={{ color: colors.textPrimary, textAlign: "right", fontWeight: "900" }}>الصورة الناتجة</Text>
       <Image source={{ uri: result.url }} resizeMode="contain" style={{ width: "100%", aspectRatio: 1, borderRadius: 12, backgroundColor: colors.surfaceElevated }} />
       <Text style={{ color: colors.textSecondary, textAlign: "right", fontSize: 10 }}>{result.modelName} · {QUALITY_LABELS[result.quality]} · {result.credits} Credits</Text>
+      {result.billingStatus === "pending_reconciliation" ? <Text style={{ color: colors.warning, textAlign: "right", fontSize: 10 }}>تسوية الرصيد قيد المراجعة</Text> : null}
       <View style={{ flexDirection: "row-reverse", flexWrap: "wrap", gap: 8 }}>
         <Pressable onPress={() => void Linking.openURL(result.url)} style={{ borderWidth: 1, borderColor: colors.divider, borderRadius: 9, padding: 10 }}><Text style={{ color: colors.textPrimary, fontSize: 11 }}>فتح / تنزيل الصورة</Text></Pressable>
         <Pressable onPress={() => void copyResultLink()} style={{ borderWidth: 1, borderColor: colors.divider, borderRadius: 9, padding: 10 }}><Text style={{ color: colors.textPrimary, fontSize: 11 }}>نسخ رابط الصورة</Text></Pressable>
