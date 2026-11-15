@@ -130,27 +130,25 @@ export const authService = {
       const params = parseAuthCallbackUrl(result.url);
       if (params.errorDescription) throw new Error(params.errorDescription);
 
-      const current = await withTimeout(
-        supabase.auth.getSession(), AUTH_REQUEST_TIMEOUT_MS, "Checking the Google session",
-      );
-      if (!current.data.session) {
-        if (params.accessToken && params.refreshToken) {
-          const { error: sessionError } = await withTimeout(
-            supabase.auth.setSession({ access_token: params.accessToken, refresh_token: params.refreshToken }),
-            AUTH_REQUEST_TIMEOUT_MS,
-            "Finishing Google sign-in",
-          );
-          if (sessionError) throw sessionError;
-        } else if (params.code) {
-          const { error: exchangeError } = await withTimeout(
-            supabase.auth.exchangeCodeForSession(params.code),
-            AUTH_REQUEST_TIMEOUT_MS,
-            "Finishing Google sign-in",
-          );
-          if (exchangeError) throw exchangeError;
-        } else {
-          throw new Error("Google authentication did not return a session.");
-        }
+      if (params.accessToken && params.refreshToken) {
+        const { error: sessionError } = await withTimeout(
+          supabase.auth.setSession({ access_token: params.accessToken, refresh_token: params.refreshToken }),
+          AUTH_REQUEST_TIMEOUT_MS,
+          "Finishing Google sign-in",
+        );
+        if (sessionError) throw sessionError;
+      } else if (params.code) {
+        const { error: exchangeError } = await withTimeout(
+          supabase.auth.exchangeCodeForSession(params.code),
+          AUTH_REQUEST_TIMEOUT_MS,
+          "Finishing Google sign-in",
+        );
+        if (exchangeError) throw exchangeError;
+      } else {
+        const current = await withTimeout(
+          supabase.auth.getSession(), AUTH_REQUEST_TIMEOUT_MS, "Checking the Google session",
+        );
+        if (!current.data.session) throw new Error("Google authentication did not return a session.");
       }
     }
 
