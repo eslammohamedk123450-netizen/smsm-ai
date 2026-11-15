@@ -106,12 +106,22 @@ async function getUserId(service: SupabaseClient<any, "public", any>, req: Reque
   return data.user.id;
 }
 async function settleCredits(service: SupabaseClient<any, "public", any>, userId: string, taskId: string, actualCost: number): Promise<boolean> {
-  const { error } = await service.rpc("finalize_credits", {
+  const { data, error } = await service.rpc("finalize_credits", {
     p_user_id: userId, p_task_id: taskId, p_actual_cost: actualCost,
     p_input_tokens: 0, p_output_tokens: 0, p_model_id: null, p_source: "external_image_generation",
   });
-  if (error) console.error("Image generation credit settlement is pending.", error.code ?? "database_error");
-  return !error;
+  if (error) {
+    console.error("Image generation credit settlement is pending.", error.code ?? "database_error");
+    return false;
+  }
+  const result = asRecord(data);
+  if (result.success !== true) return false;
+  const charged = Number(result.charged ?? 0);
+  const settledActual = Number(result.actual_cost ?? 0);
+  // An expired hold is idempotent too, but it is not a successful charge.
+  // Do not report billing as settled unless this exact amount was recorded.
+  return Number.isSafeInteger(charged) && charged === actualCost
+    && Number.isSafeInteger(settledActual) && settledActual === actualCost;
 }
 async function uploadImageToStorage(input: { bytes: Uint8Array; mimeType: string; objectKey: string; service: SupabaseClient<any, "public", any> }): Promise<void> {
   const body = new Blob([input.bytes.slice().buffer as ArrayBuffer], { type: input.mimeType });
