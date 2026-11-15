@@ -239,12 +239,14 @@ Deno.serve(async (req: Request) => {
     uploadedObjectKey = objectKey;
     await uploadImageToStorage({ bytes: generated.bytes, mimeType: format.mimeType, objectKey, service });
 
-    const { data: assistantMessage, error: assistantError } = await service.from("suly_messages").insert({
-      conversation_id: conversationId, user_id: userId, role: "assistant", content: "تم إنشاء الصورة.",
-      tokens_used: 0, model_id: null, status: "sent",
-    }).select("id").single();
-    if (assistantError || !assistantMessage) throw new ServiceError(500, "تم إنشاء الصورة لكن تعذر حفظ رد المحادثة.");
-    assistantMessageId = String(assistantMessage.id);
+    if (!studioRequest) {
+      const { data: assistantMessage, error: assistantError } = await service.from("suly_messages").insert({
+        conversation_id: conversationId, user_id: userId, role: "assistant", content: "تم إنشاء الصورة.",
+        tokens_used: 0, model_id: null, status: "sent",
+      }).select("id").single();
+      if (assistantError || !assistantMessage) throw new ServiceError(500, "تم إنشاء الصورة لكن تعذر حفظ رد المحادثة.");
+      assistantMessageId = String(assistantMessage.id);
+    }
 
     const { error: assetError } = await service.from("global_media_assets").insert({
       id: imageId, user_id: userId, feature_key: studioRequest ? "general" : "chat", storage_provider: "supabase",
