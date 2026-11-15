@@ -208,7 +208,7 @@ export const chatService = {
 
   async listArchivedConversations(limit = 100): Promise<Conversation[]> {
     const { data, error } = await supabase.from("suly_conversations")
-      .select("id,title,model_id,created_at,updated_at,is_pinned,archived_at")
+      .select("id,title,model_id,project_id,created_at,updated_at,is_pinned,archived_at")
       .not("archived_at", "is", null)
       .order("archived_at", { ascending: false })
       .limit(limit);
