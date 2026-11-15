@@ -12,11 +12,8 @@ Deno.test("internal Brain workers do not require the legacy Brain model catalog"
   }
 });
 
-Deno.test("legacy synchronous Brain compatibility still reads its configured tier catalog", () => {
-  if (!shouldLoadLegacyBrainTiers("run", false)) {
-    throw new Error("legacy synchronous compatibility path must remain available");
-  }
-  if (!shouldLoadLegacyBrainTiers(undefined, false)) {
-    throw new Error("legacy requests without a mode must remain backward compatible");
+Deno.test("legacy synchronous Brain routing is retired for every user mode", () => {
+  if (shouldLoadLegacyBrainTiers("run", false) || shouldLoadLegacyBrainTiers(undefined, false)) {
+    throw new Error("legacy synchronous requests must not load a second Brain model catalog");
   }
 });
