@@ -1937,14 +1937,14 @@ async function handleRequest(req: Request): Promise<Response> {
           const ready = await firstReady([candidate], pool.timeoutMs, recordAttempt, countModelStarts);
           if (!ready) continue;
           const collected = await collectCandidate(ready, 8000);
+          summarizerInputTokens += ready.inputTokens > 0 ? ready.inputTokens : estimateTokens(requestMessages.map((message) => message.content).join("\n"));
+          summarizerOutputTokens += ready.outputTokens > 0 ? ready.outputTokens : estimateTokens(collected.content);
           const summarized = collected.content.trim();
           if (!summarized || summarized.length > 6000) {
             await recordAttempt(ready, "error", Date.now() - ready.startedAtMs, "invalid_agent_summary", "Summarizer returned an empty or oversized answer.");
             continue;
           }
           summarizerCandidateUsed = ready;
-          summarizerInputTokens = ready.inputTokens > 0 ? ready.inputTokens : estimateTokens(requestMessages.map((message) => message.content).join("\n"));
-          summarizerOutputTokens = ready.outputTokens > 0 ? ready.outputTokens : estimateTokens(summarized);
           content = summarized;
           await recordAttempt(ready, "success", Date.now() - ready.startedAtMs);
         }
@@ -1955,6 +1955,8 @@ async function handleRequest(req: Request): Promise<Response> {
     // Independent quality gate: the reviewer never executes tools and can only
     // approve, request one bounded revision, or reject an unsupported answer.
     let reviewerCandidateUsed: ReadyCandidate | null = null;
+    let reviewerInputTokens = 0;
+    let reviewerOutputTokens = 0;
     let reviewVerdict: "approved" | "retry" | "rejected" = "approved";
     let reviewFeedback = "";
     const reviewerPools = [
@@ -1976,6 +1978,8 @@ async function handleRequest(req: Request): Promise<Response> {
             const ready = await firstReady([candidate], pool.timeoutMs, recordAttempt, countModelStarts);
             if (!ready) continue;
             const collected = await collectCandidate(ready, 2000);
+            reviewerInputTokens += ready.inputTokens > 0 ? ready.inputTokens : estimateTokens(reviewMessages.map((message) => message.content).join("\n"));
+            reviewerOutputTokens += ready.outputTokens > 0 ? ready.outputTokens : estimateTokens(collected.content);
             try {
               const parsed = JSON.parse(collected.content.trim().replace(/^```json\s*/i, "").replace(/\s*```$/, "")) as Record<string, unknown>;
               const verdict = parsed.verdict === "retry" || parsed.verdict === "rejected" ? parsed.verdict : parsed.verdict === "approved" ? "approved" : null;
@@ -2007,6 +2011,8 @@ async function handleRequest(req: Request): Promise<Response> {
             const ready = await firstReady([candidate], pool.timeoutMs, recordAttempt, countModelStarts);
             if (!ready) continue;
             const collected = await collectCandidate(ready, 8000);
+            summarizerInputTokens += ready.inputTokens > 0 ? ready.inputTokens : estimateTokens(revisionMessages.map((message) => message.content).join("\n"));
+            summarizerOutputTokens += ready.outputTokens > 0 ? ready.outputTokens : estimateTokens(collected.content);
             if (collected.content.trim().length < 1 || collected.content.trim().length > 6000) continue;
             content = collected.content.trim();
             summarizerCandidateUsed = ready;
@@ -2093,7 +2099,7 @@ async function handleRequest(req: Request): Promise<Response> {
         : null,
       model_calls: modelInvocationCount,
       total_ms: Date.now() - startedAt,
-      ...(internalBrainCall ? { usage: { input_tokens: plannerInputTokens + summarizerInputTokens, output_tokens: plannerOutputTokens + summarizerOutputTokens } } : {}),
+      ...(internalBrainCall ? { usage: { input_tokens: plannerInputTokens + summarizerInputTokens + reviewerInputTokens, output_tokens: plannerOutputTokens + summarizerOutputTokens + reviewerOutputTokens } } : {}),
       billing,
       user_metadata: userMetadata,
     };
