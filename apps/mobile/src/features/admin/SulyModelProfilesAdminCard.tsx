@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Switch, TextInput, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { supabase } from "../../lib/supabase/client";
+import { adminService } from "./admin-service";
 import { colors } from "../../theme/colors";
 
 type Profile = {
@@ -42,16 +43,18 @@ export function SulyModelProfilesAdminCard() {
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
-    const [profileResult, modelResult, mappingResult] = await Promise.all([
+    const [profileResult, modelResult, mappingResult, providerRows] = await Promise.all([
       supabase.from("suly_model_profiles").select("profile_key,display_name,tagline,description,icon_key,sort_order,minimum_subscription_tier,capabilities_json,is_active").order("sort_order"),
-      supabase.from("ai_models").select("id,name,model_identifier,provider_id,enabled,task_roles,allowed_tiers,capabilities_json,context_window").eq("enabled", true).order("priority", { ascending: false }).limit(200),
+      supabase.from("ai_models").select("id,name,model_identifier,provider_id,enabled,task_roles,allowed_tiers,capabilities_json,context_window").eq("enabled", true).order("priority", { ascending: false }).limit(500),
       supabase.from("suly_model_profile_models").select("profile_key,model_id,route_role,enabled").limit(2000),
+      adminService.getProviders(),
     ]);
     if (profileResult.error || modelResult.error || mappingResult.error) {
       setError("تعذر تحميل إعدادات مستويات SULY. تأكد من تطبيق ترحيل المستويات وصلاحيات الأدمن.");
     } else {
+      const enabledProviderIds = new Set((providerRows as Array<{ id: number; enabled: boolean }>).filter((provider) => provider.enabled === true).map((provider) => Number(provider.id)));
       setProfiles((profileResult.data ?? []) as Profile[]);
-      setModels((modelResult.data ?? []) as Model[]);
+      setModels(((modelResult.data ?? []) as Model[]).filter((model) => enabledProviderIds.has(Number(model.provider_id))));
       setMappings((mappingResult.data ?? []) as Mapping[]);
     }
     setLoading(false);
