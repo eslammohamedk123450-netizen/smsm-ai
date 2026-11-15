@@ -62,6 +62,12 @@ begin
     raise exception 'Duplicate enqueue created more than one row';
   end if;
 
+  -- The idempotency-only fixture is not part of later claim-order assertions.
+  update public.agent_task_jobs
+     set status = 'cancelled', completed_at = now(), updated_at = now()
+   where user_id = v_a
+     and idempotency_key = 'regression-duplicate-' || v_a::text;
+
   if not public.finish_agent_task_job(v_a_job, 'regression-worker-a', 'completed', '{}'::jsonb, null, null) then
     raise exception 'User A could not finish its owned job';
   end if;
