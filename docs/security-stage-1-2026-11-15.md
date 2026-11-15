@@ -88,6 +88,8 @@ Supabase Security Advisor reports `auth_leaked_password_protection`. Supabase's 
 
 Documentation: https://supabase.com/docs/guides/auth/password-security
 
+The current login UI still accepts a six-character minimum. A stronger client-side policy and matching server-side Auth settings are still required; client-only checks would be bypassable. The project tools available in this session do not expose Auth configuration writes.
+
 #### pg_net schema grants are broader than least privilege
 
 The `net` schema, its functions, `http_request_queue`, and `_http_response` have grants to `PUBLIC`, `anon`, `authenticated`, and/or `service_role`. Three application cron functions call `net.http_post` from SECURITY DEFINER functions owned by `postgres`:
@@ -96,7 +98,7 @@ The `net` schema, its functions, `http_request_queue`, and `_http_response` have
 - `suly_trigger_model_recovery()`
 - `suly_dispatch_agent_task_scheduler()`
 
-The extension/schema owner is `supabase_admin`; the connected database role `postgres` is not a superuser and is not a member of `supabase_admin`. A rollback-only REVOKE dry run did not change the ACLs. No ownership transfer or privilege escalation was attempted. The live PostgREST exposed-schema configuration was not independently confirmed during this audit, so this item remains open until the schema exposure and least-privilege grants are verified using an authorized owner/management path.
+The extension and schema owner is `supabase_admin`; the connected database role `postgres` is not a superuser and is not a member of `supabase_admin`. A fresh ACL inventory confirmed `USAGE` on schema `net` for `PUBLIC`, `anon`, `authenticated`, and `service_role`; `EXECUTE` on the extension functions for `PUBLIC`; and broad `PUBLIC` privileges on `http_request_queue` and `_http_response`. The three cron callers still require `net.http_post`. Role/database settings visible to the SQL connection did not expose a `pgrst.db_schemas` value, so the live PostgREST exposed-schema list remains unverified. A rollback-only REVOKE dry run did not change ACLs. No ownership transfer, extension ownership change, or privilege escalation was attempted. This item remains open until schema exposure and least-privilege grants are verified and changed through an authorized Supabase owner/management path without breaking cron dispatch.
 
 #### Extensions installed in public
 
