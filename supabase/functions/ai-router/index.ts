@@ -1277,6 +1277,16 @@ async function handleRequest(req: Request): Promise<Response> {
   const summarizerCandidates = makeCandidates(orderedSummarizerModels);
   const recordAttempt: AttemptRecorder = async (candidate, status, durationMs, errorCode = null, errorReason = null, stage = "finished") => {
     const safeReason = safeOperationalSummary(errorReason ?? "", 1000);
+    if (stage === "started") {
+      const { data: providerState, error: providerStateError } = await supabase
+        .from("ai_providers")
+        .select("enabled")
+        .eq("id", candidate.model.provider_id)
+        .maybeSingle();
+      if (providerStateError || providerState?.enabled !== true) {
+        throw new Error("provider_disabled_before_model_start");
+      }
+    }
     if (internalBrainCall && agentJobId && candidate.usageCallKey) {
       if (stage === "started") {
         const state = await getAgentExecutionState();
