@@ -12,6 +12,8 @@ type ModelChoice = {
   enabled: boolean;
   provider_enabled?: boolean;
   routing_group: string;
+  task_roles?: string[] | null;
+  capabilities_json?: string | Record<string, unknown> | null;
   health?: { auto_restricted?: boolean } | null;
 };
 type Role = "chat" | "planner" | "worker" | "reviewer" | "summarizer";
@@ -22,6 +24,21 @@ const ROLES: Array<[Role, string, string]> = [
   ["reviewer", "المراجع", "فحص الجودة"],
   ["summarizer", "الملخّص", "صياغة النتيجة"],
 ];
+
+function modelSupportsRoute(model: ModelChoice, role: Role): boolean {
+  if (role === "chat") {
+    let capabilities: Record<string, unknown> = {};
+    if (typeof model.capabilities_json === "string") {
+      try { const parsed: unknown = JSON.parse(model.capabilities_json); if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) capabilities = parsed as Record<string, unknown>; }
+      catch { return false; }
+    } else if (model.capabilities_json && typeof model.capabilities_json === "object") {
+      capabilities = model.capabilities_json;
+    }
+    return capabilities.chat !== false;
+  }
+  const roles = model.task_roles?.length ? model.task_roles : ["general"];
+  return roles.includes("general") || roles.includes(role) || (role === "worker" && roles.includes("executor"));
+}
 
 function typeLabel(model: ModelChoice): string {
   return model.routing_group === "paid_fallback" ? "مدفوع" : "مجاني";
@@ -35,9 +52,11 @@ export function RouteModelChainsCard({ models }: { models: ModelChoice[] }) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const available = useMemo(() => models.filter((model) => model.enabled && model.provider_enabled !== false && model.routing_group !== "disabled" && !model.health?.auto_restricted), [models]);
-  const currentIds = chains[role];
-  const currentModels = currentIds.map((id) => models.find((model) => model.id === id)).filter(Boolean) as ModelChoice[];
+  const available = useMemo(() => models.filter((model) =>
+    model.enabled && model.provider_enabled === true && model.routing_group !== "disabled"
+    && !model.health?.auto_restricted && modelSupportsRoute(model, role)), [models, role]);
+  const currentIds = chains[role].filter((id) => available.some((model) => model.id === id)).slice(0, 2);
+  const currentModels = currentIds.map((id) => available.find((model) => model.id === id)).filter(Boolean) as ModelChoice[];
   const availableToAdd = available.filter((model) => !currentIds.includes(model.id));
 
   const load = async () => {
@@ -69,18 +88,20 @@ export function RouteModelChainsCard({ models }: { models: ModelChoice[] }) {
     [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
     void save(next);
   };
-  const add = (modelId: number) => void save([...currentIds, modelId]);
+  const add = (modelId: number) => { if (currentIds.length < 2) void save([...currentIds, modelId]); };
   const remove = (modelId: number) => void save(currentIds.filter((id) => id !== modelId));
 
   return <View style={styles.card}>
-    <View style={styles.heading}><View style={styles.headingCopy}><Text style={styles.title}>سلاسل التوجيه</Text><Text style={styles.help}>اختر أكثر من نموذج لكل دور. يبدأ النظام بالأولوية ١ ولا ينتقل للتالي إلا عند الفشل أو انتهاء المهلة.</Text></View><Text style={styles.badge}>متسلسل</Text></View>
+    <View style={styles.heading}><View style={styles.headingCopy}><Text style={styles.title}>سلاسل التوجيه</Text><Text style={styles.help}>اختر نموذجًا أساسيًا واحتياطيًا واحدًا فقط لكل دور. لا يُستخدم أي نموذج خارج الاختيار المحفوظ.</Text></View><Text style={styles.badge}>متسلسل</Text></View>
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.roleRow}>{ROLES.map(([value, label, hint]) => <Pressable key={value} onPress={() => { setRole(value); setNotice(null); }} style={[styles.roleChip, role === value && styles.roleChipActive]}><Text style={[styles.roleLabel, role === value && styles.roleLabelActive]}>{label}</Text><Text style={styles.roleHint}>{hint}</Text></Pressable>)}</ScrollView>
     {loading ? <ActivityIndicator color={colors.primary} /> : <>
       <View style={styles.chainHeader}><Text style={styles.sectionTitle}>{ROLES.find(([value]) => value === role)?.[1]} · ترتيب الأولوية</Text><Text style={styles.chainMeta}>{currentModels.length} نموذج</Text></View>
       {currentModels.length === 0 ? <Text style={styles.empty}>لا توجد سلسلة محفوظة لهذا الدور بعد.</Text> : currentModels.map((model, index) => <View key={model.id} style={styles.chainRow}><View style={styles.priority}><Text style={styles.priorityText}>{index + 1}</Text></View><View style={styles.modelCopy}><Text style={styles.modelName}>{model.name}</Text><Text style={styles.modelMeta}>{model.provider_name} · {typeLabel(model)} · {model.model_identifier}</Text></View><Pressable onPress={() => move(index, 1)} disabled={saving || index === currentModels.length - 1} style={styles.iconButton}><Text style={styles.iconText}>↓</Text></Pressable><Pressable onPress={() => move(index, -1)} disabled={saving || index === 0} style={styles.iconButton}><Text style={styles.iconText}>↑</Text></Pressable><Pressable onPress={() => remove(model.id)} disabled={saving} style={styles.removeButton}><Text style={styles.removeText}>إزالة</Text></Pressable></View>)}
-      <Text style={styles.addTitle}>إضافة إلى السلسلة</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.addRow}>{availableToAdd.slice(0, 40).map((model) => <Pressable key={model.id} onPress={() => add(model.id)} disabled={saving} style={styles.addChip}><Text style={styles.addText}>+ {model.name}</Text><Text style={styles.addMeta}>{typeLabel(model)}</Text></Pressable>)}</ScrollView>
-      {availableToAdd.length === 0 ? <Text style={styles.empty}>كل النماذج المؤهلة مضافة إلى هذه السلسلة.</Text> : null}
+      {currentIds.length < 2 ? <>
+        <Text style={styles.addTitle}>{currentIds.length === 0 ? "اختيار النموذج الأساسي" : "اختيار النموذج الاحتياطي"}</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.addRow}>{availableToAdd.slice(0, 40).map((model) => <Pressable key={model.id} onPress={() => add(model.id)} disabled={saving} style={styles.addChip}><Text style={styles.addText}>+ {model.name}</Text><Text style={styles.addMeta}>{model.provider_name} · {typeLabel(model)}</Text></Pressable>)}</ScrollView>
+        {availableToAdd.length === 0 ? <Text style={styles.empty}>لا توجد نماذج مؤهلة أخرى لهذا الدور.</Text> : null}
+      </> : <Text style={styles.empty}>تم تحديد الأساسي والاحتياطي. أزل أحدهما لتغييره.</Text>}
     </>}
     {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
     {notice ? <Text style={styles.notice}>{notice}</Text> : null}
