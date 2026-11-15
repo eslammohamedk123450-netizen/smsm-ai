@@ -187,3 +187,10 @@ Record each case as **PASS**, **FAIL**, or **BLOCKED**. For every failure, captu
 - [ ] Verify a failed prerequisite blocks its descendants but does not stop unrelated branches.
 - [ ] Verify cyclic or malformed plans are rejected before any worker starts.
 - [ ] Verify persisted workspace and ledger statuses match completed, failed, and blocked DAG outcomes.
+
+
+### Brain billing reconciliation
+- [ ] Verify actual tokens above the reservation are fully added to daily usage and recorded as overage.
+- [ ] Verify failed tasks release the full reservation and count reported actual tokens.
+- [ ] Verify repeated finalization never double-counts tokens or releases reservations twice.
+- [ ] Verify subsequent reservations respect the updated daily usage after an overage.
