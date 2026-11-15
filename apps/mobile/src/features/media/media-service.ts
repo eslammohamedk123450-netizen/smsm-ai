@@ -179,14 +179,14 @@ export interface MediaGenerationJob {
   chargedCredits: number;
   createdAt: string;
 }
-export async function listMyGenerationJobs(limit = 50): Promise<MediaGenerationJob[]> {
+export async function listMyGenerationJobs(): Promise<MediaGenerationJob[]> {
   const { data, error } = await supabase.rpc("suly_list_my_media_generation_jobs");
   if (error) {
     // The media-job migration may not have reached a preview database yet.
     if (error.code === "42P01" || error.code === "PGRST202" || error.code === "PGRST205" || error.code === "PGRST204") return [];
     throw new MediaUploadError("jobs_list_failed", "تعذر تحميل المهام قيد التنفيذ.");
   }
-  return (data ?? []).map((row) => ({
+  return ((data ?? []) as Record<string, unknown>[]).map((row) => ({
     id: String(row.id),
     serviceType: row.service_type === "video" ? "video" : "image",
     status: row.status === "queued" ? "queued" : "running",
