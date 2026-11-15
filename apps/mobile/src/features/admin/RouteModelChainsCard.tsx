@@ -55,7 +55,7 @@ export function RouteModelChainsCard({ models }: { models: ModelChoice[] }) {
   const [notice, setNotice] = useState<string | null>(null);
 
   const available = useMemo(() => models.filter((model) =>
-    model.enabled && model.provider_enabled === true && model.routing_group !== "disabled"
+    model.enabled && model.provider_enabled === true && model.routing_group === "free_race"
     && !model.health?.auto_restricted && modelSupportsRoute(model, role)), [models, role]);
   const currentIds = chains[role].filter((id) => available.some((model) => model.id === id)).slice(0, 2);
   const currentModels = currentIds.map((id) => available.find((model) => model.id === id)).filter(Boolean) as ModelChoice[];
