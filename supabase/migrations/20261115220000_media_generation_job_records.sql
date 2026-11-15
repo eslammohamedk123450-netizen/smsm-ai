@@ -123,8 +123,8 @@ begin
     where status = 'running'
       and coalesce(started_at, created_at) < now() - interval '10 minutes'
     order by created_at
-    for update skip locked
     limit 50
+    for update skip locked
   loop
     select * into v_asset
     from public.global_media_assets
