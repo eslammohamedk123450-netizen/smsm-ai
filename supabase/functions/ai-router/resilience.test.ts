@@ -1,6 +1,7 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
   buildIndependentTaskPlan,
+  executeTaskPlan,
   mapWithConcurrency,
   mergePartAnswers,
   splitTask,
@@ -52,4 +53,64 @@ Deno.test("part merger preserves original part ordering", () => {
     { index: 1, content: "الجزء الثاني", model: "worker-b" },
   ]);
   assertEquals(merged.indexOf("الجزء الأول") < merged.indexOf("الجزء الثاني"), true);
+});
+
+
+Deno.test("dependency-aware executor runs prerequisites before dependants", async () => {
+  const plan = [
+    { step_id: "collect", description: "Collect", expected_inputs: {}, completion_criteria: "Collected", depends_on: [] },
+    { step_id: "research", description: "Research", expected_inputs: {}, completion_criteria: "Researched", depends_on: [] },
+    { step_id: "analyze", description: "Analyze", expected_inputs: {}, completion_criteria: "Analyzed", depends_on: ["collect"] },
+    { step_id: "recommend", description: "Recommend", expected_inputs: {}, completion_criteria: "Recommended", depends_on: ["analyze", "research"] },
+  ];
+  const calls: string[] = [];
+  const outcomes = await executeTaskPlan(plan, 2, async (step, _index, completed) => {
+    calls.push(step.step_id);
+    if (step.step_id === "analyze") {
+      assertEquals(completed.get("collect"), "data");
+    }
+    if (step.step_id === "recommend") {
+      assertEquals(completed.get("analyze"), "analysis");
+      assertEquals(completed.get("research"), "sources");
+    }
+    return ({ collect: "data", research: "sources", analyze: "analysis", recommend: "final" } as Record<string, string>)[step.step_id];
+  });
+  assertEquals(outcomes.map((item) => item.status), ["completed", "completed", "completed", "completed"]);
+  assertEquals(outcomes.map((item) => item.result), ["data", "sources", "analysis", "final"]);
+  assertEquals(calls.indexOf("collect") < calls.indexOf("analyze"), true);
+  assertEquals(calls.indexOf("analyze") < calls.indexOf("recommend"), true);
+  assertEquals(calls.indexOf("research") < calls.indexOf("recommend"), true);
+});
+
+Deno.test("failed prerequisite blocks only dependent steps", async () => {
+  const plan = [
+    { step_id: "broken", description: "Broken", expected_inputs: {}, completion_criteria: "Done", depends_on: [] },
+    { step_id: "independent", description: "Independent", expected_inputs: {}, completion_criteria: "Done", depends_on: [] },
+    { step_id: "dependent", description: "Dependent", expected_inputs: {}, completion_criteria: "Done", depends_on: ["broken"] },
+  ];
+  const calls: string[] = [];
+  const outcomes = await executeTaskPlan(plan, 2, async (step) => {
+    calls.push(step.step_id);
+    if (step.step_id === "broken") throw new Error("provider failed");
+    return "ok";
+  });
+  assertEquals(calls.includes("independent"), true);
+  assertEquals(calls.includes("dependent"), false);
+  assertEquals(outcomes.map((item) => item.status), ["failed", "completed", "blocked"]);
+});
+
+Deno.test("dependency-aware executor rejects cyclic plans before running", async () => {
+  const plan = [
+    { step_id: "a", description: "A", expected_inputs: {}, completion_criteria: "Done", depends_on: ["b"] },
+    { step_id: "b", description: "B", expected_inputs: {}, completion_criteria: "Done", depends_on: ["a"] },
+  ];
+  let called = false;
+  let rejected = false;
+  try {
+    await executeTaskPlan(plan, 2, async () => { called = true; return "unexpected"; });
+  } catch {
+    rejected = true;
+  }
+  assertEquals(rejected, true);
+  assertEquals(called, false);
 });
