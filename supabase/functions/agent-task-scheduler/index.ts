@@ -142,6 +142,10 @@ Deno.serve(async (req: Request) => {
   );
   if (tokenError || tokenValid !== true) return json({ error: "Invalid scheduler authentication" }, 401);
 
+  const { data: recoveredMediaJobs, error: mediaRecoveryError } = await admin.rpc("suly_service_recover_stale_media_jobs");
+  if (mediaRecoveryError) console.error("Media job recovery check failed:", mediaRecoveryError.code ?? "database_error");
+  else if (Number(recoveredMediaJobs ?? 0) > 0) console.info("Recovered stale media jobs:", Number(recoveredMediaJobs));
+
   const workerId = `scheduled-brain-batch-${crypto.randomUUID()}`;
   const { data, error } = await admin.rpc("claim_agent_task_jobs", {
     p_worker_id: workerId,
