@@ -71,6 +71,7 @@ async function processJob(
       body: JSON.stringify({
         objective: task.objective,
         task_id: task.taskId,
+        job_id: task.jobId,
         user_id: task.userId,
         internal_worker: true,
       }),
