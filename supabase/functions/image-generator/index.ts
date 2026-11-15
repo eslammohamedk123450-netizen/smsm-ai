@@ -192,6 +192,17 @@ Deno.serve(async (req: Request) => {
     success: true, request_id: requestId, media_id: existingAsset.id, message_id: existingAsset.message_id ?? null,
     already_completed: true, metadata: existingAsset.metadata ?? {},
   });
+  const { data: existingJob } = await service.from("suly_media_generation_jobs")
+    .select("status,output_asset_id,charged_credits,provider_cost_usd,provider_cost_status")
+    .eq("id", requestId).eq("user_id", userId).maybeSingle();
+  if (existingJob) {
+    if (existingJob.status === "queued" || existingJob.status === "running") {
+      return json(202, { success: true, request_id: requestId, status: existingJob.status, message: "الطلب قيد التنفيذ بالفعل." });
+    }
+    if (existingJob.status === "failed" || existingJob.status === "cancelled") {
+      return json(409, { error: "هذا الطلب انتهى. ابدأ طلبًا جديدًا لإعادة المحاولة.", request_id: requestId });
+    }
+  }
 
   let modelQuery = service.from("suly_media_generation_models")
     .select("id,service_type,display_name,provider_id,model_identifier,protocol,endpoint_url,allowed_tiers,supported_qualities")
@@ -223,6 +234,17 @@ Deno.serve(async (req: Request) => {
     required: reserve.required, balance: reserve.balance,
   });
   if (reserve.already_reserved === true) return json(409, { error: "هذا الطلب قيد التنفيذ بالفعل.", request_id: requestId });
+
+  const { error: jobInsertError } = await service.from("suly_media_generation_jobs").insert({
+    id: requestId, user_id: userId, service_type: "image", generation_model_id: typedModel.id,
+    status: "running", prompt, quality, estimated_credits: typedPrice.price_credits,
+    reserved_credits: typedPrice.price_credits, started_at: new Date().toISOString(),
+    metadata: { source: studioRequest ? "image_studio" : "chat", price_version: typedPrice.price_version },
+  });
+  if (jobInsertError) {
+    await settleCredits(service, userId, requestId, 0).catch(() => undefined);
+    return json(503, { error: "تعذر تسجيل مهمة الصورة في المكتبة. تم تحرير الحجز.", request_id: requestId });
+  }
 
   let uploadedObjectKey: string | null = null;
   let assistantMessageId: string | null = null;
@@ -279,6 +301,13 @@ Deno.serve(async (req: Request) => {
       metadata: { quality, resolution: typedPrice.resolution, generation_model_id: typedModel.id, provider_request_id: generated.providerRequestId },
     });
     if (ledgerError && ledgerError.code !== "23505") console.error("Company cost ledger insert failed.", ledgerError.code ?? "database_error");
+    await service.from("suly_media_generation_jobs").update({
+      status: "completed", charged_credits: actualCredits, provider_cost_usd: generated.costUsd,
+      provider_cost_status: generated.costConfirmed ? "confirmed" : "estimated",
+      provider_request_id: generated.providerRequestId, output_asset_id: imageId,
+      completed_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+      metadata: { source: studioRequest ? "image_studio" : "chat", price_version: typedPrice.price_version, billing_status: creditsSettled ? "settled" : "pending_reconciliation" },
+    }).eq("id", requestId).eq("user_id", userId);
 
     if (!studioRequest) await service.from("suly_conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId).eq("user_id", userId);
     return json(200, {
@@ -289,6 +318,11 @@ Deno.serve(async (req: Request) => {
       billing_status: creditsSettled ? "settled" : "pending_reconciliation",
     });
   } catch (error) {
+    await service.from("suly_media_generation_jobs").update({
+      status: "failed", error_code: error instanceof ServiceError ? `http_${error.status}` : "generation_failed",
+      error_message: error instanceof Error ? error.message.slice(0, 500) : "Generation failed",
+      completed_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    }).eq("id", requestId).eq("user_id", userId);
     if (assistantMessageId) await service.from("suly_messages").delete().eq("id", assistantMessageId).eq("user_id", userId);
     if (assetId) await service.from("global_media_assets").delete().eq("id", assetId).eq("user_id", userId);
     if (uploadedObjectKey) await removeStoredImage(service, uploadedObjectKey);
