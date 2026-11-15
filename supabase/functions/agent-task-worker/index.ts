@@ -65,7 +65,15 @@ async function processOne(url: string, serviceKey: string, userId: string, userJ
         "Content-Type": "application/json",
         "x-suly-internal-brain-key": serviceKey,
       },
-      body: JSON.stringify({ objective, task_id: taskId, job_id: job.id, user_id: userId, internal_worker: true }),
+      body: JSON.stringify({
+        objective,
+        task_id: taskId,
+        job_id: job.id,
+        user_id: userId,
+        worker_id: workerId,
+        worker_attempt: job.attempt_count,
+        internal_worker: true,
+      }),
       signal: controller.signal,
     });
     if (leaseLost) return;
