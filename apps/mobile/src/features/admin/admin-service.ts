@@ -32,7 +32,7 @@ export interface PricingFeature {
 export interface AgentConfig {
   id: string;
   name: string;
-  role: "planner" | "thinker" | "worker" | "reviewer" | "coordinator";
+  role: "planner" | "thinker" | "worker" | "reviewer" | "summarizer" | "coordinator";
   system_prompt: string;
   model_fallback_chain: string[];
   is_active: boolean;
@@ -627,9 +627,9 @@ export const adminService = {
       .select("id,name,role,system_prompt,model_fallback_chain,is_active,created_at,updated_at")
       .order("updated_at", { ascending: false }).limit(200);
     if (error) throw error;
-    return (data ?? []).map((row) => ({ ...row, role: ["planner", "thinker", "worker", "reviewer", "coordinator"].includes(row.role) ? row.role : "worker", model_fallback_chain: Array.isArray(row.model_fallback_chain) ? row.model_fallback_chain.map(String) : [] })) as AgentConfig[];
+    return (data ?? []).map((row) => ({ ...row, role: ["planner", "thinker", "worker", "reviewer", "summarizer", "coordinator"].includes(row.role) ? row.role : "worker", model_fallback_chain: Array.isArray(row.model_fallback_chain) ? row.model_fallback_chain.map(String) : [] })) as AgentConfig[];
   },
-  async createAgent(input: { name: string; role: "planner" | "thinker" | "worker" | "reviewer" | "coordinator"; systemPrompt: string; modelFallbackChain: string[] }) {
+  async createAgent(input: { name: string; role: "planner" | "thinker" | "worker" | "reviewer" | "summarizer" | "coordinator"; systemPrompt: string; modelFallbackChain: string[] }) {
     await requireAdmin();
     const name = input.name.trim().slice(0, 120);
     const systemPrompt = input.systemPrompt.trim().slice(0, 12000);
