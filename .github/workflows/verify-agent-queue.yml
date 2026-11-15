@@ -6,6 +6,18 @@ on:
       - "apps/mobile/**"
       - "supabase/functions/ai-router/**"
       - "supabase/functions/brain-router/**"
+      - "supabase/functions/media-gateway/**"
+      - "supabase/functions/image-generator/**"
+      - "supabase/functions/composito-integration/**"
+      - "supabase/functions/sync-models/**"
+      - "supabase/functions/_shared/cors.ts"
+      - "supabase/functions/_shared/cors.test.ts"
+      - "supabase/functions/media-gateway/**"
+      - "supabase/functions/image-generator/**"
+      - "supabase/functions/composito-integration/**"
+      - "supabase/functions/sync-models/**"
+      - "supabase/functions/_shared/cors.ts"
+      - "supabase/functions/_shared/cors.test.ts"
       - "supabase/functions/agent-task-worker/**"
       - "supabase/functions/agent-task-scheduler/**"
       - "supabase/functions/_shared/agent_task_queue.ts"
@@ -69,7 +81,7 @@ jobs:
       - name: Typecheck mobile application
         run: npm run typecheck
       - name: Run mobile authentication regression tests
-        run: npm test -- --runInBand src/features/auth/auth-service.test.ts src/features/auth/auth-callback.test.ts src/features/chat/chat-service.test.ts
+        run: npm test -- --runInBand src/features/auth/auth-service.test.ts src/features/auth/auth-callback.test.ts src/features/auth/auth-redirect.test.ts src/features/chat/chat-service.test.ts
 
   edge-function-typecheck:
     name: Deno Edge Function typecheck
@@ -106,5 +118,8 @@ jobs:
             supabase/functions/agent-task-scheduler/index.ts \
             supabase/functions/brain-router/index.ts \
             supabase/functions/media-gateway/index.ts \
+            supabase/functions/image-generator/index.ts \
+            supabase/functions/composito-integration/index.ts \
+            supabase/functions/sync-models/index.ts \
             supabase/functions/ai-router/index.ts \
             supabase/functions/ai-router/agent/orchestrator.test.ts
