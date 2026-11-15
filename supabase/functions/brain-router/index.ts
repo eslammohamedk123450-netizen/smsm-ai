@@ -72,6 +72,25 @@ async function main(req: Request): Promise<Response> {
   if (loadLegacyTiers && tiersError) return json({ error: "Brain tiers could not be loaded" }, 500);
 
   if (internalWorker) {
+    const workerId = cleanText(body.worker_id, 120);
+    const workerAttempt = Number(body.worker_attempt);
+    if (!workerId || !Number.isInteger(workerAttempt) || workerAttempt < 1 || workerAttempt > 10) {
+      return json({ error: "Invalid worker lease identity" }, 400);
+    }
+    const { data: leaseStateData, error: leaseStateError } = await admin.rpc("agent_task_execution_state", {
+      p_job_id: cleanText(body.job_id, 64),
+      p_task_id: taskId,
+      p_user_id: userId,
+      p_worker_id: workerId,
+      p_worker_attempt: workerAttempt,
+    });
+    const leaseState = asRecord(leaseStateData);
+    if (leaseStateError) return json({ error: "Could not validate the active worker lease" }, 503);
+    if (leaseState.lease_valid !== true) return json({ error: "Worker lease is no longer valid" }, 409);
+    if (leaseState.cancel_requested === true) {
+      return json({ task_id: taskId, status: "cancelled", response: "تم إيقاف المهمة بناءً على طلبك.", route: "central-agent" });
+    }
+
     // A worker may be reclaimed after the result was persisted but before the
     // queue row was finalized. Return the durable result without rerunning or
     // charging the same task a second time.
@@ -119,6 +138,8 @@ async function main(req: Request): Promise<Response> {
         feature_key: "brain_system",
         request_id: taskId,
         agent_job_id: cleanText(body.job_id, 64),
+        agent_worker_id: workerId,
+        agent_worker_attempt: workerAttempt,
         execution_mode: "agent",
         routing_mode: "auto",
         stream: false,
