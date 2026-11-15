@@ -17,7 +17,7 @@ export function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
       toValue: 1,
       duration: 450,
       easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
+      useNativeDriver: Platform.OS !== "web",
     });
 
     // Smooth continuous 360-degree rotation loader (replaces zoom-in/out pulse)
@@ -26,16 +26,24 @@ export function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
         toValue: 1,
         duration: 1600,
         easing: Easing.linear,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== "web",
       })
     );
 
-    entranceAnimation.start();
-    spinAnimation.start();
-
+    // Schedule the exit before starting animations: if a browser animation
+    // driver throws or is unavailable, the app must never remain on a black
+    // splash screen indefinitely.
     const timer = setTimeout(() => {
       onFinish?.();
-    }, 2200);
+    }, Platform.OS === "web" ? 900 : 2200);
+
+    try {
+      entranceAnimation.start();
+      spinAnimation.start();
+    } catch {
+      // The splash is decorative; navigation must not depend on animation support.
+      onFinish?.();
+    }
 
     return () => {
       clearTimeout(timer);
