@@ -30,7 +30,7 @@ export default function UpgradeScreen() {
     ]);
     if (plansResult.error) {
       const legacyPlans = await supabase.from("subscription_plans").select("id,name,description,price,currency,billing_period,daily_credits,max_requests,sort_order").eq("is_active", true).order("sort_order").limit(20);
-      if (!legacyPlans.error) plansResult = { ...legacyPlans, data: (legacyPlans.data ?? []).map((plan) => ({ ...plan, tier_key: planKey(plan.name) })) } as typeof plansResult;
+      if (!legacyPlans.error) plansResult = { ...legacyPlans, data: (legacyPlans.data ?? []).map((plan) => ({ ...plan, tier_key: planKey(plan.name) })) } as unknown as typeof plansResult;
     }
     if (plansResult.error || featuresResult.error) setError("تعذر تحميل الباقات الآن. حاول مرة أخرى.");
     else {
