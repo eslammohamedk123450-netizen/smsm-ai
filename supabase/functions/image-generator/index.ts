@@ -69,12 +69,13 @@ async function getUserId(service: SupabaseClient<any, "public", any>, req: Reque
   if (error || !data.user) throw new ServiceError(401, "انتهت جلسة الدخول. سجّل الدخول مرة أخرى.");
   return data.user.id;
 }
-async function settleCredits(service: SupabaseClient<any, "public", any>, userId: string, taskId: string, actualCost: number): Promise<void> {
+async function settleCredits(service: SupabaseClient<any, "public", any>, userId: string, taskId: string, actualCost: number): Promise<boolean> {
   const { error } = await service.rpc("finalize_credits", {
     p_user_id: userId, p_task_id: taskId, p_actual_cost: actualCost,
     p_input_tokens: 0, p_output_tokens: 0, p_model_id: null, p_source: "external_image_generation",
   });
-  if (error) throw new ServiceError(503, "تم إنشاء الصورة لكن تعذرت تسوية الرصيد. تواصل مع الدعم مع الاحتفاظ بمعرّف الطلب.");
+  if (error) console.error("Image generation credit settlement is pending.", error.code ?? "database_error");
+  return !error;
 }
 async function uploadImageToStorage(input: { bytes: Uint8Array; mimeType: string; objectKey: string; service: SupabaseClient<any, "public", any> }): Promise<void> {
   const body = new Blob([input.bytes.slice().buffer as ArrayBuffer], { type: input.mimeType });
@@ -88,6 +89,7 @@ function actualCostUsd(payload: Record<string, unknown>, fallback: number): { va
   const usage = asRecord(payload.usage);
   const candidates = [usage.cost_usd, usage.cost, payload.cost_usd, payload.cost];
   for (const candidate of candidates) {
+    if (candidate === null || candidate === undefined || candidate === "") continue;
     const value = Number(candidate);
     if (Number.isFinite(value) && value >= 0 && value <= 100000) return { value, confirmed: true };
   }
@@ -251,7 +253,7 @@ Deno.serve(async (req: Request) => {
     });
     if (assetError) throw new ServiceError(500, "تم إنشاء الصورة لكن تعذر حفظها في المكتبة.");
 
-    await settleCredits(service, userId, requestId, actualCredits);
+    const creditsSettled = await settleCredits(service, userId, requestId, actualCredits);
     const revenueEgp = actualCredits * typedPrice.credit_value_egp;
     const providerCostEgp = generated.costUsd * typedPrice.usd_to_egp;
     const { error: ledgerError } = await service.from("suly_company_cost_ledger").insert({
@@ -272,6 +274,7 @@ Deno.serve(async (req: Request) => {
       model: typedModel.display_name, model_identifier: typedModel.model_identifier,
       estimated_credits: typedPrice.price_credits, charged_credits: actualCredits,
       provider_cost_usd: generated.costUsd, provider_cost_status: generated.costConfirmed ? "confirmed" : "estimated",
+      billing_status: creditsSettled ? "settled" : "pending_reconciliation",
     });
   } catch (error) {
     if (assistantMessageId) await service.from("suly_messages").delete().eq("id", assistantMessageId).eq("user_id", userId);
