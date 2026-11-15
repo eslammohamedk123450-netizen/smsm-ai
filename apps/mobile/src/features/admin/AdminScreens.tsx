@@ -265,8 +265,10 @@ export function ProvidersAdminScreen() {
         <View style={styles.providerCardHeader}><View style={styles.providerIcon}><Text style={styles.providerIconText}>⌘</Text></View><View style={styles.providerHeaderText}><Text style={styles.cardTitle}>{provider.name}</Text><Text style={styles.detail}>{provider.provider_type} · {provider.enabled ? "المفتاح مفعّل" : "المفتاح متوقف"} · اختبار المزود: {provider.last_test_status ?? "غير متاح"}</Text></View></View>
         <Text numberOfLines={1} style={styles.detail}>{provider.base_url ?? ""}</Text>
         <View style={styles.providerStatsRow}><Text style={styles.providerStat}>{modelsForProvider.length} نموذج مرتبط</Text><Text style={styles.providerStat}>{routableCount} جاهز للتوجيه</Text>{restrictedCount > 0 ? <Text style={styles.providerRestrictedStat}>{restrictedCount} مقيّد</Text> : null}</View>
-        <Pressable accessibilityRole="button" accessibilityState={{ expanded }} onPress={() => setExpandedProviderId(expanded ? null : provider.id)} style={styles.providerExpandAction}><Text style={styles.link}>{expanded ? "إخفاء نماذج هذا المفتاح" : `عرض نماذج هذا المفتاح (${modelsForProvider.length})`}</Text><Text style={styles.link}>{expanded ? "⌃" : "⌄"}</Text></Pressable>
-        {expanded ? <View style={styles.providerModelsList}>
+        {provider.enabled
+          ? <Pressable accessibilityRole="button" accessibilityState={{ expanded }} onPress={() => setExpandedProviderId(expanded ? null : provider.id)} style={styles.providerExpandAction}><Text style={styles.link}>{expanded ? "إخفاء نماذج هذا المفتاح" : `عرض نماذج هذا المفتاح (${modelsForProvider.length})`}</Text><Text style={styles.link}>{expanded ? "⌃" : "⌄"}</Text></Pressable>
+          : <Text style={styles.detail}>تم تجميد نماذج هذا المفتاح وإخفاؤها من جميع اختيارات التوجيه والأقسام.</Text>}
+        {expanded && provider.enabled ? <View style={styles.providerModelsList}>
           {modelsForProvider.length === 0 ? <Text style={styles.detail}>لم تُكتشف نماذج لهذا المفتاح بعد. استخدم مزامنة النماذج.</Text> : modelsForProvider.map((model) => {
             const status = !provider.enabled ? "المفتاح متوقف" : model.health?.auto_restricted ? "مقيّد آليًا" : (!model.enabled || model.routing_group === "disabled") ? "معطّل يدويًا" : "جاهز للتوجيه";
             const statusStyle = !provider.enabled || !model.enabled || model.routing_group === "disabled" ? styles.statusDisabled : model.health?.auto_restricted ? styles.statusRestricted : styles.statusEnabled;
@@ -293,7 +295,7 @@ export function ModelsAdminScreen() {
   const { q } = useLocalSearchParams<{ q?: string }>();
   const [models, setModels] = useState<ModelRow[]>([]);
   const [search, setSearch] = useState(typeof q === "string" ? q : "");
-  const [modelFilter, setModelFilter] = useState<"all" | "enabled" | "disabled" | "restricted">("all");
+  const [modelFilter, setModelFilter] = useState<"all" | "enabled" | "disabled" | "restricted">("enabled");
   const [settings, setSettings] = useState<Record<string, unknown> | null>(null);
   const [gmailModelId, setGmailModelId] = useState<number | null>(null);
   const [plannerModelId, setPlannerModelId] = useState<number | null>(null);
@@ -319,7 +321,7 @@ export function ModelsAdminScreen() {
     return models.filter((model) => {
       const matchesQuery = !query || `${model.name} ${model.model_identifier} ${model.provider_name} ${model.routing_group}`.toLowerCase().includes(query);
       const matchesFilter = modelFilter === "all"
-        || (modelFilter === "enabled" && model.provider_enabled !== false && model.enabled && model.routing_group !== "disabled" && !model.health?.auto_restricted)
+        || (modelFilter === "enabled" && model.provider_enabled === true && model.enabled && model.routing_group !== "disabled" && !model.health?.auto_restricted)
         || (modelFilter === "disabled" && (model.provider_enabled === false || !model.enabled || model.routing_group === "disabled"))
         || (modelFilter === "restricted" && Boolean(model.health?.auto_restricted));
       const batchStatus = batchResults[model.id]?.status;
