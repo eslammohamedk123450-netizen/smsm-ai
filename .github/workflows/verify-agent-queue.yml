@@ -10,6 +10,7 @@ on:
       - "supabase/functions/image-generator/**"
       - "supabase/functions/composito-integration/**"
       - "supabase/functions/sync-models/**"
+      - "supabase/functions/model-health-check/**"
       - "supabase/functions/_shared/cors.ts"
       - "supabase/functions/_shared/cors.test.ts"
       - "supabase/functions/media-gateway/**"
@@ -121,5 +122,6 @@ jobs:
             supabase/functions/image-generator/index.ts \
             supabase/functions/composito-integration/index.ts \
             supabase/functions/sync-models/index.ts \
+            supabase/functions/model-health-check/index.ts \
             supabase/functions/ai-router/index.ts \
             supabase/functions/ai-router/agent/orchestrator.test.ts
