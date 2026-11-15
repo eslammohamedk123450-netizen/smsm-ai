@@ -306,7 +306,7 @@ export const chatService = {
             "Content-Type": "application/json",
             Accept: "application/json",
           },
-          body: JSON.stringify({ conversation_id: options.conversationId, user_message_id: String(inserted.id), prompt: imagePrompt }),
+          body: JSON.stringify({ conversation_id: options.conversationId, user_message_id: String(inserted.id), request_id: String(inserted.id), prompt: imagePrompt, quality: "standard" }),
           signal: options.signal,
         });
       } catch (cause) {
