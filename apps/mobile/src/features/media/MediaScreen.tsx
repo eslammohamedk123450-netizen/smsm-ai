@@ -151,6 +151,9 @@ export function MediaScreen() {
           : <Image source={{ uri: asset.url }} style={styles.thumb} resizeMode="cover" accessibilityLabel={asset.filename ?? "صورة"}/>}
         <Text numberOfLines={1} style={styles.filename}>{asset.filename ?? "ملف"}</Text>
         <Text style={styles.meta}>{asset.kind === "video" ? "فيديو" : asset.kind === "image" ? "صورة" : "ملف"} · {formatBytes(asset.sizeBytes)}</Text>
+        {asset.width && asset.height ? <Text style={styles.meta}>{asset.width} × {asset.height}</Text> : null}
+        {asset.durationSeconds ? <Text style={styles.meta}>المدة: {asset.durationSeconds} ثانية</Text> : null}
+        {asset.createdAt ? <Text style={styles.meta}>{new Date(asset.createdAt).toLocaleString("ar-EG")}</Text> : null}
         {typeof asset.metadata.prompt === "string" ? <Text numberOfLines={2} style={styles.promptMeta}>{asset.metadata.prompt}</Text> : null}
         {typeof asset.metadata.public_model_name === "string" ? <Text style={styles.meta}>{asset.metadata.public_model_name} · {String(asset.metadata.quality ?? "")}</Text> : null}
         {typeof asset.metadata.charged_credits === "number" ? <Text style={styles.meta}>{asset.metadata.charged_credits.toLocaleString("ar-EG")} Credits</Text> : null}
