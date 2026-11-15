@@ -30,7 +30,7 @@ const TASK_SUGGESTIONS = getRotatingSuggestions(Date.now(), 4);
 const DEFAULT_SULY_PROFILES = [
   { profile_key: "lite" as const, display_name: "SULY Lite", tagline: "للمهام السريعة واليومية", description: "للمحادثات والأسئلة والكتابة والطلبات اليومية الخفيفة.", icon_key: "zap", minimum_subscription_tier: "free" },
   { profile_key: "pro" as const, display_name: "SULY Pro", tagline: "توازن بين السرعة والذكاء والقدرات", description: "للبرمجة والبحث والتحليل والمهام المتوسطة والمركبة.", icon_key: "rocket", minimum_subscription_tier: "pro" },
-  { profile_key: "max" as const, display_name: "SULY Max", tagline: "للمهام المعقدة والتحليل العميق", description: "للتخطيط والتحليل العميق والبرمجة المتقدمة والمهام متعددة الخطوات.", icon_key: "diamond", minimum_subscription_tier: "max" },
+  { profile_key: "max" as const, display_name: "SULY Max", tagline: "للمهام المعقدة والتحليل العميق", description: "للتخطيط والتحليل العميق والبرمجة المتقدمة والمهام متعددة الخطوات مع سياق أطول.", icon_key: "diamond", minimum_subscription_tier: "max" },
 ];
 
 export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
