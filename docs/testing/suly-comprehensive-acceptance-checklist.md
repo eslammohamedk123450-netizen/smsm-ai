@@ -172,3 +172,10 @@ Record each case as **PASS**, **FAIL**, or **BLOCKED**. For every failure, captu
 | Release gate | Pending | |
 
 - [ ] Verify first and second expired leases use approximately 15s and 30s backoff, queued retries are not repeatedly delayed by scheduler ticks, and the third exhausted attempt becomes terminal.
+
+
+### Queue payload and admin configuration safety
+- [ ] Verify both user-triggered and scheduled workers reject mismatched owners, malformed task UUIDs, empty objectives, and objectives over 50,000 characters.
+- [ ] Verify editing a model with a capability-link write failure preserves its previous capability links.
+- [ ] Verify model capability changes add selected links before removing deselected links.
+- [ ] Verify tier and plan update failures are displayed rather than silently ignored.
