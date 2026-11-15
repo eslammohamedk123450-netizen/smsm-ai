@@ -38,6 +38,7 @@ export function BrainTaskScreen() {
     setError(null);
     setResult(null);
     setProgress(null);
+    setActiveJobId(null);
     try {
       const accepted = await runBrainTask(value);
       setActiveJobId(accepted.job_id);
