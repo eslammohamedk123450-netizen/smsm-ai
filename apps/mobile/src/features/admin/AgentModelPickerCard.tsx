@@ -41,7 +41,7 @@ export function AgentModelPickerCard({ role, models, selectedModelId, busy, onSe
   const isPlanner = role === "planner";
   const eligibleModels = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
-    return models.filter((model) => model.provider_enabled !== false && model.enabled
+    return models.filter((model) => model.provider_enabled === true && model.enabled
       && model.routing_group !== "disabled" && !model.health?.auto_restricted
       && supportsChat(model.capabilities_json)
       && `${model.name} ${model.model_identifier} ${model.provider_name}`.toLocaleLowerCase().includes(query));
