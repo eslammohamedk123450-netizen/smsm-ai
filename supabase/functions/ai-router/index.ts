@@ -544,7 +544,7 @@ async function handleRequest(req: Request): Promise<Response> {
   }
   const { data: profile, error: profileError } = await supabase
     .from("suly_profiles")
-    .select("is_banned, subscription_tier, hims_activated, hims_activated_at")
+    .select("is_banned, hims_activated, hims_activated_at")
     .eq("id", user.id)
     .maybeSingle();
   if (profileError) {
@@ -554,9 +554,11 @@ async function handleRequest(req: Request): Promise<Response> {
   if (!profile) return jsonResponse({ error: "Application profile is missing. Sign out and sign in again." }, 403);
   if (profile.is_banned) return jsonResponse({ error: "This account is suspended." }, 403);
   const { data: effectiveTier, error: effectiveTierError } = await supabase.rpc("suly_effective_subscription_tier", { p_user_id: user.id });
-  if (effectiveTierError) console.warn("Effective subscription lookup unavailable; using legacy profile tier.");
-  const resolvedTier = typeof effectiveTier === "string" ? effectiveTier : profile.subscription_tier;
-  const userTier = ["free", "lite", "pro", "max"].includes(resolvedTier) ? resolvedTier : "free";
+  if (effectiveTierError || typeof effectiveTier !== "string") {
+    console.error("Effective subscription entitlement verification failed.");
+    return jsonResponse({ error: "Unable to verify subscription entitlements. Please retry." }, 503, req);
+  }
+  const userTier = ["free", "lite", "pro", "max"].includes(effectiveTier) ? effectiveTier : "free";
 
   // Text chat is credit-gated, not daily-request-gated. The atomic
   // reserve_credits call below is the single source of truth: users may
