@@ -52,7 +52,7 @@ create or replace function public.suly_service_activate_subscription(
 returns jsonb
 language plpgsql
 security definer
-set search_path = public, pg_temp
+set search_path = pg_catalog, public, pg_temp
 as $$
 declare
   v_plan public.subscription_plans%rowtype;
@@ -118,7 +118,7 @@ create or replace function public.suly_admin_grant_subscription(
 returns jsonb
 language plpgsql
 security definer
-set search_path = public, pg_temp
+set search_path = pg_catalog, public, pg_temp
 as $$
 declare
   v_admin uuid := auth.uid();
