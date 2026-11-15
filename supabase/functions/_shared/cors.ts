@@ -26,7 +26,7 @@ export function corsHeadersForRequest(
   const allowed = requestOrigin === DEFAULT_WEB_ORIGIN
     || configuredOrigins.includes(requestOrigin)
     || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(requestOrigin)
-    || /^https:\/\/[a-z0-9-]+\.manus\.computer$/i.test(requestOrigin);
+;
 
   return {
     ...(allowed && requestOrigin ? { "Access-Control-Allow-Origin": requestOrigin } : {}),
