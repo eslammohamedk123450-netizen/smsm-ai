@@ -667,6 +667,7 @@ async function handleRequest(req: Request): Promise<Response> {
     mediaAssetIds,
     featureKey: fingerprintFeatureKey,
     routingMode,
+    executionMode: typeof body.execution_mode === "string" ? body.execution_mode : "legacy",
     modelId: hasExplicitModel ? modelId : null,
     temperature,
     maxTokens,
