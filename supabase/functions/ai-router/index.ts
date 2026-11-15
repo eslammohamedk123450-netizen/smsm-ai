@@ -21,7 +21,7 @@ import {
   upsertSharedTaskMemory,
 } from "../_shared/shared_task_memory.ts";
 import { CircuitBreaker } from "./circuit_breaker.ts";
-import { buildIndependentTaskPlan, buildTaskPlan, executeTaskPlan, hasExplicitDependencyLanguage, mergePartAnswers, probeCandidates, splitTask, validateTaskPlan } from "./resilience.ts";
+import { buildIndependentTaskPlan, buildTaskPlan, executeTaskPlan, hasExplicitDependencyLanguage, mergePartAnswers, parseModelGeneratedTaskPlan, probeCandidates, splitTask, validateTaskPlan } from "./resilience.ts";
 import { parseAgentDecision, runAgentLoop, type AgentLoopStep, type AgentTool } from "./agent/orchestrator.ts";
 import { prioritizeModelCandidate } from "./agent/model_routing.ts";
 import { isModelEligibleForRequest, modelSupportsRole as supportsModelRole } from "./agent/model_eligibility.ts";
