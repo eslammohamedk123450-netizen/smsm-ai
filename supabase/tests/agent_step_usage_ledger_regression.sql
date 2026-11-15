@@ -62,6 +62,9 @@ begin
     'unknown', 'unavailable', '{"reason":"provider_did_not_report_usage"}'::jsonb
   );
 
+  update public.agent_task_jobs set status = 'cancelled', completed_at = now()
+   where id = v_job and task_id = v_task and user_id = v_user;
+
   v_unknown := public.finalize_agent_task_step_usage(v_job, v_task, v_user, 'cancelled');
   if coalesce((v_unknown->>'finalized')::boolean, true)
      or v_unknown->>'status' <> 'billing_pending'
