@@ -1049,7 +1049,14 @@ async function handleRequest(req: Request): Promise<Response> {
   // Queued Brain compound tasks may delegate independent list items to
   // worker-role models. Keep this pool separate from the planner pool so a
   // planner is never silently reused as a worker.
-  const workerModels = internalBrainCall && settings.taskSplitEnabled && mind.intent === "complex_task"
+  const workerModels = executionMode === "agent"
+    && routingMode === "auto"
+    && settings.taskSplitEnabled
+    && mind.intent === "complex_task"
+    && trustedAttachments.length === 0
+    && !requestedConnector
+    && requestedMultiReadToolkits.length === 0
+    && !isWebSearchRequest(latestUserMessage)
     ? healthyModels.filter((model: ModelRow) => isEligibleModel(model, "worker", ["free_race"]))
     : [];
   const orderedWorkerModels = orderModelsByRoute(workerModels, orderedRouteAssignments, "worker");
@@ -1357,13 +1364,9 @@ async function handleRequest(req: Request): Promise<Response> {
   // answers are merged so a single provider hiccup never fails the request.
   // Only compound tasks pay the decomposition cost; chat and simple tasks are
   // always answered in a single response.
-  const canUseWorkerSplit = !internalBrainCall || workerCandidates.length > 0;
-  const proposedParts = (executionMode !== "agent" || internalBrainCall)
-    && canUseWorkerSplit
-    && settings.taskSplitEnabled
-    && trustedAttachments.length === 0
-    && !isWebSearchRequest(latestUserMessage)
-    && mind.intent === "complex_task"
+  // Only the central Agent may delegate. Explicit chat requests, connector
+  // operations, live search, and attachment work stay on their dedicated paths.
+  const proposedParts = executionMode === "agent" && workerCandidates.length > 0
     ? splitTask(latestUserMessage, settings.taskSplitMaxParts)
     : [latestUserMessage];
   let taskPlan = buildIndependentTaskPlan(proposedParts, settings.taskSplitMaxParts);
@@ -1461,8 +1464,7 @@ async function handleRequest(req: Request): Promise<Response> {
         { role: "system", content: workerBrief },
         { role: "user", content: splitParts[index] },
       ];
-      const workerPool = internalBrainCall ? workerCandidates : raceCandidates;
-      let remaining = workerPool.slice(0, 3).map((candidate) => ({ ...candidate, requestMessages: partMessages }));
+      let remaining = workerCandidates.slice(0, 3).map((candidate) => ({ ...candidate, requestMessages: partMessages }));
       for (let attempt = 0; attempt < Math.min(2, remaining.length); attempt += 1) {
         const partWinner = await firstReady(remaining, settings.freeRaceTimeoutMs, recordAttempt, countModelStarts);
         if (!partWinner) break;
