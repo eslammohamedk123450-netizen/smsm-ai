@@ -181,7 +181,7 @@ async function callImageProvider(input: {
   return { bytes, costUsd: cost.value, costConfirmed: cost.confirmed, providerRequestId: response.headers.get("x-request-id") };
 }
 
-async function handleImageGeneratorRequest(req: Request): Promise<Response> => {
+async async function handleImageGeneratorRequest(req: Request): Promise<Response> {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
   if (req.method !== "POST") return json(405, { error: "الطريقة غير مدعومة." });
 
