@@ -1,7 +1,7 @@
 import { Stack, type ErrorBoundaryProps } from "expo-router";
 import { useEffect, useState } from "react";
 import { useFonts } from "expo-font";
-import { Pressable, Text, View } from "react-native";
+import { Platform, Pressable, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider } from "../src/features/auth/auth-provider";
@@ -36,7 +36,10 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
 }
 
 export default function RootLayout() {
-  const [loading, setLoading] = useState(true);
+  // The animated native splash can fail to complete on web when browser animation
+  // drivers are unavailable. Start web directly in the router; keep the branded
+  // splash on native platforms only.
+  const [loading, setLoading] = useState(Platform.OS !== "web");
   useFonts({
     Cairo_400Regular: require("../assets/fonts/Cairo-Regular.ttf"),
     Cairo_700Bold: require("../assets/fonts/Cairo-Bold.ttf"),
