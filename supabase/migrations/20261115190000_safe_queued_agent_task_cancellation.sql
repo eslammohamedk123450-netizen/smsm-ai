@@ -147,7 +147,12 @@ begin
     update public.brain_task_steps
        set status = 'cancelled'
      where task_id = v_job.task_id
-       and status in ('pending', 'running');
+       and status in ('pending', 'running')
+       and exists (
+         select 1 from public.brain_task_contexts context_row
+          where context_row.task_id = v_job.task_id
+            and context_row.user_id = v_user_id
+       );
 
     select exists (
       select 1 from public.brain_usage_events
