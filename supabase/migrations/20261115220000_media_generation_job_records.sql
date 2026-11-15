@@ -93,7 +93,19 @@ stable
 security definer
 set search_path = public, pg_temp
 as $$
-  select job.status, job.output_asset_id, job.charged_credits, job.error_message, job.metadata
+  select job.status, job.output_asset_id, job.charged_credits,
+    case
+      when job.status = 'failed' and job.error_code = 'worker_interrupted'
+        then 'انقطع تنفيذ المهمة. تم تحرير الرصيد المحجوز.'
+      when job.status in ('failed','cancelled')
+        then 'تعذر إكمال توليد الصورة. لم يتم كشف تفاصيل المزود الداخلية.'
+      else null
+    end as error_message,
+    case
+      when job.metadata ? 'billing_status'
+        then jsonb_build_object('billing_status', job.metadata ->> 'billing_status')
+      else '{}'::jsonb
+    end as metadata
   from public.suly_media_generation_jobs job
   where auth.uid() is not null and job.user_id = auth.uid() and job.id = p_job_id
   limit 1;
@@ -121,7 +133,7 @@ begin
   for v_job in
     select * from public.suly_media_generation_jobs
     where status = 'running'
-      and coalesce(started_at, created_at) < now() - interval '10 minutes'
+      and coalesce(updated_at, started_at, created_at) < now() - interval '10 minutes'
     order by created_at
     limit 50
     for update skip locked
