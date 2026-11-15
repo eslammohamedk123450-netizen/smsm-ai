@@ -38,8 +38,10 @@ function CustomDrawerContent({ isAdmin, ...props }: DrawerContentComponentProps 
       setConversations(await chatService.listConversations(conversationLimit));
       const ledger = await getCreditLedger(1);
       if (typeof ledger.balance === "number") setBalance(ledger.balance);
-      const { data: profile } = await supabase.from("suly_profiles").select("subscription_tier").eq("id", user?.id ?? "").maybeSingle();
-      setPlanTier(String(profile?.subscription_tier ?? user?.user_metadata?.subscription_tier ?? "free").toLowerCase());
+      const { data: effectiveTier, error: tierError } = user
+        ? await supabase.rpc("suly_effective_subscription_tier", { p_user_id: user.id })
+        : { data: "free", error: null };
+      setPlanTier(tierError || typeof effectiveTier !== "string" ? "unknown" : effectiveTier.toLowerCase());
     } catch (cause) {
       show(cause instanceof Error ? cause.message : "تعذّر تحميل المحادثات.", "error");
     } finally {
@@ -124,6 +126,9 @@ function CustomDrawerContent({ isAdmin, ...props }: DrawerContentComponentProps 
             <Ionicons name="chatbubbles-outline" size={18} color="#0EA5E9" />
             <Text style={styles.navItemText}>المحادثة</Text>
           </TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.7} style={styles.navItem} onPress={() => { router.push("/(protected)/projects"); props.navigation.closeDrawer(); }}>
+            <View style={styles.navItemRight}><Ionicons name="folder-open-outline" size={18} color="#D4AF37" /><Text style={styles.navItemText}>مشاريعي</Text></View>
+          </TouchableOpacity>
           <TouchableOpacity activeOpacity={0.7} style={styles.navItem} onPress={() => { router.push("/(protected)/image-studio"); props.navigation.closeDrawer(); }}>
             <View style={styles.navItemRight}><Ionicons name="images-outline" size={18} color="#D4AF37" /><Text style={styles.navItemText}>استوديو الصور</Text></View>
           </TouchableOpacity>
@@ -171,8 +176,8 @@ function CustomDrawerContent({ isAdmin, ...props }: DrawerContentComponentProps 
           <View style={styles.planCardInfo}>
             <Ionicons name="shield-checkmark" size={18} color="#0EA5E9" />
             <View>
-              <Text style={styles.planCardTitle}>{planTier === "free" ? "الخطة المجانية" : `خطة ${planTier.toUpperCase()}`}</Text>
-              <Text style={styles.planCardSubtitle}>الخطة الحالية: {planTier === "free" ? "Free" : planTier.toUpperCase()}</Text>
+              <Text style={styles.planCardTitle}>{planTier === "unknown" ? "تعذر التحقق من الخطة" : planTier === "free" ? "الخطة المجانية" : `خطة ${planTier.toUpperCase()}`}</Text>
+              <Text style={styles.planCardSubtitle}>الخطة الحالية: {planTier === "unknown" ? "غير متاحة" : planTier === "free" ? "Free" : planTier.toUpperCase()}</Text>
             </View>
           </View>
           <TouchableOpacity activeOpacity={0.7} onPress={() => { router.push("/(protected)/upgrade"); props.navigation.closeDrawer(); }}>
@@ -242,6 +247,7 @@ export default function ProtectedLayout() {
   return (
     <Drawer drawerContent={(props) => <CustomDrawerContent {...props} isAdmin={isAdmin} />} screenOptions={{ headerShown: false, drawerPosition: "right", drawerStyle: { backgroundColor: colors.background, width: 320 }, swipeEdgeWidth: 36 }}>
       <Drawer.Screen name="chat" options={{ title: "المحادثة" }} />
+      <Drawer.Screen name="projects" options={{ title: "مشاريعي", drawerItemStyle: { display: "none" } }} />
       <Drawer.Screen name="image-studio" options={{ title: "استوديو الصور", drawerItemStyle: { display: "none" } }} />
       <Drawer.Screen name="video-studio" options={{ title: "استوديو الفيديو", drawerItemStyle: { display: "none" } }} />
       <Drawer.Screen name="tasks" options={{ title: "تنفيذ مهمة ذكية", drawerItemStyle: { display: "none" } }} />
