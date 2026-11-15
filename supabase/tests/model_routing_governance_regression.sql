@@ -7,6 +7,26 @@ begin
   ) then raise exception 'global route must contain one or two models'; end if;
 
   if exists (
+    select required.route_role
+    from (values ('chat'), ('planner'), ('worker'), ('reviewer'), ('summarizer')) as required(route_role)
+    left join public.ai_route_model_assignments a
+      on a.route_role = required.route_role and a.enabled
+    group by required.route_role
+    having count(a.model_id) = 0
+  ) then raise exception 'a required global model route is empty'; end if;
+
+  if exists (
+    select profiles.profile_key, roles.route_role
+    from (values ('lite'), ('pro'), ('max')) as profiles(profile_key)
+    cross join (values ('chat'), ('planner'), ('worker'), ('reviewer'), ('summarizer')) as roles(route_role)
+    left join public.suly_model_profile_models a
+      on a.profile_key = profiles.profile_key and a.route_role = roles.route_role and a.enabled
+    left join public.ai_models m on m.id = a.model_id and m.enabled and m.routing_group = 'free_race'
+    group by required.profile_key, required.route_role
+    having count(distinct m.id) < 2
+  ) then raise exception 'a subscription profile is missing a fast-route fallback'; end if;
+
+  if exists (
     select 1 from public.ai_route_model_assignments a
     join public.ai_models m on m.id=a.model_id
     join public.ai_providers p on p.id=m.provider_id
