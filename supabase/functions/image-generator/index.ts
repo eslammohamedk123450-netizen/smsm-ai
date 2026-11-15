@@ -188,10 +188,16 @@ Deno.serve(async (req: Request) => {
   }
   const { data: existingAsset } = await service.from("global_media_assets").select("id,message_id,metadata")
     .eq("user_id", userId).contains("metadata", { request_id: requestId }).maybeSingle();
-  if (existingAsset) return json(200, {
-    success: true, request_id: requestId, media_id: existingAsset.id, message_id: existingAsset.message_id ?? null,
-    already_completed: true, metadata: existingAsset.metadata ?? {},
-  });
+  if (existingAsset) {
+    const existingMetadata = asRecord(existingAsset.metadata);
+    const existingCharge = Number(existingMetadata.charged_credits ?? 0);
+    const billingSettled = await settleCredits(service, userId, requestId, Number.isSafeInteger(existingCharge) && existingCharge >= 0 ? existingCharge : 0);
+    return json(200, {
+      success: true, request_id: requestId, media_id: existingAsset.id, message_id: existingAsset.message_id ?? null,
+      already_completed: true, metadata: existingMetadata,
+      billing_status: billingSettled ? "settled" : "pending_reconciliation",
+    });
+  }
   const { data: existingJob } = await service.from("suly_media_generation_jobs")
     .select("status,output_asset_id,charged_credits,provider_cost_usd,provider_cost_status")
     .eq("id", requestId).eq("user_id", userId).maybeSingle();
@@ -199,8 +205,8 @@ Deno.serve(async (req: Request) => {
     if (existingJob.status === "queued" || existingJob.status === "running") {
       return json(202, { success: true, request_id: requestId, status: existingJob.status, message: "الطلب قيد التنفيذ بالفعل." });
     }
-    if (existingJob.status === "failed" || existingJob.status === "cancelled") {
-      return json(409, { error: "هذا الطلب انتهى. ابدأ طلبًا جديدًا لإعادة المحاولة.", request_id: requestId });
+    if (existingJob.status === "failed" || existingJob.status === "cancelled" || existingJob.status === "completed") {
+      return json(409, { error: "هذا الطلب انتهى أو لم تعد نتيجته متاحة. ابدأ طلبًا جديدًا لإعادة المحاولة.", request_id: requestId });
     }
   }
 
