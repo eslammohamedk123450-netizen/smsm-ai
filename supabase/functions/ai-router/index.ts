@@ -1520,7 +1520,11 @@ async function handleRequest(req: Request): Promise<Response> {
       return { index, content: "", model: null, candidate: null, outputGuard: null };
     };
     if (!taskPlan) throw new Error("A multi-part execution requires a validated task plan.");
-    const taskExecution = await executeTaskPlan<PartResult>(taskPlan, 3, (step, index, completed) => answerPart(index, completed));
+    const taskExecution = await executeTaskPlan<PartResult>(taskPlan, 3, async (_step, index, completed) => {
+      const result = await answerPart(index, completed);
+      if (!result.candidate) throw new Error("worker_failed");
+      return result;
+    });
     const partResultsWithCandidates = await Promise.all(taskExecution.map(async (outcome, index) => {
       if (outcome.status === "completed" && outcome.result) return outcome.result;
       const stepKey = taskPlan![index].step_id;
