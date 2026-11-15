@@ -14,7 +14,7 @@ export function isWebSearchRequest(text: string): boolean {
   // Keep live-search routing explicit. Broad phrases such as "معلومات عن" or
   // "حديث" commonly appear in ordinary educational questions and should not
   // force a tool-backed Agent hop.
-  return /\\b(search(?:\\s+(?:for|the web|online))?|browse|web search|internet search|online search|news|latest|recent|today|right now|look up|research|find current)\\b|ابحث|دور على|على النت|على الإنترنت|الإنترنت|الانترنت|أخبار|آخر الأخبار|الأخبار|اليوم|حاليًا|الآن|مصادر متعددة|في جوجل|جوجل/iu.test(text);
+  return /\\b(search(?:\\s+(?:for|the web|online))?|browse|web search|internet search|online search|news|latest|recent|today|right now|look up|research|find current)\\b|ابحث|دور على|على النت|على الإنترنت|أخبار|آخر الأخبار|الأخبار|اليوم|حاليًا|الآن|مصادر متعددة|في جوجل|على جوجل/iu.test(text);
 }
 
 export async function runTavilySearch(apiKey: string, query: string): Promise<JsonRecord> {
