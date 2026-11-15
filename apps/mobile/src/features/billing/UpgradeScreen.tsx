@@ -7,7 +7,7 @@ import { colors } from "../../theme/colors";
 import { supabase } from "../../lib/supabase/client";
 import { useAuth } from "../auth/auth-provider";
 
-type Plan = { id: number; name: string; tier_key: string; description: string | null; price: number; currency: string; billing_period: string; daily_credits: number; max_requests: number; sort_order: number };
+type Plan = { id: number; name: string; tier_key?: string | null; description: string | null; price: number; currency: string; billing_period: string; daily_credits: number; max_requests: number; sort_order: number };
 type Feature = { id: number; plan_id: number; title: string; value: string; sort_order: number };
 const PLAN_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = { free: "sparkles-outline", basic: "leaf-outline", standard: "leaf-outline", lite: "flash-outline", pro: "rocket-outline", max: "diamond-outline", ultra: "infinite-outline" };
 const planKey = (name: string) => name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
@@ -23,11 +23,15 @@ export default function UpgradeScreen() {
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
-    const [plansResult, featuresResult, profileResult] = await Promise.all([
+    let [plansResult, featuresResult, profileResult] = await Promise.all([
       supabase.from("subscription_plans").select("id,name,tier_key,description,price,currency,billing_period,daily_credits,max_requests,sort_order").eq("is_active", true).order("sort_order").limit(20),
       supabase.from("subscription_plan_features").select("id,plan_id,title,value,sort_order").eq("is_active", true).order("sort_order").limit(200),
       user ? supabase.from("suly_profiles").select("subscription_tier").eq("id", user.id).maybeSingle() : Promise.resolve({ data: null, error: null }),
     ]);
+    if (plansResult.error) {
+      const legacyPlans = await supabase.from("subscription_plans").select("id,name,description,price,currency,billing_period,daily_credits,max_requests,sort_order").eq("is_active", true).order("sort_order").limit(20);
+      if (!legacyPlans.error) plansResult = { ...legacyPlans, data: (legacyPlans.data ?? []).map((plan) => ({ ...plan, tier_key: planKey(plan.name) })) } as typeof plansResult;
+    }
     if (plansResult.error || featuresResult.error) setError("تعذر تحميل الباقات الآن. حاول مرة أخرى.");
     else {
       setPlans((plansResult.data ?? []) as Plan[]);
@@ -42,13 +46,13 @@ export default function UpgradeScreen() {
     <View style={styles.header}><Pressable onPress={() => router.back()}><Text style={styles.back}>رجوع</Text></Pressable><View style={styles.headerTitle}><Ionicons name="card-outline" size={25} color={colors.primary} /><Text style={styles.title}>الباقات والترقية</Text></View></View>
     <Text style={styles.subtitle}>اشتراكك يفتح مستوى SULY المقابل والمستويات الأقل منه: Pro يفتح Pro وLite، وMax يفتح Max وPro وLite. ويمكنك اختيار Auto أو المستوى يدويًا من شاشة المحادثة.</Text>
     {loading ? <ActivityIndicator color={colors.primary} /> : error ? <Text style={styles.error}>{error}</Text> : plans.map((plan) => {
-      const key = planKey(plan.name);
+      const key = plan.tier_key || planKey(plan.name);
       const current = currentTier === key;
       return <View key={plan.id} style={[styles.plan, current && styles.currentPlan]}>
         <View style={styles.planHeader}><View style={styles.planIdentity}><View style={styles.iconWrap}><Ionicons name={PLAN_ICONS[key] ?? "layers-outline"} size={25} color={colors.primary} /></View><Text style={styles.planName}>{plan.name}</Text></View><Text style={styles.price}>{plan.price === 0 ? "مجانية" : `${plan.price} ${plan.currency}`}</Text></View>
         {current ? <Text style={styles.currentBadge}>باقتك الحالية</Text> : null}
         <Text style={styles.description}>{plan.description ?? "باقة مناسبة لاستخدامك"}</Text>
-        <Text style={styles.meta}>المستويات المفتوحة: {plan.tier_key === "max" ? "SULY Max + Pro + Lite" : plan.tier_key === "pro" ? "SULY Pro + Lite" : "SULY Lite"}</Text>
+        <Text style={styles.meta}>المستويات المفتوحة: {key === "max" ? "SULY Max + Pro + Lite" : key === "pro" ? "SULY Pro + Lite" : "SULY Lite"}</Text>
         <Text style={styles.meta}>الرصيد: {plan.daily_credits.toLocaleString("ar-EG")} · المهام: {plan.max_requests.toLocaleString("ar-EG")}</Text>
         <View style={styles.features}>{features.filter((feature) => feature.plan_id === plan.id).map((feature) => <View key={feature.id} style={styles.feature}><Ionicons name="checkmark-circle" size={17} color={colors.primary} /><Text style={styles.featureValue}><Text style={styles.featureTitle}>{feature.title}: </Text>{feature.value}</Text></View>)}</View>
         <Pressable disabled={current || plan.price === 0} style={[styles.action, (current || plan.price === 0) && styles.disabled]}><Text style={styles.actionText}>{current ? "باقتك الحالية" : plan.price === 0 ? "الباقة المجانية" : "ستتوفر الترقية قريبًا"}</Text></Pressable>
