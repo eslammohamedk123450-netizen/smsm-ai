@@ -10,15 +10,14 @@ import { getCurrentCreditBalance } from "../credits/credit-service";
 import { getMediaDeliveryUrl, type MediaAsset } from "../media/media-service";
 import { chatService } from "../chat/chat-service";
 
-type Model = { id: string; display_name: string; model_identifier: string; allowed_tiers: string[]; supported_qualities: string[]; is_default: boolean };
-type Price = { generation_model_id: string; quality: string; price_credits: number; resolution: string; enabled: boolean };
+type Price = { quality: string; price_credits: number; resolution: string };
+type Model = { id: string; display_name: string; supported_qualities: string[]; is_default: boolean; prices: Price[] };
 type GeneratedImage = { id: string; url: string; prompt: string; modelName: string; quality: string; credits: number };
 const QUALITY_LABELS: Record<string, string> = { economy: "اقتصادية", standard: "متوسطة", high: "عالية", ultra: "فائقة" };
 
 export function ImageStudioScreen() {
   const router = useRouter();
   const [models, setModels] = useState<Model[]>([]);
-  const [prices, setPrices] = useState<Price[]>([]);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [quality, setQuality] = useState("standard");
   const [prompt, setPrompt] = useState("");
@@ -32,24 +31,14 @@ export function ImageStudioScreen() {
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
-    const [{ data: userData }, modelResult, priceResult, balanceResult] = await Promise.all([
-      supabase.auth.getUser(),
-      supabase.from("suly_media_generation_models").select("id,display_name,model_identifier,allowed_tiers,supported_qualities,is_default").eq("service_type", "image").eq("is_active", true).order("is_default", { ascending: false }),
-      supabase.from("suly_media_generation_prices").select("generation_model_id,quality,price_credits,resolution,enabled").eq("enabled", true),
+    const [modelResult, balanceResult] = await Promise.all([
+      supabase.rpc("suly_list_public_image_models"),
       getCurrentCreditBalance().catch(() => null),
     ]);
-    if (modelResult.error || priceResult.error) setError("تعذر تحميل إعدادات استوديو الصور.");
+    if (modelResult.error) setError("تعذر تحميل إعدادات استوديو الصور.");
     else {
-      const { data: profile } = userData.user
-        ? await supabase.from("suly_profiles").select("subscription_tier").eq("id", userData.user.id).maybeSingle()
-        : { data: null };
-      const tier = String(profile?.subscription_tier ?? "free");
-      const tierRank: Record<string, number> = { free: 0, lite: 1, pro: 2, max: 3 };
-      const userRank = tierRank[tier] ?? 0;
-      const allowed = ((modelResult.data ?? []) as Model[]).filter((model) =>
-        model.allowed_tiers.some((allowedTier) => tierRank[allowedTier] !== undefined && tierRank[allowedTier] <= userRank));
+      const allowed = (modelResult.data ?? []) as Model[];
       setModels(allowed);
-      setPrices((priceResult.data ?? []) as Price[]);
       setSelectedModelId((current) => current && allowed.some((model) => model.id === current) ? current : allowed[0]?.id ?? null);
       setBalance(typeof balanceResult === "number" ? balanceResult : null);
     }
@@ -58,10 +47,10 @@ export function ImageStudioScreen() {
   useEffect(() => { void load(); }, [load]);
 
   const selectedModel = models.find((model) => model.id === selectedModelId) ?? null;
-  const availableQualities = selectedModel?.supported_qualities.filter((item) =>
-    prices.some((price) => price.generation_model_id === selectedModel.id && price.quality === item && price.enabled)) ?? [];
+  const availableQualities = selectedModel?.prices.map((price) => price.quality)
+    .filter((item) => selectedModel.supported_qualities.includes(item)) ?? [];
   const effectiveQuality = availableQualities.includes(quality) ? quality : availableQualities[0] ?? "standard";
-  const selectedPrice = prices.find((price) => price.generation_model_id === selectedModelId && price.quality === effectiveQuality && price.enabled) ?? null;
+  const selectedPrice = selectedModel?.prices.find((price) => price.quality === effectiveQuality) ?? null;
   const estimatedCredits = Number(selectedPrice?.price_credits ?? 0);
   const remainingAfterReserve = balance === null ? null : balance - estimatedCredits;
   const canGenerate = Boolean(selectedModel && selectedPrice && prompt.trim() && !generating && balance !== null && balance >= estimatedCredits);
