@@ -176,3 +176,10 @@ Daily and monthly budgets must be enforced server-side, not only displayed in th
 - Never expose service-role credentials to the mobile client.
 - Any new routing decision must enforce plan, capability, health, and spend eligibility server-side.
 - Every implementation task includes a review of touched files, call sites, dependencies, tests, and obsolete/duplicate code.
+
+
+### Queue hardening follow-up
+- User-triggered and scheduled workers now share one Brain payload validator for owner match, UUID task ID, trimmed non-empty objective, and the 50,000-character limit.
+- Retry SQL regression coverage checks the 15s first retry, 30s second retry, no repeated delay extension while queued, and terminal exhaustion after the configured attempts.
+- Brain model admin saves now upsert selected capability links before removing deselected links. A failed capability write no longer deletes all previously working links; tier/plan update errors are surfaced.
+- Task cancellation remains deferred until queue status, Brain context, worker abort, and usage finalization can be reconciled safely.
