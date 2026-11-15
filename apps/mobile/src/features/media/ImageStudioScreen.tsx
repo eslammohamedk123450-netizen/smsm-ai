@@ -1,0 +1,153 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Image, Pressable, ScrollView, TextInput, View } from "react-native";
+import * as Clipboard from "expo-clipboard";
+import { randomUUID } from "expo-crypto";
+import { useRouter } from "expo-router";
+import { PremiumText as Text } from "../../components/ui/PremiumText";
+import { colors } from "../../theme/colors";
+import { supabase } from "../../lib/supabase/client";
+import { getCurrentCreditBalance } from "../credits/credit-service";
+import { getMediaDeliveryUrl } from "../media/media-service";
+
+type Model = { id: string; display_name: string; model_identifier: string; allowed_tiers: string[]; supported_qualities: string[]; is_default: boolean };
+type Price = { generation_model_id: string; quality: string; price_credits: number; resolution: string; enabled: boolean };
+type GeneratedImage = { id: string; url: string; prompt: string; modelName: string; quality: string; credits: number };
+const QUALITY_LABELS: Record<string, string> = { economy: "اقتصادية", standard: "متوسطة", high: "عالية", ultra: "فائقة" };
+
+export function ImageStudioScreen() {
+  const router = useRouter();
+  const [models, setModels] = useState<Model[]>([]);
+  const [prices, setPrices] = useState<Price[]>([]);
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+  const [quality, setQuality] = useState("standard");
+  const [prompt, setPrompt] = useState("");
+  const [balance, setBalance] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [result, setResult] = useState<GeneratedImage | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true); setError(null);
+    const [{ data: userData }, modelResult, priceResult, balanceResult] = await Promise.all([
+      supabase.auth.getUser(),
+      supabase.from("suly_media_generation_models").select("id,display_name,model_identifier,allowed_tiers,supported_qualities,is_default").eq("service_type", "image").eq("is_active", true).order("is_default", { ascending: false }),
+      supabase.from("suly_media_generation_prices").select("generation_model_id,quality,price_credits,resolution,enabled").eq("enabled", true),
+      getCurrentCreditBalance().catch(() => null),
+    ]);
+    if (modelResult.error || priceResult.error) setError("تعذر تحميل إعدادات استوديو الصور.");
+    else {
+      const { data: profile } = userData.user
+        ? await supabase.from("suly_profiles").select("subscription_tier").eq("id", userData.user.id).maybeSingle()
+        : { data: null };
+      const tier = String(profile?.subscription_tier ?? "free");
+      const allowed = ((modelResult.data ?? []) as Model[]).filter((model) => model.allowed_tiers.includes(tier));
+      setModels(allowed);
+      setPrices((priceResult.data ?? []) as Price[]);
+      setSelectedModelId((current) => current && allowed.some((model) => model.id === current) ? current : allowed[0]?.id ?? null);
+      setBalance(typeof balanceResult === "number" ? balanceResult : null);
+    }
+    setLoading(false);
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+
+  const selectedModel = models.find((model) => model.id === selectedModelId) ?? null;
+  const availableQualities = selectedModel?.supported_qualities.filter((item) =>
+    prices.some((price) => price.generation_model_id === selectedModel.id && price.quality === item && price.enabled)) ?? [];
+  const effectiveQuality = availableQualities.includes(quality) ? quality : availableQualities[0] ?? "standard";
+  const selectedPrice = prices.find((price) => price.generation_model_id === selectedModelId && price.quality === effectiveQuality && price.enabled) ?? null;
+  const estimatedCredits = Number(selectedPrice?.price_credits ?? 0);
+  const remainingAfterReserve = balance === null ? null : balance - estimatedCredits;
+  const canGenerate = Boolean(selectedModel && selectedPrice && prompt.trim() && !generating && balance !== null && balance >= estimatedCredits);
+
+  const generate = async () => {
+    if (!selectedModel || !selectedPrice || !prompt.trim()) return;
+    setGenerating(true); setError(null); setNotice(null); setResult(null);
+    const requestId = randomUUID();
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke("image-generator", {
+        body: {
+          source: "image_studio",
+          request_id: requestId,
+          prompt: prompt.trim(),
+          generation_model_id: selectedModel.id,
+          quality: effectiveQuality,
+        },
+      });
+      if (invokeError || !data?.success || typeof data.media_id !== "string") {
+        const message = typeof data?.error === "string" ? data.error : "تعذر إنشاء الصورة. حاول مرة أخرى.";
+        throw new Error(message);
+      }
+      const url = await getMediaDeliveryUrl(data.media_id);
+      setResult({ id: data.media_id, url, prompt: prompt.trim(), modelName: selectedModel.display_name, quality: effectiveQuality, credits: Number(data.charged_credits ?? estimatedCredits) });
+      setNotice("تم إنشاء الصورة وحفظها تلقائيًا في مكتبتك.");
+      setBalance(await getCurrentCreditBalance().catch(() => null));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر إكمال توليد الصورة.");
+    } finally { setGenerating(false); }
+  };
+
+  const copyResultLink = async () => {
+    if (!result) return;
+    await Clipboard.setStringAsync(result.url);
+    setNotice("تم نسخ رابط الصورة.");
+  };
+
+  return <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: 16, gap: 14, maxWidth: 1000, width: "100%", alignSelf: "center" }} keyboardShouldPersistTaps="handled">
+    <View style={{ gap: 4 }}>
+      <Text style={{ color: colors.primary, textAlign: "right", fontSize: 11, fontWeight: "800" }}>SULY CREATIVE</Text>
+      <Text style={{ color: colors.textPrimary, textAlign: "right", fontSize: 25, fontWeight: "900" }}>استوديو الصور</Text>
+      <Text style={{ color: colors.textSecondary, textAlign: "right", lineHeight: 21 }}>حوّل وصفك إلى صورة. اختر نموذج SULY وجودة النتيجة قبل بدء التنفيذ.</Text>
+    </View>
+
+    {error ? <Text style={{ color: colors.error, textAlign: "right" }}>{error}</Text> : null}
+    {notice ? <Text style={{ color: colors.success, textAlign: "right" }}>{notice}</Text> : null}
+
+    <View style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 16, padding: 14, gap: 10 }}>
+      <Text style={{ color: colors.textPrimary, textAlign: "right", fontWeight: "800" }}>١. اختر نموذج الصور</Text>
+      {loading ? <ActivityIndicator color={colors.primary} /> : models.length === 0 ? <Text style={{ color: colors.textMuted, textAlign: "right" }}>لا يوجد نموذج صور متاح حاليًا لاشتراكك. سيظهر النموذج هنا بعد ربطه وتفعيله من لوحة الإدارة.</Text> : models.map((model) => <Pressable key={model.id} onPress={() => setSelectedModelId(model.id)} style={{ borderWidth: 1, borderColor: selectedModelId === model.id ? colors.primary : colors.divider, backgroundColor: selectedModelId === model.id ? colors.surfaceElevated : colors.cardBackground, borderRadius: 12, padding: 12, gap: 3 }}>
+        <Text style={{ color: selectedModelId === model.id ? colors.primary : colors.textPrimary, textAlign: "right", fontWeight: "800" }}>{model.display_name} {model.is_default ? "· موصى به" : ""}</Text>
+        <Text style={{ color: colors.textMuted, textAlign: "right", fontSize: 10 }}>نموذج SULY للصور</Text>
+      </Pressable>)}
+
+      <Text style={{ color: colors.textPrimary, textAlign: "right", fontWeight: "800" }}>٢. جودة الصورة</Text>
+      <View style={{ flexDirection: "row-reverse", flexWrap: "wrap", gap: 7 }}>
+        {availableQualities.map((item) => <Pressable key={item} onPress={() => setQuality(item)} style={{ borderWidth: 1, borderColor: effectiveQuality === item ? colors.primary : colors.divider, borderRadius: 20, paddingHorizontal: 13, paddingVertical: 8, backgroundColor: effectiveQuality === item ? colors.surfaceElevated : colors.surface }}>
+          <Text style={{ color: effectiveQuality === item ? colors.primary : colors.textSecondary, fontSize: 11, fontWeight: "700" }}>{QUALITY_LABELS[item] ?? item}</Text>
+        </Pressable>)}
+      </View>
+
+      <Text style={{ color: colors.textPrimary, textAlign: "right", fontWeight: "800" }}>٣. وصف الصورة</Text>
+      <TextInput value={prompt} onChangeText={setPrompt} placeholder="اكتب وصفًا واضحًا للصورة التي تريد إنشاءها..." placeholderTextColor={colors.textMuted} multiline maxLength={2048} textAlignVertical="top" style={{ minHeight: 125, color: colors.textPrimary, backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, borderWidth: 1, borderRadius: 12, padding: 12, textAlign: "right" }} />
+      <Text style={{ color: colors.textMuted, textAlign: "right", fontSize: 10, lineHeight: 17 }}>كلما كان وصفك أدق في تحديد العناصر والألوان والأسلوب والتكوين، ساعد ذلك على الوصول إلى نتيجة أفضل.</Text>
+
+      <View style={{ borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 10, gap: 6 }}>
+        <View style={{ flexDirection: "row-reverse", justifyContent: "space-between" }}><Text style={{ color: colors.textSecondary }}>السعر التقديري</Text><Text style={{ color: colors.primary, fontWeight: "900" }}>{estimatedCredits.toLocaleString("ar-EG")} Credits</Text></View>
+        <View style={{ flexDirection: "row-reverse", justifyContent: "space-between" }}><Text style={{ color: colors.textSecondary }}>رصيدك الحالي</Text><Text style={{ color: colors.textPrimary, fontWeight: "700" }}>{balance === null ? "—" : balance.toLocaleString("ar-EG")}</Text></View>
+        <View style={{ flexDirection: "row-reverse", justifyContent: "space-between" }}><Text style={{ color: colors.textSecondary }}>الرصيد بعد الحجز</Text><Text style={{ color: remainingAfterReserve !== null && remainingAfterReserve < 0 ? colors.error : colors.textPrimary, fontWeight: "700" }}>{remainingAfterReserve === null ? "—" : remainingAfterReserve.toLocaleString("ar-EG")}</Text></View>
+      </View>
+      <Pressable disabled={!canGenerate} onPress={() => void generate()} style={{ backgroundColor: colors.primary, borderRadius: 12, padding: 14, opacity: canGenerate ? 1 : 0.45, alignItems: "center" }}>
+        <Text style={{ color: colors.background, fontWeight: "900" }}>{generating ? "جاري تجهيز طلبك…" : "تأكيد وإنشاء الصورة"}</Text>
+      </Pressable>
+      {balance !== null && selectedPrice && balance < estimatedCredits ? <Text style={{ color: colors.error, textAlign: "right", fontSize: 11 }}>رصيدك غير كافٍ لهذا الطلب. اشحن رصيدك للمتابعة.</Text> : null}
+    </View>
+
+    {generating ? <View style={{ backgroundColor: colors.surface, borderColor: colors.primary, borderWidth: 1, borderRadius: 16, padding: 24, alignItems: "center", gap: 12 }}>
+      <ActivityIndicator size="large" color={colors.primary} />
+      <Text style={{ color: colors.primary, fontSize: 17, fontWeight: "900" }}>جاري التوليد</Text>
+      <Text style={{ color: colors.textSecondary, textAlign: "center", fontSize: 11 }}>نموذج SULY يعمل على إنشاء صورتك. اترك المهمة تكمل.</Text>
+    </View> : null}
+
+    {result ? <View style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 16, padding: 12, gap: 10 }}>
+      <Text style={{ color: colors.textPrimary, textAlign: "right", fontWeight: "900" }}>الصورة الناتجة</Text>
+      <Image source={{ uri: result.url }} resizeMode="contain" style={{ width: "100%", aspectRatio: 1, borderRadius: 12, backgroundColor: colors.surfaceElevated }} />
+      <Text style={{ color: colors.textSecondary, textAlign: "right", fontSize: 10 }}>{result.modelName} · {QUALITY_LABELS[result.quality]} · {result.credits} Credits</Text>
+      <View style={{ flexDirection: "row-reverse", flexWrap: "wrap", gap: 8 }}>
+        <Pressable onPress={() => void copyResultLink()} style={{ borderWidth: 1, borderColor: colors.divider, borderRadius: 9, padding: 10 }}><Text style={{ color: colors.textPrimary, fontSize: 11 }}>نسخ رابط الصورة</Text></Pressable>
+        <Pressable onPress={() => router.push("/(protected)/media")} style={{ borderWidth: 1, borderColor: colors.divider, borderRadius: 9, padding: 10 }}><Text style={{ color: colors.textPrimary, fontSize: 11 }}>فتح مكتبتي</Text></Pressable>
+        <Pressable onPress={() => router.push("/(protected)/chat")} style={{ backgroundColor: colors.primary, borderRadius: 9, padding: 10 }}><Text style={{ color: colors.background, fontSize: 11, fontWeight: "800" }}>ابدأ محادثة عنها</Text></Pressable>
+      </View>
+    </View> : null}
+  </ScrollView>;
+}
