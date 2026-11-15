@@ -320,10 +320,13 @@ export function ModelsAdminScreen() {
     const query = search.trim().toLowerCase();
     return models.filter((model) => {
       const matchesQuery = !query || `${model.name} ${model.model_identifier} ${model.provider_name} ${model.routing_group}`.toLowerCase().includes(query);
-      const matchesFilter = modelFilter === "all"
-        || (modelFilter === "enabled" && model.provider_enabled === true && model.enabled && model.routing_group !== "disabled" && !model.health?.auto_restricted)
-        || (modelFilter === "disabled" && (model.provider_enabled === false || !model.enabled || model.routing_group === "disabled"))
-        || (modelFilter === "restricted" && Boolean(model.health?.auto_restricted));
+      const providerVisible = model.provider_enabled === true;
+      const matchesFilter = providerVisible && (
+        modelFilter === "all"
+        || (modelFilter === "enabled" && model.enabled && model.routing_group !== "disabled" && !model.health?.auto_restricted)
+        || (modelFilter === "disabled" && (!model.enabled || model.routing_group === "disabled"))
+        || (modelFilter === "restricted" && Boolean(model.health?.auto_restricted))
+      );
       const batchStatus = batchResults[model.id]?.status;
       const matchesBatch = batchFilter === "all" || batchStatus === batchFilter;
       return matchesQuery && matchesFilter && matchesBatch;
@@ -521,10 +524,10 @@ export function ModelsAdminScreen() {
             <View style={styles.searchWrap}><Text style={styles.searchGlyph}>⌕</Text><TextInput style={[styles.input, styles.modelSearchInput]} value={search} onChangeText={setSearch} placeholder="ابحث بالاسم أو المزود أو المسار" placeholderTextColor={colors.textMuted} autoCapitalize="none" /><Pressable accessibilityRole="button" onPress={() => setSearch("")}><Text style={styles.link}>مسح</Text></Pressable></View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
               {([
-                ["all", `الكل · ${models.length}`],
+                ["all", `الكل · ${models.filter((model) => model.provider_enabled === true).length}`],
                 ["enabled", `جاهزة · ${models.filter((model) => model.provider_enabled === true && model.enabled && model.routing_group !== "disabled" && !model.health?.auto_restricted).length}`],
-                ["disabled", `معطّلة · ${models.filter((model) => model.provider_enabled === false || !model.enabled || model.routing_group === "disabled").length}`],
-                ["restricted", `مقيّدة · ${models.filter((model) => model.health?.auto_restricted).length}`],
+                ["disabled", `معطّلة · ${models.filter((model) => model.provider_enabled === true && (!model.enabled || model.routing_group === "disabled")).length}`],
+                ["restricted", `مقيّدة · ${models.filter((model) => model.provider_enabled === true && model.health?.auto_restricted).length}`],
               ] as const).map(([filter, label]) => <Pressable key={filter} accessibilityRole="button" accessibilityState={{ selected: modelFilter === filter }} onPress={() => setModelFilter(filter)} style={[styles.filterChip, modelFilter === filter && styles.filterChipSelected]}><Text style={[styles.filterText, modelFilter === filter && styles.filterTextSelected]}>{label}</Text></Pressable>)}
             </ScrollView>
             <Text style={styles.resultsCount}>عرض {filteredModels.length} من {models.length}</Text>
