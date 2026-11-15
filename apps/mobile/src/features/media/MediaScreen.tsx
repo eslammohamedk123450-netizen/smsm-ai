@@ -4,10 +4,11 @@ import { PremiumText as Text } from "../../components/ui/PremiumText";
 import * as Clipboard from "expo-clipboard";
 import { supabase } from "../../lib/supabase/client";
 import { colors } from "../../theme/colors";
-import { formatBytes, listMyMedia, pickMedia, uploadMediaFile, type MediaAsset, type PickKind } from "./media-service";
+import { formatBytes, listMyMedia, listMyGenerationJobs, pickMedia, uploadMediaFile, type MediaAsset, type MediaGenerationJob, type PickKind } from "./media-service";
 
 export function MediaScreen() {
   const [assets, setAssets] = useState<MediaAsset[]>([]);
+  const [jobs, setJobs] = useState<MediaGenerationJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<PickKind | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -17,7 +18,11 @@ export function MediaScreen() {
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
-    try { setAssets(await listMyMedia()); }
+    try {
+      const [nextAssets, nextJobs] = await Promise.all([listMyMedia(), listMyGenerationJobs()]);
+      setAssets(nextAssets);
+      setJobs(nextJobs);
+    }
     catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر تحميل مكتبة الوسائط."); }
     finally { setLoading(false); }
   }, []);
@@ -85,7 +90,16 @@ export function MediaScreen() {
         <Text style={[styles.filterText, filter === key && styles.filterTextSelected]}>{label}</Text>
       </Pressable>)}
     </View>
-    {filter === "in_progress" ? <Text style={styles.empty}>لا توجد مهام وسائط قيد التنفيذ مسجلة في الطابور حتى الآن.</Text> : null}
+    {filter === "in_progress" ? (jobs.length ? <View style={styles.jobsList}>
+      {jobs.map((job) => <View key={job.id} style={styles.jobCard}>
+        <View style={styles.jobHeader}>
+          <Text style={styles.jobStatus}>{job.status === "queued" ? "في قائمة الانتظار" : "جاري التنفيذ"}</Text>
+          <Text style={styles.meta}>{job.serviceType === "video" ? "فيديو" : "صورة"} · {job.estimatedCredits.toLocaleString("ar-EG")} Credits</Text>
+        </View>
+        <Text numberOfLines={3} style={styles.filename}>{job.prompt}</Text>
+        <Text style={styles.meta}>{new Date(job.createdAt).toLocaleString("ar-EG")}</Text>
+      </View>)}
+    </View> : <Text style={styles.empty}>لا توجد مهام وسائط قيد التنفيذ مسجلة حاليًا.</Text>) : null}
     {!loading && filter !== "in_progress" && visibleAssets.length === 0 ? <Text style={styles.empty}>{assets.length === 0 ? "لا يوجد ملف بعد. ابدأ برفع صورة." : "لا توجد عناصر في هذا التصنيف."}</Text> : null}
     <View style={styles.grid}>
       {filter !== "in_progress" ? visibleAssets.map((asset) => <View key={asset.id || asset.url} style={styles.card}>
@@ -108,6 +122,10 @@ const styles = StyleSheet.create({
   explainer: { color: colors.textSecondary, lineHeight: 21, textAlign: "right" },
   actions: { flexDirection: "row", gap: 10, flexWrap: "wrap" },
   filters: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 7 },
+  jobsList: { gap: 9 },
+  jobCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.primary, borderRadius: 12, padding: 12, gap: 7 },
+  jobHeader: { flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center" },
+  jobStatus: { color: colors.primary, fontSize: 11, fontWeight: "800" },
   filterChip: { borderWidth: 1, borderColor: colors.divider, borderRadius: 18, paddingHorizontal: 13, paddingVertical: 8 },
   filterChipSelected: { borderColor: colors.primary, backgroundColor: colors.surfaceElevated },
   filterText: { color: colors.textSecondary, fontSize: 11, fontWeight: "700" },
