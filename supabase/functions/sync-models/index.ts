@@ -151,11 +151,14 @@ async function insertMissingModels(
     input_price: 0,
     output_price: 0,
     context_window: 32768,
-    capabilities_json: JSON.stringify({ chat: true }),
-    enabled: true,
+    // Newly discovered catalog entries are inert until an admin verifies
+    // capabilities, task roles, and explicitly assigns a route.
+    capabilities_json: JSON.stringify({ chat: false }),
+    task_roles: [],
+    enabled: false,
     priority: 50,
-    fallback_eligible: true,
-    routing_group: "free_race",
+    fallback_eligible: false,
+    routing_group: "disabled",
     allowed_tiers: ["free", "lite", "pro", "max"],
   }));
   const { error: insertError } = await supabase.from("ai_models").upsert(rows, {
