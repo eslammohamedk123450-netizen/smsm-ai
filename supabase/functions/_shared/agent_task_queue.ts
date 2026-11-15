@@ -154,18 +154,3 @@ export async function finishAgentTask(
   if (error) throw new Error(`Could not finish agent task: ${error.message}`);
   return data === true;
 }
-
-/** Cancel a task as its authenticated owner. The RPC enforces ownership in SQL. */
-export async function cancelAgentTask(
-  supabase: SupabaseClient,
-  jobId: string,
-): Promise<boolean> {
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(jobId)) {
-    throw new Error("Invalid agent task ID.");
-  }
-  const { data, error } = await supabase.rpc("cancel_agent_task_job", {
-    p_job_id: jobId,
-  });
-  if (error) throw new Error(`Could not cancel agent task: ${error.message}`);
-  return data === true;
-}
