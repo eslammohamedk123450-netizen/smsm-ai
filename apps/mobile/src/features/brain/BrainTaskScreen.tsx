@@ -5,7 +5,7 @@ import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { useToast } from "../../components/ui/Toast";
 import { colors } from "../../theme/colors";
 import { runBrainTask, wakeBrainWorker, type BrainTaskResult } from "./brain-service";
-import { getTaskProgress, type TaskSnapshot } from "./task-service";
+import { cancelTask, getTaskProgress, type TaskSnapshot } from "./task-service";
 
 const TASK_TEMPLATES = [
   { title: "تحليل ملف أو بيانات", prompt: "حلّل البيانات التالية واستخرج أهم المؤشرات والمشكلات والتوصيات العملية: " },
@@ -20,7 +20,7 @@ export function BrainTaskScreen() {
   const [result, setResult] = useState<BrainTaskResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [progress, setProgress] = useState<TaskSnapshot | null>(null);
+  const [progress, setProgress] = useState<TaskSnapshot | null>(null);\n  const [activeJobId, setActiveJobId] = useState<string | null>(null);\n  const [cancelling, setCancelling] = useState(false);
 
   const submit = async () => {
     const value = objective.trim();
@@ -37,7 +37,7 @@ export function BrainTaskScreen() {
     setResult(null);
     setProgress(null);
     try {
-      const accepted = await runBrainTask(value);
+      const accepted = await runBrainTask(value);\n      setActiveJobId(accepted.job_id);
       let latest: TaskSnapshot | null = null;
       for (let attempt = 0; attempt < 180; attempt += 1) {
         latest = await getTaskProgress(accepted.task_id, accepted.job_id);
@@ -110,7 +110,7 @@ export function BrainTaskScreen() {
             {busy ? <ActivityIndicator color="#071018" /> : <Text style={styles.primaryText}>تشغيل المهمة</Text>}
           </Pressable>
         </View>
-        {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+        {busy && activeJobId ? (\n          <Pressable onPress={() => void cancelCurrentTask()} style={styles.secondary} disabled={cancelling} accessibilityRole="button">\n            <Text style={styles.secondaryText}>{cancelling ? "جارٍ الإلغاء…" : "إلغاء المهمة"}</Text>\n          </Pressable>\n        ) : null}\n        {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
       </View>
 
       {result ? (
