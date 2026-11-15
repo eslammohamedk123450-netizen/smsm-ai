@@ -12,7 +12,7 @@ describe("buildWebAuthRedirect", () => {
   });
 
   it("rejects an unsafe origin and malformed base path", () => {
-    expect(() => buildWebAuthRedirect("https://evil.example/path")).not.toThrow();
+    expect(() => buildWebAuthRedirect("https://evil.example/path")).toThrow();
     expect(() => buildWebAuthRedirect("https://evil.example", "https://attacker.example")).toThrow();
   });
 });
