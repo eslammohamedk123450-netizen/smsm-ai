@@ -21,7 +21,7 @@ declare
   v_event public.brain_usage_events%rowtype;
   v_retry uuid;
   v_backoff uuid;
-  v_claimed uuid;
+  v_claimed uuid;\n  v_cancel_own uuid;\n  v_cancel_other uuid;
 begin
   select array_agg(id order by created_at)
     into v_users
