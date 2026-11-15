@@ -1,4 +1,4 @@
-type AgentSettlementClient = {
+export type AgentSettlementClient = {
   rpc(name: string, args: Record<string, unknown>): Promise<{ data: unknown; error: unknown }>;
 };
 
