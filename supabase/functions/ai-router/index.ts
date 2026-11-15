@@ -21,7 +21,7 @@ import {
   upsertSharedTaskMemory,
 } from "../_shared/shared_task_memory.ts";
 import { CircuitBreaker } from "./circuit_breaker.ts";
-import { buildIndependentTaskPlan, mapWithConcurrency, mergePartAnswers, probeCandidates, splitTask, validateTaskPlan } from "./resilience.ts";
+import { buildIndependentTaskPlan, executeTaskPlan, mergePartAnswers, probeCandidates, splitTask, validateTaskPlan } from "./resilience.ts";
 import { parseAgentDecision, runAgentLoop, type AgentLoopStep, type AgentTool } from "./agent/orchestrator.ts";
 import { prioritizeModelCandidate } from "./agent/model_routing.ts";
 import { isModelEligibleForRequest, modelSupportsRole as supportsModelRole } from "./agent/model_eligibility.ts";
@@ -1455,13 +1455,24 @@ async function handleRequest(req: Request): Promise<Response> {
     };
     // Parts do not depend on one another. Bound parallel workers to three;
     // each part also races at most three candidate models and has one fallback.
-    const answerPart = async (index: number): Promise<{ index: number; content: string; model: string | null; candidate: ReadyCandidate | null; outputGuard: "repetition" | "max_output" | null }> => {
+    const answerPart = async (index: number, completedDependencies: ReadonlyMap<string, { index: number; content: string; model: string | null; candidate: ReadyCandidate | null; outputGuard: "repetition" | "max_output" | null }> = new Map()): Promise<{ index: number; content: string; model: string | null; candidate: ReadyCandidate | null; outputGuard: "repetition" | "max_output" | null }> => {
       const stepKey = `part-${index + 1}`;
       await updateWorkspaceStep(stepKey, "running");
       await updateTaskLedger(stepKey, "running");
+      const step = taskPlan?.[index];
+      const dependencyBrief = (step?.depends_on ?? [])
+        .map((dependencyId) => {
+          const dependency = completedDependencies.get(dependencyId);
+          return dependency?.content?.trim()
+            ? `نتيجة الخطوة ${dependencyId}:\\n${dependency.content.trim().slice(0, 12000)}`
+            : "";
+        })
+        .filter(Boolean)
+        .join("\\n\\n");
       const partMessages: ChatMessage[] = [
         ...systemMessages,
         { role: "system", content: workerBrief },
+        ...(dependencyBrief ? [{ role: "system" as const, content: `مخرجات الاعتماديات السابقة التي يجب البناء عليها:\\n${dependencyBrief}` }] : []),
         { role: "user", content: splitParts[index] },
       ];
       let remaining = workerCandidates.slice(0, 3).map((candidate) => ({ ...candidate, requestMessages: partMessages }));
@@ -1498,7 +1509,15 @@ async function handleRequest(req: Request): Promise<Response> {
       await updateTaskLedger(stepKey, "failed", { error: "worker_failed" });
       return { index, content: "", model: null, candidate: null, outputGuard: null };
     };
-    const partResultsWithCandidates = await mapWithConcurrency(splitParts, 3, (_part, index) => answerPart(index));
+    if (!taskPlan) throw new Error("A multi-part execution requires a validated task plan.");
+    const taskExecution = await executeTaskPlan(taskPlan, 3, (step, index, completed) => answerPart(index, completed));
+    const partResultsWithCandidates = taskExecution.map((outcome, index) => {
+      if (outcome.status === "completed" && outcome.result) return outcome.result;
+      const stepKey = taskPlan![index].step_id;
+      void updateWorkspaceStep(stepKey, "failed", { error_message: outcome.error ?? "dependency_failed" });
+      void updateTaskLedger(stepKey, "failed", { error: outcome.error ?? "dependency_failed" });
+      return { index, content: "", model: null, candidate: null, outputGuard: null };
+    });
     const partResults = partResultsWithCandidates.map(({ index, content, model }) => ({ index, content, model }));
     const successfulParts = partResultsWithCandidates.filter((part) => part.candidate !== null);
     const failedPartCount = splitParts.length - successfulParts.length;
