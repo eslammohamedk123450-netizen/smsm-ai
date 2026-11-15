@@ -2,7 +2,7 @@ export function buildWebAuthRedirect(origin: string, basePath = ""): string {
   let normalizedOrigin: string;
   try {
     const parsed = new URL(origin);
-    if (parsed.protocol !== "https:" && parsed.hostname !== "localhost" && parsed.hostname !== "127.0.0.1") {
+    if (parsed.origin !== origin || (parsed.protocol !== "https:" && parsed.hostname !== "localhost" && parsed.hostname !== "127.0.0.1")) {
       throw new Error("Unsupported auth origin");
     }
     normalizedOrigin = parsed.origin;
