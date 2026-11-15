@@ -10,9 +10,9 @@
 // and never written to a column readable by `authenticated`.
 
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { handleCorsPreflight, withCors } from "../_shared/cors.ts";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
@@ -166,7 +166,7 @@ async function insertMissingModels(
   return { created: rows.length, failed: null };
 }
 
-Deno.serve(async (request: Request): Promise<Response> => {
+async function handleSyncModelsRequest(request: Request): Promise<Response> {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (request.method !== "POST") return jsonResponse({ error: "Method not allowed." }, 405);
 
@@ -290,4 +290,17 @@ Deno.serve(async (request: Request): Promise<Response> => {
     created: insertion.created,
     warning: insertion.failed ?? discovery.warning,
   });
+}
+
+Deno.serve(async (request: Request) => {
+  const configuredOrigins = Deno.env.get("WEB_CORS_ORIGIN") ?? "";
+  const preflight = handleCorsPreflight(request, configuredOrigins);
+  if (preflight) return preflight;
+  let response: Response;
+  try {
+    response = await handleSyncModelsRequest(request);
+  } catch {
+    response = jsonResponse({ error: "تعذر إكمال طلب إدارة النماذج." }, 500);
+  }
+  return withCors(request, response, configuredOrigins);
 });
