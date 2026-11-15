@@ -379,6 +379,9 @@ async function runScheduledChecks(serviceClient: SupabaseClient): Promise<Respon
   // (~every 2 hours by default) until a passing probe restores them.
   const results = await mapLimit(models, SCHEDULED_CONCURRENCY, async (model): Promise<"success" | "error" | "skipped"> => {
     const provider = providers.get(model.provider_id);
+    // A model whose provider was removed or is not loaded cannot be probed.
+    // Skip it rather than dereferencing an absent provider or recording a false failure.
+    if (!provider) return "skipped";
     const eligibility = probeEligibility(model, provider, autoRestricted.get(model.id) === true, intervals);
     if (eligibility.skip) return "skipped";
     const checkKey = slotKeyFor(model.id, eligibility.intervalMinutes);
