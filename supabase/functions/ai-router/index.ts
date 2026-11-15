@@ -760,9 +760,9 @@ async function handleRequest(req: Request): Promise<Response> {
   let latestUserMessage = originalUserInstruction;
   // "The mind thinks first": a zero-token internal decision made before any
   // response or orchestration. It is never surfaced to the user.
-  const mind = internalBrainCall
-    ? { intent: "simple_task" as const, maxSources: 1, reason: "internal_brain_worker" }
-    : classifyIntent(latestUserMessage);
+  // Internal Brain jobs use the same intent classifier as every other request;
+  // forcing them to simple_task would disable the central Agent's compound plan.
+  const mind = classifyIntent(latestUserMessage);
   executionMode = resolveExecutionMode({
     requestedMode: body.execution_mode === "chat" || body.execution_mode === "agent" || body.execution_mode === "auto"
       ? body.execution_mode
@@ -1496,7 +1496,13 @@ async function handleRequest(req: Request): Promise<Response> {
       await updateWorkspace("failed", { parts: splitParts.length, completed: 0, failed: splitParts.length });
       await clearSharedTaskMemory(supabase, billingTaskId);
       await finishAiRequest("failed", null, null, { route: "task_split", parts: splitParts.length, failed_parts: splitParts.length, billing }, "all_workers_failed");
-      return jsonResponse({ error: "The compound request could not be completed because every task part failed.", completed_parts: 0, failed_parts: splitParts.length, billing }, 502, req);
+      return jsonResponse({
+        error: "The compound request could not be completed because every task part failed.",
+        completed_parts: 0,
+        failed_parts: splitParts.length,
+        ...(internalBrainCall ? { usage: { input_tokens: workerInputTokens, output_tokens: workerOutputTokens } } : {}),
+        billing,
+      }, 502, req);
     }
 
     await updateWorkspaceStep(resultStepKey, "running");
@@ -1543,6 +1549,7 @@ async function handleRequest(req: Request): Promise<Response> {
       first_chunk_ms: Date.now() - startedAt,
       total_ms: Date.now() - startedAt,
       output_guard: outputGuard,
+      ...(internalBrainCall ? { usage: { input_tokens: workerInputTokens, output_tokens: workerOutputTokens } } : {}),
       billing,
       user_metadata: userMetadata,
     };
