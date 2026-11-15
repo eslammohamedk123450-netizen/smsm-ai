@@ -116,6 +116,7 @@ async function main(req: Request): Promise<Response> {
         stream: false,
         max_tokens: 4096,
       }),
+      signal: req.signal,
     });
     const centralResult = parseCentralAgentResult(await response.json().catch(() => ({})));
     const finalResponse = centralResult?.response ?? "";
