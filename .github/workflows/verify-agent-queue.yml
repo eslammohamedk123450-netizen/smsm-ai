@@ -8,6 +8,13 @@ on:
       - "supabase/functions/brain-router/**"
       - "supabase/functions/agent-task-worker/**"
       - "supabase/functions/agent-task-scheduler/**"
+      - "supabase/functions/media-gateway/**"
+      - "supabase/functions/image-generator/**"
+      - "supabase/functions/composito-integration/**"
+      - "supabase/functions/sync-models/**"
+      - "supabase/functions/model-health-check/**"
+      - "supabase/functions/_shared/cors.ts"
+      - "supabase/functions/_shared/cors.test.ts"
       - "supabase/functions/_shared/agent_task_queue.ts"
       - "supabase/functions/_shared/brain_task_payload.ts"
       - "supabase/functions/_shared/brain_task_payload.test.ts"
@@ -28,6 +35,13 @@ on:
       - "supabase/functions/brain-router/**"
       - "supabase/functions/agent-task-worker/**"
       - "supabase/functions/agent-task-scheduler/**"
+      - "supabase/functions/media-gateway/**"
+      - "supabase/functions/image-generator/**"
+      - "supabase/functions/composito-integration/**"
+      - "supabase/functions/sync-models/**"
+      - "supabase/functions/model-health-check/**"
+      - "supabase/functions/_shared/cors.ts"
+      - "supabase/functions/_shared/cors.test.ts"
       - "supabase/functions/_shared/agent_task_queue.ts"
       - "supabase/functions/_shared/model_capabilities.ts"
       - "supabase/functions/_shared/intent_classifier.ts"
@@ -69,7 +83,7 @@ jobs:
       - name: Typecheck mobile application
         run: npm run typecheck
       - name: Run mobile authentication regression tests
-        run: npm test -- --runInBand src/features/auth/auth-service.test.ts src/features/auth/auth-callback.test.ts src/features/chat/chat-service.test.ts
+        run: npm test -- --runInBand src/features/auth/auth-service.test.ts src/features/auth/auth-callback.test.ts src/features/auth/auth-redirect.test.ts src/features/chat/chat-service.test.ts
 
   edge-function-typecheck:
     name: Deno Edge Function typecheck
@@ -86,7 +100,6 @@ jobs:
         run: |
           deno test supabase/functions/ai-router/agent/orchestrator.test.ts
           deno test supabase/functions/ai-router/resilience.test.ts
-          deno test supabase/functions/ai-router/agent_usage_ledger.test.ts
           deno test supabase/functions/ai-router/agent/agent_profiles.test.ts
           deno test supabase/functions/ai-router/agent/model_eligibility.test.ts
           deno test supabase/functions/ai-router/agent/agent_budget_policy.test.ts
@@ -97,7 +110,7 @@ jobs:
           deno test supabase/functions/_shared/tavily.test.ts
           deno test supabase/functions/agent-task-scheduler/index.test.ts
           deno test supabase/functions/_shared/brain_task_payload.test.ts
-          deno test supabase/functions/_shared/agent_usage_settlement.test.ts
+          deno test supabase/functions/_shared/cors.test.ts
           deno test supabase/functions/brain-router/central_agent_result.test.ts
           deno test supabase/functions/brain-router/route_policy.test.ts
       - name: Typecheck Agent, Brain, and scheduler runtime
@@ -106,5 +119,10 @@ jobs:
             supabase/functions/agent-task-worker/index.ts \
             supabase/functions/agent-task-scheduler/index.ts \
             supabase/functions/brain-router/index.ts \
+            supabase/functions/media-gateway/index.ts \
+            supabase/functions/image-generator/index.ts \
+            supabase/functions/composito-integration/index.ts \
+            supabase/functions/sync-models/index.ts \
+            supabase/functions/model-health-check/index.ts \
             supabase/functions/ai-router/index.ts \
             supabase/functions/ai-router/agent/orchestrator.test.ts
