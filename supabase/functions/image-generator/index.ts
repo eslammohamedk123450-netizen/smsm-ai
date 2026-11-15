@@ -259,6 +259,7 @@ Deno.serve(async (req: Request) => {
     return json(503, { error: "تعذر تسجيل مهمة الصورة في المكتبة. تم تحرير الحجز.", request_id: requestId });
   }
 
+  const runGeneration = async (): Promise<Response> => {
   let uploadedObjectKey: string | null = null;
   let assistantMessageId: string | null = null;
   let assetId: string | null = null;
@@ -340,4 +341,11 @@ Deno.serve(async (req: Request) => {
     console.error("External image generation failed.");
     return json(502, { error: "تعذر إكمال إنشاء الصورة. تم تحرير الحجز عند فشل التنفيذ.", request_id: requestId });
   }
+  };
+
+  if (studioRequest) {
+    EdgeRuntime.waitUntil(runGeneration());
+    return json(202, { success: true, request_id: requestId, job_id: requestId, status: "running" });
+  }
+  return await runGeneration();
 });
