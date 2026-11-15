@@ -4,10 +4,12 @@ on:
   pull_request:
     paths:
       - "supabase/functions/ai-router/**"
+      - "supabase/functions/sync-models/**"
       - "supabase/functions/image-generator/**"
       - "apps/mobile/src/features/admin/MediaGenerationModelsAdminScreen.tsx"
       - "supabase/migrations/**"
       - "supabase/deploy-artifacts/ai-router.bundle.js"
+      - "supabase/deploy-artifacts/sync-models.bundle.js"
       - "package.json"
       - ".github/workflows/verify-ai-router-bundle.yml"
   push:
@@ -52,7 +54,7 @@ jobs:
         run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Rebuild the deployment bundle
-        run: npm run bundle:ai-router
+        run: npm run bundle:ai-router && npm run bundle:sync-models
 
       - name: Commit the regenerated bundle to the development branch
         if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name == 'push' && github.ref_name == 'feat/agent-worker-brain-queue')
@@ -60,13 +62,13 @@ jobs:
           TARGET_REF: ${{ github.event.pull_request.head.ref || github.ref_name }}
           SOURCE_SHA: ${{ steps.source.outputs.sha }}
         run: |
-          if [ -z "$(git status --porcelain supabase/deploy-artifacts/ai-router.bundle.js)" ]; then
+          if [ -z "$(git status --porcelain supabase/deploy-artifacts/ai-router.bundle.js supabase/deploy-artifacts/sync-models.bundle.js)" ]; then
             echo "The committed ai-router bundle is already current."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add supabase/deploy-artifacts/ai-router.bundle.js
+          git add supabase/deploy-artifacts/ai-router.bundle.js supabase/deploy-artifacts/sync-models.bundle.js
           git commit -m "chore(ai-router): regenerate deployment bundle"
           git fetch origin "$TARGET_REF"
           if [ "$(git rev-parse FETCH_HEAD)" != "$SOURCE_SHA" ]; then
@@ -77,8 +79,8 @@ jobs:
 
       - name: Fail when the artifact is stale and cannot be updated
         run: |
-          if [ -n "$(git status --porcelain supabase/deploy-artifacts/ai-router.bundle.js)" ]; then
-            echo "The ai-router bundle is stale. Regenerate it with 'npm run bundle:ai-router'."
+          if [ -n "$(git status --porcelain supabase/deploy-artifacts/ai-router.bundle.js supabase/deploy-artifacts/sync-models.bundle.js)" ]; then
+            echo "An Edge Function bundle is stale. Regenerate with 'npm run bundle:ai-router && npm run bundle:sync-models'."
             exit 1
           fi
           echo "ai-router bundle matches the current source."
