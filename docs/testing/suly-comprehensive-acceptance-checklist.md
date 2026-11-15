@@ -170,3 +170,5 @@ Record each case as **PASS**, **FAIL**, or **BLOCKED**. For every failure, captu
 | Credits and profile | Pending | |
 | Admin and operations | Pending | |
 | Release gate | Pending | |
+
+- [ ] Verify first and second expired leases use approximately 15s and 30s backoff, queued retries are not repeatedly delayed by scheduler ticks, and the third exhausted attempt becomes terminal.
