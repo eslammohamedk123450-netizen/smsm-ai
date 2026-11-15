@@ -70,6 +70,12 @@ async function processOne(url: string, serviceKey: string, userId: string, userJ
     });
     if (leaseLost) return;
     const result = await response.json().catch(() => ({}));
+    if (response.ok && result?.status === "cancelled") {
+      await finishAgentTask(admin, job.id, workerId, "cancelled", {
+        result: { task_id: taskId, response: typeof result.response === "string" ? result.response : "تم إيقاف المهمة بناءً على طلبك.", status: "cancelled" },
+      });
+      return;
+    }
     if (!response.ok || typeof result?.response !== "string" || !result.response.trim()) {
       await finishAgentTask(admin, job.id, workerId, "failed", {
         errorCode: "brain_execution_failed",
