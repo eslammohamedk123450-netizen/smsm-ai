@@ -556,6 +556,28 @@ async function handleRequest(req: Request): Promise<Response> {
   const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   const billingTaskId = typeof body.request_id === "string" ? body.request_id : crypto.randomUUID();
   if (!uuidPattern.test(billingTaskId)) return jsonResponse({ error: "request_id must be a valid UUID." }, 400);
+  const agentJobId = internalBrainCall && typeof body.agent_job_id === "string" ? body.agent_job_id : null;
+  if (internalBrainCall) {
+    if (!agentJobId || !uuidPattern.test(agentJobId)) return jsonResponse({ error: "A valid internal Agent job identity is required." }, 400);
+    const { data: job, error: jobError } = await supabase.from("agent_task_jobs")
+      .select("id,status,cancel_requested_at")
+      .eq("id", agentJobId).eq("task_id", billingTaskId).eq("user_id", user.id).maybeSingle();
+    if (jobError) return jsonResponse({ error: "Could not validate Agent job ownership." }, 503);
+    if (!job || job.status !== "running") return jsonResponse({ error: "Agent job is not actively leased." }, 409);
+    if (job.cancel_requested_at) {
+      return jsonResponse({ agent_status: "cancelled", usage: { input_tokens: 0, output_tokens: 0 }, response: "تم إيقاف المهمة قبل بدء التنفيذ بناءً على طلبك." }, 200, req);
+    }
+  }
+  const checkAgentCancellation = async (): Promise<boolean> => {
+    if (!internalBrainCall || !agentJobId) return false;
+    const { data, error } = await supabase.rpc("agent_task_cancel_requested", {
+      p_job_id: agentJobId,
+      p_task_id: billingTaskId,
+      p_user_id: user.id,
+    });
+    if (error) throw new Error("Could not verify Agent cancellation state.");
+    return data === true;
+  };
   if (conversationId) {
     if (!uuidPattern.test(conversationId)) return jsonResponse({ error: "conversation_id must be a valid UUID." }, 400);
     const { data: conversation, error: conversationError } = await supabase
@@ -2177,6 +2199,7 @@ async function handleRequest(req: Request): Promise<Response> {
         agentEvidence.push({ tool, result: bounded });
         agentEvidenceChars += bounded.length;
       },
+      isCancelled: checkAgentCancellation,
       async onStep(step: AgentLoopStep) {
         const labels: Record<string, string> = {
           planning: "تحليل الطلب واختيار الخطوة",
@@ -2213,9 +2236,11 @@ async function handleRequest(req: Request): Promise<Response> {
       });
     }
 
-    let content = operationalReply ?? (loopResult.status === "completed"
-      ? loopResult.answer
-      : loopResult.status === "needs_clarification"
+    let content = operationalReply ?? (loopResult.status === "cancelled"
+      ? "تم إيقاف المهمة بناءً على طلبك. احتُفظ باستهلاك الخطوات التي اكتملت قبل الإيقاف."
+      : loopResult.status === "completed"
+        ? loopResult.answer
+        : loopResult.status === "needs_clarification"
         ? loopResult.question
         : loopResult.status === "needs_confirmation"
           ? "أحتاج موافقتك الصريحة على نص العملية قبل تنفيذ أي إرسال أو تعديل خارجي. راجع المعاينة ثم وافق لإعادة إرسال الطلب نفسه."
