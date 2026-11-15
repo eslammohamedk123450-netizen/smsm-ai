@@ -1,5 +1,5 @@
 import { assertEquals, assertNotEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { parseCentralAgentResult } from "./central_agent_result.ts";
+import { parseCentralAgentResult, toBrainTaskStepRows } from "./central_agent_result.ts";
 
 Deno.test("central Agent result parses response, usage, and completed steps", () => {
   const result = parseCentralAgentResult({
@@ -34,4 +34,25 @@ Deno.test("invalid usage values safely become zero", () => {
   });
   assertEquals(result?.inputTokens, 0);
   assertEquals(result?.outputTokens, 0);
+});
+
+Deno.test("central Agent steps map to the Brain progress table contract", () => {
+  const rows = toBrainTaskStepRows("task-1", [
+    { index: 0, kind: "planning", status: "completed" },
+    { index: 1, kind: "tool", tool: "web.search", status: "completed" },
+    { index: 2, kind: "final", status: "completed" },
+  ]);
+  assertEquals(rows.length, 3);
+  assertEquals(rows[0].step_index, 1);
+  assertEquals(rows[0].capability_key, "reasoning");
+  assertEquals(rows[1].capability_key, "web_search");
+  assertEquals(rows[1].status, "completed");
+  assertEquals(rows[2].description, "صياغة النتيجة النهائية");
+});
+
+Deno.test("central Agent progress always contains at least one safe display step", () => {
+  const rows = toBrainTaskStepRows("task-2", []);
+  assertEquals(rows.length, 1);
+  assertEquals(rows[0].capability_key, "reasoning");
+  assertEquals(rows[0].status, "completed");
 });
