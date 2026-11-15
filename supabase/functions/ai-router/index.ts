@@ -25,7 +25,7 @@ import {
 import { CircuitBreaker } from "./circuit_breaker.ts";
 import { buildIndependentTaskPlan, buildTaskPlan, executeTaskPlan, hasExplicitDependencyLanguage, mergePartAnswers, parseModelGeneratedTaskPlan, probeCandidates, splitTask, validateTaskPlan, type TaskPlanStep } from "./resilience.ts";
 import { parseAgentDecision, runAgentLoop, type AgentLoopResumeStep, type AgentLoopStep, type AgentTool, type AgentDecision } from "./agent/orchestrator.ts";
-import { prioritizeModelCandidate } from "./agent/model_routing.ts";
+import { prioritizeModelCandidate, restrictModelsToAssignedRoute } from "./agent/model_routing.ts";
 import { isModelEligibleForRequest, modelSupportsRole as supportsModelRole } from "./agent/model_eligibility.ts";
 import { resolveExecutionMode } from "./execution_mode.ts";
 import { isSubscriptionTierEligible, resolveSulyProfileKey } from "./agent/suly_profile_routing.ts";
@@ -1201,7 +1201,8 @@ async function handleRequest(req: Request): Promise<Response> {
     // Auto chooses a SULY profile first, then routes only within that profile.
     // The user's selected profile is never silently replaced with another one.
     const tierFiltered = profileEligibleModels.filter((model: ModelRow) => isEligibleModel(model, requiredModelRole));
-    candidatesFrom = orderModelsByRoute(tierFiltered.filter(m => m.routing_group === "free_race"), orderedRouteAssignments, routeRole);
+    const assignedRouteModels = restrictModelsToAssignedRoute(tierFiltered, orderedRouteAssignments, routeRole);
+    candidatesFrom = orderModelsByRoute(assignedRouteModels.filter(m => m.routing_group === "free_race"), orderedRouteAssignments, routeRole);
   }
 
   if (routingMode === "manual" && candidatesFrom.length === 0) {
@@ -1224,8 +1225,12 @@ async function handleRequest(req: Request): Promise<Response> {
     && !requestedConnector
     && !requestedMultiReadToolkits?.length
     && !isWebSearchRequest(latestUserMessage)
-    ? healthyModels.filter((model: ModelRow) =>
-      (!workerProfileModelIds || workerProfileModelIds.has(model.id)) && isEligibleModel(model, "worker", ["free_race"]))
+    ? restrictModelsToAssignedRoute(
+      healthyModels.filter((model: ModelRow) =>
+        (!workerProfileModelIds || workerProfileModelIds.has(model.id)) && isEligibleModel(model, "worker", ["free_race"])),
+      orderedRouteAssignments,
+      "worker",
+    )
     : [];
   const orderedWorkerModels = orderModelsByRoute(workerModels, orderedRouteAssignments, "worker");
   const requiredProviderIds: number[] = [...new Set<number>([
