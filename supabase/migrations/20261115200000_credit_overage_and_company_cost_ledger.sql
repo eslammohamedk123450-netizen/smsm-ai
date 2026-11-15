@@ -181,6 +181,7 @@ declare
   v_revenue numeric(20,8);
   v_provider_egp numeric(20,8);
   v_other numeric(20,8);
+  v_inserted_rows integer := 0;
 begin
   if coalesce(auth.role(), '') <> 'service_role' then
     raise exception 'service role required' using errcode = '42501';
@@ -206,9 +207,10 @@ begin
     v_revenue,v_provider_egp,v_other,v_revenue-v_provider_egp-v_other,p_price_version,
     coalesce(p_metadata,'{}'::jsonb)
   ) on conflict (request_id) do nothing;
+  get diagnostics v_inserted_rows = row_count;
 
   select * into v_row from public.suly_company_cost_ledger where request_id = p_request_id;
-  return jsonb_build_object('success', true, 'already_recorded', v_row.created_at < now() - interval '1 second',
+  return jsonb_build_object('success', true, 'already_recorded', v_inserted_rows = 0,
     'request_id', v_row.request_id, 'revenue_egp', v_row.revenue_egp,
     'provider_cost_egp', v_row.provider_cost_egp, 'gross_profit_egp', v_row.gross_profit_egp,
     'cost_status', v_row.cost_status);
