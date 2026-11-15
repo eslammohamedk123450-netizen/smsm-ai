@@ -2473,7 +2473,7 @@ async function handleRequest(req: Request): Promise<Response> {
       const { data, error } = await supabase.from("agent_workspace_steps")
         .update({
           status,
-          ...(status === "running" ? { started_at: timestamp } : {}),
+          ...(status === "running" ? { started_at: timestamp, completed_at: null } : {}),
           ...(status === "completed" || status === "failed" ? { completed_at: timestamp } : {}),
           ...patch,
         })
