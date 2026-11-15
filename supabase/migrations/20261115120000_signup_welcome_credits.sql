@@ -55,4 +55,42 @@ begin
 end;
 $$;
 
+-- Existing accounts created during the current testing window may have been
+-- created before this trigger existed. Backfill only recent users (last 7 days)
+-- who still have no wallet; existing wallets and balances are never modified.
+with newly_created_users as (
+  select u.id
+  from auth.users u
+  where u.created_at >= now() - interval '7 days'
+),
+granted_accounts as (
+  insert into public.suly_credit_accounts (user_id, balance)
+  select u.id, 200
+  from newly_created_users u
+  on conflict (user_id) do nothing
+  returning user_id, balance
+)
+insert into public.suly_credit_transactions (
+  user_id,
+  event_type,
+  amount,
+  balance_delta,
+  reserved_delta,
+  balance_after,
+  reserved_after,
+  source,
+  reason
+)
+select
+  user_id,
+  'admin_adjust',
+  200,
+  200,
+  0,
+  balance,
+  0,
+  'signup_bonus',
+  'One-time 200-credit welcome bonus backfill for a recently registered account'
+from granted_accounts;
+
 commit;
