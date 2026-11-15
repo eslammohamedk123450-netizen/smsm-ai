@@ -466,7 +466,7 @@ export const adminService = {
   async getCreditOverview() {
     await requireAdmin();
     const [pricing, transactions] = await Promise.all([
-      supabase.from("suly_credit_pricing").select("id,enabled,minimum_request_credits,input_credits_per_1k_tokens,output_credits_per_1k_tokens,updated_at").eq("id", 1).maybeSingle(),
+      supabase.from("suly_credit_pricing").select("id,enabled,minimum_request_credits,input_credits_per_1k_tokens,output_credits_per_1k_tokens,negative_balance_limit,updated_at").eq("id", 1).maybeSingle(),
       supabase.from("suly_credit_transactions").select("id,user_id,event_type,amount,balance_delta,balance_after,actual_cost,input_tokens,output_tokens,model_id,source,reason,created_at").order("created_at", { ascending: false }).limit(100),
     ]);
     if (pricing.error) throw pricing.error;
@@ -487,6 +487,15 @@ export const adminService = {
     });
     if (error) throw error;
     return data as { success?: boolean };
+  },
+  async updateNegativeBalanceLimit(limit: number) {
+    await requireAdmin();
+    if (!Number.isSafeInteger(limit) || limit < 0 || limit > 1_000_000_000) {
+      throw new Error("حد الرصيد السالب يجب أن يكون عددًا صحيحًا بين صفر ومليار.");
+    }
+    const { data, error } = await supabase.rpc("suly_admin_update_negative_balance_limit", { p_limit: limit });
+    if (error) throw error;
+    return data as { success?: boolean; negative_balance_limit?: number };
   },
   async getPricingPlans(): Promise<PricingPlan[]> {
     await requireAdmin();
