@@ -1,15 +1,9 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { finishAgentTask } from "../_shared/agent_task_queue.ts";
+import { readBrainTaskPayload } from "../_shared/brain_task_payload.ts";
 
 declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void };
-
-type QueueJob = {
-  id: string;
-  user_id: string;
-  job_type: string;
-  payload: Record<string, unknown> | null;
-};
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -18,24 +12,10 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
-function isUuid(value: unknown): value is string {
-  return typeof value === "string"
-    && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
-}
 
-function readBrainTask(job: QueueJob): { userId: string; taskId: string; objective: string } | null {
-  const payload = job.payload && typeof job.payload === "object" && !Array.isArray(job.payload)
-    ? job.payload
-    : {};
-  const userId = typeof payload.user_id === "string" ? payload.user_id : "";
-  const taskId = typeof payload.task_id === "string" ? payload.task_id : "";
-  const objective = typeof payload.objective === "string" ? payload.objective.trim() : "";
-  if (userId !== job.user_id || !isUuid(taskId) || !objective || objective.length > 50_000) return null;
-  return { userId, taskId, objective };
-}
 
 async function processJob(
-  job: QueueJob,
+  job: { id: string; user_id: string; job_type: string; payload: Record<string, unknown> | null },
   supabaseUrl: string,
   serviceRoleKey: string,
   admin: any,
@@ -49,7 +29,7 @@ async function processJob(
     return;
   }
 
-  const task = readBrainTask(job);
+  const task = readBrainTaskPayload(job);
   if (!task) {
     await finishAgentTask(admin, job.id, workerId, "failed", {
       errorCode: "invalid_brain_payload",
