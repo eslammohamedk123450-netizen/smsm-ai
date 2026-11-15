@@ -26,6 +26,14 @@ Deno.test("eligible model passes only when all access and capability constraints
   assert(!isModelEligibleForRequest({ ...base, routingGroup: "disabled" }), "disabled routing group must fail");
 });
 
+Deno.test("higher subscription tiers inherit access to lower-tier models", () => {
+  assert(isModelEligibleForRequest({ ...base, userTier: "max", allowedTiers: ["pro"] }), "Max should be able to use a Pro-eligible model");
+  assert(isModelEligibleForRequest({ ...base, userTier: "max", allowedTiers: ["lite"] }), "Max should be able to use a Lite-eligible model");
+  assert(isModelEligibleForRequest({ ...base, userTier: "pro", allowedTiers: ["lite"] }), "Pro should be able to use a Lite-eligible model");
+  assert(!isModelEligibleForRequest({ ...base, userTier: "pro", allowedTiers: ["max"] }), "Pro must not access a Max-only model");
+  assert(!isModelEligibleForRequest({ ...base, userTier: "free", allowedTiers: ["pro"] }), "Free must not access a Pro-only model");
+});
+
 Deno.test("role eligibility preserves general and worker/executor compatibility", () => {
   assert(modelSupportsRole(undefined, "planner"), "missing role config retains legacy general role");
   assert(modelSupportsRole(["general"], "reviewer"), "general role supports all task roles");
