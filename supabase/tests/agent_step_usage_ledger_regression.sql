@@ -73,7 +73,7 @@ begin
     raise exception 'Unknown provider usage did not block unsafe settlement: %', v_unknown;
   end if;
 
-  if (select status from public.agent_task_jobs where id = v_job) <> 'running' then
+  if (select status from public.agent_task_jobs where id = v_job) <> 'cancelled' then
     raise exception 'Usage recording unexpectedly changed the job state';
   end if;
 end $$;
