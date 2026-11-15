@@ -1,31 +1,57 @@
-# SMSM AI
+# SULY AI
 
-Suly is currently developed as an Expo application using React Native, TypeScript, and Expo Router.
+SULY is an Expo application built with React Native, TypeScript, and Expo Router.
 
-## Active application
+## Active architecture
 
-- **Mobile application:** `apps/mobile/`
-- **Platforms:** Android and web preview; iOS support depends on native build configuration.
-- **Backend:** Supabase (authentication, database, and Edge Functions).
+- `apps/mobile/` — active Android, iOS, and web client.
+- `supabase/` — PostgreSQL migrations, authentication policies, Edge Functions, storage configuration, and the generated AI Router deployment artifact.
+- `agent/` and `.agents/` — agent skills and project resources.
+- `.github/workflows/` — mobile, web, Supabase deployment, and regression workflows.
 
-For setup, environment variables, development commands, and security notes, see [apps/mobile/README.md](apps/mobile/README.md).
+The central `ai-router` coordinates chat and agent execution. Long-running agent work is handled by the Supabase task queue, worker, and scheduler.
 
-## Repository layout
+## Development
 
-- `apps/mobile/` — active Expo client and its application source.
-- `supabase/` — database migrations, Edge Functions, configuration, and the checked-in AI router deployment artifact.
-- `.github/workflows/` — CI and build workflows.
-- `agent/`, `.agents/`, and `scripts/` — agent resources and project automation.
-- Root-level `src/`, `index.html`, `vite.config.ts`, and `server.ts` — legacy Vite/Express web application. This is **not** the active Expo client. The legacy server still contains Composio administration routes, so these files are retained pending a separate usage/dependency audit.
+Mobile application:
 
-## Root Node.js tooling
+```bash
+cd apps/mobile
+npm ci
+npm run typecheck
+npm test
+npx expo start
+```
 
-The root `package.json` and `package-lock.json` are still used by the AI router bundle verification workflow. Do not remove them as part of cleaning up the legacy web client unless that workflow is migrated first.
+Export the web client:
 
-## Important security note
+```bash
+cd apps/mobile
+npx expo export --platform web
+```
 
-Never commit Supabase service-role keys or other server secrets to the mobile app. Client-side Expo public environment variables are embedded in the application and must contain only publishable/anon configuration. Enforce authorization with Supabase Auth, RLS, and server-side functions.
+Regenerate the AI Router deployment artifact from the repository root:
 
-## Project status
+```bash
+npm ci
+npm run bundle:ai-router
+```
 
-The Expo client is the current application. Legacy web files are intentionally documented as legacy until their remaining routes, deployments, and external usage have been verified.
+The root Node.js package is intentionally limited to the pinned `esbuild` dependency used by the AI Router bundle workflow. It is not a second application.
+
+## Deployment
+
+- `.github/workflows/deploy-pages.yml` exports the Expo web client to GitHub Pages.
+- `.github/workflows/eas-update.yml` publishes Expo OTA updates and requires the `EXPO_TOKEN` GitHub secret.
+- `.github/workflows/deploy-supabase-ai-router.yml` deploys Edge Functions and requires `SUPABASE_ACCESS_TOKEN`.
+- The Android APK workflow is manual and should only be run for a consolidated device-test cycle.
+
+## Security
+
+- Expo public environment variables may contain only the Supabase URL and publishable/anon key.
+- Never place a Supabase service-role key or provider credential in the mobile app or any `EXPO_PUBLIC_*` variable.
+- Provider credentials are stored server-side in Supabase Vault/Edge Function secrets.
+- Database access is enforced through RLS, user-scoped RPCs, and admin checks.
+- Media generation remains unavailable until an administrator configures a supported model and safe pricing.
+
+Use [apps/mobile/README.md](apps/mobile/README.md) for client-specific setup and environment configuration.
