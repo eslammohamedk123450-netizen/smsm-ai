@@ -24,6 +24,7 @@ type ModelRow = {
   routing_group: string;
   allowed_tiers: string[] | null;
   capabilities_json?: string | Record<string, unknown> | null;
+  task_roles?: string[] | null;
   response_timeout_ms: number;
   restriction_failure_threshold: number;
   restriction_window_minutes: number;
@@ -38,6 +39,7 @@ type TransactionRow = { id?: string; user_id?: string; event_type: string; amoun
 type ModelCapabilityKey = "chat" | "vision" | "pdf" | "word" | "video" | "gmail" | "google_drive" | "github";
 type ModelCapabilityState = Record<ModelCapabilityKey, boolean>;
 const MODEL_CAPABILITY_OPTIONS: Array<[ModelCapabilityKey, string]> = [["chat", "نص"], ["vision", "قراءة الصور"], ["pdf", "PDF"], ["word", "Word / DOCX"], ["video", "فيديو"], ["gmail", "Gmail"], ["google_drive", "Google Drive"], ["github", "GitHub"]];
+const MODEL_TASK_ROLE_OPTIONS: Array<[string, string]> = [["general", "عام"], ["planner", "التخطيط"], ["worker", "التنفيذ"], ["reviewer", "المراجعة"], ["summarizer", "التلخيص"]];
 function parseModelCapabilityState(value: unknown): ModelCapabilityState {
   let parsed: Record<string, unknown> = {};
   if (typeof value === "string") { try { const result = JSON.parse(value); if (result && typeof result === "object" && !Array.isArray(result)) parsed = result as Record<string, unknown>; } catch { /* Use safe text-only defaults. */ } }
@@ -336,6 +338,7 @@ export function ModelsAdminScreen() {
   const [editThreshold, setEditThreshold] = useState("3");
   const [editWindow, setEditWindow] = useState("15");
   const [editCapabilities, setEditCapabilities] = useState<ModelCapabilityState>({ chat: true, vision: false, pdf: false, word: false, video: false, gmail: false, google_drive: false, github: false });
+  const [editTaskRoles, setEditTaskRoles] = useState<string[]>(["general"]);
 
   const load = async (showInitialLoader = false) => {
     if (showInitialLoader) setLoading(true);
@@ -371,6 +374,7 @@ export function ModelsAdminScreen() {
     setEditThreshold(String(model.restriction_failure_threshold ?? 3));
     setEditWindow(String(model.restriction_window_minutes ?? 15));
     setEditCapabilities(parseModelCapabilityState(model.capabilities_json));
+    setEditTaskRoles(model.task_roles?.length ? model.task_roles : ["general"]);
     try {
       const [logs, probes] = await Promise.all([adminService.getModelAttempts(model.id), adminService.getModelProbeLogs(model.id)]);
       setAttempts(logs as AttemptRow[]);
@@ -393,6 +397,7 @@ export function ModelsAdminScreen() {
       await adminService.updateModel(selectedModel.id, {
         allowed_tiers: editTiers,
         capabilities_json: JSON.stringify(editCapabilities),
+        task_roles: editTaskRoles,
         response_timeout_ms: timeout,
         restriction_failure_threshold: threshold,
         restriction_window_minutes: window,
@@ -408,6 +413,11 @@ export function ModelsAdminScreen() {
 
   const toggleTier = (tier: string) => {
     setEditTiers((prev) => prev.includes(tier) ? prev.filter((t) => t !== tier) : [...prev, tier]);
+  };
+  const toggleTaskRole = (role: string) => {
+    setEditTaskRoles((prev) => prev.includes(role)
+      ? prev.filter((item) => item !== role)
+      : [...prev.filter((item) => item !== "general" && role !== "general"), role]);
   };
 
   const saveSettings = async () => {
@@ -570,10 +580,19 @@ export function ModelsAdminScreen() {
             ))}
           </View>
           <Text style={styles.detail}>تُستخدم القدرات في التوجيه التلقائي. يُرسل PDF وDOCX بعد استخراج النص، ويحتاج الفيديو إلى دعم video_url لدى المزود.</Text>
+          <Text style={styles.detail}>الأقسام المسموح لهذا النموذج بالعمل فيها:</Text>
+          <View style={styles.rowWrap}>
+            {MODEL_TASK_ROLE_OPTIONS.map(([role, label]) => (
+              <Pressable key={role} accessibilityRole="button" accessibilityState={{ selected: editTaskRoles.includes(role) }} onPress={() => toggleTaskRole(role)} style={[styles.pill, editTaskRoles.includes(role) && styles.pillSelected]}>
+                <Text style={styles.pillText}>{editTaskRoles.includes(role) ? "✓ " : ""}{label}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={styles.detail}>«عام» يمنح جميع أدوار الوكيل؛ وإلا يُسمح فقط بالأدوار المحددة. يجب اختيار دور واحد على الأقل.</Text>
           <NumberField label="مهلة الاستجابة response_timeout_ms" value={editTimeout} onChange={setEditTimeout} />
           <NumberField label="عتبة الإخفاق للتقييد failure_threshold" value={editThreshold} onChange={setEditThreshold} />
           <NumberField label="نافذة الحظر بالدقائق window_minutes" value={editWindow} onChange={setEditWindow} />
-          <PrimaryButton label="حفظ إعدادات النموذج" onPress={() => void saveModelDetail()} disabled={busy} />
+          <PrimaryButton label="حفظ إعدادات النموذج" onPress={() => void saveModelDetail()} disabled={busy || editTaskRoles.length === 0} />
 
           <View style={styles.attemptsHeading}><Text style={styles.sectionTitle}>سجل المحاولات الحديثة</Text><View style={styles.totalBadge}><Text style={styles.totalBadgeText}>{attempts.length}</Text></View></View>
           {attempts.length === 0 ? <Text style={styles.detail}>لا توجد محاولات حديثة مسجلة لهذا النموذج.</Text> : attempts.map((log, index) => (
@@ -793,7 +812,7 @@ export function AgentsAdminScreen() {
     <PageHeader title="إدارة المساعدين" />
     <Text style={styles.explainer}>أضف العقل والمراجع والمساعدين المتخصصين وحدد تعليماتهم وسلسلة نماذج غير محدودة عملياً حسب الأولوية.</Text>
     <ErrorText>{error}</ErrorText>{notice && <Text style={styles.success}>{notice}</Text>}
-    <Card><Text style={styles.sectionTitle}>إضافة مكوّن</Text><View style={styles.filterRow}>{([['planner','العقل المخطط'],['thinker','العقل المفكر'],['reviewer','المراجع'],['summarizer','الملخّص'],['coordinator','المنسق'],['worker','عامل متخصص']] as const).map(([value, label]) => <Pressable key={value} onPress={() => setRole(value)} style={[styles.filterChip, role === value && styles.filterChipSelected]}><Text style={[styles.filterText, role === value && styles.filterTextSelected]}>{label}</Text></Pressable>)}</View><TextInput style={styles.input} value={name} onChangeText={setName} placeholder={role === "planner" ? "العقل المفكر" : role === "reviewer" ? "المراجع والمنسق" : "اسم المساعد"} placeholderTextColor={colors.textMuted} /><TextInput style={[styles.input, { minHeight: 130 }]} value={prompt} onChangeText={setPrompt} placeholder="وظيفة المساعد وتعليماته" placeholderTextColor={colors.textMuted} multiline textAlignVertical="top" /><Text style={styles.label}>النماذج حسب الأولوية (اضغط بالترتيب)</Text><TextInput style={styles.input} placeholder="ابحث عن نموذج بالاسم" placeholderTextColor={colors.textMuted} onChangeText={setModelSearch} value={modelSearch} /><View style={styles.filterRow}>{models.filter((model) => model.enabled && `${model.name} ${model.model_identifier}`.toLowerCase().includes(modelSearch.trim().toLowerCase())).map((model) => <Pressable key={String(model.id)} onPress={() => toggleModel(String(model.id))} style={[styles.filterChip, chain.includes(String(model.id)) && styles.filterChipSelected]}><Text style={[styles.filterText, chain.includes(String(model.id)) && styles.filterTextSelected]}>{chain.includes(String(model.id)) ? `${chain.indexOf(String(model.id)) + 1}. ` : ""}{model.name}</Text></Pressable>)}</View><PrimaryButton label={busy ? "جارٍ الحفظ…" : "إضافة المكوّن"} onPress={() => void addAgent()} disabled={busy} /></Card>
+    <Card><Text style={styles.sectionTitle}>إضافة مكوّن</Text><View style={styles.filterRow}>{([['planner','العقل المخطط'],['thinker','العقل المفكر'],['reviewer','المراجع'],['summarizer','الملخّص'],['coordinator','المنسق'],['worker','عامل متخصص']] as const).map(([value, label]) => <Pressable key={value} onPress={() => setRole(value)} style={[styles.filterChip, role === value && styles.filterChipSelected]}><Text style={[styles.filterText, role === value && styles.filterTextSelected]}>{label}</Text></Pressable>)}</View><TextInput style={styles.input} value={name} onChangeText={setName} placeholder={role === "planner" ? "العقل المفكر" : role === "reviewer" ? "المراجع والمنسق" : "اسم المساعد"} placeholderTextColor={colors.textMuted} /><TextInput style={[styles.input, { minHeight: 130 }]} value={prompt} onChangeText={setPrompt} placeholder="وظيفة المساعد وتعليماته" placeholderTextColor={colors.textMuted} multiline textAlignVertical="top" /><Text style={styles.label}>النماذج حسب الأولوية (اضغط بالترتيب)</Text><TextInput style={styles.input} placeholder="ابحث عن نموذج بالاسم" placeholderTextColor={colors.textMuted} onChangeText={setModelSearch} value={modelSearch} /><View style={styles.filterRow}>{models.filter((model) => model.enabled && model.provider_enabled === true && model.routing_group !== "disabled" && `${model.name} ${model.model_identifier}`.toLowerCase().includes(modelSearch.trim().toLowerCase())).map((model) => <Pressable key={String(model.id)} onPress={() => toggleModel(String(model.id))} style={[styles.filterChip, chain.includes(String(model.id)) && styles.filterChipSelected]}><Text style={[styles.filterText, chain.includes(String(model.id)) && styles.filterTextSelected]}>{chain.includes(String(model.id)) ? `${chain.indexOf(String(model.id)) + 1}. ` : ""}{model.name}</Text></Pressable>)}</View><PrimaryButton label={busy ? "جارٍ الحفظ…" : "إضافة المكوّن"} onPress={() => void addAgent()} disabled={busy} /></Card>
     <Text style={styles.sectionTitle}>المساعدون الحاليون · {agents.length}</Text>
     {loading ? <ActivityIndicator color={colors.primary} /> : <ScrollView horizontal style={styles.agentsTable}><View><View style={styles.agentsTableHeader}><Text style={styles.agentNameCell}>الاسم / التعليمات</Text><Text style={styles.agentRoleCell}>الدور</Text><Text style={styles.agentModelsCell}>النماذج الاحتياطية</Text><Text style={styles.agentActionCell}>إجراء</Text></View>{agents.map((agent) => <View key={agent.id} style={styles.agentRow}><View style={styles.agentNameCell}><Text style={styles.cardTitle} numberOfLines={1}>{agent.name}</Text><Text style={styles.modelTableSub} numberOfLines={2}>{agent.system_prompt}</Text></View><Text style={[styles.agentRoleCell, styles.detail]}>{agent.role}</Text><Text style={[styles.agentModelsCell, styles.detail]} numberOfLines={2}>{agent.model_fallback_chain.join(" → ") || "التوجيه العام"}</Text><View style={styles.agentActionCell}><Pressable onPress={async () => { if (!await confirmAdminAction("حذف المساعد؟", `سيُحذف ${agent.name} نهائيًا.`, "حذف")) return; void adminService.deleteAgent(agent.id).then(() => load()).catch((cause) => setError(cause instanceof Error ? cause.message : "تعذر حذف المساعد.")); }}><Text style={styles.deleteFeature}>حذف</Text></Pressable></View></View>)}</View></ScrollView>}
   </ScrollView>;
