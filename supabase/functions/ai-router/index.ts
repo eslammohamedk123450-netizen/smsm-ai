@@ -20,6 +20,7 @@ import {
   updateSharedTaskMemory,
   upsertSharedTaskMemory,
 } from "../_shared/shared_task_memory.ts";
+import { CircuitBreaker } from "./circuit_breaker.ts";
 import { buildIndependentTaskPlan, executeTaskPlan, mergePartAnswers, probeCandidates, splitTask, validateTaskPlan } from "./resilience.ts";
 import { parseAgentDecision, runAgentLoop, type AgentLoopStep, type AgentTool } from "./agent/orchestrator.ts";
 import { prioritizeModelCandidate } from "./agent/model_routing.ts";
@@ -1206,6 +1207,25 @@ async function handleRequest(req: Request): Promise<Response> {
       p_error_reason: safeReason || null,
     });
     if (error) console.error("Could not persist model health attempt:", error.message);
+    if (status === "error" || status === "timeout" || status === "empty") {
+      const statusCodeMatch = errorReason?.match(/provider_http_(\d{3})/i);
+      try {
+        await CircuitBreaker.recordFailure(
+          String(candidate.model.id),
+          candidate.provider.name || candidate.provider.provider_type,
+          candidate.model.model_identifier,
+          errorCode ?? status,
+          safeReason || status,
+          Math.max(0, Math.floor(durationMs)),
+          statusCodeMatch ? Number(statusCodeMatch[1]) : undefined,
+        );
+      } catch (circuitBreakerError) {
+        console.error(
+          "Could not record model failure with circuit breaker:",
+          circuitBreakerError instanceof Error ? circuitBreakerError.message : String(circuitBreakerError),
+        );
+      }
+    }
   };
   const recordPreflightProblems = async (models: ModelRow[]) => {
     await Promise.all(models.map(async (model) => {
