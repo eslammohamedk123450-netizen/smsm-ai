@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Image, Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { useRouter } from "expo-router";
 import { chatService } from "../chat/chat-service";
 import * as Clipboard from "expo-clipboard";
 import { supabase } from "../../lib/supabase/client";
 import { colors } from "../../theme/colors";
-import { formatBytes, listMyMedia, listMyGenerationJobs, pickMedia, uploadMediaFile, type MediaAsset, type MediaGenerationJob, type PickKind } from "./media-service";
+import { deleteMediaAsset, formatBytes, listMyMedia, listMyGenerationJobs, pickMedia, uploadMediaFile, type MediaAsset, type MediaGenerationJob, type PickKind } from "./media-service";
 
 export function MediaScreen() {
   const [assets, setAssets] = useState<MediaAsset[]>([]);
@@ -17,6 +17,7 @@ export function MediaScreen() {
   const [notice, setNotice] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [reuseBusyId, setReuseBusyId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const router = useRouter();
   const [filter, setFilter] = useState<"all" | "image" | "video" | "in_progress">("all");
 
@@ -57,6 +58,24 @@ export function MediaScreen() {
   const copy = async (url: string) => {
     try { await Clipboard.setStringAsync(url); setNotice("تم نسخ رابط الملف."); }
     catch { setError("تعذر النسخ. اضغط مطولًا على الرابط لنسخه."); }
+  };
+
+  const confirmDeleteAsset = (asset: MediaAsset) => {
+    Alert.alert("حذف الملف", "سيتم حذف الملف من التخزين والمكتبة إذا لم يكن مرتبطًا بمحادثة أو تذكرة دعم. لا يمكن التراجع عن الحذف.", [
+      { text: "إلغاء", style: "cancel" },
+      { text: "حذف", style: "destructive", onPress: () => {
+        void (async () => {
+          setDeletingId(asset.id); setError(null); setNotice(null);
+          try {
+            await deleteMediaAsset(asset.id);
+            setAssets((current) => current.filter((item) => item.id !== asset.id));
+            setNotice("تم حذف الملف من مكتبتك.");
+          } catch (cause) {
+            setError(cause instanceof Error ? cause.message : "تعذر حذف الملف.");
+          } finally { setDeletingId(null); }
+        })();
+      } },
+    ]);
   };
 
   const reuseImageInChat = async (asset: MediaAsset) => {
@@ -139,6 +158,7 @@ export function MediaScreen() {
           <Pressable onPress={() => void Linking.openURL(asset.url)}><Text style={styles.link}>فتح / تنزيل</Text></Pressable>
           <Pressable onPress={() => void copy(asset.url)}><Text style={styles.link}>نسخ الرابط</Text></Pressable>
           {asset.kind === "image" ? <Pressable disabled={reuseBusyId !== null} onPress={() => void reuseImageInChat(asset)}><Text style={[styles.link, reuseBusyId === asset.id && styles.disabledText]}>{reuseBusyId === asset.id ? "جارٍ فتح المحادثة…" : "استخدم في محادثة"}</Text></Pressable> : null}
+          <Pressable disabled={deletingId !== null} onPress={() => confirmDeleteAsset(asset)}><Text style={[styles.link, deletingId === asset.id && styles.disabledText]}>{deletingId === asset.id ? "جارٍ الحذف…" : "حذف"}</Text></Pressable>
         </View>
       </View>) : null}
     </View>
