@@ -144,6 +144,7 @@ export async function uploadMediaFile(input: UploadMediaInput): Promise<MediaAss
     width: picked.width ?? null,
     height: picked.height ?? null,
     durationSeconds: null,
+    metadata: {},
   };
 }
 function asKind(value: unknown): MediaKind { const text = String(value ?? ""); return text === "video" || text === "raw" ? text : "image"; }
