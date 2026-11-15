@@ -55,6 +55,12 @@ begin
    where user_id in (v_a, v_b)
      and status = 'queued'
      and id not in (v_a_job, v_b_job);
+  update public.agent_task_jobs
+     set status = 'failed', locked_by = null, lease_until = null,
+         completed_at = now(), updated_at = now()
+   where user_id in (v_a, v_b)
+     and status = 'running'
+     and id not in (v_a_job, v_b_job);
 
   if not exists (
     select 1 from public.claim_agent_task_jobs('regression-worker-a', 1, 60, v_a) where id = v_a_job
