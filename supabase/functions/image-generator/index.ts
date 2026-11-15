@@ -349,7 +349,7 @@ Deno.serve(async (req: Request) => {
       metadata: {
         kind: "image", format: format.format, generated: true, prompt,
         public_model_name: typedModel.display_name, quality, resolution: typedPrice.resolution,
-        estimated_credits: typedPrice.price_credits, charged_credits: actualCredits,
+        estimated_credits: typedPrice.price_credits, requested_credits: actualCredits,
         width: dimensions?.width ?? null, height: dimensions?.height ?? null,
         request_id: requestId, source: studioRequest ? "image_studio" : "chat",
       },
@@ -358,21 +358,21 @@ Deno.serve(async (req: Request) => {
     if (assetError) throw new ServiceError(500, "تم إنشاء الصورة لكن تعذر حفظها في المكتبة.");
 
     const creditsSettled = await settleCredits(service, userId, requestId, actualCredits);
-    const revenueEgp = actualCredits * typedPrice.credit_value_egp;
+    const revenueEgp = creditsSettled ? actualCredits * typedPrice.credit_value_egp : null;
     const providerCostEgp = generated.costUsd * typedPrice.usd_to_egp;
     const { error: ledgerError } = await service.from("suly_company_cost_ledger").insert({
       request_id: requestId, user_id: userId, service_type: "image", provider_id: typedModel.provider_id,
       generation_model_id: typedModel.id, provider_model_identifier: typedModel.model_identifier,
       provider_cost_usd: generated.costUsd, cost_status: generated.costConfirmed ? "confirmed" : "estimated",
-      user_credits_charged: actualCredits, credit_value_egp: typedPrice.credit_value_egp,
+      user_credits_charged: creditsSettled ? actualCredits : 0, credit_value_egp: typedPrice.credit_value_egp,
       usd_to_egp: typedPrice.usd_to_egp, revenue_egp: revenueEgp, provider_cost_egp: providerCostEgp,
-      other_cost_egp: 0, gross_profit_egp: revenueEgp - providerCostEgp,
+      other_cost_egp: 0, gross_profit_egp: revenueEgp === null ? null : revenueEgp - providerCostEgp,
       price_version: String(typedPrice.price_version),
-      metadata: { quality, resolution: typedPrice.resolution, generation_model_id: typedModel.id, provider_request_id: generated.providerRequestId },
+      metadata: { quality, resolution: typedPrice.resolution, generation_model_id: typedModel.id, provider_request_id: generated.providerRequestId, billing_status: creditsSettled ? "settled" : "pending_reconciliation", requested_credits: actualCredits },
     });
     if (ledgerError && ledgerError.code !== "23505") console.error("Company cost ledger insert failed.", ledgerError.code ?? "database_error");
     await service.from("suly_media_generation_jobs").update({
-      status: "completed", charged_credits: actualCredits, provider_cost_usd: generated.costUsd,
+      status: "completed", charged_credits: creditsSettled ? actualCredits : 0, provider_cost_usd: generated.costUsd,
       provider_cost_status: generated.costConfirmed ? "confirmed" : "estimated",
       provider_request_id: generated.providerRequestId, output_asset_id: imageId,
       completed_at: new Date().toISOString(), updated_at: new Date().toISOString(),
@@ -383,7 +383,8 @@ Deno.serve(async (req: Request) => {
     return json(200, {
       success: true, request_id: requestId, message_id: assistantMessageId, media_id: imageId,
       model: typedModel.display_name,
-      estimated_credits: typedPrice.price_credits, charged_credits: actualCredits,
+      estimated_credits: typedPrice.price_credits, requested_credits: actualCredits,
+      charged_credits: creditsSettled ? actualCredits : 0,
       billing_status: creditsSettled ? "settled" : "pending_reconciliation",
     });
   } catch (error) {
