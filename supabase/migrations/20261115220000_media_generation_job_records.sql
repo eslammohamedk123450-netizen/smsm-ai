@@ -80,4 +80,26 @@ $;
 revoke all on function public.suly_list_my_media_generation_jobs() from public, anon;
 grant execute on function public.suly_list_my_media_generation_jobs() to authenticated;
 
+create or replace function public.suly_get_my_media_generation_job(p_job_id uuid)
+returns table (
+  status text,
+  output_asset_id uuid,
+  charged_credits bigint,
+  error_message text,
+  metadata jsonb
+)
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $
+  select job.status, job.output_asset_id, job.charged_credits, job.error_message, job.metadata
+  from public.suly_media_generation_jobs job
+  where auth.uid() is not null and job.user_id = auth.uid() and job.id = p_job_id
+  limit 1;
+$;
+
+revoke all on function public.suly_get_my_media_generation_job(uuid) from public, anon;
+grant execute on function public.suly_get_my_media_generation_job(uuid) to authenticated;
+
 commit;
