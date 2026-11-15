@@ -2681,7 +2681,7 @@ Deno.serve(async (req: Request) => {
       activeAiClaims.delete(req);
     }
     console.error("Unhandled ai-router error.");
-    return jsonResponse({ error: "Internal ai-router error." }, 500);
+    return jsonResponse({ error: "Internal ai-router error." }, 500, req);
   }
 });
 import {
