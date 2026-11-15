@@ -32,7 +32,7 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-async function handleCompositoIntegrationRequest(req: Request): Promise<Response> => {
+async async function handleCompositoIntegrationRequest(req: Request): Promise<Response> {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return jsonResponse({ error: "Method not allowed." }, 405);
 
