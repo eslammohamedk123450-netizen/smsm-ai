@@ -77,11 +77,13 @@ export function toBrainTaskStepRows(
     const capabilityKey = tool === "web.search" ? "web_search" : kind === "planning" ? "reasoning" : "text";
     const description = tool
       ? `تنفيذ الأداة ${tool}`
-      : kind === "final"
-        ? "صياغة النتيجة النهائية"
-        : kind === "error"
-          ? "معالجة تعذر الخطوة"
-          : "تحليل الطلب واختيار الخطوة";
+      : kind === "worker"
+        ? `تنفيذ الجزء ${index + 1} بواسطة Worker`
+        : kind === "final"
+          ? "صياغة النتيجة النهائية"
+          : kind === "error"
+            ? "معالجة تعذر الخطوة"
+            : "تحليل الطلب واختيار الخطوة";
     return {
       task_id: taskId,
       step_index: index + 1,
