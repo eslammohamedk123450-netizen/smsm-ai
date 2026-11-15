@@ -1,0 +1,35 @@
+name: Media Billing Guardrails
+
+on:
+  pull_request:
+    branches: [release/v1]
+    paths:
+      - "supabase/functions/image-generator/**"
+      - "apps/mobile/src/features/admin/MediaGenerationModelsAdminScreen.tsx"
+      - "supabase/migrations/**"
+      - ".github/workflows/media-billing-guardrails.yml"
+  push:
+    branches: [release/v1]
+    paths:
+      - "supabase/functions/image-generator/**"
+      - "apps/mobile/src/features/admin/MediaGenerationModelsAdminScreen.tsx"
+      - "supabase/migrations/**"
+      - ".github/workflows/media-billing-guardrails.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  media-billing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Format billing helpers
+        run: deno fmt --check supabase/functions/image-generator/cost.ts supabase/functions/image-generator/cost.test.ts
+      - name: Test currency-safe billing
+        run: deno test supabase/functions/image-generator/cost.test.ts
+      - name: Type-check image generator
+        run: deno check supabase/functions/image-generator/index.ts
