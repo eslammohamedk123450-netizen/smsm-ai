@@ -75,7 +75,7 @@ export default function LoginPage() {
       if (!/[A-Z]/.test(password)) return setError("أضف حرفًا إنجليزيًا كبيرًا واحدًا على الأقل.");
       if (!/[a-z]/.test(password)) return setError("أضف حرفًا إنجليزيًا صغيرًا واحدًا على الأقل.");
       if (!/\d/.test(password)) return setError("أضف رقمًا واحدًا على الأقل.");
-      if (!/[^A-Za-z0-9]/.test(password)) return setError("أضف رمزًا واحدًا على الأقل.");
+      if (!/[^A-Za-z0-9\s]/.test(password)) return setError("أضف رمزًا واحدًا على الأقل.");
     }
     if (mode === "register" && !fullName.trim()) return setError("أدخل الاسم الكامل.");
     if (mode === "login" && method === "password" && password.length === 0) return setError("أدخل كلمة المرور.");
