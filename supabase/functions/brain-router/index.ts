@@ -93,6 +93,14 @@ async function main(req: Request): Promise<Response> {
         route: "central-agent",
       });
     }
+    if (savedTask?.status === "cancelled") {
+      return json({
+        task_id: taskId,
+        status: "cancelled",
+        response: cleanText(savedTask.final_response ?? savedContext.final_response) || "تم إيقاف المهمة بناءً على طلبك.",
+        route: "central-agent",
+      });
+    }
     if (savedTask?.status === "failed") {
       return json({ error: "Central Agent task already failed", task_id: taskId }, 409);
     }
@@ -126,6 +134,54 @@ async function main(req: Request): Promise<Response> {
     const estimatedSteps = centralResult?.estimatedSteps ?? 1;
     const complexity = centralResult?.complexity ?? "easy";
     const capabilities = centralResult?.capabilities ?? ["text"];
+
+    if (response.ok && centralResult?.status === "cancelled") {
+      const cancelledResponse = finalResponse || "تم إيقاف المهمة بناءً على طلبك.";
+      const cancelledContext = {
+        objective,
+        complexity,
+        capabilities,
+        estimated_steps: estimatedSteps,
+        steps: agentSteps,
+        results: [],
+        final_response: cancelledResponse,
+        route: "central-agent",
+        cancellation: "user_requested",
+      };
+      const { error: cancelledContextError } = await admin.from("brain_task_contexts").upsert({
+        task_id: taskId,
+        user_id: userId,
+        objective,
+        complexity,
+        capabilities,
+        estimated_steps: estimatedSteps,
+        context: cancelledContext,
+        final_response: cancelledResponse,
+        status: "cancelled",
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "task_id" });
+      if (cancelledContextError) return json({ error: "Could not persist cancelled Agent progress", task_id: taskId }, 500);
+      const { error: cancelledStepsError } = await admin.from("brain_task_steps")
+        .upsert(toBrainTaskStepRows(taskId, agentSteps, "cancelled"), { onConflict: "task_id,step_index" });
+      if (cancelledStepsError) return json({ error: "Could not persist cancelled Agent steps", task_id: taskId }, 500);
+      const { error: cancelledUsageError } = await admin.rpc("brain_finalize_usage", {
+        p_task_id: taskId,
+        p_actual_tokens: actualTokens,
+        p_status: "cancelled",
+      });
+      if (cancelledUsageError) return json({ error: "Could not finalize cancelled Brain usage", task_id: taskId }, 500);
+      return json({
+        task_id: taskId,
+        status: "cancelled",
+        complexity,
+        capabilities,
+        estimated_steps: estimatedSteps,
+        steps_completed: completedSteps,
+        response: cancelledResponse,
+        route: "central-agent",
+        usage: { input_tokens: centralResult.inputTokens, output_tokens: centralResult.outputTokens },
+      });
+    }
 
     if (!response.ok || !centralResult) {
       await admin.from("brain_task_contexts").upsert({
