@@ -75,7 +75,6 @@ export function ProvidersAdminScreen() {
   const [key, setKey] = useState("");
   const [description, setDescription] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [hideModelsOnDisable, setHideModelsOnDisable] = useState(true);
   const [busy, setBusy] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [testingModelId, setTestingModelId] = useState<number | null>(null);
@@ -115,8 +114,8 @@ export function ProvidersAdminScreen() {
   const toggleProvider = async (provider: ProviderRow) => {
     setBusyId(provider.id); setError(null); setNotice(null);
     try {
-      await adminService.setProviderLifecycle(provider.id, !provider.enabled, hideModelsOnDisable);
-      setNotice(`${provider.name}: تم ${provider.enabled ? "تعطيل" : "تفعيل"} المزود وكل نماذجه.`);
+      await adminService.setProviderLifecycle(provider.id, !provider.enabled, true);
+      setNotice(`${provider.name}: تم ${provider.enabled ? "تجميد" : "تفعيل"} المزود. يلزم إعادة ربط النماذج يدويًا بعد إعادة التفعيل.`);
       await load();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر تغيير حالة المزود."); }
     finally { setBusyId(null); }
@@ -202,7 +201,7 @@ export function ProvidersAdminScreen() {
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <PageHeader title="مزودو الخدمة" />
     <Text style={styles.explainer}>أضف أكثر من مفتاح للخدمة نفسها عند الحاجة. كل مفتاح يُحفظ كحساب مستقل، وتُربط به نماذجه وسجل صحته وحده؛ قيم المفاتيح لا تظهر بعد الحفظ.</Text>
-    <Card><Toggle label="عند تعطيل مزود: إخفاء نماذجه من التوجيه" value={hideModelsOnDisable} onChange={setHideModelsOnDisable} /><Text style={styles.detail}>عند إيقاف هذا الخيار ستبقى النماذج ظاهرة في لوحة النماذج، لكنها لن تعمل ما دام المزود معطّلًا.</Text></Card>
+    <Card><Text style={styles.detail}>تعطيل أي مفتاح يجمّد نماذجه فورًا: تُزال من أقسام التوجيه ومستويات SULY والاختيارات الجديدة، وتُلغى التعيينات المباشرة المرتبطة به. إعادة التفعيل لا تعيد النماذج تلقائيًا؛ راجعها وأعد اختيارها يدويًا.</Text></Card>
     <Card>
       <View style={styles.providerFormHeading}><View style={styles.sectionIcon}><Text style={styles.sectionIconText}>⌘</Text></View><View style={styles.providerFormHeadingText}><Text style={styles.sectionTitle}>إضافة مفتاح API</Text><Text style={styles.detail}>كل إضافة تنشئ حسابًا ومجموعة نماذج مستقلين</Text></View></View>
       <Text style={styles.sectionTitle}>١. اختر الخدمة</Text>
