@@ -45,7 +45,6 @@ create index if not exists agent_step_usage_task_user_idx
 alter table public.agent_step_usage enable row level security;
 revoke all on public.agent_step_usage from public, anon, authenticated;
 grant select, insert on public.agent_step_usage to service_role;
-grant usage, select on sequence public.agent_step_usage_id_seq to service_role;
 
 create or replace function public.record_agent_step_usage(
   p_job_id uuid,
