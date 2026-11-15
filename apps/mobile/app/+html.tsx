@@ -10,7 +10,8 @@ export default function Root({ children }: { children: ReactNode }) {
         <meta name="theme-color" content="#080B14" />
         <style>{`
           html, body, #root { width: 100%; min-width: 320px; min-height: 100%; margin: 0; background: #080B14; }
-          html, body { height: 100%; overscroll-behavior-y: none; }
+          html, body { height: 100%; overscroll-behavior-y: auto; }
+          body { touch-action: pan-y; }
           body { overflow-x: hidden; }
           #root { min-height: 100dvh; display: flex; flex-direction: column; }
           *, *::before, *::after { box-sizing: border-box; }
