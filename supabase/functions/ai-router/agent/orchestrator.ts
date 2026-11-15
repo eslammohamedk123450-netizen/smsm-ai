@@ -179,6 +179,7 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoop
       const step: AgentLoopStep = { index, kind: "tool", tool: tool.name, status: "completed" };
       steps.push(step);
       await options.onStep?.(step);
+      if (await options.isCancelled?.()) return { status: "cancelled", steps };
       let serialized = JSON.stringify(result ?? null);
       if (serialized.length > MAX_TOOL_RESULT_CHARS) serialized = `${serialized.slice(0, MAX_TOOL_RESULT_CHARS)}…[result truncated]`;
       messages.push({
