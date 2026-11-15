@@ -4,7 +4,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "bundle:ai-router": "esbuild supabase/functions/ai-router/index.ts --bundle --format=esm --minify --platform=neutral --external:'https://*' --external:'npm:*' --outfile=supabase/deploy-artifacts/ai-router.bundle.js"
+    "bundle:ai-router": "esbuild supabase/functions/ai-router/index.ts --bundle --format=esm --minify --platform=neutral --external:'https://*' --external:'npm:*' --outfile=supabase/deploy-artifacts/ai-router.bundle.js",
+    "bundle:sync-models": "esbuild supabase/functions/sync-models/index.ts --bundle --format=esm --minify --platform=neutral --external:'https://*' --external:'npm:*' --outfile=supabase/deploy-artifacts/sync-models.bundle.js"
   },
   "devDependencies": {
     "esbuild": "0.28.2"
