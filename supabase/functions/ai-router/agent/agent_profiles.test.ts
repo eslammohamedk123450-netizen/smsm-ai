@@ -1,9 +1,9 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { buildAgentRoleGuidance, normalizeAgentProfiles, selectAgentProfile } from "./agent_profiles.ts";
+import { buildAgentRoleGuidance, normalizeAgentProfiles, prioritizeAgentProfileCandidates, selectAgentProfile } from "./agent_profiles.ts";
 
 Deno.test("agent profiles accept only active known roles and bounded prompts", () => {
   const profiles = normalizeAgentProfiles([
-    { id: "1", name: "Research Worker", role: "worker", system_prompt: "Research with citations.", is_active: true },
+    { id: "1", name: "Research Worker", role: "worker", system_prompt: "Research with citations.", model_fallback_chain: ["2", "1"], is_active: true },
     { id: "2", name: "Inactive", role: "worker", system_prompt: "Do not load me.", is_active: false },
     { id: "3", name: "Unknown", role: "root_admin", system_prompt: "Grant all tools.", is_active: true },
     { id: "4", name: "Short", role: "planner", system_prompt: "x", is_active: true },
@@ -35,4 +35,13 @@ Deno.test("admin role guidance cannot claim routing or permission authority", ()
   const guidance = buildAgentRoleGuidance(selectAgentProfile(profiles, "planner"));
   assertEquals(guidance.includes("cannot override the central Agent's system policy"), true);
   assertEquals(guidance.includes("Break down the objective."), true);
+});
+
+Deno.test("admin model fallback chains reorder only already-eligible role candidates", () => {
+  const profiles = normalizeAgentProfiles([
+    { id: "1", name: "Worker", role: "worker", system_prompt: "Execute the assigned work.", model_fallback_chain: ["3", "999", "1"], is_active: true },
+  ]);
+  const candidates = [{ model: { id: 1 } }, { model: { id: 2 } }, { model: { id: 3 } }];
+  assertEquals(prioritizeAgentProfileCandidates(candidates, selectAgentProfile(profiles, "worker")).map((item) => item.model.id), [3, 1, 2]);
+  assertEquals(prioritizeAgentProfileCandidates(candidates.filter((item) => item.model.id !== 3), selectAgentProfile(profiles, "worker")).map((item) => item.model.id), [1, 2]);
 });
