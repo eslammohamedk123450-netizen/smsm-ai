@@ -2118,8 +2118,8 @@ async function handleRequest(req: Request): Promise<Response> {
 
   if (!winner && routingMode === "auto" && settings.paidFallbackEnabled) {
     const paidModels: ModelRow[] = healthyModels
-      .filter((model: ModelRow) => isEligibleModel(model, executionMode === "agent" ? "planner" : "chat", ["paid_fallback"]))
-    const orderedPaidModels = orderModelsByRoute(paidModels, orderedRouteAssignments, executionMode === "agent" ? "planner" : "chat");
+      .filter((model: ModelRow) => isEligibleModel(model, "chat", ["paid_fallback"]));
+    const orderedPaidModels = orderModelsByRoute(paidModels, orderedRouteAssignments, "chat");
     const paidProviderIds: number[] = [...new Set<number>(orderedPaidModels.map((m: ModelRow) => m.provider_id))];
     await Promise.all(paidProviderIds.map(async (providerId) => {
       const provider = providerById.get(providerId);
