@@ -92,7 +92,7 @@ Record each case as **PASS**, **FAIL**, or **BLOCKED**. For every failure, captu
 - [ ] Verify an expired worker cannot complete a job after another worker reclaims it.
 - [ ] Verify retry exhaustion ends in a visible failed state.
 - [ ] Verify user A cannot claim, read, or finish user B's task.
-- [ ] Verify task cancellation and stale status recovery behave correctly.
+- [ ] Verify an authenticated owner can cancel their own queued task.\n- [ ] Verify an authenticated owner can cancel their own running task and the worker aborts on its next heartbeat.\n- [ ] Verify user A cannot cancel user B's queued or running task.\n- [ ] Verify cancellation after completion/failure returns false and does not alter the terminal result.\n- [ ] Verify task cancellation and stale status recovery behave correctly.
 - [ ] Verify credits are reserved once and finalized once on success.
 - [ ] Verify failed terminal tasks release/finalize reserved usage correctly.
 - [ ] Compare reserved usage, actual token usage, user credits, and provider cost records.
