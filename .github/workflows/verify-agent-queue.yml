@@ -21,7 +21,7 @@ on:
       - "supabase/config.toml"
       - ".github/workflows/verify-agent-queue.yml"
   push:
-    branches: [release/v1, feat/agent-worker-brain-queue]
+    branches: [release/v1, 'feat/**']
     paths:
       - "apps/mobile/**"
       - "supabase/functions/ai-router/**"
