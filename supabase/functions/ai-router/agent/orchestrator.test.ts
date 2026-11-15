@@ -255,3 +255,23 @@ Deno.test("Agent loop reuses a saved decision when interruption happened before 
   assertEqual(executions, 1, "unfinished read step should execute once");
   assertEqual(planningCalls, 1, "saved decision must bypass a second planner call");
 });
+
+
+Deno.test("Agent checkpoint persistence errors are not misclassified as tool failures", async () => {
+  let toolErrors = 0;
+  let rejected = false;
+  try {
+    await runAgentLoop({
+      messages: [{ role: "user", content: "read data" }],
+      tools: [{ name: "web.search", description: "search", effect: "read", available: true }],
+      plan: async () => ({ action: "tool", tool: "web.search", input: { query: "docs" } }),
+      execute: async () => ({ result: "done" }),
+      onToolResult: async () => { throw new Error("checkpoint_write_failed"); },
+      onToolError: async () => { toolErrors += 1; },
+    });
+  } catch (error) {
+    rejected = error instanceof Error && error.message === "checkpoint_write_failed";
+  }
+  assert(rejected, "checkpoint persistence failure must escape the loop for safe worker retry");
+  assertEqual(toolErrors, 0, "checkpoint failure must not be reported as external tool failure");
+});
