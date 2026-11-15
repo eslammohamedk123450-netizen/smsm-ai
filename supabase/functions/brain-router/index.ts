@@ -374,75 +374,7 @@ async function main(req: Request): Promise<Response> {
     return json({ task_id: taskId, job_id: queued.id, status: queued.status, queued: true, route: "brain-router" }, 202);
   }
 
-  let totalTokens = 0;
-  let finalizationAttempted = false;
-  const finalizeUsage = async (status: "completed" | "failed"): Promise<void> => {
-    if (finalizationAttempted) return;
-    finalizationAttempted = true;
-    const { error } = await admin.rpc("brain_finalize_usage", { p_task_id: taskId, p_actual_tokens: totalTokens, p_status: status });
-    if (error) throw new Error("usage_finalization_failed");
-  };
-  const markFailed = async (): Promise<void> => {
-    try { await admin.from("brain_task_contexts").update({ status: "failed", updated_at: new Date().toISOString() }).eq("task_id", taskId).eq("user_id", userId); } catch { /* best effort */ }
-    try { await finalizeUsage("failed"); } catch { /* the reservation must not be finalized more than once */ }
-  };
-
-  const authHeader = `Bearer ${userJwt}`;
-  const attemptLog = async (tier: Tier, row: TierRow, attemptNo: number, status: string, errorCode: string | null, errorReason: string | null, tokens = 0) => {
-    try { await admin.from("brain_attempt_logs").insert({ task_id: taskId, tier_name: tier, model_id: row.model_id, attempt_no: attemptNo, status, error_code: errorCode, error_reason: cleanText(errorReason, 1000) || null, tokens_used: Math.max(0, Math.floor(tokens)) }); } catch { /* attempt logging must not alter task execution */ }
-  };
-  const invokeLegacy = async (tier: Tier, row: TierRow, prompt: string): Promise<InvocationResult | null> => {
-    const legacyId = row.model?.legacy_ai_model_id;
-    if (!legacyId) { await attemptLog(tier, row, 1, "error", "model_not_linked", "The brain model is not linked to ai_models"); return null; }
-    try {
-      const response = await fetch(`${supabaseUrl}/functions/v1/ai-router`, {
-        method: "POST",
-        headers: { Authorization: authHeader, "Content-Type": "application/json", "x-suly-internal-brain-key": serviceRoleKey },
-        body: JSON.stringify({ message: prompt, model_id: legacyId, routing_mode: "manual", max_tokens: Math.min(4096, Math.max(128, Number(row.max_tokens_per_task) || 1024)), stream: false, request_id: crypto.randomUUID(), feature_key: "brain_system", user_id: userId }),
-      });
-      const payload = asRecord(await response.json().catch(() => ({})));
-      const responseObject = asRecord(payload.response);
-      const choices = Array.isArray(responseObject.choices) ? responseObject.choices : [];
-      const first = asRecord(choices[0]);
-      const message = asRecord(first.message);
-      const text = cleanText(message.content);
-      if (!response.ok) { await attemptLog(tier, row, 1, response.status === 504 ? "timeout" : "error", `ai_router_http_${response.status}`, "ai-router request failed"); return null; }
-      if (!text) { await attemptLog(tier, row, 1, "empty", "empty_response", "The model returned no text"); return null; }
-
-      const usage = asRecord(payload.usage ?? responseObject.usage);
-      const inputReported = numericTokens(usage.prompt_tokens ?? usage.input_tokens ?? usage.input_tokens_total);
-      const outputReported = numericTokens(usage.completion_tokens ?? usage.output_tokens ?? usage.output_tokens_total);
-      const hasReportedUsage = inputReported !== null || outputReported !== null;
-      const inputTokens = inputReported ?? estimateTokens(prompt);
-      const outputTokens = outputReported ?? estimateTokens(text);
-      const tokens = inputTokens + outputTokens;
-      const usedEstimate = !hasReportedUsage || inputReported === null || outputReported === null;
-      totalTokens += tokens;
-      await attemptLog(tier, row, 1, "success", null, usedEstimate ? "token_estimate_fallback_input_plus_output" : null, tokens);
-      return { text, tokens, usedEstimate };
-    } catch {
-      await attemptLog(tier, row, 1, "error", "fetch_error", "ai-router invocation failed");
-      return null;
-    }
-  };
-  const invokeTier = async (tier: Tier, prompt: string, requiredCapability: Capability = "text"): Promise<(InvocationResult & { row: TierRow }) | null> => {
-    const candidates = byTier(tier, requiredCapability);
-    for (const row of candidates) {
-      const result = await invokeLegacy(tier, row, prompt);
-      if (result) return { ...result, row };
-    }
-    return null;
-  };
-
-  try {
-    const routerPrompt = `أنت Router رخيص لمهمة جديدة. لا تنفذ المهمة. أعد JSON فقط بالشكل {"complexity":"easy|complex","capabilities":["text|coding|image|video|vision|audio|reasoning|web_search"],"estimated_steps":number}. قدّر الخطوات حسب حجم المهمة الحقيقي: بحث ويب مباشر خطوة واحدة، ومشروع كامل عدة خطوات مناسبة، ولا ترفع العدد بلا سبب. المهمة:\n${objective}`;
-    const routerResult = await invokeTier("router", routerPrompt);
-    if (!routerResult) {
-      await markFailed();
-      return json({ error: "Router models failed", task_id: taskId }, 502);
-    }
-    const routerJson = parseJsonObject(routerResult.text) ?? {};
-    return json({ error: "legacy_brain_route_disabled" }, 410);
+  return json({ error: "legacy_brain_route_disabled" }, 410);
 }
 Deno.serve(async (req) => {
   try { return await main(req); } catch { return json({ error: "Internal brain-router error" }, 500); }
