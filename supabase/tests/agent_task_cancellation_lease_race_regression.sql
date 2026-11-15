@@ -40,6 +40,15 @@ begin
   end if;
 
   perform set_config('request.jwt.claim.role', 'service_role', true);
+  -- First scheduler pass requeues with bounded backoff; simulate that delay elapsing.
+  select * into v_claimed
+    from public.claim_agent_task_jobs('replacement-worker', 1, 120, v_user)
+   limit 1;
+  if v_claimed.id is not null then
+    raise exception 'Expired job bypassed its retry backoff window';
+  end if;
+  update public.agent_task_jobs set available_at = now() - interval '1 second'
+   where id = v_job and status = 'queued';
   select * into v_claimed
     from public.claim_agent_task_jobs('replacement-worker', 1, 120, v_user)
    limit 1;
