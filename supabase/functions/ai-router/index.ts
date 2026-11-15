@@ -1921,7 +1921,7 @@ async function handleRequest(req: Request): Promise<Response> {
     if (successfulParts.length === 0) {
       await updateWorkspaceStep(resultStepKey, "running");
       await updateTaskLedger(resultStepKey, "running");
-      const workerBillingRef = ((): ReadyCandidate | null => workerBillingCandidate)();
+      const workerBillingRef = ((): Candidate | null => workerBillingCandidate)();
       const billingCandidate = workerBillingRef
         ? { ...workerBillingRef, inputTokens: workerInputTokens, outputTokens: workerOutputTokens }
         : null;
