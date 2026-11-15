@@ -87,6 +87,8 @@ Record each case as **PASS**, **FAIL**, or **BLOCKED**. For every failure, captu
 - [ ] Verify task steps/status metadata are consistent with the returned Agent result.
 - [ ] Submit the same task ID twice; verify idempotency and no duplicate charge.
 - [ ] Simulate worker interruption; verify lease expiry and bounded recovery.
+- [ ] Verify expired leases return to queued state with 15s/30s/60s exponential backoff (capped at 5 minutes), without repeated scheduler ticks extending the same delay.
+- [ ] Verify exhausted attempts become terminal failed jobs and are never reclaimed.
 - [ ] Verify an expired worker cannot complete a job after another worker reclaims it.
 - [ ] Verify retry exhaustion ends in a visible failed state.
 - [ ] Verify user A cannot claim, read, or finish user B's task.
