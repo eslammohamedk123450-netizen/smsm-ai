@@ -35,7 +35,7 @@ const ALLOWED_PROVIDER_TYPES = [
 
 /** Non-chat model families that must not be inserted into the chat routing catalog. */
 const NON_CHAT_PATTERN =
-  /(embed|embedding|whisper|tts|speech|audio|dall-e|image|imagen|moderation|rerank|guard|veo|sora|stable-diffusion|flux|bge-|e5-)/i;
+  /(embed|embedding|whisper|tts|speech|audio|dall-e|image|imagen|moderation|rerank|guard|veo|sora|stable-diffusion|flux|bge-|e5-|kling|seedance|seedream|ideogram|nano-banana|minimax|lyria|transcrib|robotics|deep-research|computer-use)/i;
 
 function jsonResponse(payload: Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(payload), {
