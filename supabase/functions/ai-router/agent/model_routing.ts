@@ -13,9 +13,14 @@ export function prioritizeModelCandidate<T extends ModelCandidate>(
 
 
 type RouteAssignment = { route_role: string; model_id: number; enabled: boolean };
+type RouteEligibleItem = { id: number } | { model: { id: number } };
+
+function routeEligibleModelId(candidate: RouteEligibleItem): number {
+  return "model" in candidate ? candidate.model.id : candidate.id;
+}
 
 /** A configured route is an allowlist, not merely a preference order. */
-export function restrictModelsToAssignedRoute<T extends ModelCandidate>(
+export function restrictModelsToAssignedRoute<T extends RouteEligibleItem>(
   candidates: T[],
   assignments: readonly RouteAssignment[],
   role: string,
@@ -26,5 +31,5 @@ export function restrictModelsToAssignedRoute<T extends ModelCandidate>(
       .map((assignment) => assignment.model_id),
   );
   if (allowedIds.size === 0) return [];
-  return candidates.filter((candidate) => allowedIds.has(candidate.model.id));
+  return candidates.filter((candidate) => allowedIds.has(routeEligibleModelId(candidate)));
 }
