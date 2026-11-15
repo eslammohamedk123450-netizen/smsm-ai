@@ -1062,6 +1062,9 @@ async function handleRequest(req: Request): Promise<Response> {
   const profileCapabilities = selectedProfileKey
     ? (profileDefinitionResult.data?.capabilities_json ?? {}) as Record<string, unknown>
     : {};
+  if (selectedProfileKey && profileDefinitionResult.data?.is_active !== true) {
+    return await failedResponse(jsonResponse({ error: "مستوى SULY المحدد غير مفعّل حاليًا. لم يتم اختيار مستوى بديل تلقائيًا." }, 503, req), "suly_profile_disabled");
+  }
   const profileModelIds = selectedProfileKey
     ? new Set((selectedProfileAssignments ?? []).filter((item: { route_role: string }) => item.route_role === routeRole).map((item: { model_id: number }) => Number(item.model_id)))
     : null;
@@ -1070,7 +1073,7 @@ async function handleRequest(req: Request): Promise<Response> {
     : null;
   if (selectedProfileKey && requestedProfileKey && requestedProfileKey !== "auto") {
     const needsWebSearch = isWebSearchRequest(latestUserMessage);
-    const needsComplexExecution = mind.intent === "complex_task";
+    const needsComplexExecution = profileIntent === "complex_task" && executionMode === "agent";
     if (needsWebSearch && profileCapabilities.web_search !== true) {
       return await failedResponse(jsonResponse({ error: `${selectedProfileKey.toUpperCase()} لا يتضمن البحث على الويب. اختر مستوى أعلى أو غيّر اختيارك يدويًا.` }, 403, req), "profile_capability_unavailable");
     }
@@ -1081,7 +1084,7 @@ async function handleRequest(req: Request): Promise<Response> {
     if (isWebSearchRequest(latestUserMessage) && profileCapabilities.web_search !== true) {
       return await failedResponse(jsonResponse({ error: "البحث على الويب غير متاح في المستوى المؤهل ضمن اشتراكك الحالي. يمكنك ترقية الاشتراك للوصول إلى Pro." }, 403, req), "profile_capability_unavailable");
     }
-    if (mind.intent === "complex_task" && (profileCapabilities.multi_step_agent !== true || profileCapabilities.advanced_reasoning !== true)) {
+    if (profileIntent === "complex_task" && executionMode === "agent" && (profileCapabilities.multi_step_agent !== true || profileCapabilities.advanced_reasoning !== true)) {
       return await failedResponse(jsonResponse({ error: "هذه المهمة تحتاج قدرات أعلى من المتاحة في اشتراكك الحالي. يمكنك الترقية إلى Pro أو Max." }, 403, req), "profile_capability_unavailable");
     }
   }
