@@ -1,5 +1,6 @@
 // Billing and provider-origin guards are enforced before a media credit hold is created.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { handleCorsPreflight, withCors } from "../_shared/cors.ts";
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { actualChargeCredits, actualCostUsd, providerEndpointAllowed, validateEnabledMediaPrice } from "./cost.ts";
 
@@ -180,7 +181,7 @@ async function callImageProvider(input: {
   return { bytes, costUsd: cost.value, costConfirmed: cost.confirmed, providerRequestId: response.headers.get("x-request-id") };
 }
 
-Deno.serve(async (req: Request) => {
+async function handleImageGeneratorRequest(req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_HEADERS });
   if (req.method !== "POST") return json(405, { error: "الطريقة غير مدعومة." });
 
@@ -409,4 +410,12 @@ Deno.serve(async (req: Request) => {
     return json(202, { success: true, request_id: requestId, job_id: requestId, status: "running" });
   }
   return await runGeneration();
+}
+
+Deno.serve(async (request: Request) => {
+  const configuredOrigins = Deno.env.get("WEB_CORS_ORIGIN") ?? "";
+  const preflight = handleCorsPreflight(request, configuredOrigins);
+  if (preflight) return preflight;
+  const response = await handleImageGeneratorRequest(request);
+  return withCors(request, response, configuredOrigins);
 });
