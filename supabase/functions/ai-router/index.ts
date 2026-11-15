@@ -27,6 +27,7 @@ import { prioritizeModelCandidate } from "./agent/model_routing.ts";
 import { isModelEligibleForRequest, modelSupportsRole as supportsModelRole } from "./agent/model_eligibility.ts";
 import { resolveExecutionMode } from "./execution_mode.ts";
 import { resolveSulyProfileKey } from "./agent/suly_profile_routing.ts";
+import { getAgentReservationCallCount } from "./agent/agent_budget_policy.ts";
 import { getAgentToolsFromDatabase, getRegisteredTool, validateToolInput } from "./agent/tool_registry.ts";
 
 // Native Android/iOS clients do not require CORS. Web access must set WEB_CORS_ORIGIN
@@ -1262,11 +1263,12 @@ async function handleRequest(req: Request): Promise<Response> {
       ? splitTask(latestUserMessage, settings.taskSplitMaxParts)
       : [latestUserMessage];
     const reservationPlan = buildIndependentTaskPlan(proposedReservationParts, settings.taskSplitMaxParts);
-    const boundedWorkerCalls = executionMode === "agent"
-      ? 6
-      : reservationPlan && validateTaskPlan(reservationPlan, settings.taskSplitMaxParts)
-        ? reservationPlan.length * 3
-        : 1;
+    const boundedWorkerCalls = getAgentReservationCallCount({
+      executionMode,
+      splitPartCount: reservationPlan && validateTaskPlan(reservationPlan, settings.taskSplitMaxParts)
+        ? reservationPlan.length
+        : 1,
+    });
     const reserveAmount = calculateCreditCost(creditPricing, inputUpperBound * boundedWorkerCalls, (executionMode === "agent" ? agentPlannerMaxTokens : maxTokens) * boundedWorkerCalls);
     if (!Number.isSafeInteger(reserveAmount) || reserveAmount <= 0 || reserveAmount > 1000000000) {
       return await failedResponse(jsonResponse({ error: "Estimated credit reservation exceeds the configured safety limit." }, 422, req), "credit_reservation_invalid");
