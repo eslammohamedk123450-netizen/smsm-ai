@@ -32,17 +32,42 @@ alter table public.subscription_plans
   alter column tier_key set default 'free',
   alter column tier_key set not null;
 
+-- Retire the legacy Ultra plan while preserving its historical row.
+-- Existing Ultra subscribers inherit Max access rather than being downgraded.
+update public.subscription_plans
+set tier_key = 'max', is_active = false, updated_at = now()
+where tier_key = 'ultra' or lower(name) = 'ultra';
+
+update public.suly_profiles
+set subscription_tier = 'max'
+where subscription_tier = 'ultra';
+
+update public.ai_models
+set allowed_tiers = array(
+  select distinct case when tier = 'ultra' then 'max' else tier end
+  from unnest(allowed_tiers) as tier
+)
+where 'ultra' = any(allowed_tiers);
+
 alter table public.subscription_plans
   drop constraint if exists subscription_plans_tier_key_check;
 alter table public.subscription_plans
   add constraint subscription_plans_tier_key_check
-  check (tier_key in ('free', 'lite', 'pro', 'max', 'ultra'));
+  check (tier_key in ('free', 'lite', 'pro', 'max'));
 
--- Ultra is retired from the customer-facing catalog, not deleted. Existing
--- historical subscriptions and profile values remain intact for reconciliation.
-update public.subscription_plans
-set is_active = false, updated_at = now()
-where tier_key = 'ultra' and lower(name) = 'ultra';
+alter table public.suly_profiles
+  drop constraint if exists suly_profiles_subscription_tier_check;
+alter table public.suly_profiles
+  add constraint suly_profiles_subscription_tier_check
+  check (subscription_tier in ('free', 'lite', 'pro', 'max'));
+
+alter table public.ai_models
+  alter column allowed_tiers set default array['free','lite','pro','max']::text[];
+alter table public.ai_models
+  drop constraint if exists ai_models_allowed_tiers_check;
+alter table public.ai_models
+  add constraint ai_models_allowed_tiers_check
+  check (allowed_tiers <@ array['free','lite','pro','max']::text[]);
 
 create table if not exists public.suly_model_profiles (
   profile_key text primary key check (profile_key in ('lite', 'pro', 'max')),
