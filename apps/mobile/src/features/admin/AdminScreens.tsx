@@ -24,6 +24,7 @@ type ModelRow = {
   routing_group: string;
   allowed_tiers: string[] | null;
   capabilities_json?: string | Record<string, unknown> | null;
+  task_roles?: string[] | null;
   response_timeout_ms: number;
   restriction_failure_threshold: number;
   restriction_window_minutes: number;
@@ -38,6 +39,14 @@ type TransactionRow = { id?: string; user_id?: string; event_type: string; amoun
 type ModelCapabilityKey = "chat" | "vision" | "pdf" | "word" | "video" | "gmail" | "google_drive" | "github";
 type ModelCapabilityState = Record<ModelCapabilityKey, boolean>;
 const MODEL_CAPABILITY_OPTIONS: Array<[ModelCapabilityKey, string]> = [["chat", "نص"], ["vision", "قراءة الصور"], ["pdf", "PDF"], ["word", "Word / DOCX"], ["video", "فيديو"], ["gmail", "Gmail"], ["google_drive", "Google Drive"], ["github", "GitHub"]];
+const MODEL_TASK_ROLE_OPTIONS: Array<[string, string]> = [["general", "عام (كل الأقسام)"], ["chat", "المحادثة"], ["planner", "التخطيط"], ["worker", "التنفيذ"], ["reviewer", "المراجعة"], ["summarizer", "التلخيص"]];
+function modelSupportsAgentRole(model: ModelRow, role: string): boolean {
+  const roles = model.task_roles?.length ? model.task_roles : ["general"];
+  if (roles.includes("general")) return true;
+  const normalizedRole = role === "thinker" || role === "coordinator" ? "planner" : role;
+  return roles.includes(normalizedRole) || (normalizedRole === "worker" && roles.includes("executor"));
+}
+
 function parseModelCapabilityState(value: unknown): ModelCapabilityState {
   let parsed: Record<string, unknown> = {};
   if (typeof value === "string") { try { const result = JSON.parse(value); if (result && typeof result === "object" && !Array.isArray(result)) parsed = result as Record<string, unknown>; } catch { /* Use safe text-only defaults. */ } }
@@ -73,7 +82,6 @@ export function ProvidersAdminScreen() {
   const [key, setKey] = useState("");
   const [description, setDescription] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [hideModelsOnDisable, setHideModelsOnDisable] = useState(true);
   const [busy, setBusy] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [testingModelId, setTestingModelId] = useState<number | null>(null);
@@ -113,8 +121,8 @@ export function ProvidersAdminScreen() {
   const toggleProvider = async (provider: ProviderRow) => {
     setBusyId(provider.id); setError(null); setNotice(null);
     try {
-      await adminService.setProviderLifecycle(provider.id, !provider.enabled, hideModelsOnDisable);
-      setNotice(`${provider.name}: تم ${provider.enabled ? "تعطيل" : "تفعيل"} المزود وكل نماذجه.`);
+      await adminService.setProviderLifecycle(provider.id, !provider.enabled, true);
+      setNotice(`${provider.name}: تم ${provider.enabled ? "تجميد" : "تفعيل"} المزود. يلزم إعادة ربط النماذج يدويًا بعد إعادة التفعيل.`);
       await load();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر تغيير حالة المزود."); }
     finally { setBusyId(null); }
@@ -200,7 +208,7 @@ export function ProvidersAdminScreen() {
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <PageHeader title="مزودو الخدمة" />
     <Text style={styles.explainer}>أضف أكثر من مفتاح للخدمة نفسها عند الحاجة. كل مفتاح يُحفظ كحساب مستقل، وتُربط به نماذجه وسجل صحته وحده؛ قيم المفاتيح لا تظهر بعد الحفظ.</Text>
-    <Card><Toggle label="عند تعطيل مزود: إخفاء نماذجه من التوجيه" value={hideModelsOnDisable} onChange={setHideModelsOnDisable} /><Text style={styles.detail}>عند إيقاف هذا الخيار ستبقى النماذج ظاهرة في لوحة النماذج، لكنها لن تعمل ما دام المزود معطّلًا.</Text></Card>
+    <Card><Text style={styles.detail}>تعطيل أي مفتاح يجمّد نماذجه فورًا: تُزال من أقسام التوجيه ومستويات SULY والاختيارات الجديدة، وتُلغى التعيينات المباشرة المرتبطة به. إعادة التفعيل لا تعيد النماذج تلقائيًا؛ راجعها وأعد اختيارها يدويًا.</Text></Card>
     <Card>
       <View style={styles.providerFormHeading}><View style={styles.sectionIcon}><Text style={styles.sectionIconText}>⌘</Text></View><View style={styles.providerFormHeadingText}><Text style={styles.sectionTitle}>إضافة مفتاح API</Text><Text style={styles.detail}>كل إضافة تنشئ حسابًا ومجموعة نماذج مستقلين</Text></View></View>
       <Text style={styles.sectionTitle}>١. اختر الخدمة</Text>
@@ -263,9 +271,13 @@ export function ProvidersAdminScreen() {
       return <Card key={provider.id}>
         <View style={styles.providerCardHeader}><View style={styles.providerIcon}><Text style={styles.providerIconText}>⌘</Text></View><View style={styles.providerHeaderText}><Text style={styles.cardTitle}>{provider.name}</Text><Text style={styles.detail}>{provider.provider_type} · {provider.enabled ? "المفتاح مفعّل" : "المفتاح متوقف"} · اختبار المزود: {provider.last_test_status ?? "غير متاح"}</Text></View></View>
         <Text numberOfLines={1} style={styles.detail}>{provider.base_url ?? ""}</Text>
-        <View style={styles.providerStatsRow}><Text style={styles.providerStat}>{modelsForProvider.length} نموذج مرتبط</Text><Text style={styles.providerStat}>{routableCount} جاهز للتوجيه</Text>{restrictedCount > 0 ? <Text style={styles.providerRestrictedStat}>{restrictedCount} مقيّد</Text> : null}</View>
-        <Pressable accessibilityRole="button" accessibilityState={{ expanded }} onPress={() => setExpandedProviderId(expanded ? null : provider.id)} style={styles.providerExpandAction}><Text style={styles.link}>{expanded ? "إخفاء نماذج هذا المفتاح" : `عرض نماذج هذا المفتاح (${modelsForProvider.length})`}</Text><Text style={styles.link}>{expanded ? "⌃" : "⌄"}</Text></Pressable>
-        {expanded ? <View style={styles.providerModelsList}>
+        {provider.enabled
+          ? <View style={styles.providerStatsRow}><Text style={styles.providerStat}>{modelsForProvider.length} نموذج مرتبط</Text><Text style={styles.providerStat}>{routableCount} جاهز للتوجيه</Text>{restrictedCount > 0 ? <Text style={styles.providerRestrictedStat}>{restrictedCount} مقيّد</Text> : null}</View>
+          : <Text style={styles.detail}>تم تجميد نماذج المفتاح وإخفاؤها.</Text>}
+        {provider.enabled
+          ? <Pressable accessibilityRole="button" accessibilityState={{ expanded }} onPress={() => setExpandedProviderId(expanded ? null : provider.id)} style={styles.providerExpandAction}><Text style={styles.link}>{expanded ? "إخفاء نماذج هذا المفتاح" : `عرض نماذج هذا المفتاح (${modelsForProvider.length})`}</Text><Text style={styles.link}>{expanded ? "⌃" : "⌄"}</Text></Pressable>
+          : <Text style={styles.detail}>تم تجميد نماذج هذا المفتاح وإخفاؤها من جميع اختيارات التوجيه والأقسام.</Text>}
+        {expanded && provider.enabled ? <View style={styles.providerModelsList}>
           {modelsForProvider.length === 0 ? <Text style={styles.detail}>لم تُكتشف نماذج لهذا المفتاح بعد. استخدم مزامنة النماذج.</Text> : modelsForProvider.map((model) => {
             const status = !provider.enabled ? "المفتاح متوقف" : model.health?.auto_restricted ? "مقيّد آليًا" : (!model.enabled || model.routing_group === "disabled") ? "معطّل يدويًا" : "جاهز للتوجيه";
             const statusStyle = !provider.enabled || !model.enabled || model.routing_group === "disabled" ? styles.statusDisabled : model.health?.auto_restricted ? styles.statusRestricted : styles.statusEnabled;
@@ -292,7 +304,7 @@ export function ModelsAdminScreen() {
   const { q } = useLocalSearchParams<{ q?: string }>();
   const [models, setModels] = useState<ModelRow[]>([]);
   const [search, setSearch] = useState(typeof q === "string" ? q : "");
-  const [modelFilter, setModelFilter] = useState<"all" | "enabled" | "disabled" | "restricted">("all");
+  const [modelFilter, setModelFilter] = useState<"all" | "enabled" | "disabled" | "restricted">("enabled");
   const [settings, setSettings] = useState<Record<string, unknown> | null>(null);
   const [gmailModelId, setGmailModelId] = useState<number | null>(null);
   const [plannerModelId, setPlannerModelId] = useState<number | null>(null);
@@ -317,10 +329,13 @@ export function ModelsAdminScreen() {
     const query = search.trim().toLowerCase();
     return models.filter((model) => {
       const matchesQuery = !query || `${model.name} ${model.model_identifier} ${model.provider_name} ${model.routing_group}`.toLowerCase().includes(query);
-      const matchesFilter = modelFilter === "all"
-        || (modelFilter === "enabled" && model.provider_enabled !== false && model.enabled && model.routing_group !== "disabled" && !model.health?.auto_restricted)
-        || (modelFilter === "disabled" && (model.provider_enabled === false || !model.enabled || model.routing_group === "disabled"))
-        || (modelFilter === "restricted" && Boolean(model.health?.auto_restricted));
+      const providerVisible = model.provider_enabled === true;
+      const matchesFilter = providerVisible && (
+        modelFilter === "all"
+        || (modelFilter === "enabled" && model.enabled && model.routing_group !== "disabled" && !model.health?.auto_restricted)
+        || (modelFilter === "disabled" && (!model.enabled || model.routing_group === "disabled"))
+        || (modelFilter === "restricted" && Boolean(model.health?.auto_restricted))
+      );
       const batchStatus = batchResults[model.id]?.status;
       const matchesBatch = batchFilter === "all" || batchStatus === batchFilter;
       return matchesQuery && matchesFilter && matchesBatch;
@@ -336,6 +351,7 @@ export function ModelsAdminScreen() {
   const [editThreshold, setEditThreshold] = useState("3");
   const [editWindow, setEditWindow] = useState("15");
   const [editCapabilities, setEditCapabilities] = useState<ModelCapabilityState>({ chat: true, vision: false, pdf: false, word: false, video: false, gmail: false, google_drive: false, github: false });
+  const [editTaskRoles, setEditTaskRoles] = useState<string[]>(["general"]);
 
   const load = async (showInitialLoader = false) => {
     if (showInitialLoader) setLoading(true);
@@ -371,6 +387,7 @@ export function ModelsAdminScreen() {
     setEditThreshold(String(model.restriction_failure_threshold ?? 3));
     setEditWindow(String(model.restriction_window_minutes ?? 15));
     setEditCapabilities(parseModelCapabilityState(model.capabilities_json));
+    setEditTaskRoles(model.task_roles?.length ? model.task_roles : ["general"]);
     try {
       const [logs, probes] = await Promise.all([adminService.getModelAttempts(model.id), adminService.getModelProbeLogs(model.id)]);
       setAttempts(logs as AttemptRow[]);
@@ -393,6 +410,7 @@ export function ModelsAdminScreen() {
       await adminService.updateModel(selectedModel.id, {
         allowed_tiers: editTiers,
         capabilities_json: JSON.stringify(editCapabilities),
+        task_roles: editTaskRoles,
         response_timeout_ms: timeout,
         restriction_failure_threshold: threshold,
         restriction_window_minutes: window,
@@ -408,6 +426,11 @@ export function ModelsAdminScreen() {
 
   const toggleTier = (tier: string) => {
     setEditTiers((prev) => prev.includes(tier) ? prev.filter((t) => t !== tier) : [...prev, tier]);
+  };
+  const toggleTaskRole = (role: string) => {
+    setEditTaskRoles((prev) => prev.includes(role)
+      ? prev.filter((item) => item !== role)
+      : [...prev.filter((item) => item !== "general" && role !== "general"), role]);
   };
 
   const saveSettings = async () => {
@@ -510,10 +533,10 @@ export function ModelsAdminScreen() {
             <View style={styles.searchWrap}><Text style={styles.searchGlyph}>⌕</Text><TextInput style={[styles.input, styles.modelSearchInput]} value={search} onChangeText={setSearch} placeholder="ابحث بالاسم أو المزود أو المسار" placeholderTextColor={colors.textMuted} autoCapitalize="none" /><Pressable accessibilityRole="button" onPress={() => setSearch("")}><Text style={styles.link}>مسح</Text></Pressable></View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
               {([
-                ["all", `الكل · ${models.length}`],
-                ["enabled", `جاهزة · ${models.filter((model) => model.provider_enabled !== false && model.enabled && model.routing_group !== "disabled" && !model.health?.auto_restricted).length}`],
-                ["disabled", `معطّلة · ${models.filter((model) => model.provider_enabled === false || !model.enabled || model.routing_group === "disabled").length}`],
-                ["restricted", `مقيّدة · ${models.filter((model) => model.health?.auto_restricted).length}`],
+                ["all", `الكل · ${models.filter((model) => model.provider_enabled === true).length}`],
+                ["enabled", `جاهزة · ${models.filter((model) => model.provider_enabled === true && model.enabled && model.routing_group !== "disabled" && !model.health?.auto_restricted).length}`],
+                ["disabled", `معطّلة · ${models.filter((model) => model.provider_enabled === true && (!model.enabled || model.routing_group === "disabled")).length}`],
+                ["restricted", `مقيّدة · ${models.filter((model) => model.provider_enabled === true && model.health?.auto_restricted).length}`],
               ] as const).map(([filter, label]) => <Pressable key={filter} accessibilityRole="button" accessibilityState={{ selected: modelFilter === filter }} onPress={() => setModelFilter(filter)} style={[styles.filterChip, modelFilter === filter && styles.filterChipSelected]}><Text style={[styles.filterText, modelFilter === filter && styles.filterTextSelected]}>{label}</Text></Pressable>)}
             </ScrollView>
             <Text style={styles.resultsCount}>عرض {filteredModels.length} من {models.length}</Text>
@@ -570,10 +593,19 @@ export function ModelsAdminScreen() {
             ))}
           </View>
           <Text style={styles.detail}>تُستخدم القدرات في التوجيه التلقائي. يُرسل PDF وDOCX بعد استخراج النص، ويحتاج الفيديو إلى دعم video_url لدى المزود.</Text>
+          <Text style={styles.detail}>الأقسام المسموح لهذا النموذج بالعمل فيها:</Text>
+          <View style={styles.rowWrap}>
+            {MODEL_TASK_ROLE_OPTIONS.map(([role, label]) => (
+              <Pressable key={role} accessibilityRole="button" accessibilityState={{ selected: editTaskRoles.includes(role) }} onPress={() => toggleTaskRole(role)} style={[styles.pill, editTaskRoles.includes(role) && styles.pillSelected]}>
+                <Text style={styles.pillText}>{editTaskRoles.includes(role) ? "✓ " : ""}{label}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={styles.detail}>«عام» يمنح جميع أدوار الوكيل؛ وإلا يُسمح فقط بالأدوار المحددة. يجب اختيار دور واحد على الأقل.</Text>
           <NumberField label="مهلة الاستجابة response_timeout_ms" value={editTimeout} onChange={setEditTimeout} />
           <NumberField label="عتبة الإخفاق للتقييد failure_threshold" value={editThreshold} onChange={setEditThreshold} />
           <NumberField label="نافذة الحظر بالدقائق window_minutes" value={editWindow} onChange={setEditWindow} />
-          <PrimaryButton label="حفظ إعدادات النموذج" onPress={() => void saveModelDetail()} disabled={busy} />
+          <PrimaryButton label="حفظ إعدادات النموذج" onPress={() => void saveModelDetail()} disabled={busy || editTaskRoles.length === 0} />
 
           <View style={styles.attemptsHeading}><Text style={styles.sectionTitle}>سجل المحاولات الحديثة</Text><View style={styles.totalBadge}><Text style={styles.totalBadgeText}>{attempts.length}</Text></View></View>
           {attempts.length === 0 ? <Text style={styles.detail}>لا توجد محاولات حديثة مسجلة لهذا النموذج.</Text> : attempts.map((log, index) => (
@@ -793,7 +825,7 @@ export function AgentsAdminScreen() {
     <PageHeader title="إدارة المساعدين" />
     <Text style={styles.explainer}>أضف العقل والمراجع والمساعدين المتخصصين وحدد تعليماتهم وسلسلة نماذج غير محدودة عملياً حسب الأولوية.</Text>
     <ErrorText>{error}</ErrorText>{notice && <Text style={styles.success}>{notice}</Text>}
-    <Card><Text style={styles.sectionTitle}>إضافة مكوّن</Text><View style={styles.filterRow}>{([['planner','العقل المخطط'],['thinker','العقل المفكر'],['reviewer','المراجع'],['summarizer','الملخّص'],['coordinator','المنسق'],['worker','عامل متخصص']] as const).map(([value, label]) => <Pressable key={value} onPress={() => setRole(value)} style={[styles.filterChip, role === value && styles.filterChipSelected]}><Text style={[styles.filterText, role === value && styles.filterTextSelected]}>{label}</Text></Pressable>)}</View><TextInput style={styles.input} value={name} onChangeText={setName} placeholder={role === "planner" ? "العقل المفكر" : role === "reviewer" ? "المراجع والمنسق" : "اسم المساعد"} placeholderTextColor={colors.textMuted} /><TextInput style={[styles.input, { minHeight: 130 }]} value={prompt} onChangeText={setPrompt} placeholder="وظيفة المساعد وتعليماته" placeholderTextColor={colors.textMuted} multiline textAlignVertical="top" /><Text style={styles.label}>النماذج حسب الأولوية (اضغط بالترتيب)</Text><TextInput style={styles.input} placeholder="ابحث عن نموذج بالاسم" placeholderTextColor={colors.textMuted} onChangeText={setModelSearch} value={modelSearch} /><View style={styles.filterRow}>{models.filter((model) => model.enabled && `${model.name} ${model.model_identifier}`.toLowerCase().includes(modelSearch.trim().toLowerCase())).map((model) => <Pressable key={String(model.id)} onPress={() => toggleModel(String(model.id))} style={[styles.filterChip, chain.includes(String(model.id)) && styles.filterChipSelected]}><Text style={[styles.filterText, chain.includes(String(model.id)) && styles.filterTextSelected]}>{chain.includes(String(model.id)) ? `${chain.indexOf(String(model.id)) + 1}. ` : ""}{model.name}</Text></Pressable>)}</View><PrimaryButton label={busy ? "جارٍ الحفظ…" : "إضافة المكوّن"} onPress={() => void addAgent()} disabled={busy} /></Card>
+    <Card><Text style={styles.sectionTitle}>إضافة مكوّن</Text><View style={styles.filterRow}>{([['planner','العقل المخطط'],['thinker','العقل المفكر'],['reviewer','المراجع'],['summarizer','الملخّص'],['coordinator','المنسق'],['worker','عامل متخصص']] as const).map(([value, label]) => <Pressable key={value} onPress={() => setRole(value)} style={[styles.filterChip, role === value && styles.filterChipSelected]}><Text style={[styles.filterText, role === value && styles.filterTextSelected]}>{label}</Text></Pressable>)}</View><TextInput style={styles.input} value={name} onChangeText={setName} placeholder={role === "planner" ? "العقل المفكر" : role === "reviewer" ? "المراجع والمنسق" : "اسم المساعد"} placeholderTextColor={colors.textMuted} /><TextInput style={[styles.input, { minHeight: 130 }]} value={prompt} onChangeText={setPrompt} placeholder="وظيفة المساعد وتعليماته" placeholderTextColor={colors.textMuted} multiline textAlignVertical="top" /><Text style={styles.label}>النماذج حسب الأولوية (اضغط بالترتيب)</Text><TextInput style={styles.input} placeholder="ابحث عن نموذج بالاسم" placeholderTextColor={colors.textMuted} onChangeText={setModelSearch} value={modelSearch} /><View style={styles.filterRow}>{models.filter((model) => model.enabled && model.provider_enabled === true && model.routing_group === "free_race" && modelSupportsAgentRole(model, role) && `${model.name} ${model.model_identifier}`.toLowerCase().includes(modelSearch.trim().toLowerCase())).map((model) => <Pressable key={String(model.id)} onPress={() => toggleModel(String(model.id))} style={[styles.filterChip, chain.includes(String(model.id)) && styles.filterChipSelected]}><Text style={[styles.filterText, chain.includes(String(model.id)) && styles.filterTextSelected]}>{chain.includes(String(model.id)) ? `${chain.indexOf(String(model.id)) + 1}. ` : ""}{model.name}</Text></Pressable>)}</View><PrimaryButton label={busy ? "جارٍ الحفظ…" : "إضافة المكوّن"} onPress={() => void addAgent()} disabled={busy} /></Card>
     <Text style={styles.sectionTitle}>المساعدون الحاليون · {agents.length}</Text>
     {loading ? <ActivityIndicator color={colors.primary} /> : <ScrollView horizontal style={styles.agentsTable}><View><View style={styles.agentsTableHeader}><Text style={styles.agentNameCell}>الاسم / التعليمات</Text><Text style={styles.agentRoleCell}>الدور</Text><Text style={styles.agentModelsCell}>النماذج الاحتياطية</Text><Text style={styles.agentActionCell}>إجراء</Text></View>{agents.map((agent) => <View key={agent.id} style={styles.agentRow}><View style={styles.agentNameCell}><Text style={styles.cardTitle} numberOfLines={1}>{agent.name}</Text><Text style={styles.modelTableSub} numberOfLines={2}>{agent.system_prompt}</Text></View><Text style={[styles.agentRoleCell, styles.detail]}>{agent.role}</Text><Text style={[styles.agentModelsCell, styles.detail]} numberOfLines={2}>{agent.model_fallback_chain.join(" → ") || "التوجيه العام"}</Text><View style={styles.agentActionCell}><Pressable onPress={async () => { if (!await confirmAdminAction("حذف المساعد؟", `سيُحذف ${agent.name} نهائيًا.`, "حذف")) return; void adminService.deleteAgent(agent.id).then(() => load()).catch((cause) => setError(cause instanceof Error ? cause.message : "تعذر حذف المساعد.")); }}><Text style={styles.deleteFeature}>حذف</Text></Pressable></View></View>)}</View></ScrollView>}
   </ScrollView>;

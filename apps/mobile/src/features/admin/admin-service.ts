@@ -252,7 +252,7 @@ export const adminService = {
     await requireAdmin();
     const [modelsResult, healthResult, probeResult, settingsResult, providers] = await Promise.all([
       supabase.from("ai_models")
-        .select("id,name,provider_id,model_identifier,enabled,priority,context_window,routing_group,allowed_tiers,capabilities_json,response_timeout_ms,restriction_failure_threshold,restriction_window_minutes")
+        .select("id,name,provider_id,model_identifier,enabled,priority,context_window,routing_group,allowed_tiers,capabilities_json,task_roles,response_timeout_ms,restriction_failure_threshold,restriction_window_minutes")
         .order("priority", { ascending: false }).order("name").limit(500),
       supabase.from("ai_model_health")
         .select("model_id,total_attempts,successful_attempts,failed_attempts,consecutive_failures,last_attempt_at,last_success_at,last_failure_at,last_status,last_error_code,last_error_reason,average_latency_ms,auto_restricted,restriction_reason,restricted_at")
@@ -281,8 +281,16 @@ export const adminService = {
 
   async updateModel(modelId: number, changes: Record<string, unknown>) {
     await requireAdmin();
-    const allowed = ["enabled", "priority", "routing_group", "allowed_tiers", "response_timeout_ms", "restriction_failure_threshold", "restriction_window_minutes", "capabilities_json"];
+    const allowed = ["enabled", "priority", "routing_group", "allowed_tiers", "response_timeout_ms", "restriction_failure_threshold", "restriction_window_minutes", "capabilities_json", "task_roles"];
     if (Object.keys(changes).some((key) => !allowed.includes(key))) throw new Error("حقل تعديل غير مسموح.");
+    if ("task_roles" in changes) {
+      const roles = changes.task_roles;
+      const supportedRoles = ["general", "chat", "planner", "worker", "executor", "reviewer", "summarizer"];
+      if (!Array.isArray(roles) || roles.length === 0 || roles.some((role) => typeof role !== "string" || !supportedRoles.includes(role))) {
+        throw new Error("يجب تحديد دور واحد صالح على الأقل للنموذج.");
+      }
+      changes.task_roles = [...new Set(roles as string[])];
+    }
     if ("capabilities_json" in changes) {
       let parsed: unknown = changes.capabilities_json;
       if (typeof parsed === "string") {
@@ -290,9 +298,9 @@ export const adminService = {
       }
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("صيغة قدرات النموذج غير صالحة.");
       const value = parsed as Record<string, unknown>;
-      const supported = ["chat", "vision", "pdf", "word", "video"];
+      const supported = ["chat", "vision", "pdf", "word", "video", "gmail", "google_drive", "github"];
       if (Object.keys(value).some((key) => !supported.includes(key)) || supported.some((key) => key in value && typeof value[key] !== "boolean")) throw new Error("قدرات النموذج يجب أن تكون مفاتيح معروفة وقيمًا منطقية.");
-      changes.capabilities_json = JSON.stringify({ chat: value.chat !== false, vision: value.vision === true, pdf: value.pdf === true, word: value.word === true, video: value.video === true });
+      changes.capabilities_json = JSON.stringify({ chat: value.chat !== false, vision: value.vision === true, pdf: value.pdf === true, word: value.word === true, video: value.video === true, gmail: value.gmail === true, google_drive: value.google_drive === true, github: value.github === true });
     }
     const { error } = await supabase.from("ai_models").update(changes).eq("id", modelId);
     if (error) throw error;
@@ -345,18 +353,13 @@ export const adminService = {
 
   async saveRouteModelAssignments(routeRole: "chat" | "planner" | "worker" | "reviewer" | "summarizer", modelIds: number[]) {
     await requireAdmin();
-    const ids = [...new Set(modelIds)].filter((id) => Number.isSafeInteger(id) && id > 0).slice(0, 500);
-    const { error: deleteError } = await supabase.from("ai_route_model_assignments").delete().eq("route_role", routeRole);
-    if (deleteError) throw deleteError;
-    if (!ids.length) return;
-    const { error: insertError } = await supabase.from("ai_route_model_assignments").insert(ids.map((model_id, index) => ({
-      route_role: routeRole,
-      model_id,
-      priority: index + 1,
-      enabled: true,
-      updated_at: new Date().toISOString(),
-    })));
-    if (insertError) throw insertError;
+    const ids = [...new Set(modelIds)].filter((id) => Number.isSafeInteger(id) && id > 0).slice(0, 2);
+    const { data, error } = await supabase.rpc("suly_admin_save_route_models", {
+      p_route_role: routeRole,
+      p_model_ids: ids,
+    });
+    if (error) throw error;
+    if (data?.success !== true) throw new Error("تعذر حفظ اختيارات النماذج لهذا القسم.");
   },
 
   async resetModelHealth(modelId: number) {

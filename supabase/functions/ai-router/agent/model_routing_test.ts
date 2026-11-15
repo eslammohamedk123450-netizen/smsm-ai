@@ -1,4 +1,4 @@
-import { prioritizeModelCandidate } from "./model_routing.ts";
+import { prioritizeModelCandidate, restrictModelsToAssignedRoute } from "./model_routing.ts";
 
 const candidate = (id: number) => ({ model: { id } });
 
@@ -22,4 +22,25 @@ Deno.test("does not reorder when no custom model is configured", () => {
   if (prioritizeModelCandidate(pool, null) !== pool) {
     throw new Error("The default model order should remain unchanged.");
   }
+});
+
+
+
+Deno.test("configured route assignments restrict the eligible pool to selected models", () => {
+  const pool = [candidate(1), candidate(2), candidate(3)];
+  const assignments = [
+    { route_role: "planner", model_id: 2, enabled: true },
+    { route_role: "planner", model_id: 3, enabled: true },
+    { route_role: "chat", model_id: 1, enabled: true },
+    { route_role: "planner", model_id: 1, enabled: false },
+  ];
+  const result = restrictModelsToAssignedRoute(pool, assignments, "planner");
+  if (result.map((item) => item.model.id).join(",") !== "2,3") {
+    throw new Error("Only enabled models assigned to the requested role should remain.");
+  }
+});
+
+Deno.test("an empty route fails closed instead of silently using every eligible model", () => {
+  const result = restrictModelsToAssignedRoute([candidate(1), candidate(2)], [], "worker");
+  if (result.length !== 0) throw new Error("An unconfigured route must not fall back to arbitrary models.");
 });

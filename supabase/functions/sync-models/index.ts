@@ -35,7 +35,7 @@ const ALLOWED_PROVIDER_TYPES = [
 
 /** Non-chat model families that must not be inserted into the chat routing catalog. */
 const NON_CHAT_PATTERN =
-  /(embed|embedding|whisper|tts|speech|audio|dall-e|image|imagen|moderation|rerank|guard|veo|sora|stable-diffusion|flux|bge-|e5-)/i;
+  /(embed|embedding|whisper|tts|speech|audio|dall-e|image|imagen|moderation|rerank|guard|veo|sora|stable-diffusion|flux|bge-|e5-|kling|seedance|seedream|ideogram|nano-banana|minimax|lyria|transcrib|robotics|deep-research|computer-use)/i;
 
 function jsonResponse(payload: Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(payload), {
@@ -151,11 +151,14 @@ async function insertMissingModels(
     input_price: 0,
     output_price: 0,
     context_window: 32768,
-    capabilities_json: JSON.stringify({ chat: true }),
-    enabled: true,
+    // Newly discovered catalog entries are inert until an admin verifies
+    // capabilities, task roles, and explicitly assigns a route.
+    capabilities_json: JSON.stringify({ chat: false }),
+    task_roles: [],
+    enabled: false,
     priority: 50,
-    fallback_eligible: true,
-    routing_group: "free_race",
+    fallback_eligible: false,
+    routing_group: "disabled",
     allowed_tiers: ["free", "lite", "pro", "max"],
   }));
   const { error: insertError } = await supabase.from("ai_models").upsert(rows, {
@@ -215,11 +218,12 @@ async function handleSyncModelsRequest(request: Request): Promise<Response> {
     }
     const { data: provider, error: providerError } = await supabase
       .from("ai_providers")
-      .select("id,name,provider_type,base_url,api_key_vault_id")
+      .select("id,name,provider_type,base_url,api_key_vault_id,enabled")
       .eq("id", providerId)
       .maybeSingle();
     if (providerError) return jsonResponse({ error: "Could not read the provider." }, 500);
     if (!provider) return jsonResponse({ error: "Provider not found." }, 404);
+    if (provider.enabled !== true) return jsonResponse({ error: "المفتاح معطّل؛ لا يمكن مزامنة نماذجه حتى إعادة تفعيله." }, 409);
     const baseUrl = safeHttpsUrl(String(provider.base_url ?? ""));
     if (!baseUrl) return jsonResponse({ error: "The provider has no valid HTTPS base URL." }, 422);
     const { data: key, error: keyError } = await supabase.rpc("suly_service_get_provider_api_key", {

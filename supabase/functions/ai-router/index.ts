@@ -25,7 +25,7 @@ import {
 import { CircuitBreaker } from "./circuit_breaker.ts";
 import { buildIndependentTaskPlan, buildTaskPlan, executeTaskPlan, hasExplicitDependencyLanguage, mergePartAnswers, parseModelGeneratedTaskPlan, probeCandidates, splitTask, validateTaskPlan, type TaskPlanStep } from "./resilience.ts";
 import { parseAgentDecision, runAgentLoop, type AgentLoopResumeStep, type AgentLoopStep, type AgentTool, type AgentDecision } from "./agent/orchestrator.ts";
-import { prioritizeModelCandidate } from "./agent/model_routing.ts";
+import { prioritizeModelCandidate, restrictModelsToAssignedRoute } from "./agent/model_routing.ts";
 import { isModelEligibleForRequest, modelSupportsRole as supportsModelRole } from "./agent/model_eligibility.ts";
 import { resolveExecutionMode } from "./execution_mode.ts";
 import { isSubscriptionTierEligible, resolveSulyProfileKey } from "./agent/suly_profile_routing.ts";
@@ -1201,7 +1201,8 @@ async function handleRequest(req: Request): Promise<Response> {
     // Auto chooses a SULY profile first, then routes only within that profile.
     // The user's selected profile is never silently replaced with another one.
     const tierFiltered = profileEligibleModels.filter((model: ModelRow) => isEligibleModel(model, requiredModelRole));
-    candidatesFrom = orderModelsByRoute(tierFiltered.filter(m => m.routing_group === "free_race"), orderedRouteAssignments, routeRole);
+    const assignedRouteModels = restrictModelsToAssignedRoute(tierFiltered, orderedRouteAssignments, routeRole);
+    candidatesFrom = orderModelsByRoute(assignedRouteModels.filter(m => m.routing_group === "free_race"), orderedRouteAssignments, routeRole);
   }
 
   if (routingMode === "manual" && candidatesFrom.length === 0) {
@@ -1224,13 +1225,35 @@ async function handleRequest(req: Request): Promise<Response> {
     && !requestedConnector
     && !requestedMultiReadToolkits?.length
     && !isWebSearchRequest(latestUserMessage)
-    ? healthyModels.filter((model: ModelRow) =>
-      (!workerProfileModelIds || workerProfileModelIds.has(model.id)) && isEligibleModel(model, "worker", ["free_race"]))
+    ? restrictModelsToAssignedRoute(
+      healthyModels.filter((model: ModelRow) =>
+        (!workerProfileModelIds || workerProfileModelIds.has(model.id)) && isEligibleModel(model, "worker", ["free_race"])),
+      orderedRouteAssignments,
+      "worker",
+    )
     : [];
   const orderedWorkerModels = orderModelsByRoute(workerModels, orderedRouteAssignments, "worker");
+  const reviewerModels = executionMode === "agent" && routingMode === "auto"
+    ? restrictModelsToAssignedRoute(
+      profileEligibleModels.filter((model: ModelRow) => isEligibleModel(model, "reviewer", ["free_race"])),
+      orderedRouteAssignments,
+      "reviewer",
+    )
+    : [];
+  const summarizerModels = executionMode === "agent" && routingMode === "auto"
+    ? restrictModelsToAssignedRoute(
+      profileEligibleModels.filter((model: ModelRow) => isEligibleModel(model, "summarizer", ["free_race"])),
+      orderedRouteAssignments,
+      "summarizer",
+    )
+    : [];
+  const orderedReviewerModels = orderModelsByRoute(reviewerModels, orderedRouteAssignments, "reviewer");
+  const orderedSummarizerModels = orderModelsByRoute(summarizerModels, orderedRouteAssignments, "summarizer");
   const requiredProviderIds: number[] = [...new Set<number>([
     ...(candidatesFrom as ModelRow[]).map((m: ModelRow) => m.provider_id),
     ...orderedWorkerModels.map((m: ModelRow) => m.provider_id),
+    ...orderedReviewerModels.map((m: ModelRow) => m.provider_id),
+    ...orderedSummarizerModels.map((m: ModelRow) => m.provider_id),
   ])];
   const providerKeys = new Map<number, string>();
   await Promise.all(requiredProviderIds.map(async (providerId) => {
@@ -1250,8 +1273,20 @@ async function handleRequest(req: Request): Promise<Response> {
 
   const usableInitial = makeCandidates(candidatesFrom);
   const workerCandidates = makeCandidates(orderedWorkerModels);
+  const reviewerCandidates = makeCandidates(orderedReviewerModels);
+  const summarizerCandidates = makeCandidates(orderedSummarizerModels);
   const recordAttempt: AttemptRecorder = async (candidate, status, durationMs, errorCode = null, errorReason = null, stage = "finished") => {
     const safeReason = safeOperationalSummary(errorReason ?? "", 1000);
+    if (stage === "started") {
+      const { data: providerState, error: providerStateError } = await supabase
+        .from("ai_providers")
+        .select("enabled")
+        .eq("id", candidate.model.provider_id)
+        .maybeSingle();
+      if (providerStateError || providerState?.enabled !== true) {
+        throw new Error("provider_disabled_before_model_start");
+      }
+    }
     if (internalBrainCall && agentJobId && candidate.usageCallKey) {
       if (stage === "started") {
         const state = await getAgentExecutionState();
@@ -2074,11 +2109,19 @@ async function handleRequest(req: Request): Promise<Response> {
       [selectAgentProfile(agentProfiles, "planner"), selectAgentProfile(agentProfiles, "coordinator")].filter((profile) => profile !== null),
     );
     const freeSummarizerPool = prioritizeAgentProfileCandidates(
-      orderCandidatesByRoute(raceCandidates.filter((candidate) => modelSupportsRole(candidate.model, "summarizer")), orderedRouteAssignments, "summarizer"),
+      orderCandidatesByRoute(
+        restrictModelsToAssignedRoute(summarizerCandidates.filter((candidate) => modelSupportsRole(candidate.model, "summarizer")), orderedRouteAssignments, "summarizer"),
+        orderedRouteAssignments,
+        "summarizer",
+      ),
       selectAgentProfile(agentProfiles, "summarizer"),
     );
     const freeReviewerPool = prioritizeAgentProfileCandidates(
-      orderCandidatesByRoute(raceCandidates.filter((candidate) => modelSupportsRole(candidate.model, "reviewer")), orderedRouteAssignments, "reviewer"),
+      orderCandidatesByRoute(
+        restrictModelsToAssignedRoute(reviewerCandidates.filter((candidate) => modelSupportsRole(candidate.model, "reviewer")), orderedRouteAssignments, "reviewer"),
+        orderedRouteAssignments,
+        "reviewer",
+      ),
       selectAgentProfile(agentProfiles, "reviewer"),
     );
     let paidPlanPool: Candidate[] = [];
@@ -2813,10 +2856,15 @@ async function handleRequest(req: Request): Promise<Response> {
   }
 
   const freeDeadline = Date.now() + (routingMode === "manual" ? settings.paidFallbackTimeoutMs : settings.freeRaceTimeoutMs);
-  for (const candidate of raceCandidates) {
+  const boundedFreeCandidates = raceCandidates.slice(0, Math.max(1, settings.maxParallelFreeModels));
+  for (let index = 0; index < boundedFreeCandidates.length; index += 1) {
     const remaining = freeDeadline - Date.now();
     if (remaining <= 0) break;
-    winner = await firstReady([candidate], remaining, recordAttempt, countModelStarts);
+    // Reserve part of the remaining window for the next eligible backup so a
+    // slow primary cannot consume the entire deadline before fallback starts.
+    const candidatesLeft = boundedFreeCandidates.length - index;
+    const candidateBudget = candidatesLeft > 1 ? Math.ceil(remaining / candidatesLeft) : remaining;
+    winner = await firstReady([boundedFreeCandidates[index]], candidateBudget, recordAttempt, countModelStarts);
     if (winner) break;
   }
 
