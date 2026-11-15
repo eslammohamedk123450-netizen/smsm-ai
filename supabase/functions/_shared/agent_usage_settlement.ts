@@ -1,5 +1,5 @@
 export type AgentSettlementClient = {
-  rpc(name: string, args: Record<string, unknown>): Promise<{ data: unknown; error: unknown }>;
+  rpc(name: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: unknown }>;
 };
 
 export type TerminalAgentTaskStatus = "completed" | "failed" | "cancelled";
