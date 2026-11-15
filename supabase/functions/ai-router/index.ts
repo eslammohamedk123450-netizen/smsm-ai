@@ -579,7 +579,7 @@ async function handleRequest(req: Request): Promise<Response> {
   const agentWorkerId = internalBrainCall && typeof body.agent_worker_id === "string" ? body.agent_worker_id : null;
   const agentWorkerAttempt = internalBrainCall ? Number(body.agent_worker_attempt) : null;
   const getAgentExecutionState = async () => {
-    if (!internalBrainCall || !agentJobId || !agentWorkerId || !Number.isInteger(agentWorkerAttempt)) return null;
+    if (!internalBrainCall || !agentJobId || !agentWorkerId || agentWorkerAttempt === null || !Number.isInteger(agentWorkerAttempt)) return null;
     const { data, error } = await supabase.rpc("agent_task_execution_state", {
       p_job_id: agentJobId,
       p_task_id: billingTaskId,
@@ -593,7 +593,7 @@ async function handleRequest(req: Request): Promise<Response> {
   if (internalBrainCall) {
     if (!agentJobId || !uuidPattern.test(agentJobId)
       || !agentWorkerId || agentWorkerId.length > 120
-      || !Number.isInteger(agentWorkerAttempt) || agentWorkerAttempt < 1 || agentWorkerAttempt > 10) {
+      || agentWorkerAttempt === null || !Number.isInteger(agentWorkerAttempt) || agentWorkerAttempt < 1 || agentWorkerAttempt > 10) {
       return jsonResponse({ error: "A valid internal Agent worker lease identity is required." }, 400);
     }
     const state = await getAgentExecutionState();
