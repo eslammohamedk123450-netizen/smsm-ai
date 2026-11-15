@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { getCloudinaryConfig, type CloudinaryConfig } from "../_shared/cloudinary_config.ts";
+import { handleCorsPreflight, withCors } from "../_shared/cors.ts";
 
 const corsOrigin = Deno.env.get("WEB_CORS_ORIGIN")?.trim();
 const corsHeaders = {
@@ -239,9 +240,16 @@ async function handle(req: Request): Promise<Response> {
   return json({ success: true, assets: results.filter((item): item is NonNullable<typeof item> => Boolean(item)) });
 }
 Deno.serve(async (req) => {
-  try { return await handle(req); }
-  catch (error) {
+  const configuredOrigins = Deno.env.get("WEB_CORS_ORIGIN") ?? "";
+  const preflight = handleCorsPreflight(req, configuredOrigins);
+  if (preflight) return preflight;
+
+  let response: Response;
+  try {
+    response = await handle(req);
+  } catch (error) {
     console.error("Unhandled media gateway error:", error instanceof Error ? error.message : "unknown");
-    return json({ error: "حدث خطأ أثناء التعامل مع الملف." }, 500);
+    response = json({ error: "حدث خطأ أثناء التعامل مع الملف." }, 500);
   }
+  return withCors(req, response, configuredOrigins);
 });
