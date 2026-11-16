@@ -4,6 +4,7 @@ import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, TextInput,
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import * as Clipboard from "expo-clipboard";
 import { adminService, type HimsActivationCode, type HimsResource } from "./admin-service";
+import { confirmAdminAction } from "./admin-confirm";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
 import { formatBytes, pickMedia, uploadMediaFile, type MediaAsset, type PickKind } from "../media/media-service";
@@ -49,6 +50,7 @@ export function HimsAdminScreen() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [lastCreated, setLastCreated] = useState<{ code: string; command: string } | null>(null);
+  const [resourceBusyId, setResourceBusyId] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true); setError(null);
@@ -121,6 +123,30 @@ export function HimsAdminScreen() {
     finally { setBusy(false); }
   };
 
+  const toggleResourceActive = async (resource: HimsResource) => {
+    const nextActive = !resource.is_active;
+    const accepted = await confirmAdminAction(
+      nextActive ? "إعادة تفعيل مورد HIMS؟" : "إيقاف مورد HIMS؟",
+      nextActive
+        ? `سيعود المورد «${resource.title}» للظهور للمستخدمين المستحقين.`
+        : `سيتوقف ظهور المورد «${resource.title}» للمستخدمين. لن يتم حذف الملف أو السجل.`,
+      nextActive ? "إعادة التفعيل" : "إيقاف المورد",
+    );
+    if (!accepted) return;
+    setResourceBusyId(resource.id);
+    setError(null);
+    setNotice(null);
+    try {
+      await adminService.setHimsResourceActive(resource, nextActive);
+      setNotice(nextActive ? "تمت إعادة تفعيل المورد." : "تم إيقاف المورد دون حذف بياناته.");
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر تحديث حالة مورد HIMS.");
+    } finally {
+      setResourceBusyId(null);
+    }
+  };
+
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <View style={styles.header}><Text style={styles.title}>إدارة HIMS</Text><Pressable onPress={() => void load()}><Text style={styles.link}>تحديث</Text></Pressable></View>
       <Text style={styles.explainer}>أنشئ أكواد تفعيل وأضف محاضرات وملفات. تُحفظ الملفات كأصول خاصة وتُسجّل بياناتها وملكية الوصول بأمان.</Text>
@@ -184,11 +210,15 @@ export function HimsAdminScreen() {
             <Text style={styles.cardTitle}>{item.title}</Text>
             <Text style={styles.detail}>{item.kind} · {item.url}</Text>
             {item.description ? <Text style={styles.detail}>{item.description}</Text> : null}
+            <Text style={styles.detail}>{item.is_active ? "ظاهر للمستخدمين المستحقين" : "متوقف — غير ظاهر للمستخدمين"}</Text>
           </View>
         </View>
+        <Pressable accessibilityRole="button" disabled={resourceBusyId === item.id} onPress={() => void toggleResourceActive(item)} style={[styles.resourceAction, !item.is_active && styles.resourceActionActive, resourceBusyId === item.id && styles.disabled]}>
+          <Text style={styles.resourceActionText}>{resourceBusyId === item.id ? "جارٍ التحديث…" : item.is_active ? "إيقاف المورد" : "إعادة تفعيل المورد"}</Text>
+        </Pressable>
       </View>)}
     </View>
   </ScrollView>;
 }
 
-const createStyles = (colors: ThemePalette) => StyleSheet.create({ screen: { flex: 1, backgroundColor: colors.background }, content: { width: "100%", maxWidth: 1000, alignSelf: "center", padding: 16, gap: 12 }, header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" }, title: { color: colors.textPrimary, fontSize: 26, fontWeight: "800", textAlign: "right" }, explainer: { color: colors.textSecondary, lineHeight: 21, textAlign: "right" }, card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 14, padding: 16, gap: 9 }, highlightCard: { borderColor: colors.accent }, sectionTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: "700", textAlign: "right" }, label: { color: colors.textSecondary, textAlign: "right", marginTop: 3 }, input: { minHeight: 44, borderRadius: 9, borderWidth: 1, borderColor: colors.inputBorder, backgroundColor: colors.inputBackground, paddingHorizontal: 12, color: colors.textPrimary, marginTop: 4 }, button: { minHeight: 42, borderRadius: 9, backgroundColor: colors.primary, paddingHorizontal: 14, justifyContent: "center", alignItems: "center", marginTop: 6 }, ghostButton: { minHeight: 42, borderRadius: 9, borderWidth: 1, borderColor: colors.accent, paddingHorizontal: 14, justifyContent: "center", alignItems: "center", marginTop: 6 }, ghostButtonText: { color: colors.accent, fontWeight: "700" }, disabled: { opacity: 0.45 }, buttonText: { color: colors.onPrimary, fontWeight: "700" }, link: { color: colors.accent, fontWeight: "700" }, error: { color: colors.error, textAlign: "right" }, success: { color: colors.success, textAlign: "right" }, inline: { flexDirection: "row", gap: 10, alignItems: "center", flexWrap: "wrap" }, flex: { flex: 1 }, row: { borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 10, marginTop: 3, gap: 6 }, cardTitle: { color: colors.textPrimary, fontWeight: "700", textAlign: "right" }, commandText: { color: colors.accent, fontSize: 15, fontWeight: "700", textAlign: "left", backgroundColor: colors.surfaceElevated, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, overflow: "hidden" }, detail: { color: colors.textSecondary, fontSize: 13, lineHeight: 20, textAlign: "right" }, previewRow: { flexDirection: "row-reverse", gap: 10, alignItems: "center" }, preview: { width: 84, height: 64, borderRadius: 8, backgroundColor: colors.surfaceElevated }, fileThumb: { alignItems: "center", justifyContent: "center" }, fileIcon: { color: colors.textMuted, fontWeight: "800", fontSize: 12 } });
+const createStyles = (colors: ThemePalette) => StyleSheet.create({ screen: { flex: 1, backgroundColor: colors.background }, content: { width: "100%", maxWidth: 1000, alignSelf: "center", padding: 16, gap: 12 }, header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" }, title: { color: colors.textPrimary, fontSize: 26, fontWeight: "800", textAlign: "right" }, explainer: { color: colors.textSecondary, lineHeight: 21, textAlign: "right" }, card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 14, padding: 16, gap: 9 }, highlightCard: { borderColor: colors.accent }, sectionTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: "700", textAlign: "right" }, label: { color: colors.textSecondary, textAlign: "right", marginTop: 3 }, input: { minHeight: 44, borderRadius: 9, borderWidth: 1, borderColor: colors.inputBorder, backgroundColor: colors.inputBackground, paddingHorizontal: 12, color: colors.textPrimary, marginTop: 4 }, button: { minHeight: 42, borderRadius: 9, backgroundColor: colors.primary, paddingHorizontal: 14, justifyContent: "center", alignItems: "center", marginTop: 6 }, ghostButton: { minHeight: 42, borderRadius: 9, borderWidth: 1, borderColor: colors.accent, paddingHorizontal: 14, justifyContent: "center", alignItems: "center", marginTop: 6 }, ghostButtonText: { color: colors.accent, fontWeight: "700" }, disabled: { opacity: 0.45 }, buttonText: { color: colors.onPrimary, fontWeight: "700" }, link: { color: colors.accent, fontWeight: "700" }, error: { color: colors.error, textAlign: "right" }, success: { color: colors.success, textAlign: "right" }, inline: { flexDirection: "row", gap: 10, alignItems: "center", flexWrap: "wrap" }, flex: { flex: 1 }, row: { borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 10, marginTop: 3, gap: 6 }, resourceAction: { minHeight: 36, borderWidth: 1, borderColor: colors.warning, borderRadius: 8, paddingHorizontal: 12, alignSelf: "flex-start", justifyContent: "center" }, resourceActionActive: { borderColor: colors.success }, resourceActionText: { color: colors.textPrimary, fontWeight: "700", fontSize: 12 }, cardTitle: { color: colors.textPrimary, fontWeight: "700", textAlign: "right" }, commandText: { color: colors.accent, fontSize: 15, fontWeight: "700", textAlign: "left", backgroundColor: colors.surfaceElevated, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, overflow: "hidden" }, detail: { color: colors.textSecondary, fontSize: 13, lineHeight: 20, textAlign: "right" }, previewRow: { flexDirection: "row-reverse", gap: 10, alignItems: "center" }, preview: { width: 84, height: 64, borderRadius: 8, backgroundColor: colors.surfaceElevated }, fileThumb: { alignItems: "center", justifyContent: "center" }, fileIcon: { color: colors.textMuted, fontWeight: "800", fontSize: 12 } });
