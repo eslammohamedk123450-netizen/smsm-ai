@@ -114,7 +114,8 @@ create or replace function public.suly_admin_save_custom_page(
   p_title text,
   p_config jsonb,
   p_status text default 'draft',
-  p_change_note text default null
+  p_change_note text default null,
+  p_page_id uuid default null
 )
 returns jsonb
 language plpgsql
@@ -139,12 +140,21 @@ begin
     raise exception 'invalid custom page definition' using errcode = '22023';
   end if;
 
-  select * into v_page from public.suly_admin_custom_pages
-  where page_key = v_key for update;
+  if p_page_id is not null then
+    select * into v_page from public.suly_admin_custom_pages
+      where id=p_page_id for update;
+    if not found then raise exception 'page not found' using errcode = 'P0002'; end if;
+    if exists(select 1 from public.suly_admin_custom_pages p where p.page_key=v_key and p.id<>p_page_id) then
+      raise exception 'page key already exists' using errcode = '23505';
+    end if;
+  else
+    select * into v_page from public.suly_admin_custom_pages
+      where page_key = v_key for update;
+  end if;
 
   if found then
     update public.suly_admin_custom_pages
-      set title=v_title,config=p_config,status=v_status,version=version+1,
+      set page_key=v_key,title=v_title,config=p_config,status=v_status,version=version+1,
           updated_by=v_user,updated_at=now()
       where id=v_page.id
       returning * into v_page;
@@ -214,7 +224,7 @@ $$;
 
 revoke all on function public.suly_admin_validate_custom_page_config(jsonb) from public, anon, authenticated;
 revoke all on function public.suly_admin_list_custom_pages() from public, anon, authenticated;
-revoke all on function public.suly_admin_save_custom_page(text,text,jsonb,text,text) from public, anon, authenticated;
+revoke all on function public.suly_admin_save_custom_page(text,text,jsonb,text,text,uuid) from public, anon, authenticated;
 revoke all on function public.suly_admin_list_custom_page_versions(uuid) from public, anon, authenticated;
 revoke all on function public.suly_admin_restore_custom_page_version(uuid,integer) from public, anon, authenticated;
 grant execute on function public.suly_admin_list_custom_pages() to authenticated;
