@@ -104,6 +104,31 @@ describe("adminService tests", () => {
     });
   });
 
+  test("createHimsResource can preserve an existing inactive resource during metadata edits", async () => {
+    (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "admin-1" } }, error: null });
+    (supabase.rpc as jest.Mock).mockImplementation((rpcName: string) => {
+      if (rpcName === "suly_is_admin") return Promise.resolve({ data: true, error: null });
+      return Promise.resolve({ data: { success: true, id: "resource-2", feature_key: "hims", media_asset_id: null }, error: null });
+    });
+
+    await expect(adminService.createHimsResource({
+      title: "عنوان جديد",
+      url: "https://example.com/lecture",
+      kind: "lecture",
+      description: "وصف جديد",
+    }, false)).resolves.toMatchObject({ success: true, id: "resource-2" });
+
+    expect(supabase.rpc).toHaveBeenNthCalledWith(2, "suly_admin_upsert_feature_resource_v2", {
+      p_feature_key: "hims",
+      p_title: "عنوان جديد",
+      p_url: "https://example.com/lecture",
+      p_kind: "lecture",
+      p_description: "وصف جديد",
+      p_is_active: false,
+      p_media_asset_id: null,
+    });
+  });
+
   test("setHimsResourceActive rejects non-admin sessions before the resource write", async () => {
     (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "user-1" } }, error: null });
     (supabase.rpc as jest.Mock).mockResolvedValue({ data: false, error: null });
