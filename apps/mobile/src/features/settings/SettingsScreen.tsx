@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Image, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Image, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 
 import { useRouter } from "expo-router";
@@ -21,6 +21,10 @@ export default function SettingsScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { language, isArabic, setLanguage } = useAppLocale();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [savedProfileName, setSavedProfileName] = useState<string | null>(null);
+  const [profileEditVisible, setProfileEditVisible] = useState(false);
+  const [profileNameDraft, setProfileNameDraft] = useState("");
+  const [savingProfile, setSavingProfile] = useState(false);
   const [balance, setBalance] = useState<number | null>(null);
   const [transactions, setTransactions] = useState<CreditEntry[]>([]);
   const [loadingCredits, setLoadingCredits] = useState(true);
@@ -73,6 +77,32 @@ export default function SettingsScreen() {
     }
   };
 
+  const saveProfileName = async () => {
+    const nextName = profileNameDraft.trim();
+    if (!nextName || nextName.length > 80) {
+      show(isArabic ? "اكتب اسمًا من حرف إلى 80 حرفًا." : "Enter a name between 1 and 80 characters.", "error");
+      return;
+    }
+    setSavingProfile(true);
+    try {
+      const { error: authError } = await supabase.auth.updateUser({ data: { full_name: nextName } });
+      if (authError) throw authError;
+      const { error: profileError } = await supabase.rpc("suly_upsert_my_profile", {
+        p_email: null,
+        p_full_name: nextName,
+        p_avatar_url: null,
+      });
+      if (profileError) throw profileError;
+      setSavedProfileName(nextName);
+      setProfileEditVisible(false);
+      show(isArabic ? "تم تحديث اسم الحساب." : "Account name updated.", "success");
+    } catch {
+      show(isArabic ? "تعذر تحديث الاسم. حاول مرة أخرى." : "Could not update your name. Try again.", "error");
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
   const confirmLogout = () => setConfirmLogoutVisible(true);
 
   const openArchive = async () => {
@@ -100,7 +130,7 @@ export default function SettingsScreen() {
     return entry.source || (isArabic ? "معاملة رصيد" : "Credit transaction");
   };
 
-  const name = profileFullName?.trim() || "Suly";
+  const name = savedProfileName?.trim() || profileFullName?.trim() || "Suly";
   const avatarUrl = typeof user?.user_metadata?.avatar_url === "string" ? user.user_metadata.avatar_url : null;
   const back = () => { if (router.canGoBack()) router.back(); else router.replace("/home"); };
 
@@ -120,6 +150,9 @@ export default function SettingsScreen() {
             <Text style={styles.email}>{user?.email ?? "—"}</Text>
           </View>
         </View>
+        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => { setProfileNameDraft(name === "Suly" ? "" : name); setProfileEditVisible(true); }} accessibilityRole="button">
+          <Text style={styles.rowText}>{isArabic ? "تعديل الاسم الظاهر" : "Edit display name"}</Text><Text style={styles.chevron}>‹</Text>
+        </TouchableOpacity>
 
         <Text style={styles.sectionTitle}>{isArabic ? "المظهر" : "Appearance"}</Text>
         <View style={styles.languageControl}>
@@ -143,6 +176,16 @@ export default function SettingsScreen() {
           <Text style={styles.balanceValue}>{loadingCredits ? "…" : balance === null ? "—" : balance.toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text>
           <TouchableOpacity activeOpacity={0.7} onPress={() => { setCreditModal(true); void loadCredits(); }} style={styles.historyButton} accessibilityRole="button"><Text style={styles.linkText}>{isArabic ? "عرض السجل" : "View history"}</Text></TouchableOpacity>
         </View>
+
+        <Text style={styles.sectionTitle}>{isArabic ? "الاشتراك والخطة" : "Plan & subscription"}</Text>
+        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/upgrade")} accessibilityRole="button">
+          <Text style={styles.rowText}>{isArabic ? "عرض الباقات والاشتراك الحالي" : "View plans and current subscription"}</Text><Text style={styles.chevron}>‹</Text>
+        </TouchableOpacity>
+
+        <Text style={styles.sectionTitle}>{isArabic ? "التخزين والمكتبة" : "Storage & Library"}</Text>
+        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/media")} accessibilityRole="button">
+          <Text style={styles.rowText}>{isArabic ? "فتح مكتبتي وإدارة ملفاتي" : "Open my Library and manage files"}</Text><Text style={styles.chevron}>‹</Text>
+        </TouchableOpacity>
 
         <Text style={styles.sectionTitle}>{isArabic ? "الدعم" : "Support"}</Text>
         <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/support")} accessibilityRole="button"><Text style={styles.rowText}>{isArabic ? "الشكاوى والدعم" : "Support & complaints"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
@@ -170,6 +213,25 @@ export default function SettingsScreen() {
           {loggingOut ? <ActivityIndicator color="#F87171" /> : <Text style={styles.logoutText}>{isArabic ? "تسجيل الخروج" : "Sign out"}</Text>}
         </TouchableOpacity>
       </ScrollView>
+
+      <BottomSheet visible={profileEditVisible} title={isArabic ? "تعديل الاسم الظاهر" : "Edit display name"} onClose={() => setProfileEditVisible(false)}>
+        <View style={styles.sheetContent}>
+          <Text style={styles.policyNotice}>{isArabic ? "سيظهر الاسم في حسابك. لا يمكنك تغيير البريد الإلكتروني من هذه الشاشة." : "This name appears on your account. Your email address cannot be changed from this screen."}</Text>
+          <TextInput
+            value={profileNameDraft}
+            onChangeText={setProfileNameDraft}
+            maxLength={80}
+            autoCapitalize="words"
+            placeholder={isArabic ? "الاسم الظاهر" : "Display name"}
+            placeholderTextColor={colors.textMuted}
+            style={styles.profileNameInput}
+          />
+          <View style={styles.confirmActions}>
+            <TouchableOpacity activeOpacity={0.7} onPress={() => setProfileEditVisible(false)} style={styles.cancelAction} disabled={savingProfile}><Text style={styles.cancelActionText}>{isArabic ? "إلغاء" : "Cancel"}</Text></TouchableOpacity>
+            <TouchableOpacity activeOpacity={0.7} onPress={() => void saveProfileName()} style={styles.saveAction} disabled={savingProfile}><Text style={styles.saveActionText}>{savingProfile ? (isArabic ? "جارٍ الحفظ…" : "Saving…") : (isArabic ? "حفظ" : "Save")}</Text></TouchableOpacity>
+          </View>
+        </View>
+      </BottomSheet>
 
       <BottomSheet visible={creditModal} title={isArabic ? "الرصيد وسجل العمليات" : "Balance & activity"} onClose={() => setCreditModal(false)}>
         <View style={styles.sheetContent}>
@@ -228,6 +290,7 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
   accountCopy: { flex: 1, alignItems: "flex-end" },
   userName: { color: colors.textPrimary, fontSize: 15, fontWeight: "700" },
   email: { color: colors.textSecondary, marginTop: 4, fontSize: 13 },
+  profileNameInput: { minHeight: 48, borderWidth: 1, borderColor: colors.divider, borderRadius: 12, paddingHorizontal: 14, color: colors.textPrimary, backgroundColor: colors.surface, textAlign: "right" },
   cardRow: { minHeight: 58, paddingHorizontal: 15, paddingVertical: 10, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between" },
   rowText: { color: colors.textPrimary, fontSize: 14 },
   languageControl: { minHeight: 50, flexDirection: "row-reverse", gap: 6, padding: 5, borderWidth: 1, borderColor: colors.divider, borderRadius: 16, backgroundColor: colors.surface },
@@ -269,6 +332,8 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
   confirmActions: { flexDirection: "row-reverse", gap: 10, marginTop: 18 },
   cancelAction: { flex: 1, minHeight: 48, borderRadius: 13, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" },
   cancelActionText: { color: colors.textPrimary, fontWeight: "600" },
+  saveAction: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
+  saveActionText: { color: colors.background, fontWeight: "700" },
   dangerAction: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: "#1F2937", alignItems: "center", justifyContent: "center" },
   dangerActionText: { color: "#F87171", fontWeight: "700" },
 });

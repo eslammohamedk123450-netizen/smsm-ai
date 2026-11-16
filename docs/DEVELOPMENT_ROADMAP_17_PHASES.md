@@ -299,7 +299,16 @@ Acceptance:
 - Upload/download/preview/delete/favorites/folders/search pass tests.
 - All media/task outputs are traceable to their originating job and usage record where applicable.
 
-**Current status:** [~] A library/file experience exists in the project, but the complete requested organization (folders/favorites/filters) and end-to-end ownership/security verification remain.
+**Current status:** [~] Core organization features are implemented and merged; full visual/device and authenticated user-journey verification remains.
+
+Verified implementation evidence (2026-11-16):
+- PR #124 merged into `release/v1` as commit `c077526ae8033d3a04db0fc336e1d81b4f922065`.
+- Added owner-scoped `suly_media_folders`, `suly_media_asset_folders`, and `suly_media_favorites` with RLS and composite owner-bound foreign keys.
+- Added folder create/rename/delete, folder filtering, move/remove asset, favorites filtering/toggle in the existing Library screen.
+- Rollback-only SQL regression passed for owner visibility, non-owner invisibility, cross-owner association rejection, and no residual fixture rows.
+- PR checks passed: Expo TypeScript, Deno edge-function typecheck, currency-safe media billing tests, edge-function bundle verification, and media-billing guardrails.
+- GitHub Pages deployment after merge completed successfully (workflow run `43858798658`). Expo OTA update failed (workflow run `43858798753`) because repository secret `EXPO_TOKEN` is missing; owner must add it in GitHub Actions secrets before OTA can publish.
+- No visual browser or physical-device test is claimed.
 
 ## Phase 9 — Reorganize Account, settings, subscriptions, and billing
 
@@ -322,10 +331,31 @@ Acceptance:
 - Client cannot upgrade its own plan, alter balance, or grant itself privileges.
 - Billing history reconciles with wallet/usage ledgers.
 
-**Current status:** [~] Some settings and server-side subscription permission foundations exist. A full account information architecture and billing lifecycle audit remain.
+**Current status:** [>] Account information architecture is being completed on top of the existing settings, wallet, and server-authoritative subscription foundations.
+
+Verified code review and current implementation (2026-11-16):
+- Existing settings screen already shows authenticated profile name/email, theme mode (system/light/dark), language (Arabic/English), server-loaded credit balance and recent ledger entries, support, conversation archive, integrations, privacy/terms notices, admin-only dashboard entry, and sign-out.
+- Existing upgrade screen loads active plans/features and obtains the current tier from `suly_effective_subscription_tier`; it does not let the client grant a tier. Paid upgrade actions are explicitly not yet available.
+- Added direct Account navigation to the existing Plans & Subscription screen and the existing Library screen; no duplicate billing or storage subsystem was introduced.
+- Added display-name editing through Supabase Auth user metadata plus the existing `suly_upsert_my_profile` RPC. Email/identity fields remain server-derived; direct client writes to `suly_profiles` remain revoked. The name update is implemented but awaits CI and authenticated-session verification.
+- Existing privacy/terms sheet explicitly states that official policy text/links are not configured. This remains an owner/legal-input blocker before public launch; no policy wording has been invented.
+- Read-only Supabase audit (2026-11-16): 7 profile rows; 2 credit accounts; 174 holds (171 settled, 3 expired); 353 credit transactions (174 reserve, 171 settle, 3 expire, 4 admin_adjust, 1 daily_grant). No rows exist in either `suly_user_subscriptions` or legacy `user_subscriptions` at audit time.
+- Credit ledger structural checks: zero holds missing a reserve event; zero settled holds missing a settle event; zero expired holds missing an expire event; zero settled holds missing `settled_at`. The 3 expired holds have `settled_at` as expected by the existing stale-hold release function.
+- Credit-account snapshot check: no negative account balances and no mismatch between accounts and each user's latest ledger snapshot. One account has no ledger rows and has zero balance/reserved balance.
+- `suly_credit_pricing` has no configured `credit_value_egp` or `usd_to_egp`; do not enable paid media or invent conversion settings. This is also a Phase 12 owner-input blocker.
+
+Remaining Phase 9 work:
+- Audit profile editing and identity synchronization against the hardened profile-write RPC; add only supported fields and preserve auth identity ownership.
+- Audit subscription renewal/payment lifecycle and reconcile wallet/credit ledger semantics; do not add client-side payment or plan mutation.
+- Determine which privacy/security/session controls are actually supported by the current auth provider; do not display fake session-management controls.
+- Add/verify storage usage and notification preference screens only if backed by existing server/data capabilities.
+- Run authenticated user-flow and billing reconciliation tests; no test user credentials have been supplied.
+- Obtain owner-approved privacy policy and terms links/text before public launch.
 
 Known evidence:
-- Earlier subscription authorization work was merged (PR #82 in the prior history); verify current code before extending.
+- PR #82 — server-side subscription permission foundation.
+- PR #124 — Library navigation target now exists at `/(protected)/media`.
+- This phase remains incomplete until its acceptance criteria and billing reconciliation are verified.
 
 ## Phase 10 — Import and govern the complete provider model catalog
 
