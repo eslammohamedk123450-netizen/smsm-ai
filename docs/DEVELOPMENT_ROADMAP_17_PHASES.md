@@ -6,6 +6,10 @@
 > **Working branch:** `develop` (all implementation and roadmap updates)  
 > **Production branch:** `release/v1` (protected; no direct development work)  
 > **Working rule:** The 17 phases below are the complete build, organization, integration, and implementation track. The independent comprehensive test track begins only after all 17 build phases and their integration work are complete. Routine developer/CI checks may still run during implementation to prevent regressions; they are not the final comprehensive test campaign. Never mark work complete merely because code was written or merged.
+>
+> **Authoritative plans:** [Unified Development Master Plan](SULY_DEVELOPMENT_MASTER_PLAN.md) (Track A) and [Independent Comprehensive Test Master Plan](SULY_COMPREHENSIVE_TEST_MASTER_PLAN.md) (Track B). These two files are maintained separately and must stay aligned with this execution tracker.
+>
+> **Current gate (2026-11-16):** Close Phases 1–4 and report to the owner before starting Phase 5. Do not start the unified UX/navigation implementation before that report.
 
 ---
 
@@ -106,7 +110,7 @@ Acceptance:
 - Each critical flow has an owner and verification status.
 - No existing feature is removed as part of the audit.
 
-**Current status:** [~] Initial audits and multiple schema/repository reviews have been performed. A single complete, maintained inventory and full flow matrix still need to be finalized.
+**Current status:** [x] DONE — VERIFIED (source-level audit). The maintained repository/system inventory and critical-flow ownership/evidence matrix are recorded in `docs/PHASES_1_4_BUILD_AUDIT.md`. Runtime journeys remain separately marked review-required or owner-blocked; this phase does not certify live user journeys.
 
 Evidence/notes:
 - Prior security foundation and model-routing governance migrations exist.
@@ -132,7 +136,7 @@ Acceptance:
 - Unauthorized, expired, reused, forged, or cross-user requests are rejected.
 - No regression to existing HIMS data or administrator workflows.
 
-**Current status:** [~] Important security foundations have been merged, including hashed activation-code handling and protected student resources. Full adversarial and end-to-end student/admin verification remains.
+**Current status:** [~] IMPLEMENTED — REVIEW REQUIRED. Live read-only checks on 2026-11-16 confirmed RLS enabled and client table privileges denied for activation codes, activations, and resources; admin RPCs require server-side admin checks, activation RPC is service-role-only, and student resource RPC is authenticated-only. A duplicate-hash reactivation flaw was confirmed in the applied creation RPC. A guard migration and rollback-only collision regression have been committed to `develop` (`20261116150000_hims_activation_code_collision_guard.sql`, `supabase/tests/hims_activation_code_collision_regression.sql`) but have not been applied or executed. Phase 2 remains open until migration/test verification and adversarial tests are complete.
 
 Known evidence:
 - PR #92 — activation-code security/hash work.
@@ -160,7 +164,7 @@ Acceptance:
 - No repeated HIMS branding/system explanation on greetings or unrelated messages.
 - Resource access is enforced server-side.
 
-**Current status:** [~] Conversational intent behavior was improved and merged; the core experience still needs full student-session testing and verified lecture delivery.
+**Current status:** [~] IMPLEMENTED — REVIEW REQUIRED / OWNER-BLOCKED for real-user acceptance. Source-level intent and resource-delivery gates plus Deno regressions exist. Actual student activation and lecture delivery remain unverified because owner-approved test accounts and the real lecture/content source have not yet been supplied. Do not use production student credentials.
 
 **Owner direction (2026-11-16):** Prepare and organize the existing HIMS environment and authorized content-delivery path now. Defer student account, lecture retrieval, and end-to-end experience testing until the owner supplies test accounts and the real lecture/content source.
 
@@ -192,7 +196,7 @@ Acceptance:
 - Both themes render consistently with accessible contrast.
 - No existing feature is hidden or removed by the redesign.
 
-**Current status:** [~] Design-system and theme foundations were merged. Complete visual audit across every screen and accessibility review remain.
+**Current status:** [~] IMPLEMENTED — REVIEW REQUIRED. Shared semantic light/dark tokens and reusable UI primitives exist. On 2026-11-16, muted text tokens were strengthened and contrast regression coverage expanded to all shared content surfaces; the new test is included in the existing mobile test command. Exact CI and full screen/browser/device accessibility review are still pending.
 
 Known evidence:
 - PR #94 — visual identity/theme foundation.
