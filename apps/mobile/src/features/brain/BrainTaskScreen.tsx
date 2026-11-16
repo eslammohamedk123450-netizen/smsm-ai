@@ -26,16 +26,19 @@ export function BrainTaskScreen() {
   const [progress, setProgress] = useState<TaskSnapshot | null>(null);
   const [cancelRequested, setCancelRequested] = useState(false);
   const cancellationRequested = useRef<string | null>(null);
+  const cancelledBeforeStart = useRef(false);
 
   const requestTaskCancellation = async (jobId: string) => {
     try {
       const outcome = await cancelBrainTask(jobId);
       if (outcome.status === "cancelled") {
         cancellationRequested.current = jobId;
+        cancelledBeforeStart.current = true;
         setProgress((current) => current ? { ...current, status: "cancelled" } : current);
         show("تم إلغاء المهمة قبل أن يبدأ العامل تنفيذها.", "success");
       } else {
         cancellationRequested.current = jobId;
+        cancelledBeforeStart.current = false;
         setCancelRequested(true);
         show("تم استلام طلب الإيقاف. ستكتمل الخطوة الجارية أولًا، ثم يتوقف العامل دون بدء خطوات جديدة.", "success");
       }
@@ -60,6 +63,7 @@ export function BrainTaskScreen() {
     setProgress(null);
     setCancelRequested(false);
     cancellationRequested.current = null;
+    cancelledBeforeStart.current = false;
     try {
       const accepted = await runBrainTask(value);
       let latest: TaskSnapshot | null = null;
@@ -68,7 +72,7 @@ export function BrainTaskScreen() {
         if (latest) setProgress(latest);
         if (latest?.status === "cancelled") {
           if (cancellationRequested.current === accepted.job_id) {
-            show("تم إيقاف المهمة بأمان بعد الخطوة الجارية.", "success");
+            show(cancelledBeforeStart.current ? "تم إلغاء المهمة قبل بدء التنفيذ." : "تم إيقاف المهمة بأمان بعد الخطوة الجارية.", "success");
             return;
           }
           throw new Error(latest.errorMessage || "تم إلغاء المهمة.");
