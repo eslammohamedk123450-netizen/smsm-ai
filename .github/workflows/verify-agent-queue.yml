@@ -123,6 +123,7 @@ jobs:
           deno test supabase/functions/ai-router/resilience.test.ts
           deno test supabase/functions/ai-router/agent/agent_profiles.test.ts
           deno test supabase/functions/ai-router/agent/model_eligibility.test.ts
+          deno test supabase/functions/ai-router/agent/model_routing_test.ts
           deno test supabase/functions/ai-router/agent/agent_budget_policy.test.ts
           deno test supabase/functions/ai-router/agent/suly_profile_routing.test.ts
           deno test supabase/functions/ai-router/execution_mode.test.ts
