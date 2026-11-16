@@ -5,12 +5,12 @@ begin;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', gen_random_uuid()::text, true);
 select set_config(
-  'suly_test_provider_id',
+  'suly.test_provider_id',
   (select id::text from public.ai_providers where enabled = true order by id limit 1),
   true
 );
 select set_config(
-  'suly_test_admin_id',
+  'suly.test_admin_id',
   (select user_id::text from public.suly_admins order by user_id limit 1),
   true
 );
@@ -22,7 +22,7 @@ declare
   v_result jsonb;
   v_denied boolean := false;
   v_model_id uuid;
-  v_provider_id integer := current_setting('suly_test_provider_id')::integer;
+  v_provider_id integer := current_setting('suly.test_provider_id')::integer;
 begin
   if has_table_privilege(current_user, 'public.suly_media_generation_models', 'insert')
      or has_table_privilege(current_user, 'public.suly_media_generation_models', 'update')
@@ -55,7 +55,7 @@ begin
     raise exception 'non-admin user unexpectedly saved a media model';
   end if;
 
-  perform set_config('request.jwt.claim.sub', current_setting('suly_test_admin_id'), true);
+  perform set_config('request.jwt.claim.sub', current_setting('suly.test_admin_id'), true);
 
   v_result := public.suly_admin_save_image_generation_model(
     null, v_provider_id, 'Rollback test image model', 'suly-atomic-save-regression',
