@@ -1,16 +1,21 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { randomUUID } from "expo-crypto";
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import * as Clipboard from "expo-clipboard";
 import { adminService, type HimsActivationCode, type HimsResource } from "./admin-service";
-import { colors } from "../../theme/colors";
+import { useSulyTheme } from "../../theme/ThemeProvider";
+import type { ThemePalette } from "../../theme/colors";
 import { formatBytes, pickMedia, uploadMediaFile, type MediaAsset, type PickKind } from "../media/media-service";
 
 function Field({ label, value, onChange, placeholder, keyboardType = "default" }: { label: string; value: string; onChange(value: string): void; placeholder: string; keyboardType?: "default" | "numeric" | "url" }) {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   return <View><Text style={styles.label}>{label}</Text><TextInput style={styles.input} value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor={colors.textMuted} keyboardType={keyboardType} autoCapitalize="none" /></View>;
 }
 function Button({ label, onPress, disabled = false, tone = "primary" }: { label: string; onPress(): void; disabled?: boolean; tone?: "primary" | "ghost" }) {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   return <Pressable accessibilityRole="button" onPress={onPress} disabled={disabled} style={[tone === "primary" ? styles.button : styles.ghostButton, disabled && styles.disabled]}><Text style={tone === "primary" ? styles.buttonText : styles.ghostButtonText}>{label}</Text></Pressable>;
 }
 function generateCode() {
@@ -25,6 +30,8 @@ function posterFor(url: string, kind: string) {
 }
 
 export function HimsAdminScreen() {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [codes, setCodes] = useState<HimsActivationCode[]>([]);
   const [resources, setResources] = useState<HimsResource[]>([]);
   const [code, setCode] = useState("");
@@ -184,4 +191,4 @@ export function HimsAdminScreen() {
   </ScrollView>;
 }
 
-const styles = StyleSheet.create({ screen: { flex: 1, backgroundColor: colors.background }, content: { width: "100%", maxWidth: 1000, alignSelf: "center", padding: 16, gap: 12 }, header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" }, title: { color: colors.textPrimary, fontSize: 26, fontWeight: "800", textAlign: "right" }, explainer: { color: colors.textSecondary, lineHeight: 21, textAlign: "right" }, card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 14, padding: 16, gap: 9 }, highlightCard: { borderColor: colors.accent }, sectionTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: "700", textAlign: "right" }, label: { color: colors.textSecondary, textAlign: "right", marginTop: 3 }, input: { minHeight: 44, borderRadius: 9, borderWidth: 1, borderColor: colors.inputBorder, backgroundColor: colors.inputBackground, paddingHorizontal: 12, color: colors.textPrimary, marginTop: 4 }, button: { minHeight: 42, borderRadius: 9, backgroundColor: colors.primary, paddingHorizontal: 14, justifyContent: "center", alignItems: "center", marginTop: 6 }, ghostButton: { minHeight: 42, borderRadius: 9, borderWidth: 1, borderColor: colors.accent, paddingHorizontal: 14, justifyContent: "center", alignItems: "center", marginTop: 6 }, ghostButtonText: { color: colors.accent, fontWeight: "700" }, disabled: { opacity: 0.45 }, buttonText: { color: "#FFFFFF", fontWeight: "700" }, link: { color: colors.accent, fontWeight: "700" }, error: { color: colors.error, textAlign: "right" }, success: { color: colors.success, textAlign: "right" }, inline: { flexDirection: "row", gap: 10, alignItems: "center", flexWrap: "wrap" }, flex: { flex: 1 }, row: { borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 10, marginTop: 3, gap: 6 }, cardTitle: { color: colors.textPrimary, fontWeight: "700", textAlign: "right" }, commandText: { color: colors.accent, fontSize: 15, fontWeight: "700", textAlign: "left", backgroundColor: colors.surfaceElevated, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, overflow: "hidden" }, detail: { color: colors.textSecondary, fontSize: 13, lineHeight: 20, textAlign: "right" }, previewRow: { flexDirection: "row-reverse", gap: 10, alignItems: "center" }, preview: { width: 84, height: 64, borderRadius: 8, backgroundColor: colors.surfaceElevated }, fileThumb: { alignItems: "center", justifyContent: "center" }, fileIcon: { color: colors.textMuted, fontWeight: "800", fontSize: 12 } });
+const createStyles = (colors: ThemePalette) => StyleSheet.create({ screen: { flex: 1, backgroundColor: colors.background }, content: { width: "100%", maxWidth: 1000, alignSelf: "center", padding: 16, gap: 12 }, header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" }, title: { color: colors.textPrimary, fontSize: 26, fontWeight: "800", textAlign: "right" }, explainer: { color: colors.textSecondary, lineHeight: 21, textAlign: "right" }, card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 14, padding: 16, gap: 9 }, highlightCard: { borderColor: colors.accent }, sectionTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: "700", textAlign: "right" }, label: { color: colors.textSecondary, textAlign: "right", marginTop: 3 }, input: { minHeight: 44, borderRadius: 9, borderWidth: 1, borderColor: colors.inputBorder, backgroundColor: colors.inputBackground, paddingHorizontal: 12, color: colors.textPrimary, marginTop: 4 }, button: { minHeight: 42, borderRadius: 9, backgroundColor: colors.primary, paddingHorizontal: 14, justifyContent: "center", alignItems: "center", marginTop: 6 }, ghostButton: { minHeight: 42, borderRadius: 9, borderWidth: 1, borderColor: colors.accent, paddingHorizontal: 14, justifyContent: "center", alignItems: "center", marginTop: 6 }, ghostButtonText: { color: colors.accent, fontWeight: "700" }, disabled: { opacity: 0.45 }, buttonText: { color: "#FFFFFF", fontWeight: "700" }, link: { color: colors.accent, fontWeight: "700" }, error: { color: colors.error, textAlign: "right" }, success: { color: colors.success, textAlign: "right" }, inline: { flexDirection: "row", gap: 10, alignItems: "center", flexWrap: "wrap" }, flex: { flex: 1 }, row: { borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 10, marginTop: 3, gap: 6 }, cardTitle: { color: colors.textPrimary, fontWeight: "700", textAlign: "right" }, commandText: { color: colors.accent, fontSize: 15, fontWeight: "700", textAlign: "left", backgroundColor: colors.surfaceElevated, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, overflow: "hidden" }, detail: { color: colors.textSecondary, fontSize: 13, lineHeight: 20, textAlign: "right" }, previewRow: { flexDirection: "row-reverse", gap: 10, alignItems: "center" }, preview: { width: 84, height: 64, borderRadius: 8, backgroundColor: colors.surfaceElevated }, fileThumb: { alignItems: "center", justifyContent: "center" }, fileIcon: { color: colors.textMuted, fontWeight: "800", fontSize: 12 } });
