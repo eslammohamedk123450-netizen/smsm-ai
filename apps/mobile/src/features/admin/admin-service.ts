@@ -317,6 +317,48 @@ export const adminService = {
     return data;
   },
 
+  async getMediaModelPriceVersions() {
+    await requireAdmin();
+    const { data, error } = await supabase
+      .from("suly_media_model_price_versions")
+      .select("id,provider_id,service_type,model_identifier,display_name,unit_type,provider_cost_egp_per_unit,selling_price_egp_per_unit,markup_rate,price_version,provider_tested,suly_integration_verified,is_current")
+      .eq("is_current", true)
+      .order("service_type")
+      .order("display_name");
+    if (error) throw error;
+    return data ?? [];
+  },
+
+  async updateMediaModelPrice(input: {
+    providerId: number;
+    serviceType: "image" | "video" | "audio";
+    modelIdentifier: string;
+    displayName: string;
+    unitType: "image" | "video_second" | "audio_minute";
+    providerCost: number;
+    expectedVersion: number;
+  }) {
+    await requireAdmin();
+    if (!Number.isSafeInteger(input.providerId) || input.providerId < 1
+      || !input.modelIdentifier.trim() || !input.displayName.trim()
+      || !Number.isFinite(input.providerCost) || input.providerCost < 0
+      || !Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 1) {
+      throw new Error("قيم تسعير الخدمة غير صالحة.");
+    }
+    const { data, error } = await supabase.rpc("suly_admin_set_media_model_price", {
+      p_provider_id: input.providerId,
+      p_service_type: input.serviceType,
+      p_model_identifier: input.modelIdentifier,
+      p_display_name: input.displayName,
+      p_unit_type: input.unitType,
+      p_provider_cost_egp_per_unit: input.providerCost,
+      p_expected_version: input.expectedVersion,
+    });
+    if (error) throw error;
+    if (!data || data.success !== true) throw new Error("تعذر إنشاء إصدار سعر جديد.");
+    return data;
+  },
+
   async updateModel(modelId: number, changes: Record<string, unknown>) {
     await requireAdmin();
     const allowed = ["enabled", "priority", "routing_group", "allowed_tiers", "response_timeout_ms", "restriction_failure_threshold", "restriction_window_minutes", "capabilities_json", "task_roles"];
