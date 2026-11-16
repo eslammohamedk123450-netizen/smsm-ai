@@ -391,7 +391,7 @@ function createStyles(colors: ThemePalette) { return StyleSheet.create({
   planName: {
     fontSize: 18,
     fontWeight: "700",
-    color: colors.background,
+    color: colors.textPrimary,
   },
   upgradeBtn: {
     backgroundColor: colors.primary,
@@ -460,7 +460,7 @@ function createStyles(colors: ThemePalette) { return StyleSheet.create({
   historyBtnText: {
     fontSize: 14,
     fontWeight: "700",
-    color: colors.background,
+    color: colors.textPrimary,
   },
   consumptionCard: {
     backgroundColor: colors.surface,
@@ -683,7 +683,7 @@ function createStyles(colors: ThemePalette) { return StyleSheet.create({
     fontSize: 10,
     fontWeight: "700",
     color: colors.primary,
-    backgroundColor: "rgba(14, 165, 233, 0.15)",
+    backgroundColor: colors.primarySoft,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
