@@ -171,6 +171,7 @@ A test group passes only when all required cases pass or the owner explicitly ac
 - Verify safe disable/quarantine, immutable audit trail, pagination/export privacy, and sensitive data masking.
 - Check that admin UI hiding is not the only authorization control.
 - Review the complete responsive admin navigation: every route is discoverable, Arabic/English global search routes correctly, and the user-friction and storage pages are accessible on desktop/mobile.
+- Verify admin user-directory pagination bounds, exact totals, debounce behavior, stale-response suppression, selection reset on search/filter/page changes, and literal handling of punctuation/wildcards in email/name searches.
 - Verify admin-storage Edge Function returns 401 for missing/expired sessions and 403 for authenticated non-admin users, with no service-role material in client output.
 - Verify user subscription grant uses the server-side admin RPC, cannot grant inactive/retired plans, records reason and actor in the audit log, and cannot be invoked by non-admins.
 
