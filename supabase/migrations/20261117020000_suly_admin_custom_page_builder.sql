@@ -147,6 +147,8 @@ declare
   v_key text := lower(trim(coalesce(p_page_key,'')));
   v_title text := trim(coalesce(p_title,''));
   v_status text := coalesce(p_status,'draft');
+  v_old_value jsonb;
+  v_action text := 'custom_page_created';
 begin
   if not public.suly_is_admin() or v_user is null then
     raise exception 'administrator privileges required' using errcode = '42501';
@@ -172,6 +174,8 @@ begin
   end if;
 
   if found then
+    v_old_value := jsonb_build_object('page_key',v_page.page_key,'title',v_page.title,'config',v_page.config,'status',v_page.status,'version',v_page.version);
+    v_action := 'custom_page_updated';
     update public.suly_admin_custom_pages
       set page_key=v_key,title=v_title,config=p_config,status=v_status,version=version+1,
           updated_by=v_user,updated_at=now()
@@ -185,6 +189,11 @@ begin
 
   insert into public.suly_admin_custom_page_versions(page_id,version,title,config,status,changed_by,change_note)
   values(v_page.id,v_page.version,v_page.title,v_page.config,v_page.status,v_user,left(p_change_note,300));
+
+  insert into public.admin_audit_logs(admin_id,action,target_table,target_id,old_value,new_value,created_at)
+  values(v_user,v_action,'suly_admin_custom_pages',v_page.id::text,v_old_value,
+    jsonb_build_object('page_key',v_page.page_key,'title',v_page.title,'status',v_page.status,'version',v_page.version),
+    now());
 
   return jsonb_build_object('success',true,'id',v_page.id,'page_key',v_page.page_key,'version',v_page.version,'status',v_page.status);
 end;
@@ -219,12 +228,14 @@ declare
   v_user uuid := auth.uid();
   v_version public.suly_admin_custom_page_versions%rowtype;
   v_page public.suly_admin_custom_pages%rowtype;
+  v_old_value jsonb;
 begin
   if not public.suly_is_admin() or v_user is null then
     raise exception 'administrator privileges required' using errcode = '42501';
   end if;
   select * into v_page from public.suly_admin_custom_pages where id=p_page_id for update;
   if not found then raise exception 'page not found' using errcode = 'P0002'; end if;
+  v_old_value := jsonb_build_object('page_key',v_page.page_key,'title',v_page.title,'config',v_page.config,'status',v_page.status,'version',v_page.version);
   select * into v_version from public.suly_admin_custom_page_versions
     where page_id=p_page_id and version=p_version;
   if not found then raise exception 'version not found' using errcode = 'P0002'; end if;
@@ -236,6 +247,11 @@ begin
 
   insert into public.suly_admin_custom_page_versions(page_id,version,title,config,status,changed_by,change_note)
     values(v_page.id,v_page.version,v_page.title,v_page.config,'draft',v_user,'Restored from version '||p_version);
+
+  insert into public.admin_audit_logs(admin_id,action,target_table,target_id,old_value,new_value,created_at)
+    values(v_user,'custom_page_version_restored','suly_admin_custom_pages',v_page.id::text,v_old_value,
+      jsonb_build_object('page_key',v_page.page_key,'title',v_page.title,'status',v_page.status,'version',v_page.version,'restored_from',p_version),
+      now());
 
   return jsonb_build_object('success',true,'version',v_page.version,'restored_from',p_version,'status','draft');
 end;
