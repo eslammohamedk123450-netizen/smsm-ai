@@ -208,4 +208,4 @@ For each test case record:
 - Track B remains **NOT STARTED** by design; it must wait until Track A Phase 17 integration is complete.
 - Routine focused regression tests continue under Track A.
 - Current first-four-phase gaps that Track B must later verify include HIMS duplicate-code collision/replay, real student activation and protected lecture delivery, ordinary-chat behavior, full design accessibility, and actual browser/device journeys.
-- No test is marked PASS unless it has a verified run/result. The new HIMS collision SQL regression is committed but not executed. The expanded theme Jest test is committed but awaits a current-commit CI run.
+- No test is marked PASS unless it has a verified run/result. The new HIMS collision SQL regression is committed but not executed. The expanded theme Jest test and core chat/Home/HIMS semantic palette changes are committed but await a current-commit CI run.
