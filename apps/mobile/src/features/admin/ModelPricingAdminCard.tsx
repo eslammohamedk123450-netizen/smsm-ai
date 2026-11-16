@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { adminService } from "./admin-service";
-import { colors } from "../../theme/colors";
+import { useSulyTheme } from "../../theme/ThemeProvider";
+import type { ThemePalette } from "../../theme/colors";
 
 type PriceRow = {
   id: string;
@@ -19,6 +20,8 @@ type PriceRow = {
 const money = (value: number) => Number(value).toLocaleString("en-EG", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
 
 export function ModelPricingAdminCard() {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [rows, setRows] = useState<PriceRow[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
@@ -123,7 +126,7 @@ export function ModelPricingAdminCard() {
   </View>;
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemePalette) => StyleSheet.create({
   card: { borderWidth: 1, borderColor: colors.divider, borderRadius: 12, backgroundColor: colors.surface, padding: 13, gap: 10 },
   header: { flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center", gap: 8 },
   headerCopy: { flex: 1, alignItems: "flex-end", gap: 3 },
