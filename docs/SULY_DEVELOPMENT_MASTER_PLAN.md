@@ -162,11 +162,11 @@
 
 ### المرحلة 6 — المحادثة والوكيل المركزي والنماذج
 استكمال المحادثة وSSE وخطة المهمة والتقدم والإلغاء وإعادة المحاولة والحفظ الذري والفوترة الجزئية، واختيار نماذج SULY من الشريط العلوي.
-**الحالة: [~] بنية الوكيل المركزي موجودة، وأضيفت قائمة اختيار المستويات.** تعرض الواجهة Auto وLite/Pro/Max المؤهلة للاشتراك، وX مقفل لعدم وجود profile معتمد. يرسل send/regenerate/retry الاختيار إلى الخادم، ويعيد ai-router التحقق من الاشتراك والقدرات والتوجيه. لا تحفظ الواجهة الاختيار بين تسجيلات الدخول بعد؛ اختبارات التكامل والـbilling مؤجلة.
+**الحالة: [~] بنية الوكيل المركزي منشورة ومحدثة.** تعرض الواجهة Auto وLite/Pro/Max المؤهلة للاشتراك، وX مقفل لعدم وجود profile معتمد. يرسل send/regenerate/retry الاختيار إلى الخادم، ويعيد ai-router v54 التحقق من الاشتراك والقدرات والتوجيه. تم نشر brain-router v13 وagent-task-worker v6؛ scheduler v5 مطابق للمصدر الحالي. لا تحفظ الواجهة الاختيار بين تسجيلات الدخول بعد؛ اختبارات التكامل والـbilling مؤجلة.
 
 ### المرحلة 7 — Studio
 إنشاء الصور والفيديو والصوت والتفريغ النصي مع التحقق من القدرات والسعر والخصم.
-**الحالة: [~] واجهة Studio موجودة، ولا توجد خدمة وسائط جاهزة للتفعيل حاليًا.** فحص قراءة فقط للدالة `suly_list_public_image_models` أثبت أنها لا تعرض إلا النماذج النشطة ذات الأسعار المفعلة والمسموح بها للباقة؛ العدد الحالي 0 نموذج صور نشط و0 سعر مفعّل و0 سعر موجب. لا توجد سجلات نماذج فيديو/صوت في جدول media generation الحالي. تم تحديث أوصاف Studio لتقول ذلك بوضوح، وكل بطاقات الخدمات تبقى disabled. لا تفعيل أو خصم قبل إثبات التكلفة والتكامل.
+**الحالة: [~] واجهة Studio موجودة ووظيفة image-generator v10 منشورة، لكن لا توجد خدمة وسائط قابلة للتفعيل حاليًا.** فحص قراءة فقط للدالة `suly_list_public_image_models` أثبت أنها لا تعرض إلا النماذج النشطة ذات الأسعار المفعلة والمسموح بها للباقة؛ العدد الحالي 0 نموذج صور نشط و0 سعر مفعّل و0 سعر موجب. لا توجد سجلات نماذج فيديو/صوت في جدول media generation الحالي. تم تحديث أوصاف Studio لتقول ذلك بوضوح، وكل بطاقات الخدمات تبقى disabled. لا تفعيل أو خصم قبل إثبات التكلفة والتكامل.
 
 ### المرحلة 8 — المكتبة
 الملفات والمخرجات والمستندات والمجلدات والمفضلة والبحث والتنزيل والملكية.
@@ -190,7 +190,7 @@
 
 ### المرحلة 13 — SULY Control Center
 المجالات الإدارية الاثنا عشر، الحفاظ على المسارات، تأمين العمليات، وبناء Dynamic Admin Page & Component Builder.
-**الحالة: [~] Builder موصول بقاعدة Supabase؛ القبول التشغيلي لم يكتمل.** طُبقت migration الخاصة بالصفحات والإصدارات، وأصبحت RPCs الخمس ومصادر البيانات الثلاثة الحية وسجل audit موجودة على قاعدة المشروع. الواجهة والمحرر ومسار عرض المنشور موجودة على `develop`. لم تُنفذ اختبارات بحساب مدير/غير مدير؛ المتبقي قبول التشغيل، صلاحيات فرعية عند اعتمادها، وتحسين عرض المكونات.
+**الحالة: [~] Builder موصول بقاعدة Supabase؛ القبول التشغيلي لم يكتمل.** طُبقت migration الخاصة بالصفحات والإصدارات، وأصبحت RPCs الخمس ومصادر البيانات الثلاثة الحية وسجل audit موجودة على قاعدة المشروع. الواجهة والمحرر ومسار عرض المنشور موجودة على `develop`، ومخرجات المصادر تعرض ملخصات مقروءة. allowlist الحالي ستة أنواع فقط (text/notice/metric/status/list/table)؛ chart/form/filter العامة لم تُنفذ بعد، ولا تُضاف نماذج كتابة قبل اعتماد action allowlist. لم تُنفذ اختبارات بحساب مدير/غير مدير؛ المتبقي قبول التشغيل، صلاحيات فرعية عند اعتمادها، واستكمال المكونات المعتمدة.
 
 ### المرحلة 14 — Light/Dark/System
 تطبيق الثيم على كل شاشة ومكون وحالة، بتباين صحيح وألوان أبيض وأسود.
@@ -669,3 +669,10 @@
 - لم ننقل `vector` أو `pg_net` من public؛ قد تعتمد عليهما دوال ومشغلات قائمة، ويلزم خطة ترحيل منفصلة.
 - لم نفعل leaked-password protection؛ يتطلب قرار Auth صريحًا ومراجعة أثره على التسجيل وتغيير كلمات المرور.
 - Remediation references: [Unindexed foreign keys](https://supabase.com/docs/guides/database/database-linter?lint=0001_unindexed_foreign_keys) · [Unused index](https://supabase.com/docs/guides/database/database-linter?lint=0005_unused_index) · [Multiple permissive policies](https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies) · [RLS enabled/no policy](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy) · [Extensions in public](https://supabase.com/docs/guides/database/database-linter?lint=0014_extension_in_public) · [Anon SECURITY DEFINER](https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable) · [Authenticated SECURITY DEFINER](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable) · [Leaked password protection](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection).
+
+
+### تحديث المرحلة 17 ومقارنة الفروع — 2026-11-17
+- Supabase project `razvryvazmqvvqkzetuo` حالته `ACTIVE_HEALTHY` (Postgres 17.11).
+- تمت مراجعة جميع Edge Functions الـ11 النشطة؛ الوظائف الأربع المتأخرة نُشرت بإصدارات أحدث كما هو موثق أعلاه. `upload-media` متقاعد ويعيد 410.
+- آخر مقارنة GitHub: `release/v1` عند `d03a2958ee8a72c3a76cf45e003fcdb3ced62a79`، و`develop` متقدم عليه بـ163 commit، و`release/v1` لا يحتوي commits إضافية. لم نعدّل release ولم ننشر تطبيق الويب/Android/iOS.
+- iOS bundle identifier ما زال يحتاج قرار المالك؛ لا يتم اختراع Bundle ID. Android/Web builds وdevice acceptance تبقى NOT RUN وفق توجيه الاختبارات.
