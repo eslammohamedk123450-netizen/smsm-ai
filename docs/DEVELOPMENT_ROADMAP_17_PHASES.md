@@ -744,3 +744,77 @@ Continue the function-by-function security review, beginning with the anonymous 
 #### Next concrete action
 Continue auditing the remaining authenticated SECURITY DEFINER functions in groups, checking exact row ownership, privilege boundaries, returned columns, dynamic SQL, and mutation scope. In parallel, inspect Edge Function service-role access to the ten server-only tables. Only after the relevant paths are mapped should targeted regression tests and any least-privilege migration be prepared.
 
+### Session continuation: Provider credential read isolation — implemented and database-verified
+
+**Finding confirmed:** PostgreSQL ACLs showed `authenticated` had table-level SELECT on `public.ai_providers`. Its RLS policy limited rows to administrators, but an administrator using the client Data API could still read all columns, including `api_key`, `encrypted_api_key`, and `api_key_vault_id`. This violated the server-only credential invariant.
+
+#### Compatibility investigation
+- Searched current mobile/web source for direct `ai_providers` table reads. No client-side direct SELECT was found.
+- The current admin provider list uses `suly_admin_list_providers()`, whose return shape contains only non-secret metadata.
+- The inspected Edge Function references use server-side provider access; `service_role` is retained.
+- Before the change, the ACL was SELECT-only for `authenticated`; `anon` had no SELECT, and `service_role` retained SELECT/INSERT/UPDATE/DELETE.
+
+#### Change implemented
+- Migration: `20261116100513_restrict_provider_secret_table_read.sql`
+- Database migration name/version: `restrict_provider_secret_table_read` / `20261116100513`
+- Change: `REVOKE SELECT ON TABLE public.ai_providers FROM authenticated;`
+- Regression test added: `supabase/tests/provider_secret_access_regression.sql`
+- GitHub PR: [#110 — revoke client read access to provider credentials](https://github.com/eslammohamedk123450-netizen/smsm-ai/pull/110)
+- Database migration was applied successfully to the connected Supabase project on 2026-11-16. The PR is the source-control handover for the migration and test.
+
+#### Verification performed
+- Executed the regression SQL against the connected Supabase database: **PASS**.
+- Post-migration catalog check confirmed:
+  - `anon` SELECT on `ai_providers`: false.
+  - `authenticated` SELECT on `ai_providers`: false.
+  - `authenticated` SELECT on `api_key`, `encrypted_api_key`, and `api_key_vault_id`: false.
+  - `service_role` SELECT on `ai_providers`: true.
+  - Authenticated EXECUTE on safe `suly_admin_list_providers()`: true.
+  - Anonymous EXECUTE on that admin RPC: false.
+- Regression test also confirmed a non-admin authenticated context is denied by the admin-list RPC.
+- No provider secret value was selected, copied, or exposed during this work.
+
+#### Remaining verification
+- [~] Confirm the real admin UI still loads provider metadata through the safe RPC in an authenticated browser session. The database function signature and grants are preserved, but no visual/browser session test was available in this work session.
+- [ ] Run the full Edge Function integration smoke test to confirm server-side provider lookups continue to work with `service_role`.
+- [ ] Re-run the full app build and admin regression suite after PR merge.
+- [ ] Continue auditing the remaining authenticated-executable SECURITY DEFINER functions; this targeted fix does not complete Phase 16.
+
+**Current status:** The database access restriction is implemented and its privilege regression test passed. The corresponding migration/test are in PR #110 pending source-control merge and app-level verification.
+
+#### Post-fix regression expansion — 2026-11-16
+- Re-ran `supabase/tests/provider_secret_access_regression.sql`: **PASS**.
+- Re-ran `supabase/tests/model_routing_governance_regression.sql`: **PASS**; required routes, provider-enabled eligibility, media/provider freeze, and direct route-write denial remain intact.
+- Re-ran `supabase/tests/model_price_admin_access_regression.sql`: **PASS**; non-admin access to pricing mutation RPCs remains denied.
+- Inspected the current `sync-models` Edge Function: it uses a server-side service-role client for provider reads, separately validates the caller JWT and administrator status using the caller-scoped client, and returns discovery counts/status rather than the API key.
+- Current app code references provider metadata through the guarded admin RPC; no direct mobile/web read of `ai_providers` was found in the code search.
+- These SQL regressions and code inspection do not replace a live authenticated admin UI test or full provider request smoke test.
+
+**Updated status:** Database privilege hardening and three targeted SQL regressions are complete. PR #110 remains subject to its current GitHub Actions checks before merge.
+
+### Next security finding identified: Activation-code attempt throttling
+
+**Status:** [>] INVESTIGATION REQUIRED — no rate-limit code changed in this session.
+
+#### Evidence
+- `suly_activate_feature(uuid,text)` is restricted to the service role, hashes the submitted code with SHA-256, locks the matching activation-code row, checks active/expiry/max-use conditions, and increments usage atomically. It does not expose the raw stored code.
+- The admin UI's default code generator uses Expo Crypto `randomUUID()`, producing a high-entropy UUID-based bearer code. The UI also permits an administrator to enter a custom code of 12 or more characters.
+- In `ai-router/index.ts`, activation is processed before the later `reserve_credits` call. The earlier `suly_claim_ai_request` RPC provides idempotency and request ownership checks, but it is not a request-rate limiter.
+- The legacy `suly_check_ai_rate_limit(uuid)` was changed by migration `037_credit_gated_text_chat_no_daily_limit.sql` to delegate text-chat gating to credits; its current implementation no longer increments the old `suly_ai_rate_limits.request_count` or applies a request limit.
+- The existing `suly_ai_rate_limits` table remains RLS-protected from client roles and service-role-only, but its old per-user counter is not currently used by the activation path.
+
+#### Assessment
+- No direct way for an unauthenticated user to call `suly_activate_feature` was found; the RPC requires the service role and is invoked by the authenticated chat Edge Function.
+- Generated UUID-based codes have high entropy, so this is not evidence that those codes can practically be guessed.
+- However, the activation path currently has no explicit per-user attempt throttle before checking a custom or weak code, and activation commands return before the credit reservation. This leaves an avoidable abuse/guessing path if a manually entered code is predictable. External platform-level rate limits were not verified and must not be assumed.
+
+#### Planned remediation
+- [ ] Add an atomic service-role-only per-user activation-attempt limiter before calling `suly_activate_feature`.
+- [ ] Inspect whether the existing `suly_ai_rate_limits` table can safely be reused without conflicting with any other consumer; avoid a duplicate table unless necessary.
+- [ ] Choose and document a conservative retry policy, and ensure it affects activation attempts only—not ordinary chat or HIMS resource retrieval.
+- [ ] Fail closed if the limiter cannot be checked; return a safe localized retry message without testing the submitted code.
+- [ ] Add SQL regression coverage for per-user limits, cooldown, concurrency/atomicity, and denial of client access.
+- [ ] Verify that valid activation, already-active responses, max-use accounting, and ordinary chat behavior remain unchanged.
+
+**Next concrete action:** Finish PR #110's CI and merge the provider-secret permission fix. Then implement activation throttling as a separate focused migration/Edge Function change and record its test evidence here.
+
