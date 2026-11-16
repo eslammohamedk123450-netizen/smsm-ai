@@ -135,6 +135,7 @@ export default function ChatPage() {
   const [ratingSaving, setRatingSaving] = useState(false);
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const [selectedModelProfile, setSelectedModelProfile] = useState<"auto" | "lite" | "pro" | "max">("auto");
+  const [actualModelUsed, setActualModelUsed] = useState<string | null>(null);
   const [subscriptionTier, setSubscriptionTier] = useState("free");
   const [modelProfiles, setModelProfiles] = useState(DEFAULT_SULY_PROFILES);
   const suggestions = isArabic ? TASK_SUGGESTIONS : TASK_SUGGESTIONS_EN;
@@ -358,6 +359,7 @@ export default function ChatPage() {
         }
         await chatService.sendMessage({
           conversationId: conversationKey,
+          onModelInfo(identifier) { setActualModelUsed(identifier); },
           content,
           modelProfileKey: selectedModelProfile,
           writeApproval,
@@ -753,6 +755,7 @@ export default function ChatPage() {
               ? (isArabic ? "الوضع التلقائي يختار المستوى الأنسب للمهمة من المستويات المتاحة في اشتراكك." : "Auto selects the best available mode for your task and subscription.")
               : localizedModelProfiles.find((profile) => profile.profile_key === selectedModelProfile)?.description ?? (isArabic ? "المستوى المحدد سيُستخدم كما اخترته دون تخفيض تلقائي." : "The selected mode will be used as chosen, without automatic downgrade.")}
           </Text>
+          {actualModelUsed ? <Text style={{ color: colors.textMuted, textAlign: isArabic ? "right" : "left", fontSize: 10 }}>{isArabic ? "النموذج المستخدم فعليًا: " : "Actual model used: "}{actualModelUsed}</Text> : null}
         </View>
 
         {error ? <Pressable onPress={() => setError(null)} style={styles.errorBox}><Text style={styles.errorText}>{error}  ×</Text></Pressable> : null}
