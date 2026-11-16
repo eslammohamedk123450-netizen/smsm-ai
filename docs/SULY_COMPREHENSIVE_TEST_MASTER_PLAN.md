@@ -84,6 +84,7 @@ A test group passes only when all required cases pass or the owner explicitly ac
 - Arabic/English messages, long messages, Unicode, RTL, and network interruptions.
 - Verify no false claim that a model/tool ran when server routing did not confirm it.
 - Verify the inline last-response model label appears only after a server-confirmed model event, is localized, and is cleared when a new response begins; verify no selected-profile label is presented as actual routing provenance.
+- Verify retry clears the prior response's actual-model label and displays only the model identifier confirmed by the retry stream.
 
 ### Test Group 7 — Central Agent planning and durable task runtime
 - Simple chat stays fast and does not spawn a task unnecessarily.
@@ -107,6 +108,8 @@ A test group passes only when all required cases pass or the owner explicitly ac
 - Model version/capability/provider/cost metadata matches verified catalog.
 - Disabled/frozen/unverified providers receive no new calls.
 - Verify selected vs actual routed model is represented truthfully.
+- If the catalog RPC fails or returns malformed data, no local fallback profile is selectable or represented as server-verified; Auto remains safe and the unavailable state is explicit.
+- Verify Ultra remains unavailable unless its server catalog, permission, provider, and routing metadata are all verified.
 
 ### Test Group 10 — Studio, media generation, and media security
 - Image/video/audio transcription workflows, validation, size/duration limits, quotas, and cost guardrails.
@@ -114,6 +117,8 @@ A test group passes only when all required cases pass or the owner explicitly ac
 - Authenticated upload and private delivery; signed URL expiry and ownership.
 - Agent-triggered media job from chat returns result to the same conversation and appropriate Studio/Library reference.
 - Verify no cross-user media access and no charge for work not performed.
+- Missing, zero, or unverified image-generation price must block both UI submission and server-side generation; no zero-cost assumption is allowed.
+- Video/audio/transcription entries remain unavailable until their provider, execution path, verified pricing, and output delivery are configured.
 
 ### Test Group 11 — Library, files, and storage lifecycle
 - List/search/filter/preview/download where supported.
@@ -121,6 +126,7 @@ A test group passes only when all required cases pass or the owner explicitly ac
 - Signed URL scope/expiry, storage quota, unsupported files, malware/content validation if configured.
 - Delete/archive/retention behavior and audit records.
 - Verify generated outputs remain associated with the correct user/conversation/task.
+- Audio MIME types are discoverable through the audio filter and labeled as audio without changing or corrupting the existing raw/document storage-kind contract.
 
 ### Test Group 12 — Projects and conversation grouping
 - Create/list/update/archive/restore/delete projects.
