@@ -368,7 +368,7 @@ async function runManualTest(serviceClient: SupabaseClient, modelId: number): Pr
     checkKey,
     result,
   );
-  await syncTextCapabilityEvidence(serviceClient, model, provider, checkKey, result, eligibility.isRestricted);
+  await syncTextCapabilityEvidence(serviceClient, model, provider, checkKey, result, eligibility.skip || eligibility.isRestricted);
   return jsonResponse({ model_id: model.id, status: result.status, duration_ms: result.duration_ms, error_code: result.error_code });
 }
 
