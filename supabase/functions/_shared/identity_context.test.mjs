@@ -21,7 +21,9 @@ test("inactive identity context never mentions HIMS and has no badge", () => {
 test("active identity context includes the HIMS instructions and verified badge metadata", () => {
   const context = buildSulyIdentityContext(true);
   assert.ok(context.systemPrompt.includes("أنت Suly، مساعد ذكي."));
-  assert.ok(context.systemPrompt.includes("نظام HIMS"));
+  assert.ok(context.systemPrompt.includes("أسئلته الدراسية"));
+  assert.ok(context.systemPrompt.includes("لا تذكر HIMS أو التفعيل"));
+  assert.ok(context.systemPrompt.includes("داخل المحادثة نفسها"));
   assert.ok(context.systemPrompt.includes(JSON.stringify({ badges: ["HIMS"] })));
   assert.deepEqual(context.userMetadata, { badges: ["HIMS"] });
 });
