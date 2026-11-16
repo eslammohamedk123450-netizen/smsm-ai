@@ -163,6 +163,13 @@ Acceptance:
 
 **Owner direction (2026-11-16):** Prepare and organize the existing HIMS environment and authorized content-delivery path now. Defer student account, lecture retrieval, and end-to-end experience testing until the owner supplies test accounts and the real lecture/content source.
 
+**Environment path inspected (code/schema only):**
+- The central `ai-router` calls `isFeatureResourceRequest` before loading feature context. Greetings and general study questions do not satisfy the explicit resource-intent patterns; short follow-ups such as “send it” are recognized only when recent user messages mention a lecture/file/resource.
+- `suly_feature_context(uuid)` is executable by `service_role` only and reads active feature resources; the router adds the resulting resource context only for an activated feature and an explicit resource request.
+- Private HIMS media delivery in `media-gateway` requires both `suly_profiles.hims_activated = true` and an active `suly_feature_resources` row referencing that exact media asset.
+- The profile entitlement column is now additionally protected by revoked client DML grants. The HIMS resource-gating rollback regression from PR #116 passed.
+- This confirms the code/schema delivery path is prepared; it does not prove real student downloads until the owner supplies content and test accounts.
+
 Known evidence:
 - PR #96 — conversational HIMS behavior: ordinary greetings/small talk should not trigger the education workflow; general study questions remain natural.
 - One active HIMS resource was observed in the database at the latest review. The owner still needs to provide/confirm the real lecture/content source before content completeness can be verified.
@@ -960,6 +967,16 @@ Also re-executed the activation-throttle SQL regression: **PASS** for client ACL
 - Leaked-password protection remains disabled by owner decision until the owner upgrades to a plan that exposes the setting. This is an accepted deferred item, not a code fix.
 - HIMS work for this session is limited to preparing the existing environment and preserving the current entitlement/content access boundary. Student experience testing and real lecture delivery are deferred until the owner supplies test accounts and the actual lecture/content source.
 - No synthetic course content or fake student test results were created.
+
+#### Phase 5 route and access source audit
+
+- The five navigation destinations remain `/home`, `/conversations`, `/studio`, `/media`, and `/settings`.
+- Existing routes remain in the protected Expo route tree: `/tasks`, `/chat`, `/hims`, `/balance`, `/upgrade`, `/support`, `/integrations`, `/image-studio`, and `/video-studio`.
+- `/hims` redirects to the central chat as designed; no separate HIMS assistant or main-navigation destination was introduced.
+- The Settings screen still exposes balance/credit history, support, and connected apps. Dedicated balance and upgrade routes remain available.
+- Admin routes remain outside ordinary navigation. The protected admin layout checks `suly_is_admin()`, redirects denied users to Home, and fails closed if the check errors.
+- Navigation source inspection confirms mobile bottom navigation, keyboard-aware hiding on native, a web sidebar at widths of 900px or more, and SafeArea handling.
+- This is a route/source audit only; actual navigation clicks, visual browser testing, and Android/iOS device checks remain outstanding.
 
 #### Phase 5 Home implementation in this branch
 
