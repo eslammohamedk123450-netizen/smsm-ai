@@ -528,6 +528,8 @@ Acceptance:
 
 **Current status:** [>] The shared theme provider supports persisted system/light/dark selection. A hydration flash has now been addressed; hard-coded palette usage and visual route verification remain.
 
+**Additional Phase 14 work in progress (2026-11-16):** A focused follow-up branch now migrates the Balance screen's fixed dark-only palette to the shared `ThemePalette` tokens, and updates Toast, IconButton, BottomSheet, AttachSheet, SharedConversationPage, and ShareConversationSheet to consume `useSulyTheme()` rather than independently reading the OS color scheme. This fixes a real mismatch where a saved in-app light/dark choice could be ignored by shared surfaces. The changes are pending CI and merge; full visual/browser/device coverage and the remaining hard-coded color audit are still open.
+
 New implementation (2026-11-16):
 - `SulyThemeProvider` now waits for the persisted appearance preference to load before mounting app screens, preventing a first-render flash in the wrong theme. While loading it shows a palette-backed neutral surface.
 - Migrated all 11 audited legacy static `colors` imports to the active theme hook or system-aware palette (including auth screens/layouts, chat, balance, admin users, and Brain task UI). The remaining source scan finds 26 files with literal color values; some are intentional brand/status/code colors, while others need per-screen classification and replacement. No blind global replacement was applied.
