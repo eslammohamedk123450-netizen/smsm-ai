@@ -575,6 +575,47 @@ export const adminService = {
     return results;
   },
 
+  async getConversationsPage(page = 0, pageSize = 50, search = "") {
+    await requireAdmin();
+    const safePage = Number.isSafeInteger(page) ? Math.min(100_000, Math.max(0, page)) : 0;
+    const safePageSize = Number.isSafeInteger(pageSize) ? Math.min(100, Math.max(1, pageSize)) : 50;
+    const queryText = search.trim().slice(0, 100).replace(/[,%()\\*]/g, " ").trim();
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(queryText);
+    let matchingUserIds: string[] = [];
+    if (queryText && !isUuid) {
+      const escapedSearch = queryText.replaceAll("\\", "\\\\").replaceAll('"', '\\"').replaceAll("%", "\\%").replaceAll("_", "\\_").replaceAll("*", "\\*");
+      const pattern = `"%${escapedSearch}%"`;
+      const { data: people, error: peopleError } = await supabase.from("suly_profiles")
+        .select("id").or(`email.ilike.${pattern},full_name.ilike.${pattern}`).limit(100);
+      if (peopleError) throw peopleError;
+      matchingUserIds = (people ?? []).map((person) => String(person.id));
+    }
+    let query = supabase.from("suly_conversations")
+      .select("id,user_id,title,created_at,updated_at", { count: "exact" })
+      .order("updated_at", { ascending: false })
+      .range(safePage * safePageSize, (safePage + 1) * safePageSize - 1);
+    if (queryText) {
+      if (isUuid) query = query.or(`id.eq.${queryText},user_id.eq.${queryText}`);
+      else {
+        const escapedSearch = queryText.replaceAll("\\", "\\\\").replaceAll('"', '\\"').replaceAll("%", "\\%").replaceAll("_", "\\_").replaceAll("*", "\\*");
+        const pattern = `"%${escapedSearch}%"`;
+        const filters = [`title.ilike.${pattern}`];
+        if (matchingUserIds.length) filters.push(`user_id.in.(${matchingUserIds.join(",")})`);
+        query = query.or(filters.join(","));
+      }
+    }
+    const { data, error, count } = await query;
+    if (error) throw error;
+    const rows = (data ?? []) as Array<{ id: string; user_id: string; title: string | null; created_at: string; updated_at: string }>;
+    const ids = [...new Set(rows.map((row) => row.user_id))];
+    const { data: people, error: profileError } = ids.length
+      ? await supabase.from("suly_profiles").select("id,email,full_name").in("id", ids)
+      : { data: [], error: null };
+    if (profileError) throw profileError;
+    const profiles = Object.fromEntries((people ?? []).map((person) => [String(person.id), person]));
+    return { conversations: rows, profiles, total: count ?? 0, page: safePage, pageSize: safePageSize };
+  },
+
   async getUsersPage(page = 0, pageSize = 50, search = "", filter: "all" | "active" | "banned" = "all") {
     await requireAdmin();
     const safePage = Number.isSafeInteger(page) ? Math.min(100_000, Math.max(0, page)) : 0;
