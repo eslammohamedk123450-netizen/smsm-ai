@@ -4,6 +4,7 @@ import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, TextInput,
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import * as Clipboard from "expo-clipboard";
 import { adminService, type HimsActivationCode, type HimsResource } from "./admin-service";
+import { parseHimsExpiryDate } from "./hims-admin-validation";
 import { confirmAdminAction } from "./admin-confirm";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
@@ -80,16 +81,9 @@ export function HimsAdminScreen() {
     const uses = maxUses.trim() ? Number(maxUses) : null;
     if (normalized.length < 12) { setError("اكتب كودًا من 12 حرفًا على الأقل أو اضغط توليد كود."); return; }
     if (uses !== null && (!Number.isSafeInteger(uses) || uses < 1)) { setError("عدد الاستخدامات يجب أن يكون رقمًا صحيحًا موجبًا."); return; }
-    let expiresAt: string | null = null;
-    if (codeExpiresAt.trim()) {
-      const dateValue = codeExpiresAt.trim();
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) { setError("اكتب تاريخ الانتهاء بصيغة YYYY-MM-DD أو اتركه فارغًا."); return; }
-      const calendarDate = new Date(`${dateValue}T00:00:00.000Z`);
-      const endOfDay = new Date(`${dateValue}T23:59:59`);
-      if (!Number.isFinite(calendarDate.getTime()) || calendarDate.toISOString().slice(0, 10) !== dateValue) { setError("تاريخ انتهاء الكود غير صحيح."); return; }
-      if (!Number.isFinite(endOfDay.getTime()) || endOfDay.getTime() <= Date.now()) { setError("تاريخ انتهاء الكود يجب أن يكون في المستقبل."); return; }
-      expiresAt = endOfDay.toISOString();
-    }
+    let expiresAt: string | null;
+    try { expiresAt = parseHimsExpiryDate(codeExpiresAt); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "تاريخ انتهاء الكود غير صحيح."); return; }
     setBusy(true); setError(null); setNotice(null);
     try {
       const created = await adminService.createHimsActivationCode({ code: normalized, label: codeLabel, maxUses: uses, expiresAt });
