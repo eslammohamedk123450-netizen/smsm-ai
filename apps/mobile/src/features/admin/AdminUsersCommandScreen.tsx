@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { useLocalSearchParams } from "expo-router";
@@ -21,6 +21,8 @@ export function AdminUsersCommandScreen() {
   const [totalUsers, setTotalUsers] = useState(0);
   const pageSize = 50;
   const [search, setSearch] = useState(typeof q === "string" ? q : "");
+  const [debouncedSearch, setDebouncedSearch] = useState(typeof q === "string" ? q : "");
+  const requestVersion = useRef(0);
   const [filter, setFilter] = useState<Filter>("all");
   const [selected, setSelected] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,9 +38,27 @@ export function AdminUsersCommandScreen() {
   const [subscriptionExpiresAt, setSubscriptionExpiresAt] = useState("");
   const [subscriptionReason, setSubscriptionReason] = useState("");
   const [subscriptionBusy, setSubscriptionBusy] = useState(false);
-  const load = async () => { setLoading(true); setError(null); try { const result = await adminService.getUsersPage(page, pageSize, search, filter); setUsers(result.users as User[]); setTotalUsers(result.total); } catch { setError("تعذر تحميل المستخدمين. تحقق من صلاحية الأدمن وسياسات RLS."); } finally { setLoading(false); } };
-  useEffect(() => { void load(); }, [page, search, filter]);
-  useEffect(() => { if (typeof q === "string") setSearch(q); }, [q]);
+  const load = async () => {
+    const request = ++requestVersion.current;
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await adminService.getUsersPage(page, pageSize, debouncedSearch, filter);
+      if (request !== requestVersion.current) return;
+      setUsers(result.users as User[]);
+      setTotalUsers(result.total);
+    } catch {
+      if (request === requestVersion.current) setError("تعذر تحميل المستخدمين. تحقق من صلاحية الأدمن وسياسات RLS.");
+    } finally {
+      if (request === requestVersion.current) setLoading(false);
+    }
+  };
+  useEffect(() => {
+    const timeout = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timeout);
+  }, [search]);
+  useEffect(() => { void load(); return () => { requestVersion.current += 1; }; }, [page, debouncedSearch, filter]);
+  useEffect(() => { if (typeof q === "string") { setSearch(q); setPage(0); setSelected([]); } }, [q]);
   const filtered = users;
   const allVisibleSelected = filtered.length > 0 && filtered.every((user) => selected.includes(user.id));
   const toggleSelect = (id: string) => setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
