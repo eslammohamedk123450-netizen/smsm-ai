@@ -100,6 +100,7 @@ A test group passes only when all required cases pass or the owner explicitly ac
 - Concurrent cancellation/retry/completion races settle exactly once.
 - Repeated callbacks and duplicate requests do not create duplicate ledger entries.
 - Verify task status, user-facing explanation, and ledger agree.
+- Verify queued cancellation is reported as cancelled-before-start, while a running cancellation is reported as a safe stop only after the worker confirms terminal cancellation; no premature success message.
 
 ### Test Group 9 — Model catalog, selector, permissions, and routing
 - All four profiles (Lite/Pro/Max/Ultra) are displayed with accurate available/restricted labels.
