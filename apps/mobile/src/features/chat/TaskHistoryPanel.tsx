@@ -5,7 +5,6 @@ import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { BottomSheet } from "../../components/ui/BottomSheet";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import { useAppLocale } from "../../theme/LocaleProvider";
-import type { ThemePalette } from "../../theme/colors";
 import { listTaskHistory, type TaskHistoryItem } from "../brain/task-service";
 
 const STATUS_AR: Record<TaskHistoryItem["status"], string> = {
@@ -26,7 +25,7 @@ const STATUS_EN: Record<TaskHistoryItem["status"], string> = {
 export function TaskHistoryPanel() {
   const { colors } = useSulyTheme();
   const { isArabic } = useAppLocale();
-  const styles = useMemo(() => createStyles(colors, isArabic), [colors, isArabic]);
+  const styles = useMemo(() => createStyles(isArabic), [colors, isArabic]);
   const [items, setItems] = useState<TaskHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -102,7 +101,7 @@ export function TaskHistoryPanel() {
   );
 }
 
-const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.create({
+const createStyles = (isArabic: boolean) => StyleSheet.create({
   container: { flex: 1, minHeight: 180 },
   loading: { marginTop: 28 },
   list: { gap: 10, paddingBottom: 24 },
