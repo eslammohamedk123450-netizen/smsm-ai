@@ -11,8 +11,8 @@ export function StudioScreen() {
   const { colors } = useSulyTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const services = [
-    { key: "image", title: "توليد الصور", description: "أنشئ صورًا جديدة أو عدّل صورك.", icon: "image-outline" as const, route: "/image-studio", ready: true },
-    { key: "video", title: "توليد الفيديو", description: "حوّل أفكارك إلى مقاطع فيديو.", icon: "videocam-outline" as const, route: "/video-studio", ready: true },
+    { key: "image", title: "توليد الصور", description: "كتالوج النماذج والأسعار جاهز، لكن تفعيل التوليد ينتظر ربط تكلفة الخدمة بالرصيد واختبار المسار.", icon: "image-outline" as const, route: "/image-studio", ready: false },
+    { key: "video", title: "توليد الفيديو", description: "نماذج الفيديو وأسعارها مسجلة؛ مسار التوليد داخل SULY لم يُتحقق منه بعد.", icon: "videocam-outline" as const, route: "/video-studio", ready: false },
     { key: "audio", title: "توليد الصوت", description: "أنشئ تعليقًا صوتيًا ومقاطع صوتية.", icon: "musical-notes-outline" as const, route: "", ready: false },
     { key: "transcription", title: "تفريغ الصوت", description: "حوّل التسجيلات إلى نص قابل للبحث.", icon: "document-text-outline" as const, route: "", ready: false },
   ];
