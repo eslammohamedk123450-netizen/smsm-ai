@@ -37,12 +37,23 @@ begin
      or p_model_identifier is null or length(btrim(p_model_identifier)) not between 1 and 200
      or p_endpoint_url is null
      or p_endpoint_url !~* '^https://[^/@[:space:]]+(/[^[:space:]]*)?$'
+     or p_is_active is null or p_is_default is null
      or coalesce(cardinality(p_allowed_tiers), 0) = 0
-     or not (p_allowed_tiers <@ array['free','lite','pro','max']::text[])
-     or cardinality(p_allowed_tiers) <> (select count(distinct tier) from unnest(p_allowed_tiers) as tier)
-     or p_prices is null or jsonb_typeof(p_prices) <> 'array'
-     or jsonb_array_length(p_prices) <> 4 then
+     or array_position(p_allowed_tiers, null) is not null
+     or not (p_allowed_tiers <@ array['free','lite','pro','max']::text[]) then
     raise exception 'invalid image model configuration' using errcode = '22023';
+  end if;
+
+  if p_prices is null or jsonb_typeof(p_prices) <> 'array' then
+    raise exception 'price rows must be a JSON array' using errcode = '22023';
+  end if;
+  if jsonb_array_length(p_prices) <> 4 then
+    raise exception 'exactly four quality price rows are required' using errcode = '22023';
+  end if;
+  if cardinality(p_allowed_tiers) <> (
+    select count(distinct allowed.value) from unnest(p_allowed_tiers) as allowed(value)
+  ) then
+    raise exception 'duplicate subscription tiers are not allowed' using errcode = '22023';
   end if;
 
   if not exists (
