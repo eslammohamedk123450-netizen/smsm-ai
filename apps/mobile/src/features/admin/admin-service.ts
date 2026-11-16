@@ -163,7 +163,7 @@ export const adminService = {
       url: resource.media_asset_id ? await getMediaDeliveryUrl(resource.media_asset_id) : resource.url ?? "",
     })));
   },
-  async createHimsResource(input: { title: string; url: string; kind: string; description: string; mediaAssetId?: string | null }) {
+  async createHimsResource(input: { title: string; url: string; kind: string; description: string; mediaAssetId?: string | null }, isActive = true) {
     await requireAdmin();
     const { data, error } = await supabase.rpc("suly_admin_upsert_feature_resource_v2", {
       p_feature_key: "hims",
@@ -171,11 +171,14 @@ export const adminService = {
       p_url: input.mediaAssetId ? null : input.url.trim(),
       p_kind: input.kind.trim() || "lecture",
       p_description: input.description.trim() || null,
-      p_is_active: true,
+      p_is_active: isActive,
       p_media_asset_id: input.mediaAssetId ?? null,
     });
     if (error) throw error;
-    return data as { success?: boolean; id?: string; feature_key?: string };
+    if (!data || data.success !== true || typeof data.id !== "string") {
+      throw new Error("لم تؤكد قاعدة البيانات حفظ مورد HIMS.");
+    }
+    return data as { success: true; id: string; feature_key: string; media_asset_id: string | null };
   },
 
   async setHimsResourceActive(resource: HimsResource, isActive: boolean) {
