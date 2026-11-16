@@ -1010,6 +1010,22 @@ Updated `apps/mobile/src/features/home/HomeScreen.tsx`:
 - **Phase 5 Home:** PR #117 merged and GitHub Pages deployment succeeded. Code CI passed (TypeScript, auth tests, Web static export, Android/iOS JS exports). Visual route/device regression remains.
 
 
+
+
+### Phase 6 continuation — conversation mode selector placement — 2026-11-16
+
+- Re-inspected the current `release/v1` chat screen, chat service, execution-mode resolver, intent classifier, and unified-agent architecture before changing code.
+- Confirmed the Auto/Lite/Pro/Max profile selector was rendered immediately above the composer, inside the keyboard-adjacent area. This contradicted the approved requirement that model mode selection remain in the chat header/top area and not compete with the keyboard.
+- Moved the existing selector into a dedicated row directly below the conversation app bar. The profile choices are horizontally scrollable on narrow screens; existing localized labels, tier-lock checks, profile descriptions, and request payload semantics are unchanged.
+- No model routes, subscription rules, credit logic, Agent orchestration, database schema, or provider settings were changed.
+- Implementation is in PR #119: https://github.com/eslammohamedk123450-netizen/smsm-ai/pull/119
+- Branch: `feat/phase6-conversation-header-mode-20261116`; initial commit: `cb342edac36933b945b9938e4d43846faf9ff398`.
+- GitHub Actions run `43853785434` was in progress at the time of this record. Do not mark this change verified/merged until Expo typecheck, mobile regression tests, Web/Android/iOS exports, and Deno Agent tests/typecheck pass.
+- Visual browser/device confirmation remains unavailable and is not claimed.
+- Existing PR #83 for project workspaces remains open and based on an older release SHA; GitHub reports it as not mergeable. It was not merged or rebased automatically. Reconcile its changes against current release before using it in the Phase 6/9 work, to avoid stale or conflicting implementation.
+
+**Phase 6 status:** IN PROGRESS. This is a targeted UI correction only; remaining work includes authenticated chat/Agent end-to-end coverage, real task/stream/cancel/retry/partial-billing verification, actual model-used display where server evidence is available, and a broader conversation UI review.
+
 ### Post-merge verification — 2026-11-16
 
 - **PR #117:** merged successfully into `release/v1`.
