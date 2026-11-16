@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { useRouter } from "expo-router";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { supabase } from "../../lib/supabase/client";
 import { useSulyTheme } from "../../theme/ThemeProvider";
@@ -52,6 +53,7 @@ const makeComponent = (type: ComponentType): BuilderComponent => ({
 });
 
 export function AdminPageBuilderScreen() {
+  const router = useRouter();
   const { colors } = useSulyTheme();
   const { isArabic } = useAppLocale();
   const styles = useMemo(() => createStyles(colors, isArabic), [colors, isArabic]);
@@ -67,6 +69,7 @@ export function AdminPageBuilderScreen() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [preview, setPreview] = useState(false);
+  const [sourceSnapshots, setSourceSnapshots] = useState<Record<string, string>>({});
 
   const t = (ar: string, en: string) => isArabic ? ar : en;
   const loadPages = useCallback(async () => {
@@ -140,7 +143,7 @@ export function AdminPageBuilderScreen() {
     finally { setSaving(false); }
   };
 
-  const renderPreviewComponent = (component: BuilderComponent) => (
+  useEffect(() => {\n    if (!preview) return;\n    let active = true;\n    const sources = [...new Set(components.map((item) => item.source).filter((source) => source !== "none"))];\n    void Promise.all(sources.map(async (source) => {\n      const { data, error: rpcError } = await supabase.rpc("suly_admin_custom_page_source", { p_source: source });\n      return [source, rpcError ? t("مصدر البيانات غير متاح", "Data source unavailable") : JSON.stringify(data, null, 2)] as const;\n    })).then((entries) => { if (active) setSourceSnapshots(Object.fromEntries(entries)); });\n    return () => { active = false; };\n  }, [preview, components, isArabic]);\n\n  const renderPreviewComponent = (component: BuilderComponent) => (
     <View key={component.id} style={styles.previewComponent}>
       <Text style={styles.componentTitle}>{component.title || t("مكون بدون عنوان","Untitled component")}</Text>
       {component.type === "metric" ? <Text style={styles.metricValue}>{component.value || "—"}</Text> : null}
@@ -148,7 +151,7 @@ export function AdminPageBuilderScreen() {
       {component.type === "status" ? <Text style={styles.statusText}>{component.label || t("غير محدد","Unspecified")}</Text> : null}
       {component.type === "list" ? component.items.map((item, index) => <Text key={index} style={styles.bodyText}>• {item}</Text>) : null}
       {component.type === "table" ? <Text style={styles.hint}>{t("معاينة جدول ثابت — الأعمدة والصفوف محفوظة في الإصدار.","Static table preview — columns and rows are stored in this version.")}</Text> : null}
-      {component.source !== "none" ? <Text style={styles.sourceTag}>{t("مصدر بيانات مسموح: ","Allowed data source: ")}{SOURCES.find((source) => source.value === component.source)?.[isArabic ? "ar" : "en"]}</Text> : null}
+      {component.source !== "none" ? <Text style={styles.sourceTag}>{t("بيانات المصدر: ","Source data: ")}{sourceSnapshots[component.source] ?? t("جارٍ التحميل…","Loading…")}</Text> : null}
     </View>
   );
 
@@ -168,10 +171,13 @@ export function AdminPageBuilderScreen() {
     <View style={styles.layout}>
       <View style={styles.panel}>
         <Text style={styles.panelTitle}>{t("الصفحات المحفوظة","Saved pages")}</Text>
-        {loading ? <ActivityIndicator color={colors.primary} /> : pages.length ? pages.map((page) => <Pressable key={page.id} onPress={() => void selectPage(page)} style={[styles.pageRow, selectedId === page.id && styles.pageRowActive]}>
-          <Text style={styles.pageRowTitle}>{page.title}</Text>
-          <Text style={styles.pageRowMeta}>{page.page_key} · v{page.version} · {page.status}</Text>
-        </Pressable>) : <Text style={styles.hint}>{t("لا توجد صفحات مخصصة بعد.","No custom pages yet.")}</Text>}
+        {loading ? <ActivityIndicator color={colors.primary} /> : pages.length ? pages.map((page) => <View key={page.id} style={[styles.pageRow, selectedId === page.id && styles.pageRowActive]}>
+          <Pressable onPress={() => void selectPage(page)} style={styles.pageSelect}>
+            <Text style={styles.pageRowTitle}>{page.title}</Text>
+            <Text style={styles.pageRowMeta}>{page.page_key} · v{page.version} · {page.status}</Text>
+          </Pressable>
+          {page.status === "published" ? <Pressable onPress={() => router.push({ pathname: "/admin/custom/[pageKey]", params: { pageKey: page.page_key } })} style={styles.outlineButton}><Text style={styles.outlineButtonText}>{t("فتح","Open")}</Text></Pressable> : null}
+        </View>) : <Text style={styles.hint}>{t("لا توجد صفحات مخصصة بعد.","No custom pages yet.")}</Text>}
       </View>
       <View style={styles.panel}>
         <Text style={styles.panelTitle}>{t("محرر الصفحة","Page editor")}</Text>
@@ -235,7 +241,7 @@ function createStyles(colors: ThemePalette, isArabic: boolean) {
     label: { color: colors.textSecondary, fontSize: 11, textAlign: isArabic ? "right" : "left" },
     input: { minHeight: 42, borderWidth: 1, borderColor: colors.inputBorder, backgroundColor: colors.inputBackground, color: colors.textPrimary, borderRadius: 8, paddingHorizontal: 10, textAlign: isArabic ? "right" : "left" },
     multiline: { minHeight: 86, textAlignVertical: "top", paddingTop: 10 },
-    pageRow: { borderWidth: 1, borderColor: colors.divider, borderRadius: 8, padding: 10, gap: 3 },
+    pageRow: { borderWidth: 1, borderColor: colors.divider, borderRadius: 8, padding: 10, gap: 7 }, pageSelect: { gap: 3 },
     pageRowActive: { borderColor: colors.primary, backgroundColor: colors.surfaceElevated },
     pageRowTitle: { color: colors.textPrimary, fontSize: 12, fontWeight: "700", textAlign: isArabic ? "right" : "left" },
     pageRowMeta: { color: colors.textMuted, fontSize: 10, textAlign: isArabic ? "right" : "left" },
