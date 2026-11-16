@@ -113,7 +113,7 @@ export function AdminPageBuilderScreen() {
       if (!components.length) throw new Error(t("أضف مكونًا واحدًا على الأقل.","Add at least one component."));
       const config = { components: components.map(({ id, ...component }) => component) };
       const { data, error: rpcError } = await supabase.rpc("suly_admin_save_custom_page", {
-        p_page_key: cleanKey, p_title: title.trim(), p_config: config,
+        p_page_id: selectedId, p_page_key: cleanKey, p_title: title.trim(), p_config: config,
         p_status: status, p_change_note: changeNote.trim() || null,
       });
       if (rpcError) throw rpcError;
@@ -156,7 +156,7 @@ export function AdminPageBuilderScreen() {
     <View style={styles.header}>
       <View style={styles.headerCopy}>
         <Text style={styles.heading}>{t("منشئ صفحات الإدارة","Admin page builder")}</Text>
-        <Text style={styles.subheading}>{t("صفحات مخصصة بمكونات ومصادر بيانات مسموحة فقط.","Custom pages using approved components and data sources only.")}</Text>
+        <Text style={styles.subheading}>{t("صفحات مخصصة بمكونات ومكونات ومصادر بيانات مسموحة فقط؛ مصادر البيانات المعروضة في هذه النسخة معرفات محجوزة حتى ربط adapters الحية.","Custom pages using approved components and data sources only. Data-source keys are reserved until live adapters are connected.")}</Text>
       </View>
       <Pressable onPress={newPage} style={styles.outlineButton}><Text style={styles.outlineButtonText}>{t("صفحة جديدة","+ New page")}</Text></Pressable>
     </View>
@@ -176,7 +176,7 @@ export function AdminPageBuilderScreen() {
       <View style={styles.panel}>
         <Text style={styles.panelTitle}>{t("محرر الصفحة","Page editor")}</Text>
         <Text style={styles.label}>{t("مفتاح الصفحة (إنجليزي)","Page key (English)")}</Text>
-        <TextInput value={pageKey} onChangeText={setPageKey} editable={!saving && !selectedId} placeholder="operations-summary" placeholderTextColor={colors.textMuted} autoCapitalize="none" style={styles.input} />
+        <TextInput value={pageKey} onChangeText={setPageKey} editable={!saving} placeholder="operations-summary" placeholderTextColor={colors.textMuted} autoCapitalize="none" style={styles.input} />
         <Text style={styles.label}>{t("عنوان الصفحة","Page title")}</Text>
         <TextInput value={title} onChangeText={setTitle} editable={!saving} style={styles.input} placeholder={t("مثال: متابعة التشغيل","e.g. Operations summary")} placeholderTextColor={colors.textMuted} />
         <View style={styles.sectionHeading}>
@@ -186,7 +186,11 @@ export function AdminPageBuilderScreen() {
         {components.map((component, index) => <View key={component.id} style={styles.componentEditor}>
           <View style={styles.sectionHeading}>
             <Text style={styles.componentTitle}>{index + 1}. {TYPES.find((type) => type.value === component.type)?.[isArabic ? "ar" : "en"]}</Text>
-            <Pressable onPress={() => setComponents((current) => current.filter((item) => item.id !== component.id))}><Text style={styles.removeText}>{t("حذف","Remove")}</Text></Pressable>
+            <View style={styles.actionRow}>
+              <Pressable disabled={index === 0} onPress={() => setComponents((current) => { const next = [...current]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; return next; })}><Text style={styles.outlineButtonText}>↑</Text></Pressable>
+              <Pressable disabled={index === components.length - 1} onPress={() => setComponents((current) => { const next = [...current]; [next[index + 1], next[index]] = [next[index], next[index + 1]]; return next; })}><Text style={styles.outlineButtonText}>↓</Text></Pressable>
+              <Pressable onPress={() => setComponents((current) => current.filter((item) => item.id !== component.id))}><Text style={styles.removeText}>{t("حذف","Remove")}</Text></Pressable>
+            </View>
           </View>
           <TextInput value={component.title} onChangeText={(value) => updateComponent(component.id, { title: value })} style={styles.input} placeholder={t("عنوان المكون","Component title")} placeholderTextColor={colors.textMuted} />
           {component.type === "metric" ? <TextInput value={component.value} onChangeText={(value) => updateComponent(component.id, { value })} style={styles.input} placeholder={t("القيمة الرقمية","Metric value")} placeholderTextColor={colors.textMuted} /> : null}
@@ -201,6 +205,7 @@ export function AdminPageBuilderScreen() {
         <View style={styles.actionRow}>
           <Pressable disabled={saving} onPress={() => void save("draft")} style={[styles.primaryButton, saving && styles.disabled]}><Text style={styles.primaryButtonText}>{saving ? t("جارٍ الحفظ…","Saving…") : t("حفظ كمسودة","Save draft")}</Text></Pressable>
           <Pressable disabled={saving} onPress={() => void save("published")} style={[styles.primaryButton, saving && styles.disabled]}><Text style={styles.primaryButtonText}>{t("نشر الصفحة","Publish page")}</Text></Pressable>
+          <Pressable disabled={saving || !selectedId} onPress={() => void save("hidden")} style={[styles.outlineButton, (!selectedId || saving) && styles.disabled]}><Text style={styles.outlineButtonText}>{t("إخفاء الصفحة","Hide page")}</Text></Pressable>
           <Pressable onPress={() => setPreview((value) => !value)} style={styles.outlineButton}><Text style={styles.outlineButtonText}>{preview ? t("إخفاء المعاينة","Hide preview") : t("معاينة","Preview")}</Text></Pressable>
         </View>
       </View>
