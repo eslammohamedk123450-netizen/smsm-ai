@@ -149,6 +149,7 @@ declare
   v_status text := coalesce(p_status,'draft');
   v_old_value jsonb;
   v_action text := 'custom_page_created';
+  v_is_update boolean := false;
 begin
   if not public.suly_is_admin() or v_user is null then
     raise exception 'administrator privileges required' using errcode = '42501';
@@ -168,12 +169,14 @@ begin
     if exists(select 1 from public.suly_admin_custom_pages p where p.page_key=v_key and p.id<>p_page_id) then
       raise exception 'page key already exists' using errcode = '23505';
     end if;
+    v_is_update := true;
   else
-    select * into v_page from public.suly_admin_custom_pages
-      where page_key = v_key for update;
+    if exists(select 1 from public.suly_admin_custom_pages p where p.page_key=v_key) then
+      raise exception 'page key already exists' using errcode = '23505';
+    end if;
   end if;
 
-  if found then
+  if v_is_update then
     v_old_value := jsonb_build_object('page_key',v_page.page_key,'title',v_page.title,'config',v_page.config,'status',v_page.status,'version',v_page.version);
     v_action := 'custom_page_updated';
     update public.suly_admin_custom_pages
