@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
-import { Animated, Modal, PanResponder, Pressable, StyleSheet, View, useColorScheme } from "react-native";
+import { Animated, Modal, PanResponder, Pressable, StyleSheet, View } from "react-native";
+import { useSulyTheme } from "../../theme/ThemeProvider";
 import { PremiumText as Text } from "./PremiumText";
-import { getThemeColors } from "../../theme/colors";
 import { theme } from "../../theme/theme";
 
 type Props = {
@@ -12,8 +12,7 @@ type Props = {
 };
 
 export function BottomSheet({ visible, title, onClose, children }: Props) {
-  const mode = useColorScheme() === "light" ? "light" : "dark";
-  const palette = getThemeColors(mode);
+  const { colors: palette } = useSulyTheme();
   const translateY = useRef(new Animated.Value(420)).current;
   const backdrop = useRef(new Animated.Value(0)).current;
   const panResponder = useMemo(() => PanResponder.create({
