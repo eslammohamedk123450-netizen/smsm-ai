@@ -121,6 +121,15 @@ A read-only Supabase Security Advisor snapshot on 2026-11-16 reported:
 
 These are review findings, not proof that each function is exploitable. Do not blanket-revoke grants or add broad RLS policies: inspect each function body, its `auth.uid()`/admin checks, grants, callers, and intended exposure first. Any remediation that changes production security behavior requires its own reviewed migration and isolated regression checks.
 
+## Development preview and production separation
+
+- GitHub Pages is a single published site for this repository; deploying a separate branch directly would replace the existing site. The Pages workflow therefore assembles one artifact with two isolated paths.
+- The stable production site is built only from `release/v1` and remains at the existing root path: `/smsm-ai/`.
+- The development preview is built from `develop` and published under `/smsm-ai/preview/`. Development pushes refresh the preview while the production root is rebuilt from the unchanged release branch.
+- Both builds use the same Expo application source structure and public Supabase configuration; they differ only by the Expo web base path and source branch.
+- Promoting a tested development change to `release/v1` remains an explicit reviewed action. No automatic merge or production source update is performed.
+- The combined Pages workflow is implemented on `develop`; the first preview deployment remains pending its current GitHub Actions build/deploy run. Do not announce a live preview URL until the Pages deployment succeeds and the preview path responds.
+
 ## Track B — required comprehensive verification
 
 - Admin/non-admin/expired-session checks for every route and for `admin-storage` (401/403 behavior).
