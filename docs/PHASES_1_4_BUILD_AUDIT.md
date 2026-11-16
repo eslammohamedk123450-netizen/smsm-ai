@@ -97,19 +97,23 @@ Read-only checks against Supabase project `razvryvazmqvvqkzetuo` confirmed:
 - `supabase/migrations/20261116150000_hims_activation_code_collision_guard.sql` changes duplicate hash handling to `DO NOTHING` followed by SQLSTATE 23505; existing code state is not modified.
 - `supabase/tests/hims_activation_code_collision_regression.sql` verifies a duplicate is rejected and prior disabled/used/label/limit state remains unchanged inside a rollback-only transaction.
 
-The migration has not been applied to the hosted project, and the regression SQL has not yet been run. The current execution environment has no Supabase CLI checkout, so the prescribed `supabase migration new` local generation and local database test workflow could not be performed here. No hosted schema changes were made.
+The migration source and rollback-only regression are implementation artifacts committed to `develop`. Applying the migration in an isolated test environment, running the SQL regression, reviewing rollback, and any live student/admin journey checks are deferred to Track B. No hosted schema changes were made.
 
 ### Phase 3 — student journey
 - Source-level parser, intent, and protected-resource paths are present.
-- Real student login/activation and actual lecture delivery are **BLOCKED — OWNER INPUT** until dedicated test accounts and the approved real lecture/content source are provided. No passwords or secrets should be sent in chat.
+- Real student login/activation and actual lecture delivery are **DEFERRED TO TRACK B**; use dedicated test accounts and approved lecture/content source at that time. No passwords or secrets should be sent in chat.
 
 ### Phase 4 — design system
 - Existing theme provider supports system/light/dark and persisted preference; shared tokens and reusable `SulyButton`, `SulyCard`, and `SulyScreen` primitives exist.
 - Muted text tokens were updated to dark `#888888` and light `#6B6B6B`.
 - Chat header credit pill, chat empty state, task prompt text, task icon surface, chat usage/share icons, selected rating stars, Home brand mark, and HIMS download icon now use shared semantic palette tokens rather than fixed light/dark colors.
 - Automated contrast coverage now checks primary/secondary/muted text against background, surface, elevated surface, card, and input backgrounds, plus primary button foreground/background.
-- The test file is included in the existing GitHub Actions Jest command. GitHub combined status and PR-triggered workflow lookup returned no checks/runs for the current development commits, so the updated test is committed but not reported as executed.
-- Full visual browser and Android/iOS device review remains unperformed.
+- The test file is included in the existing GitHub Actions Jest command. Current-commit CI execution, full visual browser review, and Android/iOS device review are **DEFERRED TO TRACK B**.
 
-### Current first-four-phase gate
-Phase 1 is complete at source-audit level. Phases 2–4 remain open. Therefore **the first four phases are not yet complete**, and Phase 5 must not start.
+### Current first-four-phase implementation disposition
+- Phase 1: implementation/source inventory complete.
+- Phase 2: HIMS security implementation and duplicate-hash guard migration source committed; migration execution and adversarial validation deferred to Track B.
+- Phase 3: central-chat HIMS intent and protected resource-delivery implementation present; real-user acceptance deferred to Track B.
+- Phase 4: shared semantic theme tokens, core-surface migration, and automated contrast regression source committed; full screen/device/accessibility validation deferred to Track B.
+
+**Rule:** Do not keep a build phase open only because its comprehensive tests have not yet run. Record all such tests in Track B. If Track B discovers a defect, create a linked implementation fix in Track A/develop and rerun the relevant case. This document records implementation status, not a claim that the product has passed comprehensive testing.
