@@ -17,7 +17,7 @@ const ITEMS = [
 
 function activeSection(pathname: string): string {
   if (pathname.startsWith("/studio") || pathname.startsWith("/image-studio") || pathname.startsWith("/video-studio")) return "studio";
-  if (pathname.startsWith("/media") || pathname.startsWith("/hims")) return "library";
+  if (pathname.startsWith("/media")) return "library";
   if (pathname.startsWith("/settings") || pathname.startsWith("/support") || pathname.startsWith("/upgrade") || pathname.startsWith("/balance") || pathname.startsWith("/integrations")) return "account";
   if (pathname.startsWith("/chat") || pathname.startsWith("/conversations") || pathname.startsWith("/tasks")) return "conversations";
   return "home";
