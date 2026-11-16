@@ -17,6 +17,7 @@ on:
     branches: [release/v1, develop, feat/agent-worker-brain-queue]
     paths:
       - "supabase/functions/ai-router/**"
+      - "supabase/functions/_shared/**"
       - "supabase/functions/sync-models/**"
       - "supabase/functions/image-generator/**"
       - "apps/mobile/src/features/admin/MediaGenerationModelsAdminScreen.tsx"
