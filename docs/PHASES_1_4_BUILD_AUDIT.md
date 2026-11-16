@@ -117,3 +117,14 @@ The migration source and rollback-only regression are implementation artifacts c
 - Phase 4: shared semantic theme tokens, core-surface migration, and automated contrast regression source committed; full screen/device/accessibility validation deferred to Track B.
 
 **Rule:** Do not keep a build phase open only because its comprehensive tests have not yet run. Record all such tests in Track B. If Track B discovers a defect, create a linked implementation fix in Track A/develop and rerun the relevant case. This document records implementation status, not a claim that the product has passed comprehensive testing.
+
+
+## متابعة تنفيذ HIMS — 2026-11-16 (بعد تحديث الخطة الرئيسية)
+- تصحيح سجل المرحلة 2: هجرة `20261116180955_hims_activation_code_collision_guard` موجودة في سجل هجرات مشروع Supabase المتصل، ومصدرها على develop يرفض تكرار hash ولا يغيّر سجل الكود الأصلي. لا تخلطها مع مسودة الهجرة الأقدم.
+- فحص صلاحيات القراءة أكد RLS ومنع صلاحيات الجدول المباشرة عن anon/authenticated لجداول الأكواد والاستحقاقات والموارد، وقصر `suly_activate_feature` على service_role.
+- فحص دوال الإدارة أكد وجود تحقق `auth.uid()` و`suly_is_admin()` في الدوال المفحوصة؛ لا تُسقط تحذيرات Advisor على أنها ثغرات مثبتة دون تدقيق كل دالة.
+- أضيفت اختبارات Deno لحد المحاولات fail-closed، وretry-after، وتنقية أخطاء التفعيل، ومنع جلب موارد HIMS للمستخدم غير المفعّل في `supabase/functions/_shared/feature_flags.test.ts`، commit `391feae982ad092eaba3214947e85064b97fb66e`.
+- لم يُنفذ اختبار SQL متغير للبيانات لأن Supabase project لا يحتوي حاليًا على فرع تطوير معزول؛ لم تُجرَ أي كتابة جديدة على قاعدة البيانات في هذه الدفعة.
+- **خطر متبقٍ:** سباق كودين مختلفين للمستخدم نفسه قد يزيد `used_count` للكود الثاني رغم أن إدخال الاستحقاق قد اصطدم بقيد فريد. يلزم اختبار متزامن وإصلاح ذري بهجرة جديدة في بيئة معزولة قبل إغلاق Phase 2.
+- Phase 3: تنفيذ المصدر في المحادثة العادية موجود؛ قبول طالب/مدير حقيقي وتسليم محتوى فعلي يظل BLOCKED حتى توفير حسابات اختبار ومحتوى معتمد.
+- Advisor snapshot الحالي: 12 RLS-without-policy informational findings، 2 extensions-in-public warnings، 1 anon SECURITY DEFINER public-share warning، 61 authenticated SECURITY DEFINER warnings، وleaked-password protection disabled. لم يتم تغيير أي إعداد منها في هذه الدفعة.
