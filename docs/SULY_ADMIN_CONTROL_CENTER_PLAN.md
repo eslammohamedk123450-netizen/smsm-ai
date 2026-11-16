@@ -57,6 +57,7 @@ No parallel admin application or replacement data model is introduced.
    - User directory totals and pagination now show unavailable after a failed load, and stale user rows/selections are cleared instead of being mistaken for current results.
    - Conversation metadata now uses server-side 50-row pagination with exact totals, debounced title/email/UUID search, and stale-request protection; conversation content remains hidden from this admin view.
    - Friction and feedback summaries now distinguish a failed summary request from a real zero-event/zero-rating period.
+   - Support inbox errors are shown inline on Web and native; a failed inbox query is no longer displayed as a genuine empty inbox.
 6. **HIMS resource lifecycle**
    - Added admin actions to edit resource metadata and to deactivate/reactivate existing HIMS resources without deleting their records or stored media.
    - Updates reuse the existing admin-guarded `suly_admin_upsert_feature_resource_v2` RPC, preserve the original URL/media-asset identity and prior active state, and require confirmation before changing visibility.
