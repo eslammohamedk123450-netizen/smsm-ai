@@ -104,6 +104,14 @@ export function MediaScreen() {
       <Pressable onPress={() => void load()}><Text style={styles.link}>تحديث</Text></Pressable>
     </View>
     <Text style={styles.explainer}>ارفع صورك وفيديوهاتك وملفاتك للوصول إليها بأمان. الصور تُضغط قبل الرفع لتوفير المساحة.</Text>
+    <Pressable accessibilityRole="button" onPress={() => router.push("/(protected)/hims")} style={styles.himsCard}>
+      <View style={styles.himsIcon}><Text style={styles.himsIconText}>H</Text></View>
+      <View style={styles.himsCopy}>
+        <Text style={styles.himsTitle}>محتوى الجامعة · HIMS</Text>
+        <Text style={styles.meta}>محاضراتك وملفاتك التعليمية، مع التحقق من صلاحية حسابك قبل عرض المحتوى.</Text>
+      </View>
+      <Text style={styles.himsArrow}>‹</Text>
+    </Pressable>
 
     {isAdmin && (
       <View style={styles.actions}>
@@ -174,6 +182,12 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   title: { color: colors.textPrimary, fontSize: 26, fontWeight: "800", textAlign: "right" },
   explainer: { color: colors.textSecondary, lineHeight: 21, textAlign: "right" },
+  himsCard: { flexDirection: "row-reverse", alignItems: "center", gap: 12, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.primary, backgroundColor: colors.surface },
+  himsIcon: { width: 42, height: 42, borderRadius: 12, backgroundColor: colors.surfaceElevated, alignItems: "center", justifyContent: "center" },
+  himsIconText: { color: colors.primary, fontWeight: "900", fontSize: 18 },
+  himsCopy: { flex: 1, gap: 3 },
+  himsTitle: { color: colors.textPrimary, fontWeight: "800", textAlign: "right" },
+  himsArrow: { color: colors.primary, fontSize: 25, fontWeight: "800" },
   actions: { flexDirection: "row", gap: 10, flexWrap: "wrap" },
   assetActions: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 12 },
   disabledText: { opacity: 0.5 },
