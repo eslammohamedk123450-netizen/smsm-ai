@@ -370,6 +370,7 @@ export const chatService = {
   async regenerateAssistant(options: {
     conversationId: string;
     history: ChatMessage[];
+    modelProfileKey?: "auto" | "lite" | "pro" | "max";
     requestId?: string;
     signal: AbortSignal;
     onChunk(text: string): void;
@@ -390,7 +391,8 @@ export const chatService = {
       media_asset_ids: latestUser?.attachments?.map((asset) => asset.id),
       request_id: options.requestId ?? randomUUID(),
       messages,
-      routing_mode: "auto",
+      routing_mode: options.modelProfileKey && options.modelProfileKey !== "auto" ? "manual" : "auto",
+      model_profile_key: options.modelProfileKey ?? "auto",
       execution_mode: "auto",
       stream: true,
     }, { onChunk: options.onChunk, onModelInfo: options.onModelInfo, onTaskUpdate: options.onTaskUpdate, onDone() {} }, options.signal);
@@ -399,6 +401,7 @@ export const chatService = {
   async retryAssistant(options: {
     conversationId: string;
     userMessageId: string;
+    modelProfileKey?: "auto" | "lite" | "pro" | "max";
     signal: AbortSignal;
     onChunk(text: string): void;
     onModelInfo?(identifier: string): void;
@@ -412,6 +415,7 @@ export const chatService = {
       conversationId: options.conversationId,
       history,
       requestId: retryRequestId(options.userMessageId),
+      modelProfileKey: options.modelProfileKey,
       signal: options.signal,
       onChunk: options.onChunk,
       onModelInfo: options.onModelInfo,
