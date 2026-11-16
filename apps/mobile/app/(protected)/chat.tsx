@@ -34,11 +34,7 @@ const TASK_SUGGESTIONS_EN = [
   { text: "Summarize a lesson", icon: "create-outline" as const },
   { text: "Write a professional email", icon: "bulb-outline" as const },
 ];
-const DEFAULT_SULY_PROFILES = [
-  { profile_key: "lite" as const, display_name: "SULY Lite", tagline: "للمهام السريعة واليومية", description: "للمحادثات والأسئلة والكتابة والطلبات اليومية الخفيفة.", icon_key: "zap", minimum_subscription_tier: "free" },
-  { profile_key: "pro" as const, display_name: "SULY Pro", tagline: "توازن بين السرعة والذكاء والقدرات", description: "للبرمجة والبحث والتحليل والمهام المتوسطة والمركبة.", icon_key: "rocket", minimum_subscription_tier: "pro" },
-  { profile_key: "max" as const, display_name: "SULY Max", tagline: "للمهام المعقدة والتحليل العميق", description: "للتخطيط والتحليل العميق والبرمجة المتقدمة والمهام متعددة الخطوات مع سياق أطول.", icon_key: "diamond", minimum_subscription_tier: "max" },
-];
+;
 
 export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   const { colors } = useSulyTheme();
@@ -134,24 +130,11 @@ export default function ChatPage() {
   const [ratingNote, setRatingNote] = useState("");
   const [ratingSaving, setRatingSaving] = useState(false);
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
-  const [selectedModelProfile, setSelectedModelProfile] = useState<"auto" | "lite" | "pro" | "max">("auto");
-  const [modelMenuVisible, setModelMenuVisible] = useState(false);
+  const selectedModelProfile = "auto" as const;
   const [navigationMenuVisible, setNavigationMenuVisible] = useState(false);
   const [creatingNewConversation, setCreatingNewConversation] = useState(false);
   const [actualModelUsed, setActualModelUsed] = useState<string | null>(null);
-  const [subscriptionTier, setSubscriptionTier] = useState("free");
-  const [modelProfiles, setModelProfiles] = useState(DEFAULT_SULY_PROFILES);
-  const [modelCatalogLoaded, setModelCatalogLoaded] = useState(false);
   const suggestions = isArabic ? TASK_SUGGESTIONS : TASK_SUGGESTIONS_EN;
-  const localizedModelProfiles = useMemo(() => modelProfiles.map((profile) => {
-    if (isArabic) return profile;
-    const copy = {
-      lite: { tagline: "For quick everyday tasks", description: "For chats, questions, writing, and lightweight daily requests." },
-      pro: { tagline: "A balance of speed, intelligence, and capability", description: "For coding, research, analysis, and medium-to-complex tasks." },
-      max: { tagline: "For complex tasks and deep analysis", description: "For planning, deep analysis, advanced coding, and multi-step tasks with longer context." },
-    }[profile.profile_key];
-    return { ...profile, ...copy };
-  }), [modelProfiles, isArabic]);
   const [connectorApproval, setConnectorApproval] = useState<{ content: string; toolkit: ToolkitStatus["toolkit"]; intent: "read" | "write"; connected: boolean; accountExists: boolean; disabled: boolean; writeApproval: ConnectorWriteApproval | null } | null>(null);
   const closeShareSheet = useCallback(() => setShareVisible(false), []);
   const composerRef = useRef<ChatComposerHandle>(null);
@@ -182,28 +165,6 @@ export default function ChatPage() {
     try { setTaskUsage(await getTaskUsage(conversationId)); } catch { setTaskUsage(null); }
     finally { setUsageLoading(false); }
   }, [conversationId]);
-
-  useEffect(() => {
-    let active = true;
-    setModelCatalogLoaded(false);
-    if (!user?.id) { setSubscriptionTier("free"); return () => { active = false; }; }
-    void (async () => {
-      const [tierResult, modelResult] = await Promise.all([
-        supabase.rpc("suly_effective_subscription_tier", { p_user_id: user.id }),
-        supabase.from("suly_model_profiles").select("profile_key,display_name,tagline,description,icon_key,minimum_subscription_tier").eq("is_active", true).order("sort_order"),
-      ]);
-      if (!active) return;
-      const tier = typeof tierResult.data === "string" ? tierResult.data.toLowerCase() : "free";
-      setSubscriptionTier(!tierResult.error && ["free", "lite", "pro", "max"].includes(tier) ? tier : "free");
-      if (!modelResult.error && Array.isArray(modelResult.data)) {
-        setModelProfiles(modelResult.data as typeof DEFAULT_SULY_PROFILES);
-        setModelCatalogLoaded(true);
-      } else {
-        setModelCatalogLoaded(false);
-      }
-    })().catch(() => undefined);
-    return () => { active = false; };
-  }, [user?.id]);
 
   useEffect(() => { void loadTaskUsage(); }, [loadTaskUsage, messages.length]);
   useEffect(() => {
@@ -718,7 +679,6 @@ export default function ChatPage() {
   );
 
   const shareTitle = messages.find((message) => message.role === "user")?.content.slice(0, 48) || (isArabic ? "محادثة Suly" : "SULY conversation");
-  const selectedModelLabel = selectedModelProfile === "auto" ? (isArabic ? "SULY تلقائي" : "SULY Auto") : localizedModelProfiles.find((profile) => profile.profile_key === selectedModelProfile)?.display_name ?? "SULY Lite";
 
   const startNewConversation = async () => {
     if (creatingNewConversation) return;
@@ -742,13 +702,9 @@ export default function ChatPage() {
           <Pressable onPress={() => setNavigationMenuVisible(true)} style={styles.headerButton} accessibilityRole="button" accessibilityLabel={isArabic ? "فتح قائمة التنقل" : "Open navigation menu"}>
             <Ionicons name="menu-outline" size={22} color={colors.textPrimary} />
           </Pressable>
-          <Pressable onPress={() => setModelMenuVisible(true)} style={styles.modelSelector} accessibilityRole="button" accessibilityLabel={isArabic ? "اختيار نموذج SULY" : "Choose SULY model"}>
-            <View style={styles.modelSelectorCopy}>
-              <Text numberOfLines={1} style={styles.modelSelectorTitle}>{selectedModelLabel}</Text>
-              <Text style={styles.modelSelectorCaption}>{isArabic ? "النموذج المختار" : "Selected model"}</Text>
-            </View>
-            <Ionicons name="chevron-down" size={16} color={colors.textSecondary} />
-          </Pressable>
+          <View style={styles.brandCenter}>
+            <Text style={styles.brandTitle}>SULY</Text>
+          </View>
           <View style={styles.headerActions}>
             {creditBalance !== null ? (
               <TouchableOpacity onPress={() => router.push("/(protected)/balance")} style={styles.creditPill} accessibilityRole="button" accessibilityLabel={isArabic ? "رصيد Suly" : "SULY credits"}>
@@ -845,46 +801,6 @@ export default function ChatPage() {
           ))}
         </ScrollView>
       </BottomSheet>
-      <BottomSheet visible={modelMenuVisible} title={isArabic ? "اختيار نموذج SULY" : "Choose a SULY model"} onClose={() => setModelMenuVisible(false)}>
-        <View style={styles.modelMenu}>
-          <Pressable onPress={() => { setSelectedModelProfile("auto"); setModelMenuVisible(false); }} style={[styles.modelOption, selectedModelProfile === "auto" && styles.modelOptionSelected]}>
-            <View style={styles.modelOptionCopy}>
-              <Text style={styles.modelOptionTitle}>SULY Auto</Text>
-              <Text style={styles.modelOptionDescription}>{isArabic ? "الوكيل يختار المستوى المناسب تلقائيًا من الخيارات المتاحة لحسابك." : "The Agent selects the best eligible profile automatically."}</Text>
-            </View>
-            {selectedModelProfile === "auto" ? <Ionicons name="checkmark-circle" size={20} color={colors.primary} /> : null}
-          </Pressable>
-          {localizedModelProfiles.map((profile) => {
-            const tierRank: Record<string, number> = { free: 0, lite: 1, pro: 2, max: 3 };
-            const planLocked = (tierRank[subscriptionTier] ?? 0) < (tierRank[profile.minimum_subscription_tier] ?? 3);
-            const locked = !modelCatalogLoaded || planLocked;
-            const selected = selectedModelProfile === profile.profile_key;
-            return (
-              <Pressable key={profile.profile_key} disabled={locked} onPress={() => { setSelectedModelProfile(profile.profile_key); setModelMenuVisible(false); }} style={[styles.modelOption, selected && styles.modelOptionSelected, locked && styles.modelOptionDisabled]}>
-                <View style={styles.modelOptionCopy}>
-                  <View style={styles.modelOptionHeading}>
-                    <Text style={styles.modelOptionTitle}>{profile.display_name}</Text>
-                    {locked ? <Text style={styles.modelRestricted}>{!modelCatalogLoaded ? (isArabic ? "تعذر التحقق من الكتالوج" : "Catalog unavailable") : (isArabic ? "مقيد بالباقة" : "Plan restricted")}</Text> : null}
-                  </View>
-                  <Text style={styles.modelOptionDescription}>{profile.description}</Text>
-                </View>
-                {locked ? <Ionicons name="lock-closed" size={17} color={colors.textMuted} /> : selected ? <Ionicons name="checkmark-circle" size={20} color={colors.primary} /> : null}
-              </Pressable>
-            );
-          })}
-          <View style={[styles.modelOption, styles.modelOptionDisabled]}>
-            <View style={styles.modelOptionCopy}>
-              <View style={styles.modelOptionHeading}>
-                <Text style={styles.modelOptionTitle}>SULY Ultra</Text>
-                <Text style={styles.modelRestricted}>{isArabic ? "غير متاح حاليًا" : "Not available yet"}</Text>
-              </View>
-              <Text style={styles.modelOptionDescription}>{isArabic ? "سيظهر هنا عند اعتماد إعداداته وربطه بمسارات النماذج والصلاحيات." : "Listed for visibility; activation awaits verified model catalog and routing support."}</Text>
-            </View>
-            <Ionicons name="lock-closed" size={17} color={colors.textMuted} />
-          </View>
-          {actualModelUsed ? <Text style={styles.actualModelNote}>{isArabic ? "النموذج الذي أكد الخادم استخدامه في آخر رد: " : "Model confirmed by the server for the last response: "}{actualModelUsed}</Text> : null}
-        </View>
-      </BottomSheet>
       <BottomSheet visible={usageVisible} title={isArabic ? "إحصائيات المهمة الحالية" : "Current task usage"} onClose={() => setUsageVisible(false)}>
         {usageLoading ? <ActivityIndicator color={colors.primary} /> : taskUsage ? <View style={styles.usageSheet}>
           <Text style={styles.usageTaskTitle}>{taskUsage.taskTitle}</Text>
@@ -930,20 +846,6 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   headerButton: { width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 21 },
   headerSpacer: { width: 42, height: 42 },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 6 },
-  modelSelector: { flex: 1, minWidth: 0, minHeight: 44, maxWidth: 250, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 9, borderRadius: 12, backgroundColor: colors.surface },
-  modelSelectorCopy: { flex: 1, minWidth: 0, alignItems: isArabic ? "flex-end" : "flex-start", gap: 1 },
-  modelSelectorTitle: { color: colors.textPrimary, fontSize: 13, fontWeight: "800" },
-  modelSelectorCaption: { color: colors.textMuted, fontSize: 9 },
-  modelMenu: { gap: 9, paddingBottom: 8 },
-  modelOption: { minHeight: 62, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 12, padding: 12, borderWidth: 1, borderColor: colors.divider, borderRadius: 13, backgroundColor: colors.surface },
-  modelOptionSelected: { borderColor: colors.primary, backgroundColor: colors.surfaceElevated },
-  modelOptionDisabled: { opacity: 0.6 },
-  modelOptionCopy: { flex: 1, minWidth: 0, gap: 4 },
-  modelOptionHeading: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
-  modelOptionTitle: { color: colors.textPrimary, fontSize: 13, fontWeight: "800" },
-  modelOptionDescription: { color: colors.textSecondary, fontSize: 11, lineHeight: 17, textAlign: isArabic ? "right" : "left" },
-  modelRestricted: { color: colors.textMuted, fontSize: 10, fontWeight: "700" },
-  actualModelNote: { color: colors.textMuted, fontSize: 10, lineHeight: 16, textAlign: isArabic ? "right" : "left", paddingHorizontal: 3 },
   actualModelInline: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 5 },
   actualModelInlineText: { color: colors.textMuted, fontSize: 11, lineHeight: 16 },
   navigationMenuScroll: { maxHeight: 560 },
