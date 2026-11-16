@@ -456,7 +456,7 @@ Acceptance:
 Verified database audit (2026-11-16):
 - Text prices: 46 version rows, 45 current versions across 45 models. Every current row uses `markup_rate = 0.40`.
 - Media prices: 22 current versions (12 image, 7 video, 3 transcription/audio); every current row uses the 40% markup. All 22 are provider-tested; 0 are SULY-integration-verified.
-- Media runtime registry: 4 image model rows, 0 active. No video/audio runtime model rows were found. `suly_media_generation_prices` has 0 rows.
+- Media runtime registry: 4 image model rows, 0 active. No video/audio runtime model rows were found. `suly_media_generation_prices` has 0 rows. The image-model admin save path is now atomic and audited through a server-side RPC, but this does not populate runtime prices or enable generation.
 - `suly_credit_pricing.credit_value_egp` and `usd_to_egp` are not configured. Do not calculate credits, activate media models, or enable chargeable Studio operations until the owner-approved credit value and FX policy are configured.
 - Nine text models are enabled: seven in the free race with no current paid price row (consistent with the current zero-cost route), and two paid fallback models with current price versions. Do not treat missing free-route prices as permission to charge.
 - All five active global role routes currently use Groq `openai/gpt-oss-120b` as primary and `qwen/qwen3.8-27b` as backup. Historical model attempts show prior successes, but full authenticated chat/Agent billing E2E remains open.
@@ -492,7 +492,22 @@ Acceptance:
 - Sensitive changes are atomic, validated, and audited.
 - Existing admin features are not lost during navigation redesign.
 
-**Current status:** [~] Admin navigation/theme and some model governance controls are present. Full functional and adversarial review of every admin area remains.
+**Current status:** [>] Admin navigation and governance foundations exist; the image-generation model editor's high-impact save path has now been moved behind an atomic, audited server-side RPC. Remaining admin areas still need the same end-to-end and adversarial review.
+
+New verified implementation (2026-11-16):
+- Added migration `20261116130000_atomic_media_model_admin_save` and recorded it in `supabase_migrations.schema_migrations`.
+- Added `suly_admin_save_image_generation_model`: server-side admin guard, active-provider check, HTTPS endpoint validation, strict tier/quality validation, price/credit/FX/margin checks, transactional model + four quality-price upsert, serialized default selection, and one audit event.
+- Revoked direct authenticated INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER privileges on `suly_media_generation_models` and `suly_media_generation_prices`; authenticated SELECT remains under admin RLS; service_role retains server writes.
+- Updated `MediaGenerationModelsAdminScreen` to save through `adminService.saveImageGenerationModel` instead of a sequence of direct client writes.
+- Rollback-only SQL regression passed: non-admin call denied; direct client writes denied; admin RPC creates model + all four price rows atomically; audit event present; activation with missing credit/FX rejected. Test rollback left zero fixture rows.
+- Live privilege check: authenticated INSERT/UPDATE on both runtime tables is false; guarded RPC execute is true.
+- Full Expo/Deno CI for this new branch is pending; do not merge until it passes.
+- Studio generation remains disabled; this admin hardening does not activate image/video/audio services or invent credit conversion.
+
+Remaining:
+- Apply the same server-side atomic/audit review to provider, route, pricing, user privilege, and other admin workflows where still required.
+- Verify admin access denial with real non-admin HTTP session and verify the screen visually on web/device.
+- Complete the full admin navigation/permissions regression matrix.
 
 ## Phase 14 — Complete light, dark, and system theme support
 

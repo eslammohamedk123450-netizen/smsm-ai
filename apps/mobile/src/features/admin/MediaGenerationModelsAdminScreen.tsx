@@ -116,44 +116,27 @@ export function MediaGenerationModelsAdminScreen() {
     }
     setSaving(true); setError(null); setNotice(null);
     try {
-      const modelPayload = {
-        service_type: "image", display_name: displayName.trim(), provider_id: providerId,
-        model_identifier: modelIdentifier.trim(), protocol: "openai_images", endpoint_url: endpoint.toString(),
-        allowed_tiers: allowedTiers, supported_qualities: prices.filter((item) => item.enabled).map((item) => item.quality),
-        capabilities_json: { text_to_image: true, image_to_image: false }, is_default: isDefault,
-        is_active: isActive, updated_at: new Date().toISOString(),
-      };
-      let modelId = selectedId;
-      if (selectedId) {
-        const { error: updateError } = await supabase.from("suly_media_generation_models").update(modelPayload).eq("id", selectedId);
-        if (updateError) throw updateError;
-      } else {
-        const { data, error: insertError } = await supabase.from("suly_media_generation_models").insert(modelPayload).select("id").single();
-        if (insertError || !data) throw insertError ?? new Error("تعذر إنشاء سجل النموذج.");
-        modelId = String(data.id);
-        setSelectedId(modelId);
-      }
-      if (!modelId) throw new Error("معرّف النموذج غير متاح.");
-      if (isDefault && isActive) {
-        const { error: clearDefaultError } = await supabase.from("suly_media_generation_models")
-          .update({ is_default: false }).eq("service_type", "image").neq("id", modelId);
-        if (clearDefaultError) throw clearDefaultError;
-      }
-      const { error: defaultError } = await supabase.from("suly_media_generation_models")
-        .update({ is_default: Boolean(isDefault && isActive) }).eq("id", modelId);
-      if (defaultError) throw defaultError;
-      for (const item of prices) {
-        const { error: priceError } = await supabase.from("suly_media_generation_prices").upsert({
-          generation_model_id: modelId, quality: item.quality, price_credits: Math.max(1, Math.floor(Number(item.price_credits) || 1)),
+      const saved = await adminService.saveImageGenerationModel({
+        modelId: selectedId,
+        providerId,
+        displayName: displayName.trim(),
+        modelIdentifier: modelIdentifier.trim(),
+        endpointUrl: endpoint.toString(),
+        allowedTiers,
+        isActive,
+        isDefault,
+        prices: prices.map((item) => ({
+          quality: item.quality,
+          price_credits: Math.max(1, Math.floor(Number(item.price_credits) || 1)),
           estimated_provider_cost_usd: Math.max(0, Number(item.estimated_provider_cost_usd) || 0),
           target_margin: Math.min(0.95, Math.max(0, Number(item.target_margin) || 0)),
           credit_value_egp: Math.max(0, Number(item.credit_value_egp) || 0),
           usd_to_egp: Math.max(0, Number(item.usd_to_egp) || 0),
-          resolution: item.resolution.trim() || "1024x1024", unit_type: "image", enabled: item.enabled,
-          price_version: Math.max(1, Number(item.price_version || 1) + (selectedId ? 1 : 0)), updated_at: new Date().toISOString(),
-        }, { onConflict: "generation_model_id,quality" });
-        if (priceError) throw priceError;
-      }
+          resolution: item.resolution.trim() || "1024x1024",
+          enabled: item.enabled,
+        })),
+      });
+      setSelectedId(saved.model_id);
       setNotice("تم حفظ نموذج الصور وأسعار الجودة. سيظهر للمستخدمين عند تفعيل النموذج والسعر.");
       await load();
     } catch (cause) {
