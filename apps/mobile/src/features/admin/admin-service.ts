@@ -559,8 +559,8 @@ export const adminService = {
           .replaceAll("%", "\\%")
           .replaceAll("_", "\\_")
           .replaceAll("*", "\\*");
-        const pattern = \`"%\${escapedSearch}%"\`;
-        query = query.or(\`email.ilike.\${pattern},full_name.ilike.\${pattern}\`);
+        const pattern = `"%${escapedSearch}%"`;
+        query = query.or(`email.ilike.${pattern},full_name.ilike.${pattern}`);
       }
     }
     const { data: profiles, error, count } = await query;
