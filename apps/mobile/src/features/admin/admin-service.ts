@@ -69,8 +69,8 @@ export interface HimsActivationCode {
   id: string;
   feature_key: string;
   label: string | null;
-  /** Full code, readable only through the admin-guarded RPC so it can be copied again. */
-  code_plain: string | null;
+  /** Always null: activation codes are returned once at creation and never stored in plaintext. */
+  code_plain: null;
   code_fingerprint: string;
   max_uses: number | null;
   used_count: number;
