@@ -5,6 +5,7 @@ on:
     paths:
       - "apps/mobile/**"
       - "supabase/functions/ai-router/**"
+      - "supabase/functions/_shared/**"
       - "supabase/functions/brain-router/**"
       - "supabase/functions/agent-task-worker/**"
       - "supabase/functions/agent-task-scheduler/**"
