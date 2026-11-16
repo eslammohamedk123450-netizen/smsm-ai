@@ -61,8 +61,9 @@ export function ModelCapabilityEvidenceAdminCard({ models }: { models: ModelOpti
     setVendor(row?.vendor_claim_status ?? "unknown"); setVendorUrl(row?.vendor_evidence_url ?? "");
     setProvider(row?.provider_test_status ?? "not_tested"); setProviderUrl(row?.provider_evidence_url ?? "");
     setSuly(row?.suly_test_status ?? "not_tested"); setSulyUrl(row?.suly_evidence_url ?? "");
-    setNotes(row?.notes ?? ""); setError(null); setNotice(null);
+    setNotes(row?.notes ?? ""); setError(null);
   }, [rows, modelId, capability]);
+  useEffect(() => { setNotice(null); }, [modelId, capability]);
 
   const filteredModels = useMemo(() => {
     const q = search.trim().toLocaleLowerCase();
