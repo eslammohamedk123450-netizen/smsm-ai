@@ -276,7 +276,7 @@ export function HimsAdminScreen() {
           {item.kind === "image" || item.kind === "video" ? <Image source={{ uri: posterFor(item.url, item.kind) }} style={styles.preview} resizeMode="cover" /> : null}
           <View style={styles.flex}>
             <Text style={styles.cardTitle}>{item.title}</Text>
-            <Text style={styles.detail}>{item.kind} · {item.url}</Text>
+            <Text style={styles.detail}>{item.kind} · {item.media_asset_id ? "ملف خاص عبر بوابة الوسائط — الرابط المؤقت غير معروض" : item.url}</Text>
             {item.description ? <Text style={styles.detail}>{item.description}</Text> : null}
             <Text style={styles.detail}>{item.is_active ? "ظاهر للمستخدمين المستحقين" : "متوقف — غير ظاهر للمستخدمين"}</Text>
           </View>
