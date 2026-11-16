@@ -645,6 +645,52 @@ export const adminService = {
     if (error) throw error;
     return data as { success?: boolean; negative_balance_limit?: number };
   },
+  async getActiveSubscriptionPlans(): Promise<Array<{
+    id: number; name: string; tier_key: string; price: number; currency: string;
+    billing_period: string; daily_credits: number; monthly_credits: number; max_requests: number;
+  }>> {
+    await requireAdmin();
+    const { data, error } = await supabase.from("subscription_plans")
+      .select("id,name,tier_key,price,currency,billing_period,daily_credits,monthly_credits,max_requests")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true })
+      .order("id", { ascending: true });
+    if (error) throw error;
+    return (data ?? []).map((plan) => ({
+      id: Number(plan.id),
+      name: String(plan.name),
+      tier_key: String(plan.tier_key),
+      price: Number(plan.price ?? 0),
+      currency: String(plan.currency ?? "USD"),
+      billing_period: String(plan.billing_period ?? "monthly"),
+      daily_credits: Number(plan.daily_credits ?? 0),
+      monthly_credits: Number(plan.monthly_credits ?? 0),
+      max_requests: Number(plan.max_requests ?? 0),
+    }));
+  },
+  async grantSubscription(userId: string, planId: number, expiresAt: string | null, reason: string) {
+    await requireAdmin();
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userId)) {
+      throw new Error("معرّف المستخدم غير صالح.");
+    }
+    if (!Number.isSafeInteger(planId) || planId < 1) throw new Error("اختر باقة فعالة.");
+    const cleanReason = reason.trim();
+    if (!cleanReason || cleanReason.length > 500) throw new Error("سبب منح الاشتراك إلزامي (حتى 500 حرف).");
+    if (expiresAt !== null && (!Number.isFinite(Date.parse(expiresAt)) || Date.parse(expiresAt) <= Date.now())) {
+      throw new Error("تاريخ انتهاء الاشتراك يجب أن يكون في المستقبل.");
+    }
+    const { data, error } = await supabase.rpc("suly_admin_grant_subscription", {
+      p_user_id: userId,
+      p_plan_id: planId,
+      p_expires_at: expiresAt,
+      p_reason: cleanReason,
+    });
+    if (error) throw error;
+    const result = Array.isArray(data) ? data[0] : data;
+    if (!result || result.success !== true) throw new Error("لم تؤكد قاعدة البيانات منح الاشتراك.");
+    return result as { success: true; subscription_id: string; tier_key: string };
+  },
+
   async getPricingPlans(): Promise<PricingPlan[]> {
     await requireAdmin();
     const { data, error } = await supabase.from("subscription_plans")
