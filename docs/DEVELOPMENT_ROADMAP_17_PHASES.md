@@ -794,7 +794,7 @@ Continue auditing the remaining authenticated SECURITY DEFINER functions in grou
 
 ### Next security finding identified: Activation-code attempt throttling
 
-**Status:** [x] IMPLEMENTED — database migration applied and regression checks passed; application changes are in the focused PR pending CI and merge.
+**Status:** [x] IMPLEMENTED — database migration applied, regression checks passed, PR #111 merged, and ai-router v53 deployed ACTIVE.
 
 #### Evidence
 - `suly_activate_feature(uuid,text)` is restricted to the service role, hashes the submitted code with SHA-256, locks the matching activation-code row, checks active/expiry/max-use conditions, and increments usage atomically. It does not expose the raw stored code.
@@ -817,9 +817,38 @@ Continue auditing the remaining authenticated SECURITY DEFINER functions in grou
 - The regression verifies the row-lock implementation and sequential limits; a multi-session concurrency stress test and full authenticated chat activation smoke test remain outstanding.
 
 #### Remaining verification
-- [ ] Run PR CI and merge the Edge Function/helper/test/roadmap changes.
+- [x] PR #111 merged into release/v1 (merge commit bf03b01820e371df069d11e8489b68cae5a96eea).
+- [x] ai-router deployed to Supabase as version 53, status ACTIVE; existing verify_jwt=false setting preserved. Retrieved deployed function source and confirmed the activation throttle RPC call is present.
 - [ ] Run an authenticated chat smoke test for successful activation, already-active behavior, max-use accounting, and throttled explicit commands.
 - [ ] Confirm ordinary chat and HIMS resource retrieval remain unchanged in a live session.
 
-**Current status:** Database protection is applied and SQL-verified. App enforcement is implemented in the focused PR; Phase 16 remains open until integration checks and the broader security audit are complete.
+**Current status:** Database protection is applied and SQL-verified, and the Edge Function change is merged and deployed. Phase 16 remains open until authenticated end-to-end tests and the broader security audit are complete.
 
+
+
+### Supabase Security Advisor review — 2026-11-16
+
+**Scope:** Read-only security, performance, and health advisor scan after the provider-secret isolation and activation-throttle migrations. This is a triage snapshot, not a claim that every warning is a vulnerability.
+
+#### Security advisor findings and disposition
+
+- **10 rls_enabled_no_policy INFO findings:** The listed tables have RLS enabled and no client policies. The earlier ACL review found no anon or authenticated table privileges for these server-side tables; this is intentional service-only isolation, not a reason to add permissive client policies. Keep them closed and verify each server access path as it is audited.
+- **2 extension_in_public WARN findings:** vector and pg_net are installed in public. No schema move was made because dependent functions and extension objects must be mapped first; moving them blindly could break production paths. Track a compatibility review before any relocation.
+- **1 anon SECURITY DEFINER WARN:** public.suly_get_public_conversation(uuid) is the intentional public-share endpoint. Its lookup is by the exact share token, it returns only the conversation title and up to 300 user/assistant messages, and revocation clears the token. Preserve this feature; the enable → anonymous fetch → revoke → anonymous fetch regression remains an end-to-end test item.
+- **57 authenticated SECURITY DEFINER WARN:** This linter finding means signed-in users can invoke SECURITY DEFINER functions; it does not by itself prove unauthorized access. Reviewed high-impact paths include credit grants/adjustments, subscription entitlement, agent task cancellation, media registration/attachment, HIMS resources, profile upsert, conversation sharing, and provider administration. These inspected functions use caller ownership (auth.uid()), service-role checks, or administrator checks as appropriate. Continue the function-by-function review of all remaining functions; do not mass-revoke EXECUTE because legitimate app and admin workflows depend on guarded RPCs.
+- **1 auth_leaked_password_protection WARN:** Supabase Auth leaked-password protection is not enabled. This is an account-level Auth setting, not a source-code migration. **Owner action required:** enable leaked-password protection in Supabase Dashboard → Authentication → Settings / Password Security. Do not mark this item complete until the setting is verified.
+
+#### Additional security review evidence
+
+- The activation limiter function is service-role-only, uses a fixed search_path, serializes each user's attempts with FOR UPDATE, and has SQL regression coverage for client ACL denial, 5 attempts per 15 minutes, 3-second cooldown, and window reset.
+- The ai_providers direct authenticated SELECT grant remains revoked; the safe admin metadata RPC and server-side service-role access remain intact.
+- The 10 RLS-without-policy tables were not opened to clients to silence the advisor. No destructive cleanup or broad privilege change was made based only on lint output.
+
+#### Next security priorities
+
+1. Complete the remaining per-function SECURITY DEFINER review, including dynamic SQL, returned columns, ownership predicates, and mutation scope.
+2. Run authenticated end-to-end tests for public-share revocation, activation flows, media ownership, and admin RPC denial for non-admin users.
+3. Verify the owner-level leaked-password protection setting.
+4. Map vector and pg_net dependencies before deciding whether either extension can be moved safely.
+
+**Phase 16 status:** IN PROGRESS — targeted fixes and SQL regressions are complete, but the full function audit, account-level setting, and authenticated end-to-end coverage are not yet complete.
