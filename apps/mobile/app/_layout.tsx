@@ -11,6 +11,7 @@ import { colors } from "../src/theme/colors";
 import { AnimatedSplash } from "../src/components/AnimatedSplash";
 import { supabase } from "../src/lib/supabase/client";
 import { SulyThemeProvider, useSulyTheme } from "../src/theme/ThemeProvider";
+import { LocaleProvider, useAppLocale } from "../src/theme/LocaleProvider";
 
 export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   const resetLocalSession = async () => {
@@ -38,14 +39,17 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
 
 function AppNavigator() {
   const { colors: palette } = useSulyTheme();
+  const { direction } = useAppLocale();
   return (
     <AuthProvider>
       <ToastProvider>
+        <View style={{ flex: 1, direction }}>
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette.background } }}>
           <Stack.Screen name="index" />
           <Stack.Screen name="(auth)" />
           <Stack.Screen name="(protected)" />
         </Stack>
+        </View>
       </ToastProvider>
     </AuthProvider>
   );
@@ -68,7 +72,9 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <SulyThemeProvider>
-          <AppNavigator />
+          <LocaleProvider>
+            <AppNavigator />
+          </LocaleProvider>
         </SulyThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
