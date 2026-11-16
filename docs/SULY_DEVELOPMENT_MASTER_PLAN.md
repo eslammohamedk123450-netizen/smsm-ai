@@ -13,7 +13,7 @@ This is the single authoritative plan for building, organizing, integrating, sec
 
 Track A may run focused developer checks and regression tests continuously. Track B is the formal, end-to-end comprehensive test campaign and starts only after all 17 development phases are implemented and integrated. Passing a build or a subset of tests never proves the whole product ready.
 
-The immediate execution gate is to close Phases 1–4. Do not begin Phase 5 until all mandatory Phase 1–4 criteria are verified or explicitly recorded as owner-blocked with a safe interim behavior. Report completion of Phases 1–4 to the owner before moving on to the unified UX implementation sequence.
+Phases 1–4 implementation scope has been completed and reported. Their comprehensive runtime, live-user, browser/device, adversarial-security, and full-CI verification is carried into Track B. Continue Track A sequentially from Phase 5; do not block implementation progress solely on Track B tests.
 
 ## 2. Product invariants — must survive every phase
 
@@ -112,7 +112,8 @@ Acceptance:
 **Goal:** Organize Home, Conversations, Studio, Library, and Account across mobile and web.
 - Preserve all existing deep links, admin-only routes, HIMS chat/resource flow, support, integrations, billing, and task destinations.
 - Mobile navigation respects safe areas and keyboard; web navigation is responsive.
-- Acceptance: every capability remains reachable and route regressions are covered.
+- Existing implementation verified on `develop`: `MainNavigation.tsx` defines the five destinations, native bottom navigation hides while the keyboard is open, wide web uses a responsive sidebar, and route ownership maps chat/tasks/projects to Conversations, HIMS/media to Library, and settings/support/balance/upgrade/integrations to Account. Home, Conversations, Studio, Media/Library, Settings, and Projects routes exist; Conversations exposes project management and search.
+- **Implementation status: COMPLETE — TRACK B route-click, browser/device, keyboard/safe-area, and visual checks deferred.** Do not duplicate or replace the existing navigation foundation; refine only when a concrete implementation defect or approved design requirement is identified.
 
 ### Phase 6 — Chat-first interface and central Agent experience
 **Goal:** Make ordinary chat the simplest entry point and the Agent the single execution brain.
@@ -200,8 +201,8 @@ Acceptance:
 5. Complete Phase 4 shared tokens/components and semantic palette integration; defer screen-by-screen accessibility and browser/device checks to Track B.
 6. Record all comprehensive CI, SQL migration execution, adversarial security, real-user, browser/device, and end-to-end acceptance tests in Track B; these tests do not hold implementation phases open.
 7. Update both plans and the canonical 17-phase roadmap with source/change evidence and deferred test IDs.
-8. **Stop and report to the owner when the Phase 1–4 implementation scope is complete. Do not start Phase 5 before that report.**
-9. After reporting, continue the unified design and UX implementation in sequence through Phases 5 onward, using the approved design spec and preserving all existing capabilities.
+8. Phase 1–4 implementation completion has been reported; their comprehensive checks remain in Track B.
+9. Phase 5 navigation implementation already exists on `develop`; preserve it and move to Phase 6 chat-first experience implementation in sequence, without duplicating navigation or removing existing capabilities.
 
 ## 6. Required execution log
 
@@ -224,5 +225,5 @@ Never change the implementation status to complete based on documentation alone;
 - Phase 2: **IMPLEMENTATION COMPLETE — TRACK B VERIFICATION DEFERRED**. HIMS table isolation, RLS, RPC grants, fixed search paths, and server-side admin checks were reviewed. The duplicate activation-code collision guard migration and rollback-only regression SQL are committed to `develop`; isolated migration execution, rollback, and adversarial verification are Track B cases.
 - Phase 3: **IMPLEMENTATION COMPLETE — TRACK B ACCEPTANCE DEFERRED**. Central-chat intent/resource paths and source-level regressions are present; real student activation and lecture delivery are Track B cases using safe test accounts and approved content.
 - Phase 4: **IMPLEMENTATION COMPLETE — TRACK B VISUAL/DEVICE VERIFICATION DEFERRED**. Shared theme tokens, core chat/Home/HIMS semantic palette integration, and expanded contrast regression source are committed. Current-commit CI and full browser/device/accessibility checks are Track B cases.
-- **Stop gate:** Phase 5 has not started. Phases 1–4 are treated as implementation milestones; deferred comprehensive tests do not hold them open. Report the implementation milestone before starting Phase 5.
+- **Execution update:** Phase 1–4 implementation milestone reported; comprehensive tests deferred to Track B. Phase 5 five-area navigation and Home foundation are already present on `develop` and are treated as implementation-complete, with route/browser/device verification deferred to Track B. Continue Track A with Phase 6.
 - No hosted database migration, production deployment, secret change, model/provider routing change, billing change, credit adjustment, or HIMS entitlement mutation was performed.
