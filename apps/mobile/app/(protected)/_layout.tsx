@@ -1,4 +1,4 @@
-import { Redirect, useFocusEffect, useRouter } from "expo-router";
+import { Redirect, Slot, useFocusEffect, useRouter } from "expo-router";
 import { Drawer, DrawerContentScrollView, type DrawerContentComponentProps } from "expo-router/drawer";
 import { ActivityIndicator, FlatList, StyleSheet, TextInput, TouchableOpacity, View } from "react-native";
 import { PremiumText as Text } from "../../src/components/ui/PremiumText";
@@ -11,6 +11,7 @@ import { colors } from "../../src/theme/colors";
 import { BottomSheet } from "../../src/components/ui/BottomSheet";
 import { useToast } from "../../src/components/ui/Toast";
 import { getCreditLedger } from "../../src/features/credits/credit-service";
+import { MainNavigation } from "../../src/components/navigation/MainNavigation";
 
 function formatConversationDate(value?: string) {
   const timestamp = Date.parse(value ?? "");
@@ -218,94 +219,8 @@ function CustomDrawerContent({ isAdmin, ...props }: DrawerContentComponentProps 
 
 export default function ProtectedLayout() {
   const { user, status } = useAuth();
-  const [adminAccess, setAdminAccess] = useState<{ userId: string | null; allowed: boolean }>({ userId: null, allowed: false });
-  const isAdmin = Boolean(user?.id && adminAccess.userId === user.id && adminAccess.allowed);
-
-  useEffect(() => {
-    let active = true;
-    if (!user) {
-      setAdminAccess({ userId: null, allowed: false });
-      return () => { active = false; };
-    }
-    setAdminAccess({ userId: user.id, allowed: false });
-    void (async () => {
-      try {
-        const { data, error } = await supabase.rpc("suly_is_admin");
-        if (active) setAdminAccess({ userId: user.id, allowed: !error && data === true });
-      } catch {
-        if (active) setAdminAccess({ userId: user.id, allowed: false });
-      }
-    })();
-    return () => { active = false; };
-  }, [user?.id]);
-
   if (status === "loading") return <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>;
   if (status === "misconfigured") return <Redirect href="/" />;
   if (!user) return <Redirect href="/login" />;
-  return (
-    <Drawer drawerContent={(props) => <CustomDrawerContent {...props} isAdmin={isAdmin} />} screenOptions={{ headerShown: false, drawerPosition: "right", drawerStyle: { backgroundColor: colors.background, width: 320 }, swipeEdgeWidth: 36 }}>
-      <Drawer.Screen name="chat" options={{ title: "المحادثة" }} />
-      <Drawer.Screen name="image-studio" options={{ title: "استوديو الصور", drawerItemStyle: { display: "none" } }} />
-      <Drawer.Screen name="video-studio" options={{ title: "استوديو الفيديو", drawerItemStyle: { display: "none" } }} />
-      <Drawer.Screen name="tasks" options={{ title: "تنفيذ مهمة ذكية", drawerItemStyle: { display: "none" } }} />
-      <Drawer.Screen name="balance" options={{ title: "الرصيد والاستهلاك", drawerItemStyle: { display: "none" } }} />
-      <Drawer.Screen name="media" options={{ title: "المكتبة" }} />
-      <Drawer.Screen name="hims" options={{ title: "محتوى الجامعة HIMS", drawerItemStyle: { display: "none" } }} />
-      <Drawer.Screen name="upgrade" options={{ title: "الباقات والترقية", drawerItemStyle: { display: "none" } }} />
-      <Drawer.Screen name="admin" options={{ title: "لوحة التحكم", drawerItemStyle: isAdmin ? undefined : { display: "none" } }} />
-      <Drawer.Screen name="settings" options={{ title: "الإعدادات" }} />
-      <Drawer.Screen name="integrations" options={{ title: "التطبيقات المرتبطة", drawerItemStyle: { display: "none" } }} />
-      <Drawer.Screen name="support" options={{ title: "الشكاوى والدعم" }} />
-    </Drawer>
-  );
+  return <MainNavigation><Slot /></MainNavigation>;
 }
-
-const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.background },
-  drawerRoot: { flex: 1, backgroundColor: "#111111" },
-  drawerContent: { flexGrow: 1, paddingHorizontal: 16, paddingTop: 16 },
-  drawerBrand: { flexDirection: "row-reverse", alignItems: "center", gap: 10, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: "#262626", marginBottom: 16 },
-  drawerBrandInfo: { alignItems: "flex-end" },
-  drawerBrandTitle: { color: "#F5F5F5", fontSize: 17, fontWeight: "700" },
-  drawerBrandSubtitle: { color: "#A1A1AA", fontSize: 11, marginTop: 2 },
-  newChatButton: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12, paddingHorizontal: 20, borderRadius: 9999, backgroundColor: "#FFFFFF", marginBottom: 16 },
-  newChatText: { color: "#000000", fontWeight: "700", fontSize: 14, textAlign: "center" },
-  navSection: { gap: 4, marginBottom: 16 },
-  navItem: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: "transparent" },
-  navItemRight: { flexDirection: "row-reverse", alignItems: "center", gap: 10 },
-  navItemText: { color: "#F5F5F5", fontSize: 14, fontWeight: "500" },
-  balanceBadge: { backgroundColor: "#1F1F1F", borderWidth: 1, borderColor: "#262626", borderRadius: 9999, paddingHorizontal: 8, paddingVertical: 2 },
-  balanceBadgeText: { color: "#FFFFFF", fontSize: 11, fontWeight: "700" },
-  adminButton: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, backgroundColor: "#1F1F1F", borderWidth: 1, borderColor: "#0EA5E9", marginBottom: 12 },
-  adminButtonText: { color: "#0EA5E9", fontWeight: "700", textAlign: "right", fontSize: 13 },
-  searchInput: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, backgroundColor: "#1F1F1F", borderWidth: 1, borderColor: "#262626", color: "#F5F5F5", marginBottom: 16, textAlign: "right", fontSize: 13 },
-  sectionTitle: { color: "#A1A1AA", fontSize: 11, marginBottom: 8, textAlign: "right" },
-  loader: { marginTop: 22 },
-  chatItem: { minHeight: 56, flexDirection: "row-reverse", alignItems: "center", gap: 10, paddingVertical: 8, paddingHorizontal: 10, marginBottom: 6, borderRadius: 12, borderWidth: 1, borderColor: "#262626", backgroundColor: "#1F1F1F" },
-  chatItemCopy: { flex: 1, alignItems: "flex-end", gap: 2 },
-  chatItemText: { width: "100%", color: "#F5F5F5", textAlign: "right", fontSize: 13 },
-  chatItemDate: { color: "#A1A1AA", fontSize: 10, textAlign: "right" },
-  emptyHistory: { color: "#A1A1AA", textAlign: "right", padding: 10, fontSize: 13 },
-  loadOlderButton: { minHeight: 40, alignItems: "center", justifyContent: "center", marginTop: 4, marginBottom: 8 },
-  loadOlderText: { color: colors.primary, fontSize: 12, fontWeight: "700" },
-  drawerFooter: { borderTopWidth: 1, borderTopColor: "#262626", paddingHorizontal: 16, paddingVertical: 14, gap: 10, backgroundColor: "#111111" },
-  planCard: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", backgroundColor: "#1F1F1F", borderWidth: 1, borderColor: "#262626", borderRadius: 12, padding: 10 },
-  planCardInfo: { flexDirection: "row-reverse", alignItems: "center", gap: 8 },
-  planCardTitle: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
-  planCardSubtitle: { color: "#A1A1AA", fontSize: 10, marginTop: 1 },
-  planCardUpgrade: { color: "#0EA5E9", fontSize: 11, fontWeight: "700" },
-  settingsRow: { minHeight: 38, flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", paddingVertical: 4 },
-  footerText: { color: "#F5F5F5", fontSize: 13 },
-  renameInput: { color: colors.textPrimary, padding: 12, borderWidth: 1, borderColor: colors.divider, borderRadius: 10, textAlign: "right" },
-  modalActions: { flexDirection: "row", justifyContent: "flex-start", gap: 10, marginTop: 18 },
-  modalButton: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 14, backgroundColor: colors.surfaceElevated },
-  modalSave: { backgroundColor: colors.primary },
-  modalCancel: { color: colors.textPrimary },
-  sheetActions: { gap: 10 },
-  sheetAction: { minHeight: 50, borderRadius: 14, paddingHorizontal: 20, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surfaceElevated, alignItems: "center", justifyContent: "center" },
-  sheetActionText: { color: colors.textPrimary, fontWeight: "600" },
-  deleteAction: { borderColor: colors.error },
-  deleteActionText: { color: colors.error, fontWeight: "700" },
-  deleteButton: { backgroundColor: colors.error },
-  deleteNotice: { color: colors.textSecondary, textAlign: "right", lineHeight: 22 },
-});
