@@ -318,3 +318,7 @@ RLS/grants للأدوار؛ RPC وSECURITY DEFINER وsearch_path؛ CORS/JWT/rate
 - `T16-015`: إعداد leaked password protection بعد موافقة مالك المشروع، ثم اختبار signup/password update والسلوك مع كلمات المرور المسرّبة.
 - جميع الحالات: **NOT RUN**. لم تُطبق migration `20261117014500_media_general_upload_rpc_access.sql` على قاعدة الإنتاج.
 
+
+
+- إضافة إلى `T14-013`: تمرير `p_resource_type = NULL` أو قيمة خارج allowlist يجب أن يُرفض قبل إنشاء سجل في `global_media_assets`.
+
