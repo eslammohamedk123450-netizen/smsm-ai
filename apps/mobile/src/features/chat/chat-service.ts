@@ -252,6 +252,64 @@ export const chatService = {
     if (error) throw new Error("تعذر حذف المحادثة.");
   },
 
+  /**
+   * Persist a completed durable Agent task as a normal chat exchange.
+   * The task marker makes retries idempotent without introducing a second
+   * conversation/task history store.
+   */
+  async appendTaskExchange(options: {
+    conversationId?: string | null;
+    objective: string;
+    response: string;
+    taskId: string;
+  }): Promise<string> {
+    if (!UUID_PATTERN.test(options.taskId)) throw new Error("معرّف المهمة غير صالح.");
+    const objective = options.objective.trim();
+    const response = options.response.trim();
+    if (!objective || !response) throw new Error("لا يمكن حفظ نتيجة مهمة فارغة.");
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) throw new Error("انتهت الجلسة. سجّل الدخول مجددًا.");
+    let conversationId = options.conversationId ?? null;
+    if (conversationId && !UUID_PATTERN.test(conversationId)) throw new Error("معرّف المحادثة غير صالح.");
+    if (!conversationId) {
+      const conversation = await this.createConversation(summarizeContent(objective));
+      conversationId = conversation.id;
+    }
+    const marker = `[SULY_TASK_ID:${options.taskId}]`;
+    const { data: existing, error: existingError } = await supabase.from("suly_messages")
+      .select("id")
+      .eq("conversation_id", conversationId)
+      .eq("user_id", user.id)
+      .eq("role", "assistant")
+      .ilike("content", `%${marker}%`)
+      .limit(1);
+    if (existingError) throw new Error("تعذر التحقق من حفظ نتيجة المهمة.");
+    if (existing?.length) return conversationId;
+    const { error: userMessageError } = await supabase.from("suly_messages").insert({
+      conversation_id: conversationId,
+      user_id: user.id,
+      role: "user",
+      content: objective,
+      tokens_used: Math.ceil(objective.length / 4),
+    });
+    if (userMessageError) throw new Error("تعذر حفظ طلب المهمة داخل المحادثة.");
+    const assistantContent = `${response}\n\nمعرّف المهمة: ${options.taskId}\n${marker}`;
+    const { error: assistantMessageError } = await supabase.from("suly_messages").insert({
+      conversation_id: conversationId,
+      user_id: user.id,
+      role: "assistant",
+      content: assistantContent,
+      tokens_used: Math.ceil(assistantContent.length / 4),
+    });
+    if (assistantMessageError) throw new Error("حُفظ طلب المهمة، لكن تعذر حفظ النتيجة داخل المحادثة.");
+    const { error: conversationError } = await supabase.from("suly_conversations")
+      .update({ updated_at: new Date().toISOString() })
+      .eq("id", conversationId)
+      .eq("user_id", user.id);
+    if (conversationError) throw new Error("حُفظت النتيجة، لكن تعذر تحديث ترتيب المحادثة.");
+    return conversationId;
+  },
+
   async sendMessage(options: {
     conversationId: string;
     content: string;
