@@ -12,7 +12,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { PremiumText as Text } from "../../src/components/ui/PremiumText";
-import { colors } from "../../src/theme/colors";
 import { getCreditLedger, getMonthlyCreditUsage, type CreditEntry } from "../../src/features/credits/credit-service";
 import { useAuth } from "../../src/features/auth/auth-provider";
 import { supabase } from "../../src/lib/supabase/client";
