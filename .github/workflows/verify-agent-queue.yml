@@ -144,6 +144,7 @@ jobs:
           deno test --node-modules-dir=auto supabase/functions/admin-storage/auth.test.ts
           deno test --node-modules-dir=auto supabase/functions/_shared/feature_flags.test.ts
           deno test --node-modules-dir=auto supabase/functions/_shared/activation_command.test.ts
+          deno test --node-modules-dir=auto supabase/functions/media-gateway/upload_access.test.ts
           deno test --node-modules-dir=auto supabase/functions/brain-router/central_agent_result.test.ts
           deno test --node-modules-dir=auto supabase/functions/brain-router/route_policy.test.ts
       - name: Typecheck Agent, Brain, and scheduler runtime
