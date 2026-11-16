@@ -47,6 +47,8 @@ on:
       - "supabase/functions/composito-integration/**"
       - "supabase/functions/sync-models/**"
       - "supabase/functions/model-health-check/**"
+      - "supabase/functions/admin-storage/**"
+      - "supabase/tests/**"
       - "supabase/functions/_shared/cors.ts"
       - "supabase/functions/_shared/cors.test.ts"
       - "supabase/functions/_shared/agent_task_queue.ts"
