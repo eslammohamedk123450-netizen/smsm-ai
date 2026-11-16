@@ -29,7 +29,6 @@ export function AdminConversationsScreen() {
   }, [search]);
   useEffect(() => { setPage(0); }, [debouncedSearch]);
 
-  const refreshVersion = useRef(0);
   const [refreshKey, setRefreshKey] = useState(0);
   useEffect(() => {
     const request = ++requestVersion.current;
