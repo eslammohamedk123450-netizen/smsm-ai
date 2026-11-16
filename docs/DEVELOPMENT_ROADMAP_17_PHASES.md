@@ -1531,6 +1531,7 @@ The product owner requested a strict reduction in branch proliferation and merge
   - Changed authenticated root entry and successful password, OTP, Google, and auth-callback redirects to open `/chat` directly; Home remains available through the five-area navigation.
   - Simplified the empty chat state to a welcome, natural-language instruction, and compact optional example prompts. No task-mode selection cards are shown.
   - Added Support as a separate navigation-menu destination alongside Settings.
+  - The streaming indicator now visibly presents the current localized task/status label and a localized Stop action.
 - No model routing, subscription/credit rules, provider settings, prices, database schema, or HIMS behavior were changed.
 - Comprehensive visual, responsive, keyboard, navigation-click, authenticated E2E, task lifecycle, and model-entitlement tests are assigned to Track B; no current-head CI/device pass is claimed.
 - Current Phase 6 status: **IN PROGRESS**. Next implementation slice: refine the minimal chat-first surface and ensure plan/progress/result/cancel/retry states remain discoverable without adding competing mode selectors.
