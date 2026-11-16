@@ -59,6 +59,7 @@ A test group passes only when all required cases pass or the owner explicitly ac
 - Stored data contains secure hashes, not bearer plaintext.
 - Test malformed, duplicate, collision, disabled, expired, exhausted, replayed, and rate-limited code cases.
 - Specifically test duplicate-hash behavior: a prior code must never be silently reactivated or have usage/disabled state reset by a collision/upsert path.
+- Focused development regression executed PASS on 2026-11-16 using a rollback-only transaction; the prior code remained disabled and unchanged after duplicate submission. Re-run the reusable SQL test in the isolated Track B environment and add concurrent collision attempts.
 - Verify audit trail and rollback behavior.
 
 ### Test Group 4 — HIMS student activation and entitlement enforcement
