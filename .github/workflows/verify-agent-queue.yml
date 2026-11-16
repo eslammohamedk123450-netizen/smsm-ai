@@ -118,6 +118,7 @@ jobs:
           deno test supabase/functions/agent-task-scheduler/index.test.ts
           deno test supabase/functions/_shared/brain_task_payload.test.ts
           deno test supabase/functions/_shared/cors.test.ts
+          deno test supabase/functions/_shared/feature_flags.test.ts
           deno test supabase/functions/brain-router/central_agent_result.test.ts
           deno test supabase/functions/brain-router/route_policy.test.ts
       - name: Typecheck Agent, Brain, and scheduler runtime
