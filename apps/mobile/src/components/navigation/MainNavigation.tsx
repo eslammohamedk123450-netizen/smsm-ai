@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { usePathname, useRouter } from "expo-router";
-import { Pressable, StyleSheet, View, useWindowDimensions, Platform } from "react-native";
+import { Keyboard, Pressable, StyleSheet, View, useWindowDimensions, Platform } from "react-native";
+import { useEffect, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PremiumText as Text } from "../ui/PremiumText";
 import { useSulyTheme } from "../../theme/ThemeProvider";
@@ -28,6 +29,13 @@ export function MainNavigation({ children }: Props) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const { colors } = useSulyTheme();
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    const show = Keyboard.addListener("keyboardDidShow", () => setKeyboardVisible(true));
+    const hide = Keyboard.addListener("keyboardDidHide", () => setKeyboardVisible(false));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
   const wide = Platform.OS === "web" && width >= 900;
   const active = activeSection(pathname);
 
@@ -62,7 +70,7 @@ export function MainNavigation({ children }: Props) {
         </View>
       ) : null}
       <View style={styles.content}>{children}</View>
-      {!wide ? (
+      {!wide && !keyboardVisible ? (
         <View style={[styles.bottomBar, { backgroundColor: colors.surface, borderColor: colors.divider, paddingBottom: Math.max(insets.bottom, 6) }]}>
           {ITEMS.map((item) => renderItem(item, true))}
         </View>
