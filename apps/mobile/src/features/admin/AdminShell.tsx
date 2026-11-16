@@ -41,6 +41,15 @@ const NAV_GROUPS: readonly NavGroup[] = [
       { path: "/admin/users", label: "المستخدمون والاشتراكات", labelEn: "Users & subscriptions", icon: "♙" },
       { path: "/admin/credit-management", label: "المحفظة والرصيد", labelEn: "Wallet & credits", icon: "◉" },
       { path: "/admin/pricing", label: "الأسعار والباقات", labelEn: "Pricing & plans", icon: "▧" },
+      { path: "/admin/finance", label: "المالية والربحية", labelEn: "Finance & profitability", icon: "＄" },
+    ],
+  },
+  {
+    key: "ads-rewards",
+    label: "الإعلانات والمكافآت", labelEn: "Ads & rewards",
+    hint: "إعدادات AdMob ومكافآت المستخدمين", hintEn: "AdMob configuration and user rewards",
+    items: [
+      { path: "/admin/ads", label: "إعدادات الإعلانات", labelEn: "Ad settings", icon: "▣" },
     ],
   },
   {
@@ -66,7 +75,7 @@ const NAV_GROUPS: readonly NavGroup[] = [
 ] as const;
 
 const WIDE_BREAKPOINT = 900;
-const DEFAULT_OPEN_GROUPS = ["operations", "intelligence"];
+const DEFAULT_OPEN_GROUPS = ["overview", "ai-platform"];
 
 export function AdminShell() {
   const { colors } = useSulyTheme();
@@ -103,7 +112,7 @@ export function AdminShell() {
   useEffect(() => { void refreshHealth(); }, []);
 
   const isActive = (path: string) => path === "/admin" ? pathname === path : pathname === path || pathname.startsWith(path);
-  const activeGroupKey = NAV_GROUPS.find((group) => group.items.some((item) => isActive(item.path)))?.key ?? "operations";
+  const activeGroupKey = NAV_GROUPS.find((group) => group.items.some((item) => isActive(item.path)))?.key ?? "overview";
 
   useEffect(() => {
     if (!openGroups.includes(activeGroupKey)) setOpenGroups((current) => [...current, activeGroupKey]);
