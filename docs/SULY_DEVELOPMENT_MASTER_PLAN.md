@@ -382,3 +382,5 @@
 - التشغيل القديم `43964781767` على develop أُلغي أثناء تصدير مصدر الإنتاج، قبل بناء preview أو تجميع artifact أو تشغيل deploy؛ لم يتم نشر production من هذا التشغيل.
 - التشغيل الجديد `43964915725` على develop يخضع للشرط الجديد؛ نتحقق من أن deploy job skipped قبل تسجيل الدليل النهائي.
 - لم يتم تحديث `release/v1` أو نشر production يدويًا.
+
+- تم تشديد الحماية أكثر: وظيفة `build` نفسها أصبحت تُتخطى على push `develop`؛ لا يتم حتى تصدير مصدر الإنتاج في تحديثات التطوير. التشغيل `43965155142` على commit `573e0d555a5e2f625e4fdeff09c4ca4d2749d72d` أكد أن `build=skipped` و`deploy=skipped`. لم يحدث نشر production أو preview من develop.
