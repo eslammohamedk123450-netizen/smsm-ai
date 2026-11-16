@@ -32,6 +32,10 @@ export function isFeatureResourceRequest(text: string, recentUserMessages: strin
   });
 }
 
+export function shouldSearchWebForMessage(text: string, isWebSearchRequest: (message: string) => boolean): boolean {
+  return isWebSearchRequest(text) && !isFeatureResourceRequest(text);
+}
+
 export function buildFeatureSystemContext(context: FeatureContext): string | null {
   const resources = Object.values(context.features)
     .filter((info) => info.activated)
