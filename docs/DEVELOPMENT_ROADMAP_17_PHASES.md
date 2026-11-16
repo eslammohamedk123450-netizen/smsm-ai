@@ -1366,3 +1366,21 @@ The product owner requested a strict reduction in branch proliferation and merge
   `test/phase6-model-metadata-pipeline-20261116`,
   `work/phase16-security-phase5-home-20261116`.
 - Do not delete the Projects branch, PR #83, branches associated with closed-unmerged PRs #107/#128, or any remaining branch without a confirmed merged PR and content reconciliation. Future implementation commits must go directly to `develop`; keep `release/v1` untouched.
+
+
+## Projects integration continuation on the single `develop` line — 2026-11-16
+
+- PR #83 was retargeted to `develop` for reconciliation; it remains open and is not being merged as-is because its original protected-layout/drawer implementation predates the current `MainNavigation` architecture and conflicts with the current integration line.
+- Read-only production schema verification confirms `public.suly_projects` exists, `suly_conversations.project_id` exists, the composite owner foreign key exists, four authenticated owner-only RLS policies exist, and anon has no table grants. No production schema write was performed in this integration pass.
+- The Projects feature has been ported directly onto `develop` and adapted to the current product architecture:
+  - Added the protected `/projects` route and localized, theme-aware Projects screen.
+  - Added a Projects entry inside the Chats workspace without changing the five primary navigation destinations.
+  - Updated active-section and safe-area handling for the Projects route.
+  - Added owner-authenticated project list/create/update/archive service operations with input validation and UUID validation.
+  - Added project-aware conversation creation and reads; a chat launched from a project receives its project ID when the first message creates the conversation.
+  - Added a project input validation regression test.
+  - Added the already-applied Projects migration and rollback-only cross-user isolation SQL regression to source control. The migration is **not being re-applied**; the live schema already exists. The migration version was not found in `supabase_migrations.schema_migrations` during read-only verification, so reconcile migration history before any future automated migration deployment.
+  - Updated the verification workflow to run the project validation test and to trigger on pushes to `develop`.
+- Current CI run for the latest code at the time of this note: `43896360850` — pending/in progress. Do not treat the Projects integration as CI-verified until Expo TypeScript, auth/project tests, Web/Android/iOS exports, Deno tests, and Deno typecheck complete successfully.
+- No production deployment, provider routing, credit/price, HIMS, or user entitlement changes were made.
+- Remaining Projects work: display conversations within each project and support safe reassignment of existing conversations; review project deletion semantics and user-facing confirmation before adding any destructive action; verify project create/list/archive/chat-link flows with authenticated test accounts. The existing PR #83 must only be closed after the integrated code passes CI and its complete patch is reconciled; do not delete its source branch before then.
