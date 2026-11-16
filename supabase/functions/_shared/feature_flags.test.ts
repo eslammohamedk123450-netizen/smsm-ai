@@ -1,4 +1,4 @@
-import { isFeatureResourceRequest, buildFeatureSystemContext, type FeatureContext } from "./feature_resource_context.ts";
+import { isFeatureResourceRequest, buildFeatureSystemContext, shouldSearchWebForMessage, type FeatureContext } from "./feature_resource_context.ts";
 import { isWebSearchRequest } from "./tavily.ts";
 
 Deno.test("ordinary greetings do not request private feature resources", () => {
@@ -29,10 +29,10 @@ Deno.test("study explanations are not mistaken for lecture-file requests", () =>
 Deno.test("lecture delivery requests do not trigger web search, but study explanations do", () => {
   const delivery = "ابعتلي ملخص المحاضرة";
   if (!isFeatureResourceRequest(delivery)) throw new Error("lecture delivery was not recognized");
-  if (isWebSearchRequest(delivery) && !isFeatureResourceRequest(delivery)) throw new Error("lecture delivery should not route to web search");
+  if (shouldSearchWebForMessage(delivery, isWebSearchRequest)) throw new Error("lecture delivery should not route to web search");
   const explanation = "اشرحلي محاضرة المحاسبة";
   if (isFeatureResourceRequest(explanation)) throw new Error("study explanation should not request a file");
-  if (!isWebSearchRequest(explanation)) throw new Error("general study explanation should trigger research");
+  if (!shouldSearchWebForMessage(explanation, isWebSearchRequest)) throw new Error("general study explanation should trigger research");
 });
 
 Deno.test("feature context never exposes internal feature labels or activation names", () => {
