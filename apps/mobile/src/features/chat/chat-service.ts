@@ -293,7 +293,7 @@ export const chatService = {
     if (updateError) throw new Error("حُفظت رسالتك، لكن تعذر تحديث ترتيب المحادثة.");
 
     // Media requests are saved as chat messages, but execution and credit reservation happen only in Studio.
-    const studioIntent = options.mediaAsset ? null : getStudioIntent(content);
+    const studioIntent = getStudioIntent(content);
     if (studioIntent) return;
 
     const history: ChatRequestBody["messages"] = priorMessages
