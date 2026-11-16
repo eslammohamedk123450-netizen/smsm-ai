@@ -177,6 +177,26 @@ export const adminService = {
     if (error) throw error;
     return data as { success?: boolean; id?: string; feature_key?: string };
   },
+
+  async setHimsResourceActive(resource: HimsResource, isActive: boolean) {
+    await requireAdmin();
+    if (!resource.id || !resource.title.trim()) throw new Error("بيانات مورد HIMS غير مكتملة.");
+    const mediaAssetId = resource.media_asset_id ?? null;
+    const { data, error } = await supabase.rpc("suly_admin_upsert_feature_resource_v2", {
+      p_feature_key: "hims",
+      p_title: resource.title.trim(),
+      p_url: mediaAssetId ? null : resource.url.trim(),
+      p_kind: resource.kind.trim() || "lecture",
+      p_description: resource.description?.trim() || null,
+      p_is_active: isActive,
+      p_media_asset_id: mediaAssetId,
+    });
+    if (error) throw error;
+    if (!data || data.success !== true || data.id !== resource.id) {
+      throw new Error("لم تؤكد قاعدة البيانات تحديث حالة مورد HIMS.");
+    }
+    return data as { success: true; id: string; feature_key: string; media_asset_id: string | null };
+  },
   async getProviders() {
     await requireAdmin();
     const { data, error } = await supabase.rpc("suly_admin_list_providers");
