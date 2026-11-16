@@ -11,6 +11,7 @@ export type ExistingTextCapabilityEvidence = {
   suly_evidence_url?: string | null;
   suly_tested_at?: string | null;
   notes?: string | null;
+  updated_by?: string | null;
 };
 
 export type TextCapabilityEvidencePatch = {
@@ -25,6 +26,7 @@ export type TextCapabilityEvidencePatch = {
   suly_evidence_url: string | null;
   suly_tested_at: string | null;
   notes: string;
+  updated_by: string | null;
   updated_at: string;
 };
 
@@ -71,6 +73,7 @@ export function buildTextCapabilityEvidencePatch(input: {
     suly_evidence_url: resetSuly ? null : input.existing?.suly_evidence_url ?? null,
     suly_tested_at: resetSuly ? null : input.existing?.suly_tested_at ?? null,
     notes,
+    updated_by: input.existing?.updated_by ?? null,
     updated_at: testedAt,
   };
 }
