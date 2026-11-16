@@ -995,9 +995,9 @@ async function handleRequest(req: Request): Promise<Response> {
     }
   }
 
-  if (!internalBrainCall && trustedAttachments.length === 0 && !himsActivated && containsHimsReference(latestUserMessage)) {
-    return respondDeterministically(INACTIVE_UNKNOWN_ANSWER, { billing: null }, "restricted_feature_query");
-  }
+  // Study questions remain ordinary SULY conversations. Access to private course
+  // resources is still enforced server-side: getFeatureContext only returns
+  // resources for features activated by this authenticated user.
   const identityAnswer = !internalBrainCall && executionMode !== "agent" && trustedAttachments.length === 0 ? getIdentityAnswer(latestUserMessage) : null;
   if (identityAnswer) {
     return respondDeterministically(identityAnswer, { billing: null }, "identity_question");
