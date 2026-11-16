@@ -74,3 +74,41 @@ Source review confirms these safeguards already exist on `develop`:
 ## Phase 1 disposition
 
 The source inventory, critical-flow ownership matrix, and baseline evidence are now recorded in this maintained document. The inventory is source-level and intentionally records unverified runtime journeys as such. Continue updating it as implementation reveals more dependencies; do not convert an unverified flow to PASS without evidence.
+
+
+## Execution update — 2026-11-16
+
+### Phase 1 — source inventory disposition
+- **DONE — VERIFIED (source-level).** The inventory and critical-flow ownership/evidence matrix above meet the repository/source audit deliverable. It does not certify live end-to-end behavior; those gaps remain in their owning phases.
+
+### Phase 2 — HIMS live authorization review
+Read-only checks against Supabase project `razvryvazmqvvqkzetuo` confirmed:
+- `suly_activation_codes`, `suly_feature_activations`, and `suly_feature_resources` have RLS enabled.
+- Direct anon/authenticated table privileges are denied for these three tables.
+- The client-deny policies on activation-code and activation tables are explicitly false for all client operations.
+- `suly_activate_feature(uuid,text)` is SECURITY DEFINER with a fixed search_path and is not executable by anon or authenticated; the central server path is the only permitted caller.
+- Admin code create/list/resource-management RPCs are executable by authenticated callers but contain server-side `auth.uid()` plus `suly_is_admin()` checks. `suly_my_feature_resources` is authenticated-only and returns resources for the current user.
+- Resource table SELECT is protected by an active-resource policy and no direct authenticated table SELECT privilege is granted; the approved bounded RPC remains the student path.
+- The project is ACTIVE_HEALTHY on PostgreSQL 17.11. Live migrations include the HIMS hash-only, resource isolation, student-resource RPC, rate-limit, and profile-write protections through the current project migration set.
+
+**Confirmed defect:** the deployed `suly_admin_create_activation_code` still uses `ON CONFLICT (code_hash) DO UPDATE`, which can reactivate or mutate an existing bearer code and reset its configured limits. This is not acceptable for a one-time bearer credential.
+
+**Committed but not yet applied/executed:**
+- `supabase/migrations/20261116150000_hims_activation_code_collision_guard.sql` changes duplicate hash handling to `DO NOTHING` followed by SQLSTATE 23505; existing code state is not modified.
+- `supabase/tests/hims_activation_code_collision_regression.sql` verifies a duplicate is rejected and prior disabled/used/label/limit state remains unchanged inside a rollback-only transaction.
+
+The migration has not been applied to the hosted project, and the regression SQL has not yet been run. The current execution environment has no Supabase CLI checkout, so the prescribed `supabase migration new` local generation and local database test workflow could not be performed here. No hosted schema changes were made.
+
+### Phase 3 — student journey
+- Source-level parser, intent, and protected-resource paths are present.
+- Real student login/activation and actual lecture delivery are **BLOCKED — OWNER INPUT** until dedicated test accounts and the approved real lecture/content source are provided. No passwords or secrets should be sent in chat.
+
+### Phase 4 — design system
+- Existing theme provider supports system/light/dark and persisted preference; shared tokens and reusable `SulyButton`, `SulyCard`, and `SulyScreen` primitives exist.
+- Muted text tokens were updated to dark `#888888` and light `#6B6B6B`.
+- Automated contrast coverage now checks primary/secondary/muted text against background, surface, elevated surface, card, and input backgrounds, plus primary button foreground/background.
+- The test file is included in the existing GitHub Actions Jest command, but no run for the latest commit has yet been verified.
+- Full visual browser and Android/iOS device review remains unperformed.
+
+### Current first-four-phase gate
+Phase 1 is complete at source-audit level. Phases 2–4 remain open. Therefore **the first four phases are not yet complete**, and Phase 5 must not start.
