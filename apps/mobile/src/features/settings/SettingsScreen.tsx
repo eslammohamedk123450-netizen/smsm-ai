@@ -20,7 +20,7 @@ export default function SettingsScreen() {
   const { colors, mode, effectiveMode, setMode } = useSulyTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { language, isArabic, setLanguage } = useAppLocale();
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminAccess, setAdminAccess] = useState<{ userId: string | null; state: "checking" | "allowed" | "denied" | "error" }>({ userId: null, state: "checking" });
   const [savedProfileName, setSavedProfileName] = useState<string | null>(null);
   const [profileEditVisible, setProfileEditVisible] = useState(false);
   const [profileNameDraft, setProfileNameDraft] = useState("");
@@ -36,12 +36,41 @@ export default function SettingsScreen() {
   const [archivedConversations, setArchivedConversations] = useState<Conversation[]>([]);
   const [archiveLoading, setArchiveLoading] = useState(false);
 
+  const adminAccessState = adminAccess.userId === user?.id ? adminAccess.state : "checking";
+
+  const checkAdminAccess = useCallback(async () => {
+    const userId = user?.id ?? null;
+    if (!userId) {
+      setAdminAccess({ userId: null, state: "denied" });
+      return;
+    }
+    setAdminAccess({ userId, state: "checking" });
+    try {
+      const { data, error } = await supabase.rpc("suly_is_admin");
+      setAdminAccess({ userId, state: error ? "error" : data === true ? "allowed" : "denied" });
+    } catch {
+      setAdminAccess({ userId, state: "error" });
+    }
+  }, [user?.id]);
+
   useEffect(() => {
+    let active = true;
+    const userId = user?.id ?? null;
+    if (!userId) {
+      setAdminAccess({ userId: null, state: "denied" });
+      return () => { active = false; };
+    }
+    setAdminAccess({ userId, state: "checking" });
     void (async () => {
-      try { const { data, error } = await supabase.rpc("suly_is_admin"); setIsAdmin(!error && data === true); }
-      catch { setIsAdmin(false); }
+      try {
+        const { data, error } = await supabase.rpc("suly_is_admin");
+        if (active) setAdminAccess({ userId, state: error ? "error" : data === true ? "allowed" : "denied" });
+      } catch {
+        if (active) setAdminAccess({ userId, state: "error" });
+      }
     })();
-  }, []);
+    return () => { active = false; };
+  }, [user?.id]);
 
   const loadCredits = useCallback(async () => {
     if (!user) return;
@@ -193,10 +222,18 @@ export default function SettingsScreen() {
         <Text style={styles.sectionTitle}>{isArabic ? "المحادثات" : "Conversations"}</Text>
         <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => void openArchive()} accessibilityRole="button"><Text style={styles.rowText}>{isArabic ? "الأرشيف" : "Archive"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
 
-        {isAdmin ? <>
+        {adminAccessState === "allowed" ? <>
           <Text style={styles.sectionTitle}>{isArabic ? "إدارة النظام" : "Administration"}</Text>
           <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/admin")} accessibilityRole="button">
             <Text style={styles.rowText}>{isArabic ? "لوحة التحكم الإدارية" : "Admin dashboard"}</Text><Text style={styles.chevron}>‹</Text>
+          </TouchableOpacity>
+        </> : adminAccessState === "checking" ? <>
+          <Text style={styles.sectionTitle}>{isArabic ? "إدارة النظام" : "Administration"}</Text>
+          <View style={styles.cardRow}><ActivityIndicator color={colors.primary} /><Text style={styles.rowText}>{isArabic ? "جارٍ التحقق من صلاحية الأدمن…" : "Checking administrator access…"}</Text></View>
+        </> : adminAccessState === "error" ? <>
+          <Text style={styles.sectionTitle}>{isArabic ? "إدارة النظام" : "Administration"}</Text>
+          <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => void checkAdminAccess()} accessibilityRole="button">
+            <Text style={styles.rowText}>{isArabic ? "تعذر التحقق من صلاحية الأدمن — اضغط لإعادة المحاولة" : "Could not verify admin access — tap to retry"}</Text><Text style={styles.chevron}>↻</Text>
           </TouchableOpacity>
         </> : null}
         <Text style={styles.sectionTitle}>{isArabic ? "التكاملات" : "Integrations"}</Text>
