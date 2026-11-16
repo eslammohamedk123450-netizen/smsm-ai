@@ -83,6 +83,7 @@ A test group passes only when all required cases pass or the owner explicitly ac
 - Attachment upload, validation, preview, ownership, and retrieval.
 - Arabic/English messages, long messages, Unicode, RTL, and network interruptions.
 - Verify no false claim that a model/tool ran when server routing did not confirm it.
+- Verify the inline last-response model label appears only after a server-confirmed model event, is localized, and is cleared when a new response begins; verify no selected-profile label is presented as actual routing provenance.
 
 ### Test Group 7 — Central Agent planning and durable task runtime
 - Simple chat stays fast and does not spawn a task unnecessarily.
