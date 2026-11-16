@@ -1,4 +1,4 @@
-# SULY — 17-Phase Development Roadmap & Execution Tracker
+# SULY — Unified 17-Phase Build & 17-Group Test Master Plan
 
 > **Purpose:** This is the canonical project-development handover document. Every developer, agent, or contributor must read it before changing the product. It records the product intent, approved decisions, phase scope, current evidence-based status, outstanding work, blockers, and verification requirements.
 >
@@ -7,7 +7,7 @@
 > **Production branch:** `release/v1` (protected; no direct development work)  
 > **Working rule:** The 17 phases below are the complete build, organization, integration, and implementation track. The independent comprehensive test track begins only after all 17 build phases and their integration work are complete. Routine developer/CI checks may still run during implementation to prevent regressions; they are not the final comprehensive test campaign. Never mark work complete merely because code was written or merged.
 >
-> **Authoritative plans:** [Unified Development Master Plan](SULY_DEVELOPMENT_MASTER_PLAN.md) (Track A) and [Independent Comprehensive Test Master Plan](SULY_COMPREHENSIVE_TEST_MASTER_PLAN.md) (Track B). These two files are maintained separately and must stay aligned with this execution tracker.
+> **Single authoritative plan:** This file contains both Track A (17 sequential build/development phases) and Track B (17 comprehensive test groups). The former separate master-plan paths are compatibility pointers only; do not maintain parallel or conflicting plans.
 >
 > **Current execution gate (2026-11-16):** Phases 1–4 implementation scope is complete and reported; their comprehensive verification is deferred to Track B. Phase 5 five-area navigation and Home foundation already exist on `develop`. Continue sequentially with Phase 6; do not duplicate the navigation foundation.
 
@@ -57,7 +57,7 @@ On mobile, use a suitable bottom navigation pattern; on web, use a responsive si
 - Do not create multiple independent agents/brains that compete or make conflicting decisions.
 - Preserve the existing task runtime, DAG/dependency handling, checkpoints, leases, cancellation, idempotency, and usage ledger.
 - Model roles (chat, planner, worker, reviewer, summarizer) are constrained execution roles, not separate product assistants.
-- Show the actual model used where appropriate. Auto/Free/Pro/Max are selection modes/profiles, not necessarily subscription names.
+- The user-facing chat has no model-selection dropdown: the single central Agent automatically selects the appropriate verified model/profile according to task, entitlement, availability, and server-side routing rules. Show the actual model used only when the server confirms it. Model catalog, capability governance, health, provider configuration, and routing controls remain in the Admin Control Center.
 
 ### HIMS / HRMS educational entitlement — not a separate chat product
 The existing education feature is an entitlement integrated into the **same ordinary SULY conversation**:
@@ -93,6 +93,83 @@ The existing education feature is an entitlement integrated into the **same ordi
 - Reserve/settle/release credits atomically and idempotently. For cancelled work, charge only the work actually performed according to the approved ledger rules.
 
 ---
+
+
+## 2A. Owner-approved complete product and Control Center redesign
+
+This is a full product-wide UX/UI redesign requirement, not a palette-only adjustment or isolated screen polish. The redesign must be implemented across the shared Expo application while preserving the existing business logic, routes, data, entitlements, and working capabilities.
+
+### User application — complete experience
+
+- Product identity: **SULY**. Use the approved clean, calm, premium black/white visual foundation with Light, Dark, and System themes. Do not restore the former gold-heavy direction or generic AI-assistant taglines without a new explicit owner decision.
+- Redesign all primary screens and shared components as one coherent system: typography, spacing, layout, surfaces, navigation, cards, fields, dialogs, menus, empty/loading/error states, responsive behavior, accessibility, RTL/LTR, and interaction feedback.
+- Keep the five primary product areas:
+  1. **Home** — welcoming entry point, focused actions, recent work, and useful discovery.
+  2. **Conversations** — ordinary chat with the one central SULY Agent, conversation search/history, projects, and task progress/results.
+  3. **SULY Studio** — specialized image/video/audio generation and audio transcription only where the relevant provider/runtime/cost is verified; unsupported modalities must be clearly unavailable, not simulated.
+  4. **Library** — owned uploads, generated outputs, documents, folders, favorites, search, and supported file actions.
+  5. **Account** — profile, preferences, security, plans, subscription, credits, billing, support, integrations, and app information.
+- Mobile uses a clear bottom navigation pattern with safe-area and keyboard handling. Web uses responsive navigation appropriate to desktop and narrow viewports. The same shared feature implementation serves Web, Android, and iOS.
+- Chat is the simple default entry. The central Agent detects ordinary conversation versus work requiring planning/tools/workers. Do not add a second assistant, competing brain, or user-facing model-selection dropdown. The Agent chooses a verified model automatically; show model provenance only after server confirmation.
+- HIMS remains embedded in ordinary chat and its authorized resource delivery. It is not a separate assistant, separate chat product, or replacement route.
+- Remove generic placeholder marketing copy and decorative controls that do not perform their advertised action. Preserve meaningful product branding and clear, concise copy.
+- Every redesigned screen must retain existing routes and supported functionality. Redesign is not permission to delete, disable, or hide existing features.
+
+### SULY Control Center — complete administrative experience
+
+Build the administration workspace as a coherent, professional **SULY Control Center**, with a clear information architecture, consistent responsive layout, global search/navigation, truthful system status, and role-gated actions. Keep it within the existing shared Expo application and server authorization model; do not create a parallel admin product or bypass server permissions.
+
+The 12 administrative domains are:
+
+1. **Overview** — operational summary, usage, cost, revenue, system health, queue/provider status, and recent events. Missing or failed data must display unknown/unavailable, never a fabricated zero or healthy state.
+2. **Providers & Models** — provider registry, server-held credentials/status, model catalog, identifiers, enable/disable lifecycle, metadata, and ownership. Never expose secret values to clients.
+3. **Capabilities & Tests** — model capability evidence, modality support, test/probe history, health, verified/unverified state, and explicit unavailable reasons.
+4. **Routing & Agent** — central Agent policy, task classification, model-role allowlists, fallback rules, worker limits, timeouts, retries, and circuit-breaker controls. Maintain one decision-making Agent.
+5. **Pricing & Plans** — provider cost, customer price, unit, currency, effective dates, margin, pricing version, plan features, and allowance configuration. Preserve approved formulas and never invent FX or credit conversion.
+6. **Credits & Wallet** — balances, reservations, settlement, release/refund, transaction history, reconciliation, and controlled audited adjustments. Preserve immutable ledger history and atomic/idempotent accounting.
+7. **Users & Accounts** — searchable/paginated users, roles, status, entitlements, subscriptions, and safe account-level administration.
+8. **Ads & Rewards** — rewarded-ad configuration, eligibility, reward rules, verification status, anti-replay protections, and available reporting. Do not claim revenue/impressions are live without evidence.
+9. **Finance & Profit** — provider costs, revenue, expenses, margins, currency consistency, unsettled amounts, and auditable financial summaries.
+10. **Activity & Audit** — searchable administrative/system events, actor, target, timestamp, action, outcome, and traceability. Preserve audit history.
+11. **HIMS & Content** — activation-code lifecycle, resource metadata/visibility, authorized content management, and audit trail. Preserve HIMS tables, student entitlements, resources, and existing workflows.
+12. **System & Security** — environment/health status, access controls, integrations, storage metadata, maintenance/circuit-breaker settings, security findings, and configuration history.
+
+### Dynamic administration and builder safeguards
+
+- Where the approved admin-builder capability exists, administrators may compose/reorder supported pages, sections, and registered UI components using an allowlisted component/data-source registry, with preview, save/version, restore, publish permissions, and audit history.
+- Do not allow arbitrary SQL, arbitrary RPC execution, raw secrets, privilege escalation, or unregistered data-source bindings through a visual builder.
+- Mandatory security, billing, HIMS, and audit controls cannot be hidden or removed in a way that bypasses required workflows or authorization.
+- Every control must be functional or explicitly disabled with a reason. Destructive/high-impact actions require server authorization, clear confirmation, audit logging, and safe recovery.
+- The existing admin build record in `docs/SULY_ADMIN_CONTROL_CENTER_PLAN.md` remains supporting implementation evidence, not a competing product specification.
+
+### Redesign acceptance
+
+- All five user areas and all 12 admin domains have a documented screen/route inventory and a consistent responsive design.
+- Web, Android, and iOS share feature behavior and business logic; platform-specific adapters are limited to genuine platform differences.
+- Arabic RTL and English LTR, Light/Dark/System themes, keyboard/safe areas, focus/contrast, text scaling, and accessibility are addressed.
+- No existing route, data, feature, HIMS workflow, or billing/security invariant is lost.
+- Visual redesign is not declared complete from token changes alone; screen-by-screen implementation and visual/accessibility evidence must be recorded in Track A/Track B as appropriate.
+
+## 2B. Unified two-track execution contract
+
+The two tracks live in this one document and are executed in this order:
+
+**Track A — Build & Development (17 phases):**
+- Execute the 17 development phases sequentially, one phase at a time, against `develop`.
+- Finish and record each phase's implementation scope, source evidence, migrations, focused developer checks, limitations, and next permitted phase before advancing.
+- Do not skip ahead, create an alternate plan, or repeat already-completed foundations without a concrete defect.
+- Routine typechecks, unit tests, Deno tests, SQL regression checks, and CI quality gates may run during Track A. They prevent regressions and do not count as completion of Track B.
+- If a focused check finds a defect, repair it in the relevant Track A phase before proceeding.
+
+**Track B — Comprehensive Testing (17 groups):**
+- Track B starts only after all 17 Track A phases and their integration are implementation-complete and the owner is notified that the build is ready for formal acceptance.
+- All comprehensive tests—security, HIMS live activation, real-user journeys, billing/accounting, concurrency, admin roles, migrations, browser, accessibility, Web/Android/iOS, resilience, and release acceptance—belong here.
+- Execute groups systematically, one at a time, recording exact evidence and PASS/FAIL/BLOCKED/NOT RUN/NOT APPLICABLE.
+- A Track B failure creates a scoped repair in Track A on `develop`; after repair, rerun the failed test and affected regression coverage. Preserve original failure evidence.
+- Do not represent source review, a bundle export, or a routine CI check as a complete end-to-end/device/security test.
+- No production deployment, production data mutation, pricing/provider activation, or release promotion without explicit owner authorization.
+
+The two tracks are not competing plans and must not be run as two unrelated projects. Track A builds; Track B verifies the completed build. This file is the sole authoritative source for both.
 
 # 3. The 17 development phases
 
@@ -239,7 +316,7 @@ Scope:
 - Preserve DAG dependencies, bounded workers, checkpoints, lease fencing, idempotency, and durable task state.
 - Cancellation must stop queued work and safely handle running work; bill only performed work as defined by the usage ledger.
 - Preserve chat history, rename/pin/archive/delete semantics, attachments, and conversation navigation.
-- Model selector Auto/Free/Pro/Max should be clear and located in the chat header/top area—not obscured above the keyboard.
+- Do not show a model-selection dropdown in ordinary chat. The central Agent chooses automatically; show truthful server-confirmed model provenance when available.
 - Show the real model used when available; do not claim a model was used if routing did not confirm it.
 - The central agent selects model/tool according to task, permission, quality, latency, availability, and cost, with bounded safe fallbacks.
 - Avoid unbounded loops, uncontrolled parallelism, hidden retries, arbitrary model fallback, and duplicate charges.
@@ -251,7 +328,7 @@ Acceptance:
 - Model permissions and provider freeze rules are enforced on every new call.
 - Normal greetings and simple questions remain fast and natural.
 
-**Current status:** [>] IN PROGRESS on `develop`. Significant agent runtime and model-governance work is already present. The chat header includes navigation and a compact model selector; Auto and verified Lite/Pro/Max profiles are shown with plan restrictions, while Ultra remains visible but unavailable because verified catalog/routing metadata is absent. Authenticated entry lands in chat, and the empty state uses a compact natural-language welcome. Streaming displays localized task status and Stop. The actual model identifier is displayed inline only after server confirmation; retry clears stale provenance and captures the retry's own model event. A failed model-catalog lookup now disables default fallback profiles instead of presenting them as verified., rather than being visible only inside the model picker (commit `58014c050cabd5840a31afc6c6191b432bb51638`). Remaining implementation includes reviewing task progress/results presentation, cancellation/retry state consistency, and partial-billing visibility against existing task/usage services. Full authenticated HTTP E2E, latency, visual browser, and device verification remain assigned to Track B; this UI change has not been test-run.
+**Current status:** [>] IN PROGRESS on `develop`. Significant central-Agent runtime and model-governance work is already present. Ordinary chat uses automatic server-side model routing and does not expose a model-selection dropdown; the Agent selects only from verified, entitled, available profiles. Authenticated entry lands in chat, and the empty state uses a compact natural-language welcome. Streaming displays localized task status and Stop. The actual model identifier is displayed inline only after server confirmation; retry clears stale provenance and captures the retry's own model event. Admin model catalog, capability, provider health, and routing governance remain administrative controls. Remaining implementation includes finalizing task progress/results presentation, cancellation/retry state consistency, and partial-billing visibility against existing task/usage services. Full authenticated HTTP E2E, latency, visual browser, and device verification remain assigned to Track B.
 
 Known evidence:
 - PR #85 and earlier runtime work established strict model-role allowlists, guarded routing, provider freeze behavior, safe fallbacks, and regression checks.
@@ -458,7 +535,7 @@ Verified schema review (2026-11-16):
 - All tables listed above have RLS enabled; the full anon/authenticated/service_role grant-and-policy matrix still needs targeted regression coverage before this phase can close.
 - No parallel routing table or duplicate provider-secret store was introduced.
 
-## Phase 12 — Model selection, routing, cost calculation, and 40% pricing
+## Phase 12 — Automatic model routing, cost calculation, and 40% pricing
 
 **Goal:** Route requests to suitable verified models and calculate customer charges accurately.
 
@@ -722,7 +799,7 @@ During Track B:
 | 1. Product inventory and completeness | Reconcile every phase deliverable, route, screen, control, service, migration, RPC, Edge Function, and required admin module against the approved inventory; identify missing, duplicate, dead, or unreachable functionality. |
 | 2. Authentication and account journeys | Sign-up, login, logout, session restoration, expired sessions, account/profile changes, password/reset flows where supported, and role/entitlement refresh. |
 | 3. HIMS and educational entitlement | Admin code creation, student activation in normal chat, valid/invalid/expired/reused codes, attempt throttling, entitlement checks, authorized resource retrieval, cross-student isolation, and natural handling of unrelated chat. |
-| 4. Central chat and Agent | Normal chat, fast responses, complex planning, DAG dependencies, bounded workers, tool calls, model selection, history, streaming/status, timeouts, retries, cancellation, recovery, and failure reporting. |
+| 4. Central chat and Agent | Normal chat, fast responses, complex planning, DAG dependencies, bounded workers, tool calls, automatic model routing, history, streaming/status, timeouts, retries, cancellation, recovery, and failure reporting. |
 | 5. Wallet, Credits, and accounting | Reservation, settlement, partial billing, cancellation, release/refund, duplicate requests, idempotency, concurrent requests, negative-balance prevention, ledger reconciliation, and no charge for work not performed. |
 | 6. Providers, models, and capability evidence | Credential secrecy, provider health, model identifiers, enabled/disabled governance, vendor/provider/SULY evidence distinctions, probe results, fallback behavior, freeze enforcement, and unsupported-capability rejection. |
 | 7. Routing, pricing, and plans | Primary/backup selection, task-role allowlists, Lite/Pro/Max/Auto behavior, price-version selection, units, margin calculations, missing FX/credit conversion blocks, plan entitlements, and server-authoritative decisions. |
@@ -1512,7 +1589,7 @@ The product owner requested a strict reduction in branch proliferation and merge
 
 ## Approved chat-first UX and credit-policy decisions — 2026-11-16
 
-- The product owner approved three specification decisions: subscription-plan allowance is **monthly**; purchased credits **never expire**; and the model selector displays **all four profiles (Lite, Pro, Max, Ultra)** with clear available/restricted states.
+- The product owner approved two specification decisions: subscription-plan allowance is **monthly** and purchased credits **never expire**. In ordinary chat, model selection is automatic through the central Agent; model catalog and model governance are administered from the Control Center, not a user-facing chat dropdown.
 - The detailed specification is maintained in `docs/SULY_CHAT_FIRST_UX_AND_CREDIT_POLICY.md`.
 - The intended home experience is simple, chat-first: users write naturally and the single central Agent decides whether the request is ordinary chat or requires planning/tools. Specialized media workflows remain in Studio, while the Agent may invoke them from chat when appropriate.
 - These are **approved product specifications, not verified current backend behavior**. No subscription, credit-ledger, expiry, pricing, model-routing, provider, HIMS, or production setting was changed by recording these decisions.
@@ -1527,7 +1604,7 @@ The product owner requested a strict reduction in branch proliferation and merge
   - Moved model selection out of the horizontal row above the composer and into a compact header dropdown.
   - Added a compact navigation menu with direct links to New chat, Conversations/Search, Projects, Tasks, Studio, Library, Credits, Plans, Integrations, and Settings.
   - New chat creates a new conversation record before navigating, avoiding accidental reuse of the current conversation.
-  - The model selector lists Auto and the three verified active server profiles (Lite, Pro, Max); plan-restricted profiles remain visible but disabled.
+  - Ordinary chat does not display a model selector. The central Agent automatically routes to a verified model/profile subject to server-side entitlement and availability checks; actual model provenance is shown only when confirmed.
   - Added SULY Ultra as a visible, disabled “Not available yet” entry. A read-only query of `suly_model_profiles` confirmed the live catalog currently contains only Lite, Pro, and Max. No Ultra model, plan, provider route, capability, or version was fabricated or activated.
   - The displayed actual model remains sourced from server-confirmed response metadata and is kept distinct from the selected profile.
   - Changed authenticated root entry and successful password, OTP, Google, and auth-callback redirects to open `/chat` directly; Home remains available through the five-area navigation.
@@ -1537,3 +1614,241 @@ The product owner requested a strict reduction in branch proliferation and merge
 - No model routing, subscription/credit rules, provider settings, prices, database schema, or HIMS behavior were changed.
 - Comprehensive visual, responsive, keyboard, navigation-click, authenticated E2E, task lifecycle, and model-entitlement tests are assigned to Track B; no current-head CI/device pass is claimed.
 - Current Phase 6 status: **IN PROGRESS**. Next implementation slice: refine the minimal chat-first surface and ensure plan/progress/result/cancel/retry states remain discoverable without adding competing mode selectors.
+
+
+# TRACK B — DETAILED COMPREHENSIVE TEST MASTER PLAN
+
+## 1. Purpose and separation from development
+
+This is the independent, comprehensive verification plan for SULY. It contains 17 test groups and is separate from the Track A development phases in this unified master document.
+
+Routine unit tests, typechecks, Deno tests, SQL regressions, and CI checks must continue during development to prevent regressions. Those checks do **not** mean this final campaign has started or passed. Formal Track B begins only after Track A Phase 17 integration is complete and the owner is notified that the build is ready for comprehensive verification.
+
+Every test result must be reproducible and evidence-based. Use isolated test data and test accounts. Never request or store the owner's personal password, production bearer token, service-role key, or other secret in chat, test fixtures, logs, or GitHub.
+
+## 2. Test result vocabulary
+
+- **PASS:** Exact test executed successfully with evidence.
+- **FAIL:** Test executed and behavior failed; record reproduction and severity.
+- **BLOCKED:** Cannot execute due to unavailable account, content, provider, device, environment, or owner decision.
+- **NOT RUN:** Test is planned but not executed.
+- **NOT APPLICABLE:** Explain why and retain the rationale.
+- **REGRESSION:** Previously passing behavior now fails.
+
+A test group passes only when all required cases pass or the owner explicitly accepts documented limitations. A source-code review is not an end-to-end test. A successful static export is not proof that the web UI works in a browser. A JS bundle export is not proof of a native installation or real-device behavior.
+
+## 3. Safety and test-environment rules
+
+- Use isolated fixtures and dedicated test users; clean up only data created by the test.
+- Prefer rollback-only SQL transactions for database authorization tests.
+- Never use real customer/student accounts without explicit safe test arrangements.
+- Never expose or request passwords/secrets in chat. If user-supplied test access is required, provide a safe flow using temporary test accounts and owner-operated authentication.
+- No production writes, financial adjustments, HIMS entitlement changes, provider/model activation, secret rotation, or deployment as part of testing without explicit approval.
+- Test both allowed and denied paths; include cross-user/tenant isolation.
+- Record environment, commit SHA, migration state, test command, run ID, logs/artifacts, expected result, actual result, and cleanup.
+- Test Web, Android, and iOS separately where behavior differs; mark unavailable physical-device tests BLOCKED rather than assuming success.
+- Test Arabic RTL and English LTR, light/dark themes, keyboard/safe areas, accessibility, and responsive sizes.
+
+## 4. The 17 comprehensive test groups
+
+### Test Group 1 — Repository, build, and deployment baseline
+- Clean install and lockfile consistency; TypeScript/lint/unit checks where configured.
+- Expo Web static export; Android and iOS bundle exports.
+- Deno tests/typechecks and Edge Function bundle verification.
+- Workflow triggers, artifact contents, deployment target, environment variable handling, and branch protection.
+- Verify Pages preview and deployed site in a real browser; confirm routes load and no blank/black screen.
+- Verify no production deploy or protected branch mutation occurs from development workflows.
+
+### Test Group 2 — Authentication, sessions, and account boundaries
+- Sign-up/sign-in/sign-out, callback/deep links, expired/refresh token, session restoration, password reset where supported.
+- Anonymous/unauthenticated access to protected screens and server endpoints.
+- Session revocation, multiple devices, and account switching.
+- Verify one user's data is never visible or mutable by another user.
+
+### Test Group 3 — HIMS admin code lifecycle and authorization
+- Non-admin cannot create, list, disable, or manage codes.
+- Admin can create code under approved rules; plaintext is returned only through intended creation flow.
+- Stored data contains secure hashes, not bearer plaintext.
+- Test malformed, duplicate, collision, disabled, expired, exhausted, replayed, and rate-limited code cases.
+- Specifically test duplicate-hash behavior: a prior code must never be silently reactivated or have usage/disabled state reset by a collision/upsert path.
+- Focused development regression executed PASS on 2026-11-16 using a rollback-only transaction; the prior code remained disabled and unchanged after duplicate submission. Re-run the reusable SQL test in the isolated Track B environment and add concurrent collision attempts.
+- Verify audit trail and rollback behavior.
+
+### Test Group 4 — HIMS student activation and entitlement enforcement
+- Student submits code in ordinary chat; server validates authenticated identity and grants only permitted entitlement.
+- Invalid, expired, disabled, reused, forged-client-state, and cross-account attempts are denied safely.
+- Race two activation attempts and verify exactly one permitted outcome and no duplicate entitlement.
+- Change local storage/request body/profile flags and verify no privilege escalation.
+- Revoke/disable behavior follows established business rules and remains auditable.
+- Real student session is BLOCKED until safe owner-approved test accounts are available; never use personal credentials.
+
+### Test Group 5 — HIMS content discovery, delivery, and ordinary-chat behavior
+- Authorized student requests an available lecture; server verifies exact active resource mapping and returns safe delivery.
+- Unauthorized student, inactive resource, wrong media mapping, missing content, expired link, and cross-student request are denied.
+- General study questions answer naturally without unnecessary HIMS announcement.
+- Greetings, small talk, unrelated requests do not trigger education lookup.
+- Follow-ups such as “send it” resolve only with valid recent resource context.
+- Test real lecture delivery only after owner provides/approves actual content source.
+
+- Provider onboarding privilege regression: confirm `suly_admin_add_provider` is not executable by `anon` or `authenticated`, remains executable by `service_role`, and that `sync-models` rejects a non-admin caller before invoking the RPC.
+
+### Test Group 6 — Chat, streaming, history, and attachments
+- Normal text chat, SSE chunk order, completion, timeout, reconnect, retry, duplicate submission, and error handling.
+- Conversation creation, history, rename, pin/archive/delete semantics where supported.
+- Attachment upload, validation, preview, ownership, and retrieval.
+- Arabic/English messages, long messages, Unicode, RTL, and network interruptions.
+- Verify no false claim that a model/tool ran when server routing did not confirm it.
+- Verify the inline last-response model label appears only after a server-confirmed model event, is localized, and is cleared when a new response begins; verify no selected-profile label is presented as actual routing provenance.
+- Verify retry clears the prior response's actual-model label and displays only the model identifier confirmed by the retry stream.
+
+### Test Group 7 — Central Agent planning and durable task runtime
+- Simple chat stays fast and does not spawn a task unnecessarily.
+- Complex request creates bounded plan and dependency graph; verify valid ordering and no cycles.
+- Worker limits, lease acquisition/renewal/fencing, checkpoints, timeout, retry, and crash recovery.
+- Duplicate delivery/idempotency; no duplicate tool execution or charge.
+- Provider outage/freeze and fallback rules remain bounded and truthful.
+- Verify central Agent remains the single decision-maker; worker roles do not become independent assistants.
+- From an existing chat, open Tasks and confirm the conversation ID is carried into the task workspace; after completion, confirm the objective and final response appear exactly once in the same conversation with a traceable task ID.
+- Open Tasks without an existing conversation; confirm a conversation is created for the completed task exchange and the app returns to it.
+- Simulate app termination before enqueue returns, then reopen the task workspace; verify the pre-saved task ID resolves to the existing job (or retries the same idempotency key), with no second task or credit reservation. Also terminate after job ID persistence and verify normal resume.
+- Simulate failure after only the user message is persisted; retry sync and verify the missing assistant result is inserted exactly once using its stable role-specific request ID.
+- Retry after both messages are persisted but before local recovery state is cleared; verify no duplicate user or assistant message is created.
+- Verify the authenticated client cannot insert assistant messages directly; the brain-router sync path must verify task owner, completed status, objective/result match, and conversation owner before server-side persistence.
+- Verify that live plan/progress and safe cancellation remain visible in the durable task workspace while running; the ordinary chat transcript receives the final result only after completion.
+
+### Test Group 8 — Task cancellation, partial completion, and billing
+- Cancel before queueing, while queued, before worker starts, during running work, and after partial completion.
+- Only actually performed work is settled; unperformed reserved work is released.
+- Concurrent cancellation/retry/completion races settle exactly once.
+- Repeated callbacks and duplicate requests do not create duplicate ledger entries.
+- Verify task status, user-facing explanation, and ledger agree.
+- Verify queued cancellation is reported as cancelled-before-start, while a running cancellation is reported as a safe stop only after the worker confirms terminal cancellation; no premature success message.
+
+### Test Group 9 — Model catalog, selector, permissions, and routing
+- All four profiles (Lite/Pro/Max/Ultra) are displayed with accurate available/restricted labels.
+- Subscription plan and selected model remain distinct.
+- Unauthorized model request is denied server-side even if client is modified.
+- Model version/capability/provider/cost metadata matches verified catalog.
+- Disabled/frozen/unverified providers receive no new calls.
+- Verify selected vs actual routed model is represented truthfully.
+- If the catalog RPC fails or returns malformed data, no local fallback profile is selectable or represented as server-verified; Auto remains safe and the unavailable state is explicit.
+- Switch between authenticated accounts while the catalog request is pending or failing; verify catalog verification resets and no prior-session profile state remains selectable.
+- Verify Ultra remains unavailable unless its server catalog, permission, provider, and routing metadata are all verified.
+
+### Test Group 10 — Studio, media generation, and media security
+- Image/video/audio transcription workflows, validation, size/duration limits, quotas, and cost guardrails.
+- Provider success, timeout, outage, disabled state, malformed response, and partial failure.
+- Authenticated upload and private delivery; signed URL expiry and ownership.
+- Agent-triggered media job from chat returns result to the same conversation and appropriate Studio/Library reference.
+- Verify no cross-user media access and no charge for work not performed.
+- Missing, zero, or unverified image-generation price must block both UI submission and server-side generation; no zero-cost assumption is allowed.
+- Video/audio/transcription entries remain unavailable until their provider, execution path, verified pricing, and output delivery are configured.
+
+### Test Group 11 — Library, files, and storage lifecycle
+- List/search/filter/preview/download where supported.
+- Owner-only metadata and object access; cross-user object IDs must fail.
+- Signed URL scope/expiry, storage quota, unsupported files, malware/content validation if configured.
+- Delete/archive/retention behavior and audit records.
+- Verify generated outputs remain associated with the correct user/conversation/task.
+- Audio MIME types are discoverable through the audio filter and labeled as audio without changing or corrupting the existing raw/document storage-kind contract.
+- Admin storage explorer: authorized admin only; private bucket remains private; bucket/object metadata is sanitized; path traversal and unsupported actions are rejected; no upload/delete/public URL/policy mutation is exposed; first-100-item behavior and nested folder navigation are correct.
+
+### Test Group 12 — Projects and conversation grouping
+- Create/list/update/archive/restore/delete projects.
+- Link/unlink conversations with tenant consistency.
+- Cross-user SELECT/INSERT/UPDATE/DELETE and cross-tenant foreign-key attempts fail.
+- Project deletion preserves conversations according to defined nulling behavior.
+- Confirm no duplicate Projects implementation or route conflict remains after PR reconciliation.
+- Verify the `develop` implementation rather than merging stale PR #83 wholesale; compare route/navigation, project service, migration, isolation SQL, and CI workflow. Confirm the open branch's older workflow does not remove current Android/iOS export or newer regression coverage.
+- Re-run the rollback-only two-user SQL isolation regression on an isolated test database; separately verify owner update, cross-user delete denial, project deletion `ON DELETE SET NULL (project_id)`, archived-project filtering, and project-aware new conversation creation.
+- Confirm project navigation is reachable from the current chat navigation menu and does not replace the five primary navigation destinations.
+
+### Test Group 13 — Subscription, credits, wallet, and financial integrity
+- Monthly allowance grant and renewal semantics match approved policy and actual implementation.
+- Purchased-credit never-expire policy is reconciled safely without altering historical balances.
+- Test holds, settle, release, refund/adjustment where supported, idempotency, and immutable ledger.
+- Concurrent spend, insufficient balance, duplicate webhook, failed provider, cancellation, partial usage, and retry.
+- Verify source-level balance breakdown; no misleading combined percentage across pools with different expiry.
+- Prices, FX, credit conversion, and quantities must be tested only against explicitly approved configuration; do not invent values or mutate real balances.
+- Admin subscription grant: active plan only, optional future expiry, mandatory reason, confirmation, prior-active replacement, profile tier update, and audit event; never run against a real user's account during testing.
+
+### Test Group 14 — Reward ads and promotional credits
+- Only verified ad-network server callback can award a reward.
+- Spoofed client completion, replayed callback, duplicate event, invalid signature, rate abuse, and concurrent claims fail safely.
+- Caps, frequency, expiry, and award quantity match approved policy.
+- Ledger attribution and balance update are atomic and idempotent.
+- If no real ad-network integration is configured, mark monetized reward verification BLOCKED; do not treat a UI claim as revenue.
+
+### Test Group 15 — Admin, roles, governance, and audit
+- Enumerate admin/staff/student/user permissions for every admin screen and privileged RPC.
+- Non-admin direct route/API/RPC access is denied.
+- Provider/model/pricing/credit/reward/HIMS changes require correct role and are audited.
+- Verify safe disable/quarantine, immutable audit trail, pagination/export privacy, and sensitive data masking.
+- Check that admin UI hiding is not the only authorization control.
+- Review the complete responsive admin navigation: every route is discoverable, Arabic/English global search routes correctly, and the user-friction and storage pages are accessible on desktop/mobile.
+- Verify admin user-directory pagination bounds, exact totals, debounce behavior, stale-response suppression, selection reset on search/filter/page changes, and literal handling of punctuation/wildcards in email/name searches.
+- Verify admin-storage Edge Function returns 401 for missing/expired sessions and 403 for authenticated non-admin users, with no service-role material in client output.
+- Verify user subscription grant uses the server-side admin RPC, cannot grant inactive/retired plans, records reason and actor in the audit log, and cannot be invoked by non-admins.
+- Verify non-admin users cannot submit admin support replies, admins can reply with the admin marker, and direct RLS/API attempts cannot spoof `is_admin_reply`.
+
+### Test Group 16 — Cross-platform UX, accessibility, localization, and performance
+- Browser test across supported viewport widths and current target browsers; no black/blank screen or broken navigation.
+- Android/iOS install/launch, back behavior, keyboard, safe areas, permissions, notifications, deep links, and background/foreground transitions.
+- Light/dark/system theme, contrast, text scaling, touch target, screen reader labels/focus order.
+- Arabic RTL and English LTR on every primary flow; verify mixed-direction text and numbers.
+- Network loss/recovery, slow responses, memory/performance, long lists, and repeated task operation.
+- Real device checks require actual devices; static bundles alone are insufficient.
+
+### Test Group 17 — Full regression, release readiness, and recovery
+- Run all prior groups against the integrated release candidate and record exact commit/migration versions.
+- Run security regression, tenant isolation, financial reconciliation, task concurrency, HIMS, and route/deep-link suites.
+- Verify backup/restore and migration rollback/recovery plan where supported.
+- Review known issues, severity, monitoring/alerts, support runbook, release notes, and rollback owner.
+- Verify production configuration and secrets without printing secret values.
+- Produce a signed-off test report: PASS/FAIL/BLOCKED/NOT RUN per case, evidence links, residual risks, and explicit owner acceptance.
+- Production deployment is a separate owner-authorized action; test completion does not grant deployment permission.
+
+## 5. Entry criteria
+
+Track B may begin only when:
+1. All 17 Track A phases are integrated on the intended release candidate. Phase-level implementation is not held open merely because its comprehensive tests are pending; the deferred test inventory is carried forward into this campaign.
+2. Development roadmap and build plan show evidence for all required acceptance criteria.
+3. Migrations and environment configuration are reconciled; no unreviewed destructive change remains.
+4. Test environments, safe test users, required content, and provider stubs/credentials are available without sharing secrets in chat.
+5. The owner is informed that the build is ready for the comprehensive test campaign.
+
+## 6. Exit criteria
+
+Track B is complete only when:
+- Every applicable case in all 17 groups is PASS, or explicitly BLOCKED/accepted by the owner with a documented reason and mitigation.
+- No unresolved critical/high security or data-integrity defect remains without explicit owner acceptance and compensating controls.
+- HIMS, chat/Agent, task cancellation/partial billing, credits, admin authorization, and cross-user isolation have evidence-backed results.
+- Web, Android, and iOS have separate results; unavailable device/browser testing is not represented as passed.
+- The final report includes exact commit SHA, workflow run IDs, test commands, artifacts/logs, migration versions, limitations, and recovery instructions.
+- The owner explicitly decides whether to authorize production release.
+
+## 7. Execution report template
+
+For each test case record:
+- Test ID and group;
+- environment/platform and test account role;
+- commit SHA and migration version;
+- preconditions and isolated fixture IDs (never credentials);
+- exact steps/command;
+- expected and actual result;
+- PASS / FAIL / BLOCKED / NOT RUN;
+- evidence URL/log/artifact;
+- defect severity and linked issue;
+- cleanup confirmation and follow-up owner.
+
+**Current campaign status:** NOT STARTED. Routine regression checks performed during development remain part of Track A and must not be represented as completion of this independent campaign.
+
+
+## 8. Readiness snapshot — 2026-11-16
+
+- Track B remains **NOT STARTED** by design; it must wait until Track A Phase 17 integration is complete.
+- Routine focused regression tests continue under Track A.
+- The first-four implementation verification inventory assigned to Track B includes: HIMS migration application in an isolated environment, duplicate-code collision/replay and rollback; real student activation and protected lecture delivery; ordinary-chat boundaries; current-commit CI; full design accessibility; and actual browser/device journeys.
+- Phase 5/6 Track B cases include five-area route/deep-link navigation, mobile keyboard/safe-area and responsive web behavior, menu navigation, first authenticated app entry and all successful auth methods landing in Chat, empty-chat welcome and prompt chips, visible localized streaming/task status and stop action, absence of a user-facing automatic model routing and automatic server-side routing using verified/entitled profiles, actual server-reported model attribution, and chat/task lifecycle behavior.
+- These deferred tests are not implementation blockers. Any defect they expose must be fixed on Track A/develop and then retested in Track B.
+- No test is marked PASS unless it has a verified run/result. The new HIMS collision SQL regression is committed but not executed. The expanded theme Jest test and core chat/Home/HIMS semantic palette changes are committed but await a current-commit CI run.
