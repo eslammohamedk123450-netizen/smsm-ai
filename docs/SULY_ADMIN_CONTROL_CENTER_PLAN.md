@@ -55,6 +55,7 @@ No parallel admin application or replacement data model is introduced.
    - AdMob settings inputs and save are disabled until existing settings load successfully, preventing a failed read from overwriting stored identifiers with blank defaults.
    - Composio and Tavily key replacement now requires a successful current-status check; a retry control is available, and failed status reads no longer appear as confirmed “not configured.”
    - User directory totals and pagination now show unavailable after a failed load, and stale user rows/selections are cleared instead of being mistaken for current results.
+   - Conversation metadata now uses server-side 50-row pagination with exact totals, debounced title/email/UUID search, and stale-request protection; conversation content remains hidden from this admin view.
    - Friction and feedback summaries now distinguish a failed summary request from a real zero-event/zero-rating period.
 6. **HIMS resource lifecycle**
    - Added admin actions to edit resource metadata and to deactivate/reactivate existing HIMS resources without deleting their records or stored media.
