@@ -5,6 +5,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useLocalSearchParams, useRouter, type ErrorBoundaryProps } from "expo-router";
 import { useAuth } from "../../src/features/auth/auth-provider";
+import { useSulyTheme } from "../../src/theme/ThemeProvider";
+import type { ThemePalette } from "../../src/theme/colors";
 import { chatService, type ChatMessage } from "../../src/features/chat/chat-service";
 import { getRotatingSuggestions } from "../../src/features/chat/suggestions";
 import { getImageGenerationPrompt } from "../../src/features/chat/image-generation";
@@ -33,6 +35,8 @@ const DEFAULT_SULY_PROFILES = [
 ];
 
 export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   return (
     <SafeAreaView style={styles.safe}>
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24, gap: 14 }}>
@@ -94,6 +98,8 @@ function requestedConnectorTask(text: string): RequestedConnectorTask | null {
 }
 
 export default function ChatPage() {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { user } = useAuth();
   const { show } = useToast();
   const router = useRouter();
@@ -841,7 +847,7 @@ export default function ChatPage() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemePalette) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
   appBar: { height: 58, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: colors.divider },
