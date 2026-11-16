@@ -56,8 +56,9 @@ const EVIDENCE_KEY_BY_REQUIRED_CAPABILITY: Readonly<Record<string, string>> = {
 /**
  * Evidence is a conservative deny-list layered over the legacy capability flags.
  * Missing/unknown evidence keeps the old routing behavior; explicit upstream
- * negatives or failed probes block only the affected capability. A successful
- * SULY integration test is authoritative for a gateway-specific alias.
+ * negatives or failed probes block only the affected capability. A capability-
+ * specific provider pass can validate a gateway alias; an SULY failure still
+ * blocks it, while a passing SULY integration test is authoritative.
  */
 export function hasCapabilityEvidenceConflict(
   modelId: number,
