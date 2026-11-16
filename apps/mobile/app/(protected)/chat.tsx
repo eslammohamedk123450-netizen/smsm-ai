@@ -29,6 +29,12 @@ import { randomUUID } from "expo-crypto";
 
 const STREAMING_ID = "local-streaming-assistant";
 const TASK_SUGGESTIONS = getRotatingSuggestions(Date.now(), 4);
+const TASK_SUGGESTIONS_EN = [
+  { text: "Plan my day simply", icon: "calendar-outline" as const },
+  { text: "Explain a difficult lesson", icon: "book-outline" as const },
+  { text: "Summarize a lesson", icon: "create-outline" as const },
+  { text: "Write a professional email", icon: "bulb-outline" as const },
+];
 const DEFAULT_SULY_PROFILES = [
   { profile_key: "lite" as const, display_name: "SULY Lite", tagline: "للمهام السريعة واليومية", description: "للمحادثات والأسئلة والكتابة والطلبات اليومية الخفيفة.", icon_key: "zap", minimum_subscription_tier: "free" },
   { profile_key: "pro" as const, display_name: "SULY Pro", tagline: "توازن بين السرعة والذكاء والقدرات", description: "للبرمجة والبحث والتحليل والمهام المتوسطة والمركبة.", icon_key: "rocket", minimum_subscription_tier: "pro" },
@@ -131,6 +137,16 @@ export default function ChatPage() {
   const [selectedModelProfile, setSelectedModelProfile] = useState<"auto" | "lite" | "pro" | "max">("auto");
   const [subscriptionTier, setSubscriptionTier] = useState("free");
   const [modelProfiles, setModelProfiles] = useState(DEFAULT_SULY_PROFILES);
+  const suggestions = isArabic ? TASK_SUGGESTIONS : TASK_SUGGESTIONS_EN;
+  const localizedModelProfiles = useMemo(() => localizedModelProfiles.map((profile) => {
+    if (isArabic) return profile;
+    const copy = {
+      lite: { tagline: "For quick everyday tasks", description: "For chats, questions, writing, and lightweight daily requests." },
+      pro: { tagline: "A balance of speed, intelligence, and capability", description: "For coding, research, analysis, and medium-to-complex tasks." },
+      max: { tagline: "For complex tasks and deep analysis", description: "For planning, deep analysis, advanced coding, and multi-step tasks with longer context." },
+    }[profile.profile_key];
+    return { ...profile, ...copy };
+  }), [modelProfiles, isArabic]);
   const [connectorApproval, setConnectorApproval] = useState<{ content: string; toolkit: ToolkitStatus["toolkit"]; intent: "read" | "write"; connected: boolean; accountExists: boolean; disabled: boolean; writeApproval: ConnectorWriteApproval | null } | null>(null);
   const closeShareSheet = useCallback(() => setShareVisible(false), []);
   const composerRef = useRef<ChatComposerHandle>(null);
@@ -747,7 +763,7 @@ export default function ChatPage() {
               <Text style={styles.chooseTaskText}>{isArabic ? "ابدأ من هنا" : "Start here"}</Text>
             </View>
             <View style={styles.taskGrid}>
-              {TASK_SUGGESTIONS.map((suggestion) => (
+              {suggestions.map((suggestion) => (
                 <Pressable
                   key={suggestion.text}
                   onPress={() => composerRef.current?.editMessage(suggestion.text)}
@@ -806,7 +822,7 @@ export default function ChatPage() {
           <Text style={{ color: colors.textMuted, textAlign: isArabic ? "right" : "left", fontSize: 11, lineHeight: 17 }}>
             {selectedModelProfile === "auto"
               ? (isArabic ? "الوضع التلقائي يختار المستوى الأنسب للمهمة من المستويات المتاحة في اشتراكك." : "Auto selects the best available mode for your task and subscription.")
-              : modelProfiles.find((profile) => profile.profile_key === selectedModelProfile)?.description ?? (isArabic ? "المستوى المحدد سيُستخدم كما اخترته دون تخفيض تلقائي." : "The selected mode will be used as chosen, without automatic downgrade.")}
+              : localizedModelProfiles.find((profile) => profile.profile_key === selectedModelProfile)?.description ?? (isArabic ? "المستوى المحدد سيُستخدم كما اخترته دون تخفيض تلقائي." : "The selected mode will be used as chosen, without automatic downgrade.")}
           </Text>
         </View>
         <StreamingStatus isStreaming={isSending && !isUploadingAttachment} taskLabel={activeTaskLabel} onCancel={() => abortRef.current?.abort()} />
