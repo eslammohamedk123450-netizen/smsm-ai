@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
-import { colors } from "../../theme/colors";
+import { useSulyTheme } from "../../theme/ThemeProvider";
+import type { ThemePalette } from "../../theme/colors";
 
 type ModelChoice = {
   id: number;
@@ -48,7 +49,9 @@ function supportsGmail(value: ModelChoice["capabilities_json"]): boolean {
   return capabilities.gmail === true;
 }
 
-export function GmailModelPickerCard({ models, selectedModelId, busy, onSelect, onSave }: Props) {
+export function GmailModelPickerCard({
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]); models, selectedModelId, busy, onSelect, onSave }: Props) {
   const [search, setSearch] = useState("");
   const eligibleModels = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
@@ -83,7 +86,7 @@ export function GmailModelPickerCard({ models, selectedModelId, busy, onSelect, 
   </View>;
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemePalette) => StyleSheet.create({
   card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 12, padding: 12, gap: 10 },
   title: { color: colors.textPrimary, fontWeight: "900", fontSize: 14, textAlign: "right" },
   help: { color: colors.textMuted, fontSize: 10, textAlign: "right", lineHeight: 16 },
