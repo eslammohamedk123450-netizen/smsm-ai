@@ -11,15 +11,16 @@ export function SulyFinanceOverviewCard() {
   const { colors } = useSulyTheme();
   const [rows, setRows] = useState<CostRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dataAvailable, setDataAvailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const load = useCallback(async () => {
-    setLoading(true); setError(null);
+    setLoading(true); setDataAvailable(false); setError(null);
     const since = new Date(Date.now() - 30 * 86400000).toISOString();
     const { data, error: queryError } = await supabase.from("suly_company_cost_ledger")
       .select("service_type,provider_cost_usd,cost_status,user_credits_charged,revenue_egp,provider_cost_egp,gross_profit_egp,created_at")
       .gte("created_at", since).order("created_at", { ascending: false }).limit(5000);
-    if (queryError) setError("تعذر تحميل دفتر تكلفة المزودين.");
-    else setRows((data ?? []) as CostRow[]);
+    if (queryError) { setRows([]); setDataAvailable(false); setError("تعذر تحميل دفتر تكلفة المزودين."); }
+    else { setRows((data ?? []) as CostRow[]); setDataAvailable(true); }
     setLoading(false);
   }, []);
   useEffect(() => { void load(); }, [load]);
@@ -40,7 +41,7 @@ export function SulyFinanceOverviewCard() {
     <View style={{ flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between" }}>
       <View style={{ flex: 1, gap: 3 }}>
         <Text style={{ color: colors.textPrimary, fontSize: 14, fontWeight: "900", textAlign: "right" }}>دفتر التكلفة والربحية</Text>
-        <Text style={{ color: colors.textMuted, fontSize: 10, textAlign: "right" }}>آخر 30 يومًا · {rows.length} عملية مسجلة</Text>
+        <Text style={{ color: colors.textMuted, fontSize: 10, textAlign: "right" }}>آخر 30 يومًا · {dataAvailable ? rows.length : "—"} عملية مسجلة</Text>
       </View>
       <Pressable onPress={() => void load()}><Text style={{ color: colors.primary, fontWeight: "800" }}>تحديث</Text></Pressable>
     </View>
