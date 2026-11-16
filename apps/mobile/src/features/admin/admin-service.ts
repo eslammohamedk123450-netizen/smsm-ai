@@ -540,7 +540,7 @@ export const adminService = {
 
   async getUsersPage(page = 0, pageSize = 50, search = "", filter: "all" | "active" | "banned" = "all") {
     await requireAdmin();
-    const safePage = Number.isSafeInteger(page) ? Math.max(0, page) : 0;
+    const safePage = Number.isSafeInteger(page) ? Math.min(100_000, Math.max(0, page)) : 0;
     const safePageSize = Number.isSafeInteger(pageSize) ? Math.min(100, Math.max(1, pageSize)) : 50;
     const queryText = search.trim().slice(0, 100).replace(/[,%()\\*]/g, " ").trim();
     let query = supabase.from("suly_profiles")
@@ -553,7 +553,14 @@ export const adminService = {
       if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(queryText)) {
         query = query.eq("id", queryText);
       } else {
-        query = query.or(`email.ilike.%${queryText}%,full_name.ilike.%${queryText}%`);
+        const escapedSearch = queryText
+          .replaceAll("\\", "\\\\")
+          .replaceAll('"', '\\"')
+          .replaceAll("%", "\\%")
+          .replaceAll("_", "\\_")
+          .replaceAll("*", "\\*");
+        const pattern = \`"%\${escapedSearch}%"\`;
+        query = query.or(\`email.ilike.\${pattern},full_name.ilike.\${pattern}\`);
       }
     }
     const { data: profiles, error, count } = await query;
