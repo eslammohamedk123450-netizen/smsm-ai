@@ -198,7 +198,7 @@ export function HimsAdminScreen() {
       <View style={styles.inline}>
         <Button label={uploading === "image" ? "جارٍ رفع الصورة…" : "رفع صورة"} tone="ghost" onPress={() => void uploadForHims("image")} disabled={editingResource !== null || uploading !== null || busy} />
         <Button label={uploading === "video" ? "جارٍ رفع الفيديو…" : "رفع فيديو"} tone="ghost" onPress={() => void uploadForHims("video")} disabled={editingResource !== null || uploading !== null || busy} />
-        <Button label={uploading === "document" ? "جارٍ رفع الملف…" : "رفع ملف"} tone="ghost" onPress={() => void uploadForHims("document")} disabled={uploading !== null || busy} />
+        <Button label={uploading === "document" ? "جارٍ رفع الملف…" : "رفع ملف"} tone="ghost" onPress={() => void uploadForHims("document")} disabled={editingResource !== null || uploading !== null || busy} />
       </View>
       {uploading ? <ActivityIndicator color={colors.primary} /> : null}
       {preview ? <View style={styles.previewRow}>
