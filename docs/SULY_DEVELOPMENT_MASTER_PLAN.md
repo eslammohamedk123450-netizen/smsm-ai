@@ -215,3 +215,14 @@ For each phase, maintain:
 - next permitted phase.
 
 Never change the status to complete based on documentation alone.
+
+
+## 7. Execution snapshot — 2026-11-16
+
+- Both master-plan files are now committed on `develop`.
+- Phase 1: **DONE — VERIFIED at source-audit level**. Inventory and critical-flow matrix: `docs/PHASES_1_4_BUILD_AUDIT.md`.
+- Phase 2: **IMPLEMENTED — REVIEW REQUIRED**. Read-only hosted checks confirmed HIMS table isolation, RLS, RPC grants, fixed search paths, and server-side admin checks. Duplicate activation-code hash reactivation was found. Guard migration and rollback-only regression test are committed, but not applied/executed; do not call Phase 2 complete yet.
+- Phase 3: **IMPLEMENTED — OWNER-BLOCKED for live acceptance**. Code-level intent/resource tests exist; actual student activation and lecture delivery need owner-approved test accounts and real course content.
+- Phase 4: **IMPLEMENTED — REVIEW REQUIRED**. Theme tokens/primitives exist; muted text contrast was improved and expanded Jest checks committed. Current-commit CI and complete screen/browser/device accessibility checks are pending.
+- **Stop gate:** Phase 5 is not started. The first four phases remain open until the listed verification gaps are closed.
+- No hosted database migration, production deployment, secret change, model/provider routing change, billing change, credit adjustment, or HIMS entitlement mutation was performed.
