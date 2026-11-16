@@ -216,7 +216,7 @@ Acceptance:
 - No keyboard overlap, safe-area obstruction, or lost navigation entry.
 - HIMS remains accessible through the ordinary chat/authorized resource flow.
 
-**Current status:** [~] The five-section navigation foundation is merged (PR #95), and the Home screen has been refreshed in the current work branch. Source review confirms five primary destinations, a mobile bottom bar, a responsive web sidebar at wide widths, native keyboard-aware bottom-bar hiding, and safe-area handling. The refreshed Home screen adds a clearer SULY welcome/primary action, four focused section shortcuts, and recent-chat loading/empty/error/retry states. PR #117 CI passed Expo TypeScript typecheck, mobile auth regression tests, static Expo Web export, and Android/iOS JavaScript bundle exports. Route-click, visual browser, native installation, and real-device regression testing is still required.
+**Current status:** [~] The five-section navigation foundation is merged (PR #95), and the Home screen has been refreshed in the current work branch. Source review confirms five primary destinations, a mobile bottom bar, a responsive web sidebar at wide widths, native keyboard-aware bottom-bar hiding, and safe-area handling. The refreshed Home screen adds a clearer SULY welcome/primary action, four focused section shortcuts, and recent-chat loading/empty/error/retry states. PR #117 merged to `release/v1` as `fbce76281424adfc61903537dd603d776b6a5c39`. CI passed Expo TypeScript typecheck, mobile auth regression tests, static Expo Web export, Android/iOS JavaScript bundle exports, Deno Agent/Edge tests and typecheck, Edge bundle verification, and media billing guardrails. GitHub Pages build and deployment also reported success. Route-click, visual browser, native installation, and real-device regression testing is still required.
 
 Known evidence:
 - PR #95 — five-section navigation.
@@ -1007,4 +1007,19 @@ Updated `apps/mobile/src/features/home/HomeScreen.tsx`:
 - **Admin permissions:** database identity simulation passed; real admin UI/session verification deferred to test accounts.
 - **Extension relocation:** intentionally not performed; current dependency map supports retaining the current placement.
 - **HIMS:** environment/boundary preparation only; content and student E2E testing deferred.
-- **Phase 5 Home:** implementation is in PR #117; code CI passed (TypeScript, auth tests, Web static export, Android/iOS JS exports). Final merge/deployment and visual route/device regression remain.
+- **Phase 5 Home:** PR #117 merged and GitHub Pages deployment succeeded. Code CI passed (TypeScript, auth tests, Web static export, Android/iOS JS exports). Visual route/device regression remains.
+
+
+### Post-merge verification — 2026-11-16
+
+- **PR #117:** merged successfully into `release/v1`.
+- **Release commit:** `fbce76281424adfc61903537dd603d776b6a5c39`.
+- **Supabase migration:** `20261116104027_harden_profile_writes_and_model_health_reset` is applied; post-migration catalog confirms 56 authenticated-executable public SECURITY DEFINER functions, 1 anonymous-executable public-share function, and 0 missing fixed search_path configurations.
+- **PR CI passed:** Expo TypeScript typecheck; mobile authentication regression tests; static Expo Web export; Android JavaScript export; iOS JavaScript export; Deno Agent/scheduler tests and typecheck; Edge Function bundle verification; media billing guardrails.
+- **GitHub Pages deployment:** workflow run `43852894653` completed successfully. The static build artifact was exported, uploaded, and deployment reported success for:
+  `https://eslammohamedk123450-netizen.github.io/smsm-ai/`
+- **Visual verification limitation:** the deployment action succeeded, but this session could not retrieve/render the page in a browser. Do not treat deployment success as proof of visual correctness or authenticated user flows.
+- **Expo OTA update:** workflow run `43852894585` failed before publishing because the GitHub Actions secret `EXPO_TOKEN` is missing. No OTA update was published. Owner action is required only if EAS OTA publishing is desired; this does not block GitHub Pages deployment.
+- **Post-merge verification:** the Deno/Expo workflow triggered by the release push was still running at the time of this note; the PR CI run for the exact code changes had already passed. Check the release-push run before considering the post-merge workflow fully closed.
+
+**Phase 5 stopping point:** Home implementation is merged and the Web static site deployment succeeded. Stop here for the owner report. Do not start Phase 6 until the owner has received this report. Remaining Phase 5 checks are visual/browser, actual route clicks, authenticated navigation, and Android/iOS device installation.
