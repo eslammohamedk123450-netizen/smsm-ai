@@ -71,4 +71,18 @@ export const projectService = {
       .maybeSingle();
     if (error || !data) throw new Error("تعذر تحديث أرشيف المشروع.");
   },
+
+  async assignConversation(conversationId: string, projectId: string | null): Promise<void> {
+    if (!UUID_PATTERN.test(conversationId) || (projectId !== null && !UUID_PATTERN.test(projectId))) {
+      throw new Error("معرّف المحادثة أو المشروع غير صالح.");
+    }
+    const userId = await currentUserId();
+    const { data, error } = await supabase.from("suly_conversations")
+      .update({ project_id: projectId })
+      .eq("id", conversationId)
+      .eq("user_id", userId)
+      .select("id")
+      .maybeSingle();
+    if (error || !data) throw new Error("تعذر نقل المحادثة إلى المشروع المحدد.");
+  },
 };
