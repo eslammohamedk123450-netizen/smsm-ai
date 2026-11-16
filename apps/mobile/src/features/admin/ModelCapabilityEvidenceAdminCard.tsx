@@ -72,6 +72,9 @@ export function ModelCapabilityEvidenceAdminCard({ models }: { models: ModelOpti
     if (suly === "passed" && provider !== "passed") { setError("لا يمكن اعتماد تكامل SULY قبل نجاح اختبار المزود."); return; }
     const urls = [vendorUrl, providerUrl, sulyUrl];
     if (urls.some((url) => url.trim() && !/^https:\/\//i.test(url.trim()))) { setError("روابط الأدلة يجب أن تبدأ بـ https://"); return; }
+    if (vendor !== "unknown" && !vendorUrl.trim()) { setError("أضف رابط الوثائق قبل اعتماد ادعاء المزود."); return; }
+    if (provider !== "not_tested" && !providerUrl.trim()) { setError("أضف رابط دليل اختبار المزود قبل تسجيل النتيجة."); return; }
+    if (suly !== "not_tested" && !sulyUrl.trim()) { setError("أضف رابط تقرير اختبار SULY قبل تسجيل النتيجة."); return; }
     setSaving(true); setError(null); setNotice(null);
     try {
       const { data, error: rpcError } = await supabase.rpc("suly_admin_save_model_capability_evidence", {
