@@ -25,6 +25,7 @@ import { useToast } from "../../src/components/ui/Toast";
 import { supabase } from "../../src/lib/supabase/client";
 import { integrationService, type ToolkitStatus } from "../../src/features/integrations/integration-service";
 import { randomUUID } from "expo-crypto";
+import { useNavigationMenu } from "../../src/components/navigation/MainNavigation";
 
 const STREAMING_ID = "local-streaming-assistant";
 const TASK_SUGGESTIONS = getRotatingSuggestions(Date.now(), 4);
@@ -131,7 +132,7 @@ export default function ChatPage() {
   const [ratingSaving, setRatingSaving] = useState(false);
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const selectedModelProfile = "auto" as const;
-  const [navigationMenuVisible, setNavigationMenuVisible] = useState(false);
+  const openNavigationDrawer = useNavigationMenu();
   const [creatingNewConversation, setCreatingNewConversation] = useState(false);
   const [actualModelUsed, setActualModelUsed] = useState<string | null>(null);
   const suggestions = isArabic ? TASK_SUGGESTIONS : TASK_SUGGESTIONS_EN;
@@ -699,7 +700,7 @@ export default function ChatPage() {
     <SafeAreaView style={styles.safe} edges={["top", "left", "right", "bottom"]}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : Platform.OS === "android" ? "height" : undefined} keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}>
         <View style={styles.appBar}>
-          <Pressable onPress={() => setNavigationMenuVisible(true)} style={styles.headerButton} accessibilityRole="button" accessibilityLabel={isArabic ? "فتح قائمة التنقل" : "Open navigation menu"}>
+          <Pressable onPress={openNavigationDrawer} style={styles.headerButton} accessibilityRole="button" accessibilityLabel={isArabic ? "فتح قائمة التنقل" : "Open navigation menu"}>
             <Ionicons name="menu-outline" size={22} color={colors.textPrimary} />
           </Pressable>
           <View style={styles.brandCenter}>
@@ -778,29 +779,6 @@ export default function ChatPage() {
         <ChatComposer ref={composerRef} onSend={handleSend} disabled={isSending || Boolean(connectorApproval)} isStreaming={isSending} onCancel={() => abortRef.current?.abort()} creditBalance={creditBalance} onOpenRecharge={() => router.push("/(protected)/balance")} />
       </KeyboardAvoidingView>
       <ShareConversationSheet visible={shareVisible} conversationId={conversationId} title={shareTitle} plainText={shareText} onClose={closeShareSheet} />
-      <BottomSheet visible={navigationMenuVisible} title={isArabic ? "قائمة SULY" : "SULY menu"} onClose={() => setNavigationMenuVisible(false)}>
-        <ScrollView style={styles.navigationMenuScroll} contentContainerStyle={styles.navigationMenu}>
-          {[
-            { labelAr: "محادثة جديدة", labelEn: "New chat", href: "/chat", icon: "add-circle-outline" as const },
-            { labelAr: "المحادثات والبحث", labelEn: "Conversations & search", href: "/conversations", icon: "chatbubbles-outline" as const },
-            { labelAr: "المشروعات", labelEn: "Projects", href: "/projects", icon: "folder-outline" as const },
-            { labelAr: "المهام", labelEn: "Tasks", href: "/tasks", icon: "git-branch-outline" as const },
-            { labelAr: "الاستوديو", labelEn: "Studio", href: "/studio", icon: "sparkles-outline" as const },
-            { labelAr: "المكتبة", labelEn: "Library", href: "/media", icon: "albums-outline" as const },
-            { labelAr: "الرصيد", labelEn: "Credits", href: "/balance", icon: "wallet-outline" as const },
-            { labelAr: "الباقات والاشتراك", labelEn: "Plans & subscription", href: "/upgrade", icon: "card-outline" as const },
-            { labelAr: "التكاملات", labelEn: "Integrations", href: "/integrations", icon: "git-network-outline" as const },
-            { labelAr: "الدعم والمساعدة", labelEn: "Support", href: "/support", icon: "help-circle-outline" as const },
-            { labelAr: "الإعدادات", labelEn: "Settings", href: "/settings", icon: "settings-outline" as const },
-          ].map((item) => (
-            <Pressable key={item.href} onPress={() => { if (item.href === "/chat") { void startNewConversation(); return; } setNavigationMenuVisible(false); if (item.href === "/tasks" && conversationId) { router.push({ pathname: "/tasks", params: { conversationId } }); return; } router.push(item.href as never); }} style={styles.navigationMenuItem} accessibilityRole="button">
-              <Ionicons name={item.icon} size={19} color={colors.textSecondary} />
-              <Text style={styles.navigationMenuLabel}>{isArabic ? item.labelAr : item.labelEn}</Text>
-              <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={16} color={colors.textMuted} />
-            </Pressable>
-          ))}
-        </ScrollView>
-      </BottomSheet>
       <BottomSheet visible={usageVisible} title={isArabic ? "إحصائيات المهمة الحالية" : "Current task usage"} onClose={() => setUsageVisible(false)}>
         {usageLoading ? <ActivityIndicator color={colors.primary} /> : taskUsage ? <View style={styles.usageSheet}>
           <Text style={styles.usageTaskTitle}>{taskUsage.taskTitle}</Text>
