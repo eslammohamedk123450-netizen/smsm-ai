@@ -250,6 +250,7 @@ export default function ProtectedLayout() {
       <Drawer.Screen name="tasks" options={{ title: "تنفيذ مهمة ذكية", drawerItemStyle: { display: "none" } }} />
       <Drawer.Screen name="balance" options={{ title: "الرصيد والاستهلاك", drawerItemStyle: { display: "none" } }} />
       <Drawer.Screen name="media" options={{ title: "المكتبة" }} />
+      <Drawer.Screen name="hims" options={{ title: "محتوى الجامعة HIMS", drawerItemStyle: { display: "none" } }} />
       <Drawer.Screen name="upgrade" options={{ title: "الباقات والترقية", drawerItemStyle: { display: "none" } }} />
       <Drawer.Screen name="admin" options={{ title: "لوحة التحكم", drawerItemStyle: isAdmin ? undefined : { display: "none" } }} />
       <Drawer.Screen name="settings" options={{ title: "الإعدادات" }} />
