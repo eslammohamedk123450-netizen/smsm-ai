@@ -1,15 +1,18 @@
 import { Redirect } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { PremiumText as Text } from "../../../src/components/ui/PremiumText";
 import { useAuth } from "../../../src/features/auth/auth-provider";
 import { AdminShell } from "../../../src/features/admin/AdminShell";
 import { supabase } from "../../../src/lib/supabase/client";
-import { colors } from "../../../src/theme/colors";
+import { useSulyTheme } from "../../../src/theme/ThemeProvider";
+import type { ThemePalette } from "../../../src/theme/colors";
 
 type AdminState = "checking" | "authorized" | "denied" | "error";
 
 export default function AdminLayout() {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { user, status } = useAuth();
   const [access, setAccess] = useState<{ userId: string | null; state: AdminState }>({ userId: null, state: "checking" });
   const adminState = access.userId === user?.id ? access.state : "checking";
@@ -40,4 +43,4 @@ export default function AdminLayout() {
   return <AdminShell />;
 }
 
-const styles = StyleSheet.create({ center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, padding: 24, backgroundColor: colors.background }, text: { color: colors.textSecondary }, error: { color: colors.error, textAlign: "center", maxWidth: 480 } });
+function createStyles(colors: ThemePalette) { return StyleSheet.create({ center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, padding: 24, backgroundColor: colors.background }, text: { color: colors.textSecondary }, error: { color: colors.error, textAlign: "center", maxWidth: 480 } }); }

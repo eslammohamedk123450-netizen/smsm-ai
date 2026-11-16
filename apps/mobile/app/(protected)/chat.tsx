@@ -18,7 +18,6 @@ import { MessageBubble, type MessageFeedback } from "../../src/features/chat/com
 import { StreamingStatus } from "../../src/features/chat/components/StreamingStatus";
 import { uploadMediaFile } from "../../src/features/media/media-service";
 import { logFrictionEvent } from "../../src/features/telemetry/friction";
-import { colors } from "../../src/theme/colors";
 import { ShareConversationSheet } from "../../src/features/chat/components/ShareConversationSheet";
 import { BottomSheet } from "../../src/components/ui/BottomSheet";
 import { getCurrentCreditBalance, getTaskRating, getTaskUsage, saveTaskRating, type TaskRating, type TaskUsage } from "../../src/features/credits/credit-service";

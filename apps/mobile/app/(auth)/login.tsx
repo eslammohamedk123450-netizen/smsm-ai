@@ -1,17 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Redirect, useRouter } from "expo-router";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { PremiumText as Text } from "../../src/components/ui/PremiumText";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../src/features/auth/auth-provider";
 import { mapAuthError } from "../../src/features/auth/auth-errors";
-import { colors } from "../../src/theme/colors";
+import { useSulyTheme } from "../../src/theme/ThemeProvider";
+import type { ThemePalette } from "../../src/theme/colors";
 
 type LoginMethod = "password" | "otp" | "link";
 const MAX_EMAIL_ATTEMPTS = 3;
 const EMAIL_COOLDOWN_SECONDS = 60;
 
 export default function LoginPage() {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
   const { sendEmailOtp, verifyEmailOtp, sendEmailLink, signInWithPassword, signInWithGoogle, register, status, user } = useAuth();
   const [mode, setMode] = useState<"login" | "register">("login");
@@ -240,7 +243,7 @@ export default function LoginPage() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemePalette) { return StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   scrollView: { flex: 1, width: "100%" },
   scroll: { flexGrow: 1, width: "100%", justifyContent: "center", alignItems: "stretch", padding: 20 },
@@ -265,4 +268,4 @@ const styles = StyleSheet.create({
   dividerText: { color: colors.textMuted, fontSize: 13 },
   googleButton: { minHeight: 50, borderRadius: 14, paddingHorizontal: 20, alignItems: "center", justifyContent: "center", backgroundColor: colors.textPrimary, borderWidth: 1, borderColor: colors.divider },
   googleButtonText: { color: colors.background, fontWeight: "700", fontSize: 15 },
-});
+}); }

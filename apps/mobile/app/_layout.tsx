@@ -1,19 +1,21 @@
 import { Stack, type ErrorBoundaryProps } from "expo-router";
 import { useEffect, useState } from "react";
 import { useFonts } from "expo-font";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, Text, View, useColorScheme } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider } from "../src/features/auth/auth-provider";
 import { initializeAds } from "../src/features/ads/ads-config";
 import { ToastProvider } from "../src/components/ui/Toast";
-import { colors } from "../src/theme/colors";
+import { getThemeColors } from "../src/theme/colors";
 import { AnimatedSplash } from "../src/components/AnimatedSplash";
 import { supabase } from "../src/lib/supabase/client";
 import { SulyThemeProvider, useSulyTheme } from "../src/theme/ThemeProvider";
 import { LocaleProvider, useAppLocale } from "../src/theme/LocaleProvider";
 
 export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  const systemScheme = useColorScheme();
+  const colors = getThemeColors(systemScheme === "dark" ? "dark" : "light");
   const resetLocalSession = async () => {
     try {
       await supabase.auth.signOut({ scope: "local" });

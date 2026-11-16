@@ -530,8 +530,9 @@ Acceptance:
 
 New implementation (2026-11-16):
 - `SulyThemeProvider` now waits for the persisted appearance preference to load before mounting app screens, preventing a first-render flash in the wrong theme. While loading it shows a palette-backed neutral surface.
-- Static source audit found 11 files importing the legacy static `colors` export and 26 files with literal color values; some may be intentional brand/status colors, so they require per-screen classification rather than blind replacement.
+- Migrated all 11 audited legacy static `colors` imports to the active theme hook or system-aware palette (including auth screens/layouts, chat, balance, admin users, and Brain task UI). The remaining source scan finds 26 files with literal color values; some are intentional brand/status/code colors, while others need per-screen classification and replacement. No blind global replacement was applied.
 - PR #129 build checks passed: Expo TypeScript, mobile auth regression, static Web export, Android JS bundle, iOS JS bundle, and Deno Agent/Edge Function checks. Route-by-route visual checks in light/dark/system remain pending.
+- PR #130 dynamic-palette migration passed Expo TypeScript, mobile auth regression, static Web export, Android JS bundle, iOS JS bundle, and Deno Agent/Edge Function checks. It is ready to merge; visual route checks remain pending.
 
 ## Phase 15 — Complete Arabic and English localization and RTL/LTR
 
