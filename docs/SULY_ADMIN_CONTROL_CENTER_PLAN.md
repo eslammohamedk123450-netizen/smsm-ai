@@ -30,7 +30,7 @@ No parallel admin application or replacement data model is introduced.
    - The function validates the Bearer session with Auth and calls `suly_is_admin()` before using the service-role client.
    - Only sanitized bucket/object metadata is returned; service-role credentials remain server-side.
    - The function is intentionally read-only and uses the existing exact-origin CORS helper.
-   - This endpoint is source-only on `develop`; it has not been deployed to the hosted project.
+   - The endpoint is deployed to the current Supabase development project as version 3. The deployed entrypoint and shared CORS/auth helpers were compared with `develop`; browser/device authorization acceptance remains in Track B.
 3. **Navigation**
    - Added the existing User Friction dashboard to the admin navigation; its route existed but was previously undiscoverable from the menu.
    - Expanded global admin search to search the actual navigation catalogue and open matching pages; email/UUID searches route to users.
@@ -64,15 +64,16 @@ No parallel admin application or replacement data model is introduced.
    - Platform-specific UI adaptations are allowed only where required by navigation, input, safe-area, file-picker, clipboard, or native capability differences. Unsupported platform capabilities must be clearly disabled or explained rather than rendered as working controls.
    - CI must continue exporting the Web app and Android/iOS JavaScript bundles. Bundle export is compatibility evidence, not device-level acceptance.
 
-## Remaining implementation gaps — dashboard is not yet complete
+## Remaining scope and acceptance boundaries
 
-- **HIMS activation-code lifecycle:** implemented create/list/disable/reactivate using the existing admin-guarded, audited `suly_admin_set_activation_code_active` RPC. The UI blocks reactivation of expired or exhausted codes. Track B must verify the RPC permission boundary and that disabled codes are rejected during student activation.
-- **HIMS resource deletion/retention:** metadata editing and visibility controls are implemented. A separately reviewed deletion/retention policy remains intentionally unimplemented; do not hard-delete private media as a shortcut.
-- **Storage explorer runtime acceptance:** `admin-storage` is deployed to the current Supabase development project as version 1 with `verify_jwt=false` because the function performs its own Bearer-session and `suly_is_admin()` checks before creating a service-role client. Source and deployed entrypoint/shared CORS code were compared. Owner-authenticated browser/device E2E and unauthorized-request checks remain in Track B.
-- **Provider-dependent services:** media video/audio generation, ad impression/revenue reporting, and any unconfigured provider integrations must remain explicitly unavailable or configuration-only until verified credentials and real backend support exist.
+The following items are deliberately separated from admin-workspace implementation; they are not silently represented as working features:
 
-These are implementation/configuration gaps, not Track B device-test deferrals. The dashboard must not be marked implementation-complete while any in-scope source-level gap remains.
+- **HIMS resource deletion/retention:** editing metadata and changing visibility are supported. Permanent deletion is intentionally excluded until a reviewed retention policy exists; do not hard-delete private media as a shortcut.
+- **Storage explorer acceptance:** the read-only `admin-storage` function is deployed to the development project as version 3. Real browser/device invocation, invalid-token denial, non-admin denial, and bucket/object inventory acceptance remain Track B.
+- **Provider-dependent services:** video/audio generation and AdMob impression/revenue reporting remain explicitly unavailable until verified provider credentials and real backend reporting/generation support exist. The admin screens may manage configuration only; they must not claim generation or revenue reporting is live.
+- **Other unconfigured integrations:** remain clearly marked unconfigured and must not be activated by inventing credentials, provider routing, or prices.
 
+These are intentionally bounded product capabilities or Track B acceptance items, not missing admin navigation or a reason to build a second admin application. The dashboard implementation may be closed only after the shared source review and current Web/Android/iOS CI exports succeed. Browser/device/E2E/security acceptance remains separate and must not be described as passed.
 ## HIMS activation-code collision protection applied
 
 - Applied migration `20261116180955_hims_activation_code_collision_guard` to the current Supabase development project and committed the matching migration file on `develop`.
@@ -91,7 +92,7 @@ These are implementation/configuration gaps, not Track B device-test deferrals. 
 
 ## HIMS activation-code lifecycle update
 
-- Added admin disable/reactivate controls to the HIMS code list.
+- Added admin disable/reactivate controls to the HIMS code list and optional code-expiry entry (validated as a real future calendar date before calling the existing RPC).
 - Status changes call the existing `suly_admin_set_activation_code_active` RPC, which verifies `auth.uid()` and `suly_is_admin()`, updates only `is_active`, and writes an `admin_audit_logs` event.
 - The client prevents reactivation when the code has expired or reached its use limit. Code plaintext is never reloaded or displayed; only the fingerprint and usage metadata are shown.
 - Added unit coverage for the admin guard and RPC arguments. No new database migration was required for this feature.
