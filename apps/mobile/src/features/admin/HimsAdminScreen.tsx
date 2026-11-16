@@ -51,6 +51,7 @@ export function HimsAdminScreen() {
   const [notice, setNotice] = useState<string | null>(null);
   const [lastCreated, setLastCreated] = useState<{ code: string; command: string } | null>(null);
   const [resourceBusyId, setResourceBusyId] = useState<string | null>(null);
+  const [codeBusyId, setCodeBusyId] = useState<string | null>(null);
   const [editingResource, setEditingResource] = useState<HimsResource | null>(null);
 
   const load = async () => {
@@ -123,6 +124,36 @@ export function HimsAdminScreen() {
     }
     catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر إضافة مورد HIMS."); }
     finally { setBusy(false); }
+  };
+
+  const toggleActivationCode = async (item: HimsActivationCode) => {
+    const nextActive = !item.is_active;
+    const expired = item.expires_at !== null && new Date(item.expires_at).getTime() <= Date.now();
+    const exhausted = item.max_uses !== null && item.used_count >= item.max_uses;
+    if (nextActive && (expired || exhausted)) {
+      setError(expired ? "لا يمكن إعادة تفعيل كود انتهت صلاحيته." : "لا يمكن إعادة تفعيل كود استنفد عدد استخداماته.");
+      return;
+    }
+    const accepted = await confirmAdminAction(
+      nextActive ? "إعادة تفعيل كود HIMS؟" : "إيقاف كود HIMS؟",
+      nextActive
+        ? `سيصبح الكود ذو البصمة ${item.code_fingerprint} صالحًا للاستخدام وفق حدوده الحالية.`
+        : `سيُرفض استخدام الكود ذو البصمة ${item.code_fingerprint} من الآن. لن يتم حذف سجل استخداماته.`,
+      nextActive ? "إعادة التفعيل" : "إيقاف الكود",
+    );
+    if (!accepted) return;
+    setCodeBusyId(item.id);
+    setError(null);
+    setNotice(null);
+    try {
+      await adminService.setHimsActivationCodeActive(item.id, nextActive);
+      setNotice(nextActive ? "تمت إعادة تفعيل كود HIMS." : "تم إيقاف كود HIMS مع الاحتفاظ بسجل الاستخدام.");
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر تحديث حالة كود HIMS.");
+    } finally {
+      setCodeBusyId(null);
+    }
   };
 
   const beginEditResource = (resource: HimsResource) => {
@@ -222,11 +253,20 @@ export function HimsAdminScreen() {
     {loading ? <ActivityIndicator color={colors.primary} /> : null}
     <View style={styles.card}>
       <Text style={styles.sectionTitle}>أكواد HIMS الحالية</Text>
-      {!loading && codes.length === 0 ? <Text style={styles.detail}>لا يوجد كود بعد.</Text> : codes.map((item) => <View key={item.id} style={styles.row}>
-        <Text style={styles.cardTitle}>{item.label || "كود HIMS"}</Text>
-        <Text style={styles.detail}>الكود الكامل لا يُخزَّن ولا يمكن استرجاعه بعد الإنشاء. البصمة: {item.code_fingerprint}</Text>
-        <Text style={styles.detail}>الاستخدام: {item.used_count}/{item.max_uses ?? "∞"} · {item.is_active ? "فعال" : "معطل"}{item.last_used_at ? ` · آخر استخدام: ${item.last_used_at.slice(0, 16).replace("T", " ")}` : ""}</Text>
-      </View>)}
+      {!loading && codes.length === 0 ? <Text style={styles.detail}>لا يوجد كود بعد.</Text> : codes.map((item) => {
+        const expired = item.expires_at !== null && new Date(item.expires_at).getTime() <= Date.now();
+        const exhausted = item.max_uses !== null && item.used_count >= item.max_uses;
+        const cannotReactivate = !item.is_active && (expired || exhausted);
+        return <View key={item.id} style={styles.row}>
+          <Text style={styles.cardTitle}>{item.label || "كود HIMS"}</Text>
+          <Text style={styles.detail}>الكود الكامل لا يُخزَّن ولا يمكن استرجاعه بعد الإنشاء. البصمة: {item.code_fingerprint}</Text>
+          <Text style={styles.detail}>الاستخدام: {item.used_count}/{item.max_uses ?? "∞"} · {item.is_active ? "فعال" : "معطل"}{item.last_used_at ? ` · آخر استخدام: ${item.last_used_at.slice(0, 16).replace("T", " ")}` : ""}</Text>
+          {item.expires_at ? <Text style={styles.detail}>ينتهي: {new Date(item.expires_at).toLocaleString("ar-EG")}</Text> : null}
+          <Pressable accessibilityRole="button" disabled={codeBusyId === item.id || busy || cannotReactivate} onPress={() => void toggleActivationCode(item)} style={[styles.resourceAction, item.is_active && styles.resourceActionActive, (codeBusyId === item.id || cannotReactivate) && styles.disabled]}>
+            <Text style={styles.resourceActionText}>{codeBusyId === item.id ? "جارٍ التحديث…" : item.is_active ? "إيقاف الكود" : cannotReactivate ? expired ? "منتهي الصلاحية" : "مستنفد الاستخدام" : "إعادة تفعيل الكود"}</Text>
+          </Pressable>
+        </View>;
+      })}
     </View>
 
     <View style={styles.card}>
