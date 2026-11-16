@@ -58,3 +58,6 @@ verify_jwt = false
 
 [functions.agent-task-scheduler]
 verify_jwt = false
+
+[functions.admin-storage]
+verify_jwt = false
