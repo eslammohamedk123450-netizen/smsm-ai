@@ -94,6 +94,11 @@ export function ConversationsScreen() {
           <Text style={styles.newButtonText}>{isArabic ? "محادثة جديدة" : "New chat"}</Text>
         </Pressable>
       </View>
+      <Pressable accessibilityRole="button" onPress={() => router.push("/projects")} style={[styles.projectsButton, { backgroundColor: colors.surface, borderColor: colors.divider, flexDirection: isArabic ? "row-reverse" : "row" }]}>
+        <Ionicons name="folder-open-outline" size={17} color={colors.primary} />
+        <Text style={[styles.projectsButtonText, { color: colors.textPrimary }]}>{isArabic ? "إدارة مشاريعي" : "My projects"}</Text>
+        <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={15} color={colors.textMuted} />
+      </Pressable>
       <View style={[styles.search, { backgroundColor: colors.surface, borderColor: colors.divider }]}>
         <Ionicons name="search" size={18} color={colors.textMuted} />
         <TextInput value={query} onChangeText={setQuery} placeholder={isArabic ? "ابحث في المحادثات…" : "Search chats…"} placeholderTextColor={colors.textMuted} style={[styles.searchInput, { color: colors.textPrimary }]} />
@@ -149,6 +154,8 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   subtitle: { fontSize: 13, lineHeight: 20, textAlign: isArabic ? "right" : "left" },
   newButton: { minHeight: 42, borderRadius: 11, paddingHorizontal: 13, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 6 },
   newButtonText: { color: colors.onPrimary, fontSize: 12, fontWeight: "800" },
+  projectsButton: { minHeight: 42, borderWidth: 1, borderRadius: 11, paddingHorizontal: 12, alignItems: "center", alignSelf: "flex-start", gap: 8 },
+  projectsButtonText: { fontSize: 12, fontWeight: "700" },
   search: { minHeight: 46, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 9 },
   searchInput: { flex: 1, textAlign: isArabic ? "right" : "left", fontSize: 13, paddingVertical: 8 },
   error: { textAlign: isArabic ? "right" : "left" },
