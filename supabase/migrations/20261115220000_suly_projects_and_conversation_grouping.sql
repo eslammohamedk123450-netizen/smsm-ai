@@ -25,7 +25,7 @@ create index if not exists suly_projects_user_updated_idx
 
 alter table public.suly_projects enable row level security;
 
-revoke all on table public.suly_projects from public, anon;
+revoke all on table public.suly_projects from public, anon, authenticated;
 grant select, insert, update, delete on table public.suly_projects to authenticated;
 
 drop policy if exists suly_projects_select_owner on public.suly_projects;
