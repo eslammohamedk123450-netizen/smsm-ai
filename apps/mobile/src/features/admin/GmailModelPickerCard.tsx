@@ -49,9 +49,9 @@ function supportsGmail(value: ModelChoice["capabilities_json"]): boolean {
   return capabilities.gmail === true;
 }
 
-export function GmailModelPickerCard({
+export function GmailModelPickerCard({ models, selectedModelId, busy, onSelect, onSave }: Props) {
   const { colors } = useSulyTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]); models, selectedModelId, busy, onSelect, onSave }: Props) {
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [search, setSearch] = useState("");
   const eligibleModels = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
