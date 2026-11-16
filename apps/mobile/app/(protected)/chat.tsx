@@ -837,7 +837,7 @@ export default function ChatPage() {
             { labelAr: "الدعم والمساعدة", labelEn: "Support", href: "/support", icon: "help-circle-outline" as const },
             { labelAr: "الإعدادات", labelEn: "Settings", href: "/settings", icon: "settings-outline" as const },
           ].map((item) => (
-            <Pressable key={item.href} onPress={() => { if (item.href === "/chat") { void startNewConversation(); return; } setNavigationMenuVisible(false); router.push(item.href as never); }} style={styles.navigationMenuItem} accessibilityRole="button">
+            <Pressable key={item.href} onPress={() => { if (item.href === "/chat") { void startNewConversation(); return; } setNavigationMenuVisible(false); if (item.href === "/tasks" && conversationId) { router.push({ pathname: "/tasks", params: { conversationId } }); return; } router.push(item.href as never); }} style={styles.navigationMenuItem} accessibilityRole="button">
               <Ionicons name={item.icon} size={19} color={colors.textSecondary} />
               <Text style={styles.navigationMenuLabel}>{isArabic ? item.labelAr : item.labelEn}</Text>
               <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={16} color={colors.textMuted} />
