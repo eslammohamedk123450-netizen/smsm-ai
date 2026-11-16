@@ -1528,6 +1528,9 @@ The product owner requested a strict reduction in branch proliferation and merge
   - The model selector lists Auto and the three verified active server profiles (Lite, Pro, Max); plan-restricted profiles remain visible but disabled.
   - Added SULY Ultra as a visible, disabled “Not available yet” entry. A read-only query of `suly_model_profiles` confirmed the live catalog currently contains only Lite, Pro, and Max. No Ultra model, plan, provider route, capability, or version was fabricated or activated.
   - The displayed actual model remains sourced from server-confirmed response metadata and is kept distinct from the selected profile.
+  - Changed authenticated root entry and successful password, OTP, Google, and auth-callback redirects to open `/chat` directly; Home remains available through the five-area navigation.
+  - Simplified the empty chat state to a welcome, natural-language instruction, and compact optional example prompts. No task-mode selection cards are shown.
+  - Added Support as a separate navigation-menu destination alongside Settings.
 - No model routing, subscription/credit rules, provider settings, prices, database schema, or HIMS behavior were changed.
 - Comprehensive visual, responsive, keyboard, navigation-click, authenticated E2E, task lifecycle, and model-entitlement tests are assigned to Track B; no current-head CI/device pass is claimed.
 - Current Phase 6 status: **IN PROGRESS**. Next implementation slice: refine the minimal chat-first surface and ensure plan/progress/result/cancel/retry states remain discoverable without adding competing mode selectors.
