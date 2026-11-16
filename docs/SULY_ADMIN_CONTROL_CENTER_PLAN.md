@@ -94,6 +94,9 @@ These are implementation/configuration gaps, not Track B device-test deferrals. 
 - Verified against PostgreSQL privileges after application: `anon=false`, `authenticated=false`, `service_role=true`.
 - Added a rollback-only SQL privilege regression test at `supabase/tests/admin_provider_rpc_privilege_regression.sql`.
 - This was a database permission-only change; it did not alter provider rows, credentials, routing, or pricing. The source migration is committed on `develop`; production branch and production database were not changed.
+- Reviewed the current Security Advisor's 12 RLS-enabled/no-policy tables: direct `anon` and `authenticated` SELECT/INSERT privileges are absent on all 12. These are internal/server-managed tables, not client-readable collections.
+- Reviewed all live `suly_admin_*` SECURITY DEFINER definitions: admin operations enforce `suly_is_admin()`, identity-bound provider update validates `auth.uid() = p_user_id`, and provider enable delegates to the guarded lifecycle RPC. Provider creation is now service-role-only and its Edge Function performs the caller admin check first.
+- Remaining platform-level warning: leaked-password protection is disabled in Supabase Auth settings; this requires a separate Auth configuration change and remains open rather than being silently altered.
 
 ## Security review notes — not silently changed
 
