@@ -10,6 +10,35 @@ import { useAppLocale } from "../../theme/LocaleProvider";
 type Component = { id?: string; type: string; title?: string; content?: string; label?: string; value?: string; source?: string; items?: string[]; columns?: string[]; rows?: string[][] };
 type Page = { page_key: string; title: string; status: string; config: { components: Component[] } };
 
+function formatAdminSource(source: string, data: unknown, isArabic: boolean): string {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return "—";
+  const row = data as Record<string, unknown>;
+  const number = (key: string) => typeof row[key] === "number"
+    ? (row[key] as number).toLocaleString(isArabic ? "ar-EG" : "en-US")
+    : "—";
+  const lines: string[] = [];
+  if (source === "system_health_summary") {
+    lines.push((isArabic ? "النماذج المفعلة" : "Enabled models") + ": " + number("enabled_models"));
+    lines.push((isArabic ? "نماذج سليمة" : "Healthy enabled models") + ": " + number("healthy_enabled_models"));
+    lines.push((isArabic ? "نماذج مقيدة" : "Restricted models") + ": " + number("restricted_models"));
+  } else if (source === "model_catalog_summary") {
+    lines.push((isArabic ? "المزودون المفعّلون" : "Enabled providers") + ": " + number("enabled_providers"));
+    lines.push((isArabic ? "النماذج المفعلة" : "Enabled models") + ": " + number("enabled_models"));
+    lines.push((isArabic ? "النماذج المعطلة" : "Disabled models") + ": " + number("disabled_models"));
+  } else if (source === "admin_activity_summary") {
+    lines.push((isArabic ? "الأحداث خلال 24 ساعة" : "Events in the last 24 hours") + ": " + number("events_last_24h"));
+    const actions = Array.isArray(row.latest_actions) ? row.latest_actions.slice(0, 5) : [];
+    for (const item of actions) {
+      if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+      const action = (item as Record<string, unknown>).action;
+      const createdAt = (item as Record<string, unknown>).created_at;
+      const date = typeof createdAt === "string" && !Number.isNaN(Date.parse(createdAt))
+        ? new Date(createdAt).toLocaleString(isArabic ? "ar-EG" : "en-US") : "—";
+      if (typeof action === "string") lines.push("• " + action + " · " + date);
+    }
+  }
+  return lines.length ? lines.join("\n") : (isArabic ? "لا توجد بيانات متاحة." : "No data available.");
+}
 export function AdminCustomPageScreen() {
   const { pageKey } = useLocalSearchParams<{ pageKey: string }>();
   const { colors } = useSulyTheme();
@@ -35,7 +64,7 @@ export function AdminCustomPageScreen() {
         const keys = [...new Set((found.config?.components ?? []).map((component) => component.source).filter((source): source is string => Boolean(source && source !== "none")))];
         const entries = await Promise.all(keys.map(async (source) => {
           const { data: sourceData, error: sourceError } = await supabase.rpc("suly_admin_custom_page_source", { p_source: source });
-          return [source, sourceError ? t("مصدر البيانات غير متاح","Data source unavailable") : JSON.stringify(sourceData, null, 2)] as const;
+          return [source, sourceError ? t("مصدر البيانات غير متاح","Data source unavailable") : formatAdminSource(source, sourceData, isArabic)] as const;
         }));
         if (active) setSources(Object.fromEntries(entries));
       } catch (e) { if (active) setError(e instanceof Error ? e.message : t("تعذر تحميل الصفحة.","Could not load page.")); }
