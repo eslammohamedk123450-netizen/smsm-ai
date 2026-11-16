@@ -419,7 +419,18 @@ Acceptance:
 - RLS and grants are tested for anon, authenticated, and service roles.
 - Migrations are repeatable and rollback/forward recovery is documented.
 
-**Current status:** [~] Existing normalized foundations and governance controls are present; the audit identified a remaining verification-state modeling gap between text and media catalogs.
+**Current status:** [>] Additive capability-evidence registry and admin editor are implemented on branch `feat/model-catalog-capability-evidence-20261116`; merge and CI verification are pending. The existing production routing and legacy `capabilities_json` behavior are intentionally unchanged until the evidence catalog is populated and regression-tested.
+
+Implementation evidence (2026-11-16):
+- Added `ai_model_capability_evidence`, keyed by the existing integer `ai_models.id` and capability key. This deliberately does not reuse `model_capabilities`, which is FK-linked to the separate UUID-based `models` catalog.
+- Each capability has three independent provenance levels: vendor claim (`unknown/supported/unsupported`), provider test (`not_tested/passed/failed`), and SULY integration test (`not_tested/passed/failed`), with separate evidence URLs, timestamps, notes, and admin attribution.
+- Added admin-guarded RPCs for listing and atomically saving evidence, plus audit-log writes. Direct table access is revoked from anon/authenticated; RLS is enabled.
+- Added `ModelCapabilityEvidenceAdminCard` to the existing Models & Routing admin screen. It allows searching/selecting models and editing capability evidence without changing runtime routing or activation.
+- Expanded capability taxonomy to distinguish model-native input/output/generation/tool features from optional connector compatibility (Gmail/Drive/GitHub). Connector availability is not treated as a model-native modality.
+- Live database verification: RLS enabled; anon has no table or RPC access; authenticated has execute permission only on admin-guarded RPCs; no direct table SELECT; evidence table currently has 0 rows. A real authenticated admin UI save test is still pending.
+- Official documentation spot-checks: Anthropic publishes canonical IDs and model modality/tool capabilities; OpenAI publishes exact model IDs and modalities; Google publishes current Gemini model IDs and media endpoints. File aliases that differ from canonical IDs remain unmodified pending confirmation from the actual gateway/provider account.
+
+
 
 Verified schema review (2026-11-16):
 - Existing tables are reused: `ai_providers`, `ai_models`, `model_capabilities`, `ai_model_price_versions`, `ai_route_model_assignments`, `suly_media_generation_models`, `suly_media_generation_prices`, and `suly_media_model_price_versions`.
