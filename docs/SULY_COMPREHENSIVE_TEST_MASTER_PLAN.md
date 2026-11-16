@@ -1,7 +1,7 @@
 # SULY — خطة الاختبارات الشاملة
 **SULY Comprehensive Test Master Plan**
 
-- الإصدار: 2.3 | آخر تدقيق للخطة: 2026-11-17
+- الإصدار: 2.4 | آخر تدقيق للخطة: 2026-11-17
 - يبدأ التنفيذ الرسمي بعد اكتمال مراحل البناء الـ17 وتكاملها.
 - مرجع البناء: SULY_DEVELOPMENT_MASTER_PLAN.md
 
@@ -9,8 +9,13 @@
 
 هذا الملف لحملة القبول والاختبارات الشاملة. لا نوقف البناء لاختبار يدوي طويل أو تسجيل دخول حقيقي أو تجربة جهاز/متصفح تحتاج تدخلًا أو بيانات من المالك؛ نسجلها هنا ونكمل البناء.
 
-### فحوص التطوير المؤجلة إلى هذا الملف
-بتوجيه صريح من المالك بتاريخ 2026-11-17، لا تُشغّل الآن أي اختبارات أو فحوص تنفيذية أثناء استكمال البناء، بما فيها TypeScript/Deno typecheck وlint/format/diff checks وunit/component tests وSQL regression وExpo export/build checks والفحوص الثابتة. تُسجل جميع الحالات هنا وتظل NOT RUN إلى أن يبدأ المالك حملة الاختبارات الشاملة. نتائج CI التاريخية تظل مرتبطة بالـcommit والـrun المسجلين ولا تمثل فحصًا جديدًا للـHEAD الحالي.
+### نتائج فحوص CI المنفذة بناءً على طلب المالك — 2026-11-17
+- الكود المختبر: 58d089f61909afcfa81c81745a6087cefd473059.
+- Verify Agent task runtime run 43979877947: Expo TypeScript typecheck PASS؛ mobile auth regression 11 suites / 54 tests PASS؛ Expo Web export وAndroid JS bundle وiOS JS bundle PASS.
+- Deno runtime job ضمن run نفسه: 124 tests PASS، وDeno typecheck للـAgent/Brain/Scheduler PASS.
+- Verify Edge Function deployment artifacts run 43979878071: Edge Function bundle build/verification PASS؛ HIMS activation/resource isolation PASS؛ currency-safe media billing tests PASS؛ monochrome theme/project defaults 3 suites / 13 tests PASS.
+- مجموع الاختبارات ذات العدد الصريح: 191 اختبارًا PASS (54 mobile + 124 Deno + 13 theme). توجد مجموعات HIMS/media/bundle إضافية نجحت كـjobs دون احتساب رقم غير موثق.
+- لا يعني نجاح CI اجتياز رحلات المستخدم الحقيقية أو endpoints أو صلاحيات حسابات الإنتاج.
 
 
 ### اختبارات مؤجلة لهذا الملف
@@ -461,7 +466,28 @@ RLS/grants للأدوار؛ RPC وSECURITY DEFINER وsearch_path؛ CORS/JWT/rate
 - جميع الحالات: **NOT RUN**. إصلاح الحالة على commit `508dee0632843613506b421891667f34d828df45`.
 
 
-## لقطة عدم تشغيل الاختبارات — 2026-11-17
-- أحدث develop commit عند تحديث هذه اللقطة: `ca5df1e0bc3399a067689c5b30181069e4f851aa`.
-- لا توجد نتائج اختبارات جديدة لهذه الدفعة. كل الحالات الجديدة التي أضيفت في T03 وT06 وT15 وT16 وT17 تبقى **NOT RUN**.
+## نتائج التشغيل الحقيقي وحدود القبول — 2026-11-17
+- agent-task-scheduler: 1421 POST/200؛ لكن لا توجد مهام queued/running/completed/failed في queue، ومهمة واحدة cancelled. لذلك T05-Worker/settlement لا يزال NOT RUN.
+- ai-router: 7 POST/200، و2 POST/404، و3 POST/409، و500 قديم على v53. الخدمة استقبلت طلبات فعلية، لكن يلزم ربط 404/409 بسيناريوهاتها؛ لا تعتبر كل الردود نجاحًا.
+- model-health-check: 56 POST/200. ai_model_health يعرض نموذجين فريدين فقط success؛ بقية النماذج المفعلة error/cancelled. اختبار كل مزود/نموذج من واجهة SULY يبقى PARTIAL/BLOCKED.
+- media-gateway: 5 OPTIONS/200 دون POST؛ لا يوجد رفع ملف فعلي مثبت. image-generator: 0 media jobs و0 أسعار فعالة وكل نماذج الصور غير نشطة. رفع الملفات وStudio BLOCKED.
+- brain-router: 4 OPTIONS/405 ولا توجد POST task؛ لا يوجد إثبات تنفيذ Agent task. Composio/Tavily: إعداد Vault/registry موجود، لكن 0 tool execution records؛ الموصلات NOT RUN.
+- HIMS: migration/codes/RPCs موجودة، لكن لا يوجد قبول بحساب طالب/مدير أو تزامن أو محاسبة حقيقية؛ NOT RUN.
+- لوحة الإدارة: لا اختبار manager/non-manager أو حفظ/نشر/إخفاء/restore عبر حساب فعلي؛ NOT RUN.
+- Security Advisor: 14 RLS-no-policy، 2 extension in public، 1 anon SECURITY DEFINER لمشاركة محادثة، 66 authenticated SECURITY DEFINER، leaked-password protection غير مفعّل. فحص catalog أظهر 0 SECURITY DEFINER بلا search_path. Performance Advisor: 73 FK بلا index، 50 unused indexes، 9 multiple-permissive-policy groups. المعالجة تحتاج مراجعة قبل تغيير DB.
+- لم يُنشر الموقع على develop؛ deploy workflow run 43979878106 SKIPPED. لا APK/AAB ولا native iOS build ولا اختبار أجهزة. iOS bundle identifier ما زال مطلوبًا.
+- جميع حالات القبول اليدوي/متعدد الحسابات/الـIDOR/الأجهزة/الرفع الحقيقي/الموصلات/المحاسبة/توليد الصور/الـnative release تظل NOT RUN أو BLOCKED حتى تجهيز حسابات وبيانات اختبار وموافقات القرارات المطلوبة.
 - لا تعتبر حالة Edge Function ACTIVE أو migration مسجلة أو غياب error logs بمثابة PASS وظيفي.
+
+### حالات قبول جديدة بناءً على المراجعة التشغيلية — 2026-11-17
+- T05-041: إنشاء مهمة Agent اختبارية معزولة بحساب مالك، إثبات queued → running → completed، وربط النتيجة بالمحادثة نفسها دون تكرار الرسائل أو تجاوز المالك؛ BLOCKED حتى توفير حساب اختبار/بدء تجربة.
+- T05-042: إثبات استدعاء agent-task-worker وbrain-router POST على مهمة فعلية، مع heartbeat/lease/cancel/settlement؛ NOT RUN.
+- T06-035: إعادة تفسير سجلات ai-router 404/409 وربطها بطلبات الاختبار دون كشف محتوى المستخدم؛ PARTIAL.
+- T08-014: تنفيذ POST upload تجريبي على media-gateway بملف غير حساس، ثم التأكد من Cloudinary/storage registration وsigned delivery وIDOR؛ BLOCKED حتى توفير حساب اختبار وملف تجريبي والتحقق من إعداد Cloudinary server-side.
+- T10-015: اختبار Composio read/status/write على حساب sandbox، والتأكد من طلب approval للكتابة؛ NOT RUN.
+- T10-016: اختبار Tavily search فعليًا مع حساب/طلب اختباري، والتحقق من حدود الاستخدام؛ NOT RUN.
+- T11-015: اختبار النماذج التسعة المفعلة عبر المزود الفعلي، وإعادة التحقق من 402/empty_response/timeout وحالة health قبل أي تغيير في enabled/routing؛ PARTIAL/BLOCKED.
+- T13-040: اختبار Builder بمدير وغير مدير مع create/save/publish/hide/version restore وعزل صفحة غير منشورة؛ NOT RUN.
+- T16-030: مراجعة تفصيلية لدوال SECURITY DEFINER الـ66 المتاحة لـauthenticated مع اختبار رفض غير المدير لكل إجراء إداري؛ NOT RUN.
+- T17-021: اختبار Preview حديث على متصفح حقيقي بعد موافقة النشر؛ حاليًا deploy workflow تخطى develop؛ BLOCKED.
+- T17-022: بناء Android APK/AAB وiOS native archive واختبار تثبيت وتشغيل الأجهزة؛ BLOCKED بسبب غياب bundle identifier وبيئة أجهزة/اعتماد.
