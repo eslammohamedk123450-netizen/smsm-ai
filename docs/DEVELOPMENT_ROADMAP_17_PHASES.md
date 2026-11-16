@@ -1328,3 +1328,41 @@ The product owner requested a strict reduction in branch proliferation and merge
 **Branch inventory observed:** 42 branches including the two permanent branches. The open PR list contains #83 and #138. Many old branches map to merged PRs (#137, #136, #135, #134, #133, #132, #131, #130, #129, #127, #126, #125, #124, #123, #122, #121, #120, #119, #118, #117, #116, #115, #114, #113, #112, #111, #110, #109, #108 and earlier merged PRs). These are cleanup candidates only after content/PR verification. Other branches have unique or unresolved work and must not be deleted until reconciled.
 
 **Tooling limitation during this pass:** the connected GitHub actions expose branch listing/ref updates but no delete-reference operation. Therefore no branch was deleted in this pass. Do not claim the branch cleanup is complete; perform deletion later through an authorized GitHub repository UI/API operation after each branch is verified.
+
+
+## Integration and branch cleanup checkpoint — 2026-11-16 17:20 +02:00
+
+- PR #138 (SULY Control Center foundation) was squash-merged successfully into `develop` at commit `fe787973afa6506468ed8e7edec18a0fa0056682`. The PR is closed with `merged=true`.
+- Latest PR #138 workflow run `43894112207` completed successfully. Expo TypeScript typecheck, mobile authentication regression tests, static Web export, Android JS bundle export, iOS JS bundle export, Deno Agent/scheduler regression tests, and Deno typecheck all passed.
+- `develop` now points to `fe787973afa6506468ed8e7edec18a0fa0056682`; compare against `release/v1` confirms exactly 1 commit ahead and 0 behind. No production branch changes were made.
+- PR #83 (Projects) remains open and unresolved. Its head `feat/projects-release-rebased-20261115` contains 11 changed files including project UI/service, conversation association, a database migration, and an owner-isolation regression test. It is 52 commits behind current `develop` and GitHub currently reports it non-mergeable. Do not delete its branch or claim its content is integrated. Reconcile its unique code and migration into `develop` after a conflict-aware review; do not force-reset the branch.
+- Current repository branch listing returned 43 branches. The connected GitHub toolset has no branch-delete operation; no branches were deleted. The following existing branches are safe for owner-side deletion because their associated PRs are confirmed merged into `release/v1`, and `develop` contains the complete `release/v1` baseline:
+  `docs/feature-registry-access-review-20261116`,
+  `docs/hims-resource-gating-test-20261116`,
+  `docs/phase5-final-verification-20261116`,
+  `docs/phase7-8-media-audit-20261116`,
+  `docs/phase10-12-catalog-routing-audit-20261116`,
+  `docs/phase-status-and-audit-20261116`,
+  `docs/security-advisor-audit-20261116`,
+  `docs/security-audit-log-20261116`,
+  `docs/security-function-audit-evidence-20261116`,
+  `docs/security-share-routing-review-20261116`,
+  `docs/update-roadmap-phase6-7-20261116`,
+  `feat/agent-capability-evidence-routing-20261116`,
+  `feat/model-catalog-capability-evidence-20261116`,
+  `feat/phase6-conversation-header-mode-20261116`,
+  `feat/phase6-show-actual-routed-model-20261116`,
+  `feat/phase8-library-folders-favorites-20261116`,
+  `feat/phase9-account-information-architecture-20261116`,
+  `feat/phase13-atomic-media-admin-save-20261116`,
+  `feat/provider-capability-probe-sync-20261116`,
+  `fix/activation-attempt-throttle-20261116`,
+  `fix/admin-dashboard-entry-auth-refresh-20261116`,
+  `fix/phase14-support-theme-20261116`,
+  `fix/phase14-shared-ui-theme-20261116`,
+  `fix/phase14-dynamic-palette-coverage-20261116`,
+  `fix/phase14-15-preference-hydration-release-20261116`,
+  `security/feature-flag-write-privileges-20261116`,
+  `test/phase6-model-metadata-pipeline-20261116`,
+  `work/phase16-security-phase5-home-20261116`.
+- Do not delete the Projects branch, PR #83, branches associated with closed-unmerged PRs #107/#128, or any remaining branch without a confirmed merged PR and content reconciliation. Future implementation commits must go directly to `develop`; keep `release/v1` untouched.
