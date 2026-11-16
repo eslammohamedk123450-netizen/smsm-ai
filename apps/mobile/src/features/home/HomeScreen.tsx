@@ -72,7 +72,6 @@ export function HomeScreen() {
           </View>
           <View style={styles.brandCopy}>
             <Text style={[styles.brandName, { color: colors.textPrimary }]}>SULY</Text>
-            <Text style={[styles.brandTagline, { color: colors.textMuted }]}>MORE THAN AI · YOUR INTELLIGENT PARTNER</Text>
           </View>
           <View style={styles.heroBrandSpacer} />
           <View style={[styles.workspacePill, { backgroundColor: colors.surfaceElevated, borderColor: colors.divider }]}>
@@ -225,7 +224,6 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   brandMarkText: { color: colors.onPrimary, fontSize: 23, fontWeight: "900" },
   brandCopy: { gap: 2 },
   brandName: { fontSize: 15, fontWeight: "900", letterSpacing: 1.4 },
-  brandTagline: { fontSize: 8, fontWeight: "700", letterSpacing: 0.5 },
   heroBrandSpacer: { flex: 1 },
   workspacePill: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 6, borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 7 },
   workspacePillText: { fontSize: 10, fontWeight: "700" },
