@@ -5,6 +5,7 @@ import { Utf8Decoder } from "./utf8-decoder";
 
 export interface StreamCallbacks {
   onChunk(text: string): void;
+  onModelInfo?(identifier: string): void;
   onDone(): void;
   onTaskUpdate?(task: { task: string; status: "pending" | "running" | "completed" | "failed" }): void;
 }
@@ -42,6 +43,7 @@ async function publicResponseError(response: Response): Promise<Error> {
 }
 
 function dispatch(event: RouterSseEvent, callbacks: StreamCallbacks): boolean {
+  if (event.type === "model") { callbacks.onModelInfo?.(event.identifier); return false; }
   if (event.type === "chunk") {
     if (event.text) callbacks.onChunk(event.text);
     return false;
