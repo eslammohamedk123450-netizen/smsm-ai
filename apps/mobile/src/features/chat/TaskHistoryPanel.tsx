@@ -25,7 +25,7 @@ const STATUS_EN: Record<TaskHistoryItem["status"], string> = {
 export function TaskHistoryPanel() {
   const { colors } = useSulyTheme();
   const { isArabic } = useAppLocale();
-  const styles = useMemo(() => createStyles(isArabic), [colors, isArabic]);
+  const styles = useMemo(() => createStyles(isArabic), [isArabic]);
   const [items, setItems] = useState<TaskHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
