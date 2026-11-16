@@ -94,7 +94,7 @@ export function SupportScreen() {
     <View style={styles.card}>
       <Text style={styles.sectionTitle}>{isArabic ? "طلب جديد" : "New ticket"}</Text>
       <TextInput value={subject} onChangeText={setSubject} placeholder={isArabic ? "عنوان المشكلة" : "Issue title"} placeholderTextColor={colors.textMuted} style={styles.input} maxLength={160} />
-      <View style={styles.categories}>{categories.map((item) => <Pressable key={item.key} onPress={() => setCategory(item.key)} style={[styles.category, category === item.key && styles.categorySelected]}><Text style={[styles.categoryText, category === item.key && styles.categoryTextSelected]}>{item.label}</Text></Pressable>)}</View>
+      <View style={styles.categories}>{categories.map((item) => <Pressable key={item.key} onPress={() => setCategory(item.key)} style={[styles.category, category === item.key && styles.categorySelected]}><Text style={[styles.categoryText, category === item.key && styles.categoryTextSelected]}>{isArabic ? item.labelAr : item.labelEn}</Text></Pressable>)}</View>
       <TextInput value={description} onChangeText={setDescription} placeholder={isArabic ? "اشرح ما حدث والخطوات التي سبقت المشكلة…" : "Describe what happened and the steps before the issue…"} placeholderTextColor={colors.textMuted} style={[styles.input, styles.multiline]} multiline textAlignVertical="top" maxLength={8000} />
       {picked ? <Text style={styles.fileLabel}>{isArabic ? `الصورة: ${picked.part.name}` : `Image: ${picked.part.name}`}</Text> : null}
       <View style={styles.actions}>
@@ -108,18 +108,18 @@ export function SupportScreen() {
       {loading ? <ActivityIndicator color={colors.primary} /> : tickets.length === 0 ? <Text style={styles.empty}>{isArabic ? "لا توجد طلبات دعم حتى الآن." : "No support tickets yet."}</Text> : tickets.map((ticket) => <Pressable key={ticket.id} onPress={() => void openTicket(ticket)} style={styles.ticketRow}>
         <View style={styles.ticketTop}><Text style={styles.ticketSubject}>{ticket.subject}</Text><Text style={styles.badge}>{(isArabic ? statusLabelAr[ticket.status] : statusLabelEn[ticket.status]) ?? ticket.status}</Text></View>
         <Text numberOfLines={2} style={styles.ticketDescription}>{ticket.description}</Text>
-        <Text style={styles.date}>{new Date(ticket.updated_at).toLocaleString("ar-EG")}</Text>
+        <Text style={styles.date}>{new Date(ticket.updated_at).toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text>
       </Pressable>)}
     </View>
     <Modal visible={Boolean(selected)} animationType="slide" onRequestClose={() => setSelected(null)}>
       <View style={styles.modalRoot}>
         <View style={styles.modalHeader}><Pressable onPress={() => setSelected(null)}><Text style={styles.link}>{isArabic ? "إغلاق" : "Close"}</Text></Pressable><Text style={styles.modalTitle} numberOfLines={1}>{selected?.subject}</Text></View>
         {detailLoading ? <ActivityIndicator color={colors.primary} style={styles.loader} /> : <ScrollView contentContainerStyle={styles.modalContent}>
-          {selected ? <View style={styles.card}><Text style={styles.badge}>{statusLabel[selected.status] ?? selected.status}</Text><Text style={styles.modalDescription}>{selected.description}</Text></View> : null}
+          {selected ? <View style={styles.card}><Text style={styles.badge}>{(isArabic ? statusLabelAr[selected.status] : statusLabelEn[selected.status]) ?? selected.status}</Text><Text style={styles.modalDescription}>{selected.description}</Text></View> : null}
           {attachments.map((item) => <View key={item.id} style={styles.card}><Text style={styles.ticketSubject}>{item.original_filename || (isArabic ? "مرفق" : "Attachment")}</Text>{item.mime_type?.startsWith("image/") ? <Image source={{ uri: item.url }} style={styles.attachmentImage} resizeMode="contain" /> : <Text style={styles.link}>{item.url}</Text>}</View>)}
           {replies.map((item) => <View key={item.id} style={[styles.card, item.is_admin_reply && styles.adminReply]}><Text style={styles.replyRole}>{item.is_admin_reply ? (isArabic ? "دعم Suly" : "SULY Support") : (isArabic ? "أنت" : "You")} · {new Date(item.created_at).toLocaleString("ar-EG")}</Text><Text style={styles.modalDescription}>{item.body}</Text></View>)}
         </ScrollView>}
-        {selected && selected.status !== "closed" && selected.status !== "resolved" ? <View style={styles.replyComposer}><TextInput value={replyText} onChangeText={setReplyText} style={[styles.input, styles.replyInput]} placeholder="اكتب ردًا أو أضف تفاصيل…" placeholderTextColor={colors.textMuted} multiline /><Pressable style={styles.primaryButton} onPress={() => void sendReply()}><Text style={styles.primaryText}>إرسال</Text></Pressable></View> : null}
+        {selected && selected.status !== "closed" && selected.status !== "resolved" ? <View style={styles.replyComposer}><TextInput value={replyText} onChangeText={setReplyText} style={[styles.input, styles.replyInput]} placeholder={isArabic ? "اكتب ردًا أو أضف تفاصيل…" : "Write a reply or add details…"} placeholderTextColor={colors.textMuted} multiline /><Pressable style={styles.primaryButton} onPress={() => void sendReply()}><Text style={styles.primaryText}>{isArabic ? "إرسال" : "Send"}</Text></Pressable></View> : null}
       </View>
     </Modal>
   </ScrollView></KeyboardAvoidingView>;
