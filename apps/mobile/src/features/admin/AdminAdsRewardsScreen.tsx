@@ -12,20 +12,22 @@ export function AdminAdsRewardsScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [settings, setSettings] = useState<AdSettings>({ appId: "", rewardedUnitId: "", bannerUnitId: "" });
   const [loading, setLoading] = useState(true);
+  const [settingsAvailable, setSettingsAvailable] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   const load = async () => {
-    setLoading(true); setError(null);
-    try { setSettings(await adminService.getAdMobSettings()); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر تحميل إعدادات الإعلانات."); }
+    setLoading(true); setSettingsAvailable(false); setError(null);
+    try { setSettings(await adminService.getAdMobSettings()); setSettingsAvailable(true); }
+    catch (cause) { setSettingsAvailable(false); setError(cause instanceof Error ? cause.message : "تعذر تحميل إعدادات الإعلانات."); }
     finally { setLoading(false); }
   };
   useEffect(() => { void load(); }, []);
 
   const update = (key: keyof AdSettings, value: string) => setSettings((current) => ({ ...current, [key]: value }));
   const save = async () => {
+    if (!settingsAvailable) { setError("لا يمكن حفظ الإعدادات قبل نجاح تحميل القيم الحالية."); return; }
     setSaving(true); setError(null); setNotice(null);
     try {
       await adminService.updateAdMobSettings(settings);
@@ -49,12 +51,12 @@ export function AdminAdsRewardsScreen() {
     {loading ? <ActivityIndicator color={colors.primary} /> : <View style={styles.card}>
       <Text style={styles.sectionTitle}>معرفات AdMob</Text>
       <Text style={styles.label}>AdMob App ID</Text>
-      <TextInput value={settings.appId} onChangeText={(value) => update("appId", value)} placeholder="ca-app-pub-…" placeholderTextColor={colors.textMuted} autoCapitalize="none" autoCorrect={false} style={styles.input} />
+      <TextInput value={settings.appId} onChangeText={(value) => update("appId", value)} editable={settingsAvailable && !saving} placeholder="ca-app-pub-…" placeholderTextColor={colors.textMuted} autoCapitalize="none" autoCorrect={false} style={styles.input} />
       <Text style={styles.label}>Rewarded Ad Unit ID</Text>
-      <TextInput value={settings.rewardedUnitId} onChangeText={(value) => update("rewardedUnitId", value)} placeholder="ca-app-pub-…/…" placeholderTextColor={colors.textMuted} autoCapitalize="none" autoCorrect={false} style={styles.input} />
+      <TextInput value={settings.rewardedUnitId} onChangeText={(value) => update("rewardedUnitId", value)} editable={settingsAvailable && !saving} placeholder="ca-app-pub-…/…" placeholderTextColor={colors.textMuted} autoCapitalize="none" autoCorrect={false} style={styles.input} />
       <Text style={styles.label}>Banner Ad Unit ID</Text>
-      <TextInput value={settings.bannerUnitId} onChangeText={(value) => update("bannerUnitId", value)} placeholder="ca-app-pub-…/…" placeholderTextColor={colors.textMuted} autoCapitalize="none" autoCorrect={false} style={styles.input} />
-      <Pressable accessibilityRole="button" disabled={saving || loading} onPress={() => void save()} style={[styles.button, (saving || loading) && styles.disabled]}>
+      <TextInput value={settings.bannerUnitId} onChangeText={(value) => update("bannerUnitId", value)} editable={settingsAvailable && !saving} placeholder="ca-app-pub-…/…" placeholderTextColor={colors.textMuted} autoCapitalize="none" autoCorrect={false} style={styles.input} />
+      <Pressable accessibilityRole="button" disabled={saving || loading || !settingsAvailable} onPress={() => void save()} style={[styles.button, (saving || loading || !settingsAvailable) && styles.disabled]}>
         <Text style={styles.buttonText}>{saving ? "جارٍ الحفظ…" : "حفظ إعدادات الإعلانات"}</Text>
       </Pressable>
       <Pressable accessibilityRole="button" disabled={saving} onPress={() => void load()} style={styles.secondaryButton}>
