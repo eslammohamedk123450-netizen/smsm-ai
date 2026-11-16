@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Image, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 
 import { useRouter } from "expo-router";
 import { getCreditLedger, type CreditEntry } from "../credits/credit-service";
 import { useAuth } from "../auth/auth-provider";
-import { colors } from "../../theme/colors";
+import type { ThemePalette } from "../../theme/colors";
 import { BottomSheet } from "../../components/ui/BottomSheet";
 import { useToast } from "../../components/ui/Toast";
 import { chatService, type Conversation } from "../chat/chat-service";
@@ -17,7 +17,8 @@ export default function SettingsScreen() {
   const { user, profileFullName, logout } = useAuth();
   const { show } = useToast();
   const router = useRouter();
-  const { mode, effectiveMode, setMode } = useSulyTheme();
+  const { colors, mode, effectiveMode, setMode } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { language, isArabic, setLanguage } = useAppLocale();
   const [isAdmin, setIsAdmin] = useState(false);
   const [balance, setBalance] = useState<number | null>(null);
@@ -212,7 +213,7 @@ export default function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemePalette) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: 20, paddingBottom: 36 },
   header: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
