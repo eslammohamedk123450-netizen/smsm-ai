@@ -299,7 +299,16 @@ Acceptance:
 - Upload/download/preview/delete/favorites/folders/search pass tests.
 - All media/task outputs are traceable to their originating job and usage record where applicable.
 
-**Current status:** [~] A library/file experience exists in the project, but the complete requested organization (folders/favorites/filters) and end-to-end ownership/security verification remain.
+**Current status:** [~] Core organization features are implemented and merged; full visual/device and authenticated user-journey verification remains.
+
+Verified implementation evidence (2026-11-16):
+- PR #124 merged into `release/v1` as commit `c077526ae8033d3a04db0fc336e1d81b4f922065`.
+- Added owner-scoped `suly_media_folders`, `suly_media_asset_folders`, and `suly_media_favorites` with RLS and composite owner-bound foreign keys.
+- Added folder create/rename/delete, folder filtering, move/remove asset, favorites filtering/toggle in the existing Library screen.
+- Rollback-only SQL regression passed for owner visibility, non-owner invisibility, cross-owner association rejection, and no residual fixture rows.
+- PR checks passed: Expo TypeScript, Deno edge-function typecheck, currency-safe media billing tests, edge-function bundle verification, and media-billing guardrails.
+- GitHub Pages and Expo OTA deployment workflows were queued after merge; deployment outcomes must be checked separately.
+- No visual browser or physical-device test is claimed.
 
 ## Phase 9 — Reorganize Account, settings, subscriptions, and billing
 
@@ -322,10 +331,26 @@ Acceptance:
 - Client cannot upgrade its own plan, alter balance, or grant itself privileges.
 - Billing history reconciles with wallet/usage ledgers.
 
-**Current status:** [~] Some settings and server-side subscription permission foundations exist. A full account information architecture and billing lifecycle audit remain.
+**Current status:** [>] Account information architecture is being completed on top of the existing settings, wallet, and server-authoritative subscription foundations.
+
+Verified code review and current implementation (2026-11-16):
+- Existing settings screen already shows authenticated profile name/email, theme mode (system/light/dark), language (Arabic/English), server-loaded credit balance and recent ledger entries, support, conversation archive, integrations, privacy/terms notices, admin-only dashboard entry, and sign-out.
+- Existing upgrade screen loads active plans/features and obtains the current tier from `suly_effective_subscription_tier`; it does not let the client grant a tier. Paid upgrade actions are explicitly not yet available.
+- Added direct Account navigation to the existing Plans & Subscription screen and the existing Library screen; no duplicate billing or storage subsystem was introduced. PR: phase 9 account information architecture (pending checks).
+- Existing privacy/terms sheet explicitly states that official policy text/links are not configured. This remains an owner/legal-input blocker before public launch; no policy wording has been invented.
+
+Remaining Phase 9 work:
+- Audit profile editing and identity synchronization against the hardened profile-write RPC; add only supported fields and preserve auth identity ownership.
+- Audit subscription renewal/payment lifecycle and reconcile wallet/credit ledger semantics; do not add client-side payment or plan mutation.
+- Determine which privacy/security/session controls are actually supported by the current auth provider; do not display fake session-management controls.
+- Add/verify storage usage and notification preference screens only if backed by existing server/data capabilities.
+- Run authenticated user-flow and billing reconciliation tests; no test user credentials have been supplied.
+- Obtain owner-approved privacy policy and terms links/text before public launch.
 
 Known evidence:
-- Earlier subscription authorization work was merged (PR #82 in the prior history); verify current code before extending.
+- PR #82 — server-side subscription permission foundation.
+- PR #124 — Library navigation target now exists at `/(protected)/media`.
+- This phase remains incomplete until its acceptance criteria and billing reconciliation are verified.
 
 ## Phase 10 — Import and govern the complete provider model catalog
 
