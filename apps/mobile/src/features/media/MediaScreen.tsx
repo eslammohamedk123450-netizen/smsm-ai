@@ -1,14 +1,17 @@
-import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Image, Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Alert, Image, Linking, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { useRouter } from "expo-router";
 import { chatService } from "../chat/chat-service";
 import * as Clipboard from "expo-clipboard";
 import { supabase } from "../../lib/supabase/client";
-import { colors } from "../../theme/colors";
+import { useSulyTheme } from "../../theme/ThemeProvider";
+import type { ThemePalette } from "../../theme/colors";
 import { deleteMediaAsset, formatBytes, listMyMedia, listMyGenerationJobs, pickMedia, uploadMediaFile, type MediaAsset, type MediaGenerationJob, type PickKind } from "./media-service";
 
 export function MediaScreen() {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [assets, setAssets] = useState<MediaAsset[]>([]);
   const [jobs, setJobs] = useState<MediaGenerationJob[]>([]);
   const [loading, setLoading] = useState(true);
@@ -19,7 +22,8 @@ export function MediaScreen() {
   const [reuseBusyId, setReuseBusyId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const router = useRouter();
-  const [filter, setFilter] = useState<"all" | "image" | "video" | "in_progress">("all");
+  const [filter, setFilter] = useState<"all" | "image" | "video" | "file" | "in_progress">("all");
+  const [search, setSearch] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -53,7 +57,7 @@ export function MediaScreen() {
     } finally { setBusy(null); }
   };
 
-  const visibleAssets = assets.filter((asset) => filter === "all" || (filter === "image" && asset.kind === "image") || (filter === "video" && asset.kind === "video"));
+  const visibleAssets = assets.filter((asset) => filter === "all" || (filter === "image" && asset.kind === "image") || (filter === "video" && asset.kind === "video") || (filter === "file" && asset.kind === "raw")).filter((asset) => !search.trim() || `${asset.filename ?? ""} ${String(asset.metadata.prompt ?? "")}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
 
   const copy = async (url: string) => {
     try { await Clipboard.setStringAsync(url); setNotice("تم نسخ رابط الملف."); }
@@ -100,10 +104,11 @@ export function MediaScreen() {
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     <View style={styles.header}>
-      <Text style={styles.title}>مكتبة الوسائط</Text>
+      <Text style={styles.title}>مكتبة SULY</Text>
       <Pressable onPress={() => void load()}><Text style={styles.link}>تحديث</Text></Pressable>
     </View>
-    <Text style={styles.explainer}>ارفع صورك وفيديوهاتك وملفاتك للوصول إليها بأمان. الصور تُضغط قبل الرفع لتوفير المساحة.</Text>
+    <Text style={styles.explainer}>كل ملفاتك ومرفقات محادثاتك ومخرجات الاستوديو في مكان واحد. الملفات الخاصة لا تظهر إلا لصاحبها أو لمن يملك صلاحية الوصول.</Text>
+    <TextInput value={search} onChangeText={setSearch} placeholder="ابحث باسم الملف أو وصفه" placeholderTextColor={colors.textMuted} style={styles.search} />
     {isAdmin && (
       <View style={styles.actions}>
         <Pressable accessibilityRole="button" disabled={busy !== null} onPress={() => void pickAndUpload("image")} style={[styles.actionButton, busy !== null && styles.disabled]}>
@@ -127,6 +132,7 @@ export function MediaScreen() {
         ["all", "الكل"],
         ["image", "الصور"],
         ["video", "الفيديوهات"],
+        ["file", "الملفات"],
         ["in_progress", "قيد التنفيذ"],
       ] as const).map(([key, label]) => <Pressable key={key} onPress={() => setFilter(key)} style={[styles.filterChip, filter === key && styles.filterChipSelected]}>
         <Text style={[styles.filterText, filter === key && styles.filterTextSelected]}>{label}</Text>
@@ -167,12 +173,13 @@ export function MediaScreen() {
   </ScrollView>;
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemePalette) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { width: "100%", maxWidth: 1000, alignSelf: "center", padding: 16, gap: 12 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   title: { color: colors.textPrimary, fontSize: 26, fontWeight: "800", textAlign: "right" },
   explainer: { color: colors.textSecondary, lineHeight: 21, textAlign: "right" },
+  search: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 10, color: colors.textPrimary, paddingHorizontal: 12, paddingVertical: 10, textAlign: "right" },
   himsCard: { flexDirection: "row-reverse", alignItems: "center", gap: 12, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.primary, backgroundColor: colors.surface },
   himsIcon: { width: 42, height: 42, borderRadius: 12, backgroundColor: colors.surfaceElevated, alignItems: "center", justifyContent: "center" },
   himsIconText: { color: colors.primary, fontWeight: "900", fontSize: 18 },
