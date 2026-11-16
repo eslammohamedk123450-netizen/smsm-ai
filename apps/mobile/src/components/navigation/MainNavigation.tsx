@@ -51,12 +51,12 @@ export function MainNavigation({ children }: Props) {
     return (
       <Pressable key={item.key} accessibilityRole="button" accessibilityState={{ selected }} onPress={() => router.replace(item.href as never)}
         style={[
-          compact ? styles.bottomItem : styles.sideItem,
+          compact ? styles.bottomItem : [styles.sideItem, { flexDirection: isArabic ? "row-reverse" : "row" }],
           selected && (compact ? styles.bottomItemSelected : styles.sideItemSelected),
           { backgroundColor: selected ? colors.surfaceElevated : "transparent" },
         ]}>
         <Ionicons name={item.icon} size={compact ? 21 : 20} color={selected ? colors.textPrimary : colors.textMuted} />
-        <Text style={[compact ? styles.bottomLabel : styles.sideLabel, { color: selected ? colors.textPrimary : colors.textSecondary }]}>{isArabic ? item.labelAr : item.labelEn}</Text>
+        <Text style={[compact ? styles.bottomLabel : styles.sideLabel, { color: selected ? colors.textPrimary : colors.textSecondary, textAlign: isArabic ? "right" : "left" }]}>{isArabic ? item.labelAr : item.labelEn}</Text>
       </Pressable>
     );
   };
