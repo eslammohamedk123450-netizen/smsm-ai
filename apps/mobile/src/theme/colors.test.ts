@@ -1,7 +1,7 @@
 import { getThemeColors } from "./colors";
 
 function luminance(hex: string): number {
-  const normalized = hex.replace("#", "");
+  const normalized = hex.replace("#", "").slice(0, 6);
   if (!/^[0-9a-f]{6}$/i.test(normalized)) throw new Error(`Unsupported color token: ${hex}`);
   const channels = [0, 2, 4].map((offset) => {
     const value = parseInt(normalized.slice(offset, offset + 2), 16) / 255;
@@ -26,11 +26,19 @@ describe("SULY shared theme tokens", () => {
     }
   });
 
-  it.each(["dark", "light"] as const)("keeps primary text and controls readable in %s mode", (mode) => {
+  it.each(["dark", "light"] as const)("keeps body text readable on every shared content surface in %s mode", (mode) => {
     const palette = getThemeColors(mode);
-    expect(contrast(palette.textPrimary, palette.background)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(palette.textSecondary, palette.background)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(palette.textMuted, palette.background)).toBeGreaterThanOrEqual(4.5);
+    const surfaces = [palette.background, palette.surface, palette.surfaceElevated, palette.cardBackground, palette.inputBackground];
+    const textColors = [palette.textPrimary, palette.textSecondary, palette.textMuted];
+    for (const foreground of textColors) {
+      for (const background of surfaces) {
+        expect(contrast(foreground, background)).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+
+  it.each(["dark", "light"] as const)("keeps primary button text readable in %s mode", (mode) => {
+    const palette = getThemeColors(mode);
     expect(contrast(palette.onPrimary, palette.primary)).toBeGreaterThanOrEqual(4.5);
   });
 });
