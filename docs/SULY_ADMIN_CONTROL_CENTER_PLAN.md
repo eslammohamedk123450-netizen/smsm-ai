@@ -46,6 +46,7 @@ No parallel admin application or replacement data model is introduced.
    - Overview metrics distinguish administratively disabled models from enabled models with errors/restrictions.
    - Renamed the quick action to “فحص اتصال النماذج” to avoid claiming that it performs the full comprehensive test program.
    - Added shortcuts to User Friction and Storage.
+   - Dashboard metrics now distinguish unavailable model-health, usage, audit, and maintenance data from legitimate zero/disabled values; maintenance controls are disabled when the current state cannot be confirmed.
 6. **HIMS resource lifecycle**
    - Added an admin action to deactivate and reactivate existing HIMS resources without deleting their records or stored media.
    - The action reuses the existing admin-guarded `suly_admin_upsert_feature_resource_v2` RPC, preserves the original URL/media-asset identity, and requires confirmation before changing visibility.
