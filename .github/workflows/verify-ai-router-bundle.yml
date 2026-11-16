@@ -11,6 +11,12 @@ on:
       - "apps/mobile/src/theme/**"
       - "apps/mobile/src/features/projects/project-validation.ts"
       - "apps/mobile/src/features/projects/project-service.test.ts"
+      - "apps/mobile/src/features/brain/task-service.ts"
+      - "apps/mobile/src/features/brain/task-service.test.ts"
+      - "apps/mobile/src/features/chat/ConversationsScreen.tsx"
+      - "apps/mobile/src/features/chat/TaskHistoryPanel.tsx"
+      - "apps/mobile/src/components/navigation/**"
+      - "apps/mobile/app/(protected)/chat.tsx"
       - "apps/mobile/app/+html.tsx"
       - "apps/mobile/package.json"
       - "apps/mobile/package-lock.json"
@@ -155,7 +161,7 @@ jobs:
         run: npm ci
       - name: Test theme contrast, grayscale tokens, and project defaults
         working-directory: apps/mobile
-        run: npm test -- --runInBand src/theme/colors.test.ts src/features/projects/project-service.test.ts
+        run: npm test -- --runInBand src/theme/colors.test.ts src/features/projects/project-service.test.ts src/features/brain/task-service.test.ts
       - name: Type-check the shared Expo application
         working-directory: apps/mobile
         run: npm run typecheck
