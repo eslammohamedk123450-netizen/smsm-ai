@@ -20,7 +20,7 @@ export function StudioScreen() {
     <ScrollView style={[styles.screen, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
       <Text style={[styles.eyebrow, { color: colors.textMuted }]}>SULY STUDIO</Text>
       <Text style={[styles.title, { color: colors.textPrimary }]}>الاستوديو</Text>
-      <Text style={[styles.subtitle, { color: colors.textSecondary }]}>مساحة مستقلة لإنشاء الصور والفيديو والصوت. اختر الخدمة ثم أكّد طلب الإنشاء داخل الاستوديو.</Text>
+      <Text style={[styles.subtitle, { color: colors.textSecondary }]}>مساحة مستقلة لإنشاء الصور والفيديو والصوت، وتفريغ التسجيلات إلى نصوص. اختر الخدمة ثم أكّد الطلب داخل الاستوديو.</Text>
       <View style={styles.grid}>
         {services.map((item) => (
           <Pressable key={item.key} accessibilityRole="button" disabled={!item.ready} onPress={() => router.push(item.route as never)} style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.divider }, !item.ready && styles.disabled]}>
