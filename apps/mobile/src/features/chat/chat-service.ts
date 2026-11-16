@@ -42,6 +42,7 @@ export interface Conversation {
   updatedAt: string;
   isPinned: boolean;
   archivedAt: string | null;
+  projectId: string | null;
 }
 interface MessageRow {
   id: string;
@@ -107,12 +108,13 @@ export const chatService = {
     }));
   },
 
-  async createConversation(title = "New Conversation"): Promise<Conversation> {
+  async createConversation(title = "New Conversation", projectId: string | null = null): Promise<Conversation> {
+    if (projectId !== null && !UUID_PATTERN.test(projectId)) throw new Error("معرّف المشروع غير صالح.");
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) throw new Error("سجّل الدخول لبدء محادثة.");
     const { data, error } = await supabase.from("suly_conversations")
-      .insert({ user_id: user.id, title })
-      .select("id,title,model_id,created_at,updated_at,is_pinned,archived_at")
+      .insert({ user_id: user.id, title, project_id: projectId })
+      .select("id,title,model_id,project_id,created_at,updated_at,is_pinned,archived_at")
       .single();
     if (error || !data) throw new Error("تعذر إنشاء محادثة جديدة.");
     return {
@@ -123,6 +125,7 @@ export const chatService = {
       updatedAt: String(data.updated_at),
       isPinned: data.is_pinned === true,
       archivedAt: data.archived_at == null ? null : String(data.archived_at),
+      projectId: data.project_id == null ? null : String(data.project_id),
     };
   },
 
@@ -185,7 +188,7 @@ export const chatService = {
   /** Most recently active conversations first, scoped to the signed-in user by RLS. */
   async listConversations(limit = 50): Promise<Conversation[]> {
     const { data, error } = await supabase.from("suly_conversations")
-      .select("id,title,model_id,created_at,updated_at,is_pinned,archived_at")
+      .select("id,title,model_id,project_id,created_at,updated_at,is_pinned,archived_at")
       .is("archived_at", null)
       .order("is_pinned", { ascending: false })
       .order("updated_at", { ascending: false })
@@ -199,12 +202,13 @@ export const chatService = {
       updatedAt: String(row.updated_at),
       isPinned: row.is_pinned === true,
       archivedAt: row.archived_at == null ? null : String(row.archived_at),
+      projectId: row.project_id == null ? null : String(row.project_id),
     }));
   },
 
   async listArchivedConversations(limit = 100): Promise<Conversation[]> {
     const { data, error } = await supabase.from("suly_conversations")
-      .select("id,title,model_id,created_at,updated_at,is_pinned,archived_at")
+      .select("id,title,model_id,project_id,created_at,updated_at,is_pinned,archived_at")
       .not("archived_at", "is", null)
       .order("archived_at", { ascending: false })
       .limit(limit);
@@ -214,6 +218,7 @@ export const chatService = {
       modelId: row.model_id == null ? null : String(row.model_id),
       createdAt: String(row.created_at), updatedAt: String(row.updated_at),
       isPinned: row.is_pinned === true, archivedAt: row.archived_at == null ? null : String(row.archived_at),
+      projectId: row.project_id == null ? null : String(row.project_id),
     }));
   },
 
