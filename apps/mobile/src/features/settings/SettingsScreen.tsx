@@ -144,6 +144,16 @@ export default function SettingsScreen() {
           <TouchableOpacity activeOpacity={0.7} onPress={() => { setCreditModal(true); void loadCredits(); }} style={styles.historyButton} accessibilityRole="button"><Text style={styles.linkText}>{isArabic ? "عرض السجل" : "View history"}</Text></TouchableOpacity>
         </View>
 
+        <Text style={styles.sectionTitle}>{isArabic ? "الاشتراك والخطة" : "Plan & subscription"}</Text>
+        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/upgrade")} accessibilityRole="button">
+          <Text style={styles.rowText}>{isArabic ? "عرض الباقات والاشتراك الحالي" : "View plans and current subscription"}</Text><Text style={styles.chevron}>‹</Text>
+        </TouchableOpacity>
+
+        <Text style={styles.sectionTitle}>{isArabic ? "التخزين والمكتبة" : "Storage & Library"}</Text>
+        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/media")} accessibilityRole="button">
+          <Text style={styles.rowText}>{isArabic ? "فتح مكتبتي وإدارة ملفاتي" : "Open my Library and manage files"}</Text><Text style={styles.chevron}>‹</Text>
+        </TouchableOpacity>
+
         <Text style={styles.sectionTitle}>{isArabic ? "الدعم" : "Support"}</Text>
         <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/support")} accessibilityRole="button"><Text style={styles.rowText}>{isArabic ? "الشكاوى والدعم" : "Support & complaints"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
 
