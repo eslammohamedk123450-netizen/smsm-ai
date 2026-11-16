@@ -43,7 +43,7 @@ export function NegativeBalanceSettingsCard() {
     {error ? <Text style={{ color: colors.error, textAlign: "right" }}>{error}</Text> : null}
     {notice ? <Text style={{ color: colors.success, textAlign: "right" }}>{notice}</Text> : null}
     <Pressable disabled={loading || saving} onPress={() => void save()} style={{ alignSelf: "flex-start", backgroundColor: colors.primary, borderRadius: 9, paddingHorizontal: 14, paddingVertical: 8, opacity: loading || saving ? 0.5 : 1 }}>
-      <Text style={{ color: colors.background, fontWeight: "800" }}>{saving ? "جارٍ الحفظ…" : "حفظ حد التنبيه"}</Text>
+      <Text style={{ color: colors.onPrimary, fontWeight: "800" }}>{saving ? "جارٍ الحفظ…" : "حفظ حد التنبيه"}</Text>
     </Pressable>
   </View>;
 }
