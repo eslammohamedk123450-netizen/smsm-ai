@@ -277,7 +277,7 @@ async function handleImageGeneratorRequest(req: Request): Promise<Response> {
   if (keyError || typeof apiKey !== "string" || !apiKey) return json(503, { error: "مفتاح مزود الصور غير متاح في Vault. راجع إعدادات المزود." });
 
   const { data: reservation, error: reserveError } = await service.rpc("reserve_credits", {
-    p_user_id: userId, p_task_id: requestId, p_amount: typedPrice.price_credits, p_conversation_id: conversationId,
+    p_user_id: userId, p_task_id: requestId, p_amount: typedPrice.price_credits, p_conversation_id: conversationId || null,
   });
   const reserve = asRecord(reservation);
   if (reserveError) return json(503, { error: "تعذر حجز رصيد توليد الصورة." });
