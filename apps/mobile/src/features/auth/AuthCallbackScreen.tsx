@@ -71,7 +71,7 @@ export default function AuthCallbackScreen() {
       // it must never discard a valid session or prevent the user from entering the app.
       void authService.syncProfile(sessionData.session.user).catch(() => undefined);
       setCallbackStatus("finished");
-      router.replace("/home");
+      router.replace("/chat");
     } catch (cause) {
       // Keep any valid local session; never sign the user out because profile sync failed.
       setError(mapAuthError(cause));
@@ -97,7 +97,7 @@ export default function AuthCallbackScreen() {
   }, [handleUrl]);
 
   if (status === "authenticated" && user && callbackStatus === "finished" && !error) {
-    return <Redirect href="/home" />;
+    return <Redirect href="/chat" />;
   }
 
   const waiting = callbackStatus !== "finished" || status === "loading";
