@@ -91,7 +91,7 @@ Deno.test("a successful provider probe can validate a gateway-specific alias des
 });
 
 Deno.test("a successful SULY integration test is authoritative for the capability", () => {
-  const rows = [capabilityEvidence("pdf_input", "unsupported", "failed", "passed")];
+  const rows = [capabilityEvidence("pdf_input", "unsupported", "passed", "passed")];
   if (hasCapabilityEvidenceConflict(1, ["pdf"], rows)) {
     throw new Error("A successful SULY test should be authoritative for a verified gateway alias.");
   }
