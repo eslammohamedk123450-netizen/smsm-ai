@@ -4,6 +4,12 @@ on:
   push:
     branches: [release/v1, develop]
   workflow_dispatch:
+    inputs:
+      deploy_production:
+        description: "Explicitly approve publishing the combined production and preview site"
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -82,6 +88,7 @@ jobs:
           path: site
 
   deploy:
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/release/v1') || (github.event_name == 'workflow_dispatch' && inputs.deploy_production == true)
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
