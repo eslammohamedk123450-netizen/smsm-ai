@@ -206,3 +206,111 @@ export async function listMyGenerationJobs(): Promise<MediaGenerationJob[]> {
     createdAt: String(row.created_at ?? ""),
   }));
 }
+
+
+export interface MediaFolder {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+async function requireMediaOwner(): Promise<string> {
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user?.id) throw new MediaUploadError("unauthenticated", "سجّل الدخول مجددًا لإدارة مكتبتك.");
+  return data.user.id;
+}
+
+export async function listMyMediaFolders(): Promise<MediaFolder[]> {
+  const { data, error } = await supabase.from("suly_media_folders")
+    .select("id,name,created_at,updated_at")
+    .order("name", { ascending: true })
+    .limit(100);
+  if (error) throw new MediaUploadError("folders_list_failed", "تعذر تحميل مجلدات المكتبة.");
+  return (data ?? []).map((row) => ({
+    id: String(row.id),
+    name: String(row.name),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+  }));
+}
+
+export async function createMediaFolder(name: string): Promise<MediaFolder> {
+  const trimmed = name.trim();
+  if (!trimmed || trimmed.length > 80) throw new MediaUploadError("folder_name_invalid", "اسم المجلد يجب أن يكون من حرف إلى 80 حرفًا.");
+  const userId = await requireMediaOwner();
+  const { data, error } = await supabase.from("suly_media_folders")
+    .insert({ user_id: userId, name: trimmed })
+    .select("id,name,created_at,updated_at")
+    .single();
+  if (error || !data) {
+    if (error?.code === "23505") throw new MediaUploadError("folder_exists", "يوجد مجلد بهذا الاسم بالفعل.");
+    throw new MediaUploadError("folder_create_failed", "تعذر إنشاء المجلد.");
+  }
+  return { id: String(data.id), name: String(data.name), createdAt: String(data.created_at), updatedAt: String(data.updated_at) };
+}
+
+export async function renameMediaFolder(folderId: string, name: string): Promise<void> {
+  const trimmed = name.trim();
+  if (!trimmed || trimmed.length > 80) throw new MediaUploadError("folder_name_invalid", "اسم المجلد يجب أن يكون من حرف إلى 80 حرفًا.");
+  const userId = await requireMediaOwner();
+  const { error } = await supabase.from("suly_media_folders")
+    .update({ name: trimmed, updated_at: new Date().toISOString() })
+    .eq("id", folderId).eq("user_id", userId);
+  if (error) {
+    if (error.code === "23505") throw new MediaUploadError("folder_exists", "يوجد مجلد بهذا الاسم بالفعل.");
+    throw new MediaUploadError("folder_rename_failed", "تعذر تغيير اسم المجلد.");
+  }
+}
+
+export async function deleteMediaFolder(folderId: string): Promise<void> {
+  const userId = await requireMediaOwner();
+  const { error } = await supabase.from("suly_media_folders").delete()
+    .eq("id", folderId).eq("user_id", userId);
+  if (error) throw new MediaUploadError("folder_delete_failed", "تعذر حذف المجلد.");
+}
+
+export async function listMyMediaAssetFolders(): Promise<Record<string, string>> {
+  const { data, error } = await supabase.from("suly_media_asset_folders")
+    .select("asset_id,folder_id")
+    .limit(500);
+  if (error) throw new MediaUploadError("folder_membership_list_failed", "تعذر تحميل تنظيم الملفات.");
+  return Object.fromEntries((data ?? []).map((row) => [String(row.asset_id), String(row.folder_id)]));
+}
+
+export async function setMediaAssetFolder(assetId: string, folderId: string | null): Promise<void> {
+  const userId = await requireMediaOwner();
+  if (folderId === null) {
+    const { error } = await supabase.from("suly_media_asset_folders").delete()
+      .eq("asset_id", assetId).eq("user_id", userId);
+    if (error) throw new MediaUploadError("folder_remove_failed", "تعذر إزالة الملف من المجلد.");
+    return;
+  }
+  const { error } = await supabase.from("suly_media_asset_folders").upsert(
+    { asset_id: assetId, folder_id: folderId, user_id: userId },
+    { onConflict: "asset_id" },
+  );
+  if (error) throw new MediaUploadError("folder_move_failed", "تعذر نقل الملف إلى المجلد المحدد.");
+}
+
+export async function listMyMediaFavorites(): Promise<string[]> {
+  const { data, error } = await supabase.from("suly_media_favorites")
+    .select("asset_id")
+    .order("created_at", { ascending: false })
+    .limit(500);
+  if (error) throw new MediaUploadError("favorites_list_failed", "تعذر تحميل المفضلة.");
+  return (data ?? []).map((row) => String(row.asset_id));
+}
+
+export async function setMediaFavorite(assetId: string, favorite: boolean): Promise<void> {
+  const userId = await requireMediaOwner();
+  if (favorite) {
+    const { error } = await supabase.from("suly_media_favorites")
+      .upsert({ user_id: userId, asset_id: assetId }, { onConflict: "user_id,asset_id", ignoreDuplicates: true });
+    if (error) throw new MediaUploadError("favorite_add_failed", "تعذر إضافة الملف إلى المفضلة.");
+    return;
+  }
+  const { error } = await supabase.from("suly_media_favorites").delete()
+    .eq("user_id", userId).eq("asset_id", assetId);
+  if (error) throw new MediaUploadError("favorite_remove_failed", "تعذر إزالة الملف من المفضلة.");
+}
