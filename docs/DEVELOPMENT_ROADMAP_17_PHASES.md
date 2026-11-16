@@ -863,3 +863,14 @@ Continue auditing the remaining authenticated SECURITY DEFINER functions in grou
 - Additional database regression: valid activation, already_active idempotency, and max-use accounting **PASS**; public-share enable/fetch/revoke/token invalidation **PASS**. Both tests ran inside transactions and were rolled back, leaving production data unchanged.
 - Reviewed function bodies for representative high-impact paths: cancel_agent_task_job, suly_claim_daily_credits, suly_effective_subscription_tier, suly_media_register_self, suly_media_register_self_v2, suly_media_attach_to_message, suly_my_feature_resources, suly_upsert_my_profile, suly_admin_update_provider, and public-share lookup. These inspected paths enforce owner identity, administrator membership, service-role restriction, or exact share-token lookup as appropriate.
 - Remaining: inspect the full bodies of all 57 functions individually for edge cases in dynamic SQL, row mutation scope, returned fields, and helper-call semantics. Do not treat the static counts as closure of Phase 16.
+
+
+### Feature flag registry write isolation — 2026-11-16
+
+**Finding:** public.suly_feature_flags is the registry that maps feature keys to profile columns. The table had RLS enabled and only an active-row SELECT policy, so authenticated client writes were already denied by RLS. However, authenticated still held table-level INSERT/UPDATE/DELETE and related DML grants. Because several SECURITY DEFINER routines use profile_column values from this registry in identifier-safe dynamic SQL, the broad client grants were unnecessary defense-in-depth exposure.
+
+**Fix applied:** migration 20261116102324_revoke_feature_flag_client_writes revokes INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, and TRIGGER from PUBLIC, anon, and authenticated. Authenticated SELECT remains for active feature metadata. service_role and SECURITY DEFINER admin RPC paths retain their required mutation privileges. No registry rows or feature flags were changed.
+
+**Regression executed against Supabase: PASS** — RLS remains enabled; authenticated SELECT retained; authenticated/anon DML denied; service_role DML retained; guarded admin grant RPC remains executable and contains the administrator check.
+
+**Current status:** Database migration applied and regression passed. The canonical migration and regression file are in a focused PR pending merge. This hardens the metadata registry without changing HIMS activation behavior or normal chat.
