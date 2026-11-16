@@ -254,7 +254,7 @@ export function MessageBubble({
                   <Text style={styles.assistantTitle}>Suly</Text>
                 </View>
                 {content ? <TouchableOpacity onPress={() => void copyToClipboard(content, true)} style={styles.headerCopyBtn} accessibilityLabel="نسخ الرد">
-                  <Ionicons name={copied ? "checkmark" : "copy-outline"} size={14} color={copied ? "#0EA5E9" : "#A1A1AA"} />
+                  <Ionicons name={copied ? "checkmark" : "copy-outline"} size={14} color={copied ? colors.primary : colors.textMuted} />
                 </TouchableOpacity> : null}
               </View>
               {responseVariants.length > 1 ? (
@@ -267,7 +267,7 @@ export function MessageBubble({
 
               {generationState ? (
                 <View style={styles.generationCard} accessibilityRole="progressbar" accessibilityLabel={generationState === "pending" ? "جاري توليد الصورة" : "تعذر توليد الصورة"}>
-                  {generationState === "pending" ? <ActivityIndicator size="large" color="#0EA5E9" /> : <Ionicons name="warning-outline" size={32} color={colors.error} />}
+                  {generationState === "pending" ? <ActivityIndicator size="large" color={colors.primary} /> : <Ionicons name="warning-outline" size={32} color={colors.error} />}
                   <Text style={styles.generationLabel}>{generationState === "pending" ? "جاري توليد الصورة…" : "تعذر توليد الصورة. أرسل الطلب مجددًا للمحاولة."}</Text>
                 </View>
               ) : <>
@@ -381,7 +381,7 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
   assistantAttachments: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 },
   generatedImage: { width: 240, height: 240, maxWidth: 260, borderRadius: 12, marginTop: 4, backgroundColor: colors.surfaceElevated },
   missingGeneratedImage: { width: 240, height: 240, borderRadius: 12, marginTop: 4, backgroundColor: colors.surfaceElevated, justifyContent: "center", alignItems: "center" },
-  generationCard: { width: 240, maxWidth: "100%", aspectRatio: 1, borderRadius: 14, borderWidth: 1, borderColor: colors.divider, backgroundColor: "#0B0B0B", alignItems: "center", justifyContent: "center", padding: 20, gap: 14 },
+  generationCard: { width: 240, maxWidth: "100%", aspectRatio: 1, borderRadius: 14, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center", padding: 20, gap: 14 },
   generationLabel: { color: colors.textMuted, fontSize: 12, lineHeight: 18, fontWeight: "600", textAlign: "center" },
   missingAttachment: { width: 96, height: 96, borderRadius: 12, backgroundColor: colors.surfaceElevated, justifyContent: "center", alignItems: "center" },
   fileAttachment: { maxWidth: 260, minWidth: 180, flexDirection: "row-reverse", alignItems: "center", gap: 10, padding: 10, borderWidth: 1, borderColor: colors.divider, borderRadius: 12, backgroundColor: colors.surface },
