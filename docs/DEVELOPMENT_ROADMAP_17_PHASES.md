@@ -744,3 +744,41 @@ Continue the function-by-function security review, beginning with the anonymous 
 #### Next concrete action
 Continue auditing the remaining authenticated SECURITY DEFINER functions in groups, checking exact row ownership, privilege boundaries, returned columns, dynamic SQL, and mutation scope. In parallel, inspect Edge Function service-role access to the ten server-only tables. Only after the relevant paths are mapped should targeted regression tests and any least-privilege migration be prepared.
 
+### Session continuation: Provider credential read isolation — implemented and database-verified
+
+**Finding confirmed:** PostgreSQL ACLs showed `authenticated` had table-level SELECT on `public.ai_providers`. Its RLS policy limited rows to administrators, but an administrator using the client Data API could still read all columns, including `api_key`, `encrypted_api_key`, and `api_key_vault_id`. This violated the server-only credential invariant.
+
+#### Compatibility investigation
+- Searched current mobile/web source for direct `ai_providers` table reads. No client-side direct SELECT was found.
+- The current admin provider list uses `suly_admin_list_providers()`, whose return shape contains only non-secret metadata.
+- The inspected Edge Function references use server-side provider access; `service_role` is retained.
+- Before the change, the ACL was SELECT-only for `authenticated`; `anon` had no SELECT, and `service_role` retained SELECT/INSERT/UPDATE/DELETE.
+
+#### Change implemented
+- Migration: `20261116100513_restrict_provider_secret_table_read.sql`
+- Database migration name/version: `restrict_provider_secret_table_read` / `20261116100513`
+- Change: `REVOKE SELECT ON TABLE public.ai_providers FROM authenticated;`
+- Regression test added: `supabase/tests/provider_secret_access_regression.sql`
+- GitHub PR: [#110 — revoke client read access to provider credentials](https://github.com/eslammohamedk123450-netizen/smsm-ai/pull/110)
+- Database migration was applied successfully to the connected Supabase project on 2026-11-16. The PR is the source-control handover for the migration and test.
+
+#### Verification performed
+- Executed the regression SQL against the connected Supabase database: **PASS**.
+- Post-migration catalog check confirmed:
+  - `anon` SELECT on `ai_providers`: false.
+  - `authenticated` SELECT on `ai_providers`: false.
+  - `authenticated` SELECT on `api_key`, `encrypted_api_key`, and `api_key_vault_id`: false.
+  - `service_role` SELECT on `ai_providers`: true.
+  - Authenticated EXECUTE on safe `suly_admin_list_providers()`: true.
+  - Anonymous EXECUTE on that admin RPC: false.
+- Regression test also confirmed a non-admin authenticated context is denied by the admin-list RPC.
+- No provider secret value was selected, copied, or exposed during this work.
+
+#### Remaining verification
+- [~] Confirm the real admin UI still loads provider metadata through the safe RPC in an authenticated browser session. The database function signature and grants are preserved, but no visual/browser session test was available in this work session.
+- [ ] Run the full Edge Function integration smoke test to confirm server-side provider lookups continue to work with `service_role`.
+- [ ] Re-run the full app build and admin regression suite after PR merge.
+- [ ] Continue auditing the remaining authenticated-executable SECURITY DEFINER functions; this targeted fix does not complete Phase 16.
+
+**Current status:** The database access restriction is implemented and its privilege regression test passed. The corresponding migration/test are in PR #110 pending source-control merge and app-level verification.
+
