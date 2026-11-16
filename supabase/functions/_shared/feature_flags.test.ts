@@ -35,6 +35,12 @@ Deno.test("lecture delivery requests do not trigger web search, but study explan
   if (!shouldSearchWebForMessage(explanation, isWebSearchRequest)) throw new Error("general study explanation should trigger research");
 });
 
+Deno.test("general academic questions use research while greetings do not", () => {
+  if (!isWebSearchRequest("إيه الفرق بين المحاسبة المالية والإدارية؟")) throw new Error("academic comparison should trigger research");
+  if (!isWebSearchRequest("اعمل بحث عن نظم المعلومات الإدارية")) throw new Error("academic research request should trigger web search");
+  if (isWebSearchRequest("هلا")) throw new Error("greeting should not trigger web search");
+});
+
 Deno.test("feature context never exposes internal feature labels or activation names", () => {
   const context: FeatureContext = {
     features: {
