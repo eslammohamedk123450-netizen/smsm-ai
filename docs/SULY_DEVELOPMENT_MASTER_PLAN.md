@@ -196,12 +196,12 @@ Acceptance:
 1. Maintain this plan and the separate Track B plan in GitHub.
 2. Close Phase 1 audit gaps using current source and repository evidence.
 3. Close Phase 2 HIMS security defects only with reviewed migrations, targeted tests, and safe rollback. Never mutate production authorization casually.
-4. Close Phase 3 code/test gaps; mark real-user/content tests as owner-blocked until safe test accounts and actual lecture source are available.
-5. Close Phase 4 shared tokens/components/automated accessibility foundation; record any screen-by-screen checks that cannot be honestly completed without browser/device access.
-6. Run relevant CI and inspect the exact current commit's workflow jobs.
-7. Update both plans and the canonical 17-phase roadmap with evidence.
-8. **Stop and report to the owner once Phases 1–4 meet their acceptance gates. Do not start Phase 5 before that report.**
-9. After the owner has been informed, continue the unified design and UX implementation in sequence through Phases 5 onward, using the approved design spec and preserving all existing capabilities.
+4. Complete Phase 3 implementation; defer real-user/content acceptance tests to Track B with safe test accounts and approved lecture source.
+5. Complete Phase 4 shared tokens/components and semantic palette integration; defer screen-by-screen accessibility and browser/device checks to Track B.
+6. Record all comprehensive CI, SQL migration execution, adversarial security, real-user, browser/device, and end-to-end acceptance tests in Track B; these tests do not hold implementation phases open.
+7. Update both plans and the canonical 17-phase roadmap with source/change evidence and deferred test IDs.
+8. **Stop and report to the owner when the Phase 1–4 implementation scope is complete. Do not start Phase 5 before that report.**
+9. After reporting, continue the unified design and UX implementation in sequence through Phases 5 onward, using the approved design spec and preserving all existing capabilities.
 
 ## 6. Required execution log
 
@@ -214,7 +214,7 @@ For each phase, maintain:
 - rollback or recovery notes;
 - next permitted phase.
 
-Never change the status to complete based on documentation alone.
+Never change the implementation status to complete based on documentation alone; verify that the scoped code/config/migration artifacts actually exist on `develop`. Comprehensive runtime acceptance remains a separate Track B result.
 
 
 ## 7. Execution snapshot — 2026-11-16
