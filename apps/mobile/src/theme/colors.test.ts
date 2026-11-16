@@ -42,3 +42,17 @@ describe("SULY shared theme tokens", () => {
     expect(contrast(palette.onPrimary, palette.primary)).toBeGreaterThanOrEqual(4.5);
   });
 });
+
+
+  it.each(["dark", "light"] as const)("uses neutral grayscale tokens in %s mode", (mode) => {
+    const palette = getThemeColors(mode);
+    for (const [key, value] of Object.entries(palette)) {
+      const rgb = value.slice(1, 7);
+      if (!/^[0-9a-f]{6}$/i.test(rgb)) throw new Error(`Invalid grayscale token: ${key}=${value}`);
+      const red = rgb.slice(0, 2);
+      const green = rgb.slice(2, 4);
+      const blue = rgb.slice(4, 6);
+      expect(red).toBe(green);
+      expect(green).toBe(blue);
+    }
+  });
