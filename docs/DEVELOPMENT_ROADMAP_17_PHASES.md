@@ -101,7 +101,7 @@ This is a full product-wide UX/UI redesign requirement, not a palette-only adjus
 
 ### User application — complete experience
 
-- Product identity: **SULY**. Use the approved clean, calm, premium black/white visual foundation with Light, Dark, and System themes. Do not restore the former gold-heavy direction or generic AI-assistant taglines without a new explicit owner decision.
+- Product identity: **SULY**. Use the approved **Midnight Gold Luxury** identity: deep navy-black `#080B14`, surfaces `#151A27` and `#252B3A`, restrained gold `#D4AF37` / `#B88A2B`, warm light text `#F5F0E2`, and coherent Light, Dark, and System themes. Preserve the geometric SULY identity and avoid generic AI-assistant taglines.
 - Redesign all primary screens and shared components as one coherent system: typography, spacing, layout, surfaces, navigation, cards, fields, dialogs, menus, empty/loading/error states, responsive behavior, accessibility, RTL/LTR, and interaction feedback.
 - Keep the five primary product areas:
   1. **Home** — welcoming entry point, focused actions, recent work, and useful discovery.
@@ -215,7 +215,7 @@ Acceptance:
 - Unauthorized, expired, reused, forged, or cross-user requests are rejected.
 - No regression to existing HIMS data or administrator workflows.
 
-**Current status:** [~] IMPLEMENTED — REVIEW REQUIRED. Live read-only checks on 2026-11-16 confirmed RLS enabled and client table privileges denied for activation codes, activations, and resources; admin RPCs require server-side admin checks, activation RPC is service-role-only, and student resource RPC is authenticated-only. A duplicate-hash reactivation flaw was confirmed in the applied creation RPC. A guard migration and rollback-only collision regression have been committed to `develop` (`20261116150000_hims_activation_code_collision_guard.sql`, `supabase/tests/hims_activation_code_collision_regression.sql`) but have not been applied or executed. Phase 2 remains open until migration/test verification and adversarial tests are complete.
+**Current status:** [~] IMPLEMENTED ON `develop` — REVIEW REQUIRED. HIMS RLS/client privilege boundaries and server-side admin checks are present. The duplicate activation-code hash guard is now applied to the development Supabase project through migration `20261116180955_hims_activation_code_collision_guard`; the live function was checked and a rollback-only SQL regression confirmed duplicate rejection without mutating the original code. The earlier `20261116150000` draft is superseded by the later applied guard. Phase 2 remains open for broader adversarial/replay/race validation and full HIMS acceptance in Track B.
 
 Known evidence:
 - PR #92 — activation-code security/hash work.
@@ -264,7 +264,7 @@ Known evidence:
 
 Scope:
 - Establish design tokens for surfaces, text, borders, spacing, radii, typography, elevations, icons, and interaction states.
-- Approved direction: clean, calm, premium white/black visual foundation with light and dark themes; avoid copying another product's identity.
+- Approved direction: Midnight Gold Luxury — deep navy-black foundation `#080B14`, surfaces `#151A27` / `#252B3A`, restrained gold accents `#D4AF37` / `#B88A2B`, warm text `#F5F0E2`, with Light, Dark, and System themes; avoid copying another product's identity.
 - Use suitable Arabic/English fonts and consistent hierarchy.
 - Build reusable buttons, fields, cards, dialogs, menus, empty states, loading states, error states, and navigation components.
 - Ensure contrast, focus/pressed/disabled states, responsive layouts, and accessibility.
@@ -275,7 +275,7 @@ Acceptance:
 - Both themes render consistently with accessible contrast.
 - No existing feature is hidden or removed by the redesign.
 
-**Current status:** [~] IMPLEMENTED — REVIEW REQUIRED. Shared semantic light/dark tokens and reusable UI primitives exist. On 2026-11-16, muted text tokens were strengthened, contrast regression coverage expanded to all shared content surfaces, and the chat header/empty state, Home brand mark, and HIMS download action were migrated to semantic tokens. The new test is included in the existing mobile test command. Exact CI and full screen/browser/device accessibility review are still pending.
+**Current status:** [~] PARTIALLY IMPLEMENTED — NOT COMPLETE. Shared semantic light/dark tokens, persisted theme foundation, reusable UI primitives, and some screen migrations exist. The current `develop` head has a confirmed Jest contrast failure in `src/theme/colors.test.ts`: light-theme body text contrast is 4.18:1 (below 4.5:1) and light-theme primary-button text contrast is 3.13:1 (below 4.5:1). Expo TypeScript passed in the latest Agent workflow, but its auth/theme regression job failed on these two assertions. The complete screen-by-screen Midnight Gold redesign and accessibility/visual sweep remain unfinished.
 
 Known evidence:
 - PR #94 — visual identity/theme foundation.
@@ -328,7 +328,7 @@ Acceptance:
 - Model permissions and provider freeze rules are enforced on every new call.
 - Normal greetings and simple questions remain fast and natural.
 
-**Current status:** [>] IN PROGRESS on `develop`. Significant central-Agent runtime and model-governance work is already present. Ordinary chat uses automatic server-side model routing and does not expose a model-selection dropdown; the Agent selects only from verified, entitled, available profiles. Authenticated entry lands in chat, and the empty state uses a compact natural-language welcome. Streaming displays localized task status and Stop. The actual model identifier is displayed inline only after server confirmation; retry clears stale provenance and captures the retry's own model event. Admin model catalog, capability, provider health, and routing governance remain administrative controls. Remaining implementation includes finalizing task progress/results presentation, cancellation/retry state consistency, and partial-billing visibility against existing task/usage services. Full authenticated HTTP E2E, latency, visual browser, and device verification remain assigned to Track B.
+**Current status:** [>] IN PROGRESS on `develop`. Significant central-Agent runtime and model-governance work is present. Ordinary chat uses automatic server-side model routing with no user-facing model dropdown; only server-confirmed model provenance is shown. Authenticated entry, localized streaming status, Stop action, durable task runtime, and task result return-to-chat foundations exist. Remaining implementation includes live task-plan/progress visibility inside the conversation, robust atomic/idempotent saving of the user request plus final task result (the current two-write flow can duplicate the user message if the second write fails), cancellation/retry terminal-state consistency, and exact partial-billing presentation. Latest Agent workflow typecheck passed, but the Jest job failed on the Phase 4 theme contrast assertions; authenticated task E2E and visual/device verification remain open.
 
 Known evidence:
 - PR #85 and earlier runtime work established strict model-role allowlists, guarded routing, provider freeze behavior, safe fallbacks, and regression checks.
@@ -503,7 +503,7 @@ Acceptance:
 - RLS and grants are tested for anon, authenticated, and service roles.
 - Migrations are repeatable and rollback/forward recovery is documented.
 
-**Current status:** [>] Additive capability-evidence registry and admin editor are implemented on branch `feat/model-catalog-capability-evidence-20261116`; merge and CI verification are pending. The existing production routing and legacy `capabilities_json` behavior are intentionally unchanged until the evidence catalog is populated and regression-tested.
+**Current status:** [~] IMPLEMENTED ON `develop` — INTEGRATION/VERIFICATION REMAINS. The additive text and media capability-evidence registries, admin evidence editors, guarded RPCs, evidence URL validation, and central `ai-router` evidence consumption are present on `develop`. Vendor claims, provider probes, and SULY integration results remain separate states. The latest recorded catalog had 1,040 text evidence rows and 22 media claims, but provider/SULY pass counts were zero at that audit; the registry is not proof of working capabilities. Remaining work is full migration/RLS/RPC regression, authenticated admin save/probe verification, and SULY integration tests before any media activation.
 
 Implementation evidence (2026-11-16):
 - Added `ai_model_capability_evidence`, keyed by the existing integer `ai_models.id` and capability key. This deliberately does not reuse `model_capabilities`, which is FK-linked to the separate UUID-based `models` catalog.
@@ -616,7 +616,7 @@ Build exit criteria:
 - The builder cannot bypass business rules, expose raw secrets, or execute arbitrary privileged operations.
 - Final admin/user/adversarial test evidence is recorded in the independent comprehensive test track, not inferred from implementation or CI alone.
 
-**Current status:** [>] Admin navigation and governance foundations exist; the image-generation model editor's high-impact save path has now been moved behind an atomic, audited server-side RPC. Remaining admin areas still need the same end-to-end and adversarial review.
+**Current status:** [>] PARTIALLY IMPLEMENTED ON `develop`. PR #138 is merged into `develop` (`fe787973afa6506468ed8e7edec18a0fa0056682`): the AdminShell is reorganized into Control Center domains, `/admin/ads` and `/admin/finance` exist, and existing routes/services are retained. Existing admin modules cover the 12 operational domains to varying degrees, with storage, user/support pagination, HIMS lifecycle, audit, finance, providers/models, routing, pricing, credits, and rewards foundations. The required protected Dynamic Admin Page & Component Builder is NOT present in the `develop` source tree. Several high-impact admin writes still need atomic server-side authorization/audit review, and complete responsive visual redesign, route/role review, and Track B adversarial acceptance remain open.
 
 New verified implementation (2026-11-16):
 - Added migration `20261116130000_atomic_media_model_admin_save` and recorded it in `supabase_migrations.schema_migrations`.
@@ -650,7 +650,7 @@ Acceptance:
 - All major routes have been visually checked in all supported modes.
 - No unreadable text, invisible controls, or mismatched surfaces.
 
-**Current status:** [~] Persisted system/light/dark selection, hydration handling, and audited dynamic-palette migrations are merged (PRs #129, #130, #131). The shared UI and Balance follow the saved theme; remaining literal-color review, visual route coverage, and real-device checks remain open.
+**Current status:** [~] PARTIALLY IMPLEMENTED ON `develop`. `ThemeProvider` persists system/light/dark selection and hydrates it before screens render; semantic palette usage exists across shared UI and selected screens. The current light palette fails two WCAG AA contrast assertions in the latest CI run. Remaining work: correct contrast without losing the approved Midnight Gold identity, migrate every remaining hard-coded screen color, and complete route-by-route visual and device checks.
 
 **Additional Phase 14 work merged (2026-11-16):** PR #131 merged as `ac861a1b6844cf3b7ca081b8fe34d65408c1ebc0`. It migrates the Balance screen to the shared `ThemePalette` and updates Toast, IconButton, BottomSheet, AttachSheet, SharedConversationPage, and ShareConversationSheet to consume `useSulyTheme()` rather than independently reading the OS color scheme. PR #131 passed Expo TypeScript, auth regression tests, static Web export, Android JS bundle, iOS JS bundle, and Deno Agent/Edge checks. A further focused pass for Support, Image Studio loading state, and Admin alert surfaces is open in PR #132; visual/browser/device coverage and the remaining hard-coded color audit are still open.
 
@@ -679,7 +679,7 @@ Acceptance:
 - RTL/LTR screenshots and interaction tests pass.
 - Text does not overflow or reverse code, IDs, or numeric values incorrectly.
 
-**Current status:** [~] Arabic/English preference persistence, root direction support, and saved-language hydration are merged (PR #129). Centralized translation coverage, mixed-direction content, and full RTL/LTR visual review remain open.
+**Current status:** [~] PARTIALLY IMPLEMENTED ON `develop`. `LocaleProvider` persists Arabic/English choice and exposes RTL/LTR direction; saved-language hydration exists. However, user-facing strings are still distributed across feature screens rather than fully centralized, and mixed Arabic/English/model-ID rendering plus complete RTL/LTR visual and interaction coverage remain unfinished.
 
 New implementation (2026-11-16):
 - `LocaleProvider` now waits for the saved `ar`/`en` preference before mounting app screens, preventing a brief Arabic/RTL render when the saved preference is English/LTR (and vice versa).
@@ -751,7 +751,7 @@ Build exit criteria:
 - Production secrets are stored only in appropriate secret managers.
 - Release notes, artifact identification, and rollback/recovery instructions are prepared. Final device installation and user-journey pass/fail results belong to the independent comprehensive test track.
 
-**Current status:** [~] Latest release deployment and all three platform JS exports have fresh passing evidence; OTA publish and physical-device end-to-end validation remain open.
+**Current status:** [~] PLATFORM FOUNDATIONS PRESENT; CURRENT DEVELOP PREVIEW BUILD PENDING. Expo Web/Android/iOS JS export workflows and the combined production/preview Pages workflow exist. A previous Pages deployment succeeded for commit `2e9f78530ecc6d56a02b59de8905c24f69f2f548`, but the newest documentation/current develop head `82d17a88154d84bfaffb8615127c84ee47bd3fff` has a Pages workflow still in progress at this audit. OTA publish remains blocked by missing `EXPO_TOKEN`; JS exports do not prove native APK/IPA builds or physical-device acceptance.
 
 Verified since the prior review:
 - PR #125 merged as `965e6fc8809adb13af72a536755bf70609a7dd16`.
@@ -1851,3 +1851,25 @@ For each test case record:
 - Phase 5/6 Track B cases include five-area route/deep-link navigation, mobile keyboard/safe-area and responsive web behavior, menu navigation, first authenticated app entry and all successful auth methods landing in Chat, empty-chat welcome and prompt chips, visible localized streaming/task status and stop action, absence of a user-facing automatic model routing and automatic server-side routing using verified/entitled profiles, actual server-reported model attribution, and chat/task lifecycle behavior.
 - These deferred tests are not implementation blockers. Any defect they expose must be fixed on Track A/develop and then retested in Track B.
 - No test is marked PASS unless it has a verified run/result. The new HIMS collision SQL regression is committed but not executed. The expanded theme Jest test and core chat/Home/HIMS semantic palette changes are committed but await a current-commit CI run.
+
+
+## Develop-only audit — 2026-11-16 (after unified-plan consolidation)
+
+This audit is based only on source and workflow evidence from branch `develop`. A PR merged only into `release/v1`, a feature branch not merged into `develop`, or an earlier CI run on another SHA is not counted as completed on the current development branch.
+
+### Current implementation disposition
+- **Fully implementation-complete:** Phase 1 (source inventory) and Phase 5 (five-section navigation foundation). Track B verification remains separate.
+- **Implemented but still open:** Phase 2 (HIMS security baseline and applied duplicate-code guard; broader adversarial validation remains); Phase 3 (HIMS flow in central chat; real student/content acceptance owner-blocked); Phase 8 (Library organization foundations); Phase 10 (65 source model/service IDs represented; provider/account reconciliation and metadata remain); Phase 11 (capability-evidence registries/editors and central-router consumption exist; integration evidence and regression remain); Phase 12 (text route governance and 40% markup at data level; credit/FX/media runtime pricing incomplete); Phase 14 (theme persistence and shared palette foundations); Phase 15 (language persistence and direction foundation); Phase 16 (substantial security controls and targeted regression evidence).
+- **In progress / major build work remains:** Phase 4 (full approved visual system and all-screen redesign; current light-theme contrast CI failures); Phase 6 (conversation progress/result/cancel/retry/accounting UX and idempotent persistence); Phase 7 (Studio generation workflows unavailable until verified provider, SULY integration, FX, and credit pricing); Phase 9 (Account UI exists, but profile/payment/renewal and complete billing lifecycle are incomplete); Phase 13 (Control Center foundation exists, but dynamic page/component builder is absent and admin modules are not yet complete); Phase 17 (preview deployment for the latest develop head, OTA, native artifacts/device work).
+
+### Explicit blockers found on develop
+1. Agent workflow run `43949561631` for SHA `2e9f78530ecc6d56a02b59de8905c24f69f2f548`: Expo TypeScript passed; Deno Edge Function typecheck passed; Jest auth/theme job failed because `src/theme/colors.test.ts` reported light-theme body contrast 4.1826:1 and primary-button contrast 3.1304:1. Web/Android/iOS exports were skipped after the test failure.
+2. The Pages workflow for SHA `82d17a88154d84bfaffb8615127c84ee47bd3fff` was still in progress at audit time; do not claim the latest preview deployment is complete until its build/deploy jobs succeed and the preview URL is checked.
+3. Required Dynamic Admin Page & Component Builder has no corresponding implementation found in the `develop` source tree.
+4. Studio remains disabled: media models are not SULY-integration-verified; runtime media price rows and credit/FX conversion are incomplete.
+5. Account paid-upgrade action currently displays “Upgrades coming soon”; payment and renewal lifecycle are not implemented end-to-end.
+6. PR #83 (Projects) remains open and dirty against `develop`; project-related files/tests are present in the branch, but its unique patch must be reconciled and the PR disposition decided without blindly merging or deleting it.
+7. Capability-evidence code is present on `develop` and was verified directly from current branch files; PRs #135–#137 being merged only into `release/v1` are not used as the evidence for this statement.
+
+### Branch and release boundary
+All future implementation work in this sequence remains on `develop`. Do not modify `release/v1`, promote changes, alter production data, activate providers/models, change prices/credit conversion, or run real-user tests without the applicable explicit owner authorization and test safeguards.
