@@ -168,7 +168,7 @@ export default function SettingsScreen() {
     <>
       <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
         <View style={styles.header}>
-          <Text style={styles.heading}>{isArabic ? "الإعدادات" : "Settings"}</Text>
+          <Text style={styles.heading}>{isArabic ? "الحساب" : "Account"}</Text>
           <TouchableOpacity activeOpacity={0.7} onPress={back} style={styles.backButton} accessibilityRole="button" accessibilityLabel={isArabic ? "رجوع" : "Back"}><Text style={styles.backIcon}>↩</Text></TouchableOpacity>
         </View>
 
@@ -185,6 +185,34 @@ export default function SettingsScreen() {
           <Text style={styles.rowText}>{isArabic ? "تعديل الاسم الظاهر" : "Edit display name"}</Text><Text style={styles.chevron}>‹</Text>
         </TouchableOpacity>
 
+        <Text style={styles.sectionTitle}>{isArabic ? "الرصيد" : "Credits"}</Text>
+        <View style={styles.creditCard}>
+          <Text style={styles.balanceLabel}>{isArabic ? "الرصيد الحالي" : "Current balance"}</Text>
+          <Text style={styles.balanceValue}>{loadingCredits ? "…" : balance === null ? "—" : balance.toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => { setCreditModal(true); void loadCredits(); }} style={styles.historyButton} accessibilityRole="button"><Text style={styles.linkText}>{isArabic ? "عرض السجل" : "View history"}</Text></TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => router.push("/(protected)/balance")} style={styles.historyButton} accessibilityRole="button"><Text style={styles.linkText}>{isArabic ? "تفاصيل الرصيد والاستهلاك" : "Balance details & usage"}</Text></TouchableOpacity>
+        </View>
+
+        <Text style={styles.sectionTitle}>{isArabic ? "الاشتراك والخطة" : "Plan & subscription"}</Text>
+        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/upgrade")} accessibilityRole="button">
+          <Text style={styles.rowText}>{isArabic ? "عرض الباقات والاشتراك الحالي" : "View plans and current subscription"}</Text><Text style={styles.chevron}>‹</Text>
+        </TouchableOpacity>
+
+        <Text style={styles.sectionTitle}>{isArabic ? "المهارات" : "Skills"}</Text>
+        <View style={styles.cardRow}>
+          <Text style={styles.rowText}>{isArabic ? "مهارات SULY" : "SULY skills"}</Text>
+          <Text style={styles.email}>{isArabic ? "سجل المهارات غير متصل بعد" : "Skill registry is not connected yet"}</Text>
+        </View>
+
+        <Text style={styles.sectionTitle}>{isArabic ? "الموصلات" : "Connectors"}</Text>
+        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/integrations")} accessibilityRole="button"><Text style={styles.rowText}>{isArabic ? "إدارة الموصلات والتطبيقات المرتبطة" : "Manage connected apps"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
+
+        <Text style={styles.sectionTitle}>{isArabic ? "اللغة" : "Language"}</Text>
+        <View style={styles.languageControl}>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => void changeLanguage("en")} style={[styles.languageOption, language === "en" && styles.languageSelected]}><Text style={[styles.rowText, language === "en" && styles.languageSelectedText]}>English</Text></TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => void changeLanguage("ar")} style={[styles.languageOption, language === "ar" && styles.languageSelected]}><Text style={[styles.rowText, language === "ar" && styles.languageSelectedText]}>العربية</Text></TouchableOpacity>
+        </View>
+
         <Text style={styles.sectionTitle}>{isArabic ? "المظهر" : "Appearance"}</Text>
         <View style={styles.languageControl}>
           {(["system", "light", "dark"] as const).map((value) => (
@@ -195,31 +223,31 @@ export default function SettingsScreen() {
         </View>
         <Text style={styles.email}>{isArabic ? `المظهر الحالي: ${effectiveMode === "dark" ? "داكن" : "فاتح"}` : `Current appearance: ${effectiveMode}`}</Text>
 
-        <Text style={styles.sectionTitle}>{isArabic ? "اللغة" : "Language"}</Text>
-        <View style={styles.languageControl}>
-          <TouchableOpacity activeOpacity={0.7} onPress={() => void changeLanguage("en")} style={[styles.languageOption, language === "en" && styles.languageSelected]}><Text style={[styles.rowText, language === "en" && styles.languageSelectedText]}>English</Text></TouchableOpacity>
-          <TouchableOpacity activeOpacity={0.7} onPress={() => void changeLanguage("ar")} style={[styles.languageOption, language === "ar" && styles.languageSelected]}><Text style={[styles.rowText, language === "ar" && styles.languageSelectedText]}>العربية</Text></TouchableOpacity>
+        <Text style={styles.sectionTitle}>{isArabic ? "ذاكرة التخزين" : "Memory storage"}</Text>
+        <View style={styles.cardRow}>
+          <Text style={styles.rowText}>{isArabic ? "ذاكرة SULY" : "SULY memory"}</Text>
+          <Text style={styles.email}>{isArabic ? "إدارة الذاكرة غير متاحة بعد؛ لا يتم حذف أو تعديل أي ذاكرة من هذه الشاشة." : "Memory controls are not available yet; this screen does not delete or change stored memories."}</Text>
         </View>
-
-        <Text style={styles.sectionTitle}>{isArabic ? "الرصيد" : "Credits"}</Text>
-        <View style={styles.creditCard}>
-          <Text style={styles.balanceLabel}>{isArabic ? "الرصيد الحالي" : "Current balance"}</Text>
-          <Text style={styles.balanceValue}>{loadingCredits ? "…" : balance === null ? "—" : balance.toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text>
-          <TouchableOpacity activeOpacity={0.7} onPress={() => { setCreditModal(true); void loadCredits(); }} style={styles.historyButton} accessibilityRole="button"><Text style={styles.linkText}>{isArabic ? "عرض السجل" : "View history"}</Text></TouchableOpacity>
-        </View>
-
-        <Text style={styles.sectionTitle}>{isArabic ? "الاشتراك والخطة" : "Plan & subscription"}</Text>
-        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/upgrade")} accessibilityRole="button">
-          <Text style={styles.rowText}>{isArabic ? "عرض الباقات والاشتراك الحالي" : "View plans and current subscription"}</Text><Text style={styles.chevron}>‹</Text>
-        </TouchableOpacity>
 
         <Text style={styles.sectionTitle}>{isArabic ? "التخزين والمكتبة" : "Storage & Library"}</Text>
         <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/media")} accessibilityRole="button">
           <Text style={styles.rowText}>{isArabic ? "فتح مكتبتي وإدارة ملفاتي" : "Open my Library and manage files"}</Text><Text style={styles.chevron}>‹</Text>
         </TouchableOpacity>
 
+        <Text style={styles.sectionTitle}>{isArabic ? "تقييم التطبيق" : "Rate the app"}</Text>
+        <View style={styles.cardRow}>
+          <Text style={styles.rowText}>{isArabic ? "تقييم SULY" : "Rate SULY"}</Text>
+          <Text style={styles.email}>{isArabic ? "رابط المتجر غير مُعتمد بعد" : "Store listing is not configured yet"}</Text>
+        </View>
+
         <Text style={styles.sectionTitle}>{isArabic ? "الدعم" : "Support"}</Text>
         <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/support")} accessibilityRole="button"><Text style={styles.rowText}>{isArabic ? "الشكاوى والدعم" : "Support & complaints"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
+
+        <Text style={styles.sectionTitle}>{isArabic ? "التطبيق" : "Application"}</Text>
+        <View style={styles.cardRow}>
+          <Text style={styles.rowText}>{isArabic ? "إصدار التطبيق" : "App version"}</Text>
+          <Text style={styles.email}>{Constants.expoConfig?.version ?? "1.0.0"}</Text>
+        </View>
 
         <Text style={styles.sectionTitle}>{isArabic ? "المحادثات" : "Conversations"}</Text>
         <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => void openArchive()} accessibilityRole="button"><Text style={styles.rowText}>{isArabic ? "الأرشيف" : "Archive"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
@@ -238,32 +266,11 @@ export default function SettingsScreen() {
             <Text style={styles.rowText}>{isArabic ? "تعذر التحقق من صلاحية الأدمن — اضغط لإعادة المحاولة" : "Could not verify admin access — tap to retry"}</Text><Text style={styles.chevron}>↻</Text>
           </TouchableOpacity>
         </> : null}
-        <Text style={styles.sectionTitle}>{isArabic ? "المهارات" : "Skills"}</Text>
-        <View style={styles.cardRow}>
-          <Text style={styles.rowText}>{isArabic ? "مهارات SULY" : "SULY skills"}</Text>
-          <Text style={styles.email}>{isArabic ? "سجل المهارات غير متصل بعد" : "Skill registry is not connected yet"}</Text>
-        </View>
-
-        <Text style={styles.sectionTitle}>{isArabic ? "الموصلات" : "Connectors"}</Text>
-        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/integrations")} accessibilityRole="button"><Text style={styles.rowText}>{isArabic ? "إدارة الموصلات والتطبيقات المرتبطة" : "Manage connected apps"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
-
         <Text style={styles.sectionTitle}>{isArabic ? "المعلومات والسياسات" : "Information & policies"}</Text>
         <View style={styles.policyCard}>
           <TouchableOpacity activeOpacity={0.7} onPress={() => setPolicyModal("privacy")} style={styles.policyRow}><Text style={styles.rowText}>{isArabic ? "سياسة الخصوصية" : "Privacy policy"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
           <View style={styles.separator} />
           <TouchableOpacity activeOpacity={0.7} onPress={() => setPolicyModal("terms")} style={styles.policyRow}><Text style={styles.rowText}>{isArabic ? "شروط الاستخدام والحماية" : "Terms & safety"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
-        </View>
-
-        <Text style={styles.sectionTitle}>{isArabic ? "تقييم التطبيق" : "Rate the app"}</Text>
-        <View style={styles.cardRow}>
-          <Text style={styles.rowText}>{isArabic ? "تقييم SULY" : "Rate SULY"}</Text>
-          <Text style={styles.email}>{isArabic ? "رابط المتجر غير مُعتمد بعد" : "Store listing is not configured yet"}</Text>
-        </View>
-
-        <Text style={styles.sectionTitle}>{isArabic ? "التطبيق" : "Application"}</Text>
-        <View style={styles.cardRow}>
-          <Text style={styles.rowText}>{isArabic ? "إصدار التطبيق" : "App version"}</Text>
-          <Text style={styles.email}>{Constants.expoConfig?.version ?? "1.0.0"}</Text>
         </View>
 
         <TouchableOpacity activeOpacity={0.7} style={styles.logoutButton} onPress={confirmLogout} disabled={loggingOut} accessibilityRole="button">
