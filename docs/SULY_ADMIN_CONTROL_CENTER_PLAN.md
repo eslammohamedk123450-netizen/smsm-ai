@@ -49,6 +49,7 @@ No parallel admin application or replacement data model is introduced.
    - Dashboard metrics now distinguish unavailable model-health, usage, audit, and maintenance data from legitimate zero/disabled values; maintenance controls are disabled when the current state cannot be confirmed.
    - Storage overview metrics also display unknown until bucket/object inventory succeeds; failed requests no longer appear as an empty project.
    - Credit overview metrics and transaction exports now remain unavailable when the ledger query fails instead of presenting a false zero or exporting an empty CSV.
+   - The finance ledger count now shows unknown on query failure and clears stale rows, so a failed refresh cannot look like an empty or current ledger.
 6. **HIMS resource lifecycle**
    - Added admin actions to edit resource metadata and to deactivate/reactivate existing HIMS resources without deleting their records or stored media.
    - Updates reuse the existing admin-guarded `suly_admin_upsert_feature_resource_v2` RPC, preserve the original URL/media-asset identity and prior active state, and require confirmation before changing visibility.
