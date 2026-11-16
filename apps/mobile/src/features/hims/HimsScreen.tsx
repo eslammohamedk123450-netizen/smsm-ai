@@ -14,7 +14,7 @@ const FILTERS: Array<{ key: Filter; label: string }> = [
   { key: "file", label: "الملفات" },
   { key: "image", label: "الصور" },
 ];
-const kindLabel = (kind: string) => kind === "lecture" ? "محاضرة" : kind === "video" ? "فيديو" : kind === "image" ? "صورة" : "ملف";
+const kindLabel = (kind: string) => ["lecture", "lesson", "course"].includes(kind) ? "محاضرة" : kind === "video" ? "فيديو" : kind === "image" ? "صورة" : "ملف";
 
 export function HimsScreen() {
   const router = useRouter();
