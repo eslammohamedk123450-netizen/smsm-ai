@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useEffect, useState } from "react";
+import { useMemo, useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { useSulyTheme } from "../../theme/ThemeProvider";
@@ -13,6 +13,11 @@ export function SupportAdminScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [ticketsAvailable, setTicketsAvailable] = useState(false);
+  const [page, setPage] = useState(0);
+  const [totalTickets, setTotalTickets] = useState(0);
+  const listRequest = useRef(0);
+  const detailRequest = useRef(0);
+  const pageSize = 50;
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<SupportTicket | null>(null);
   const [replies, setReplies] = useState<SupportReply[]>([]);
@@ -22,11 +27,18 @@ export function SupportAdminScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    const requestId = ++listRequest.current;
     setLoading(true); setTicketsAvailable(false); setError(null);
-    try { setTickets(await supportService.adminListTickets()); setTicketsAvailable(true); }
-    catch (cause) { setTickets([]); setTicketsAvailable(false); setError(cause instanceof Error ? cause.message : "تعذر تحميل صندوق الدعم."); }
-    finally { setLoading(false); }
-  }, []);
+    try {
+      const result = await supportService.adminListTicketsPage(page, pageSize);
+      if (requestId !== listRequest.current) return;
+      setTickets(result.tickets); setTotalTickets(result.total); setTicketsAvailable(true);
+    } catch (cause) {
+      if (requestId !== listRequest.current) return;
+      setTickets([]); setTotalTickets(0); setTicketsAvailable(false);
+      setError(cause instanceof Error ? cause.message : "تعذر تحميل صندوق الدعم.");
+    } finally { if (requestId === listRequest.current) setLoading(false); }
+  }, [page]);
   useEffect(() => { void load(); }, [load]);
 
   const open = async (ticket: SupportTicket) => {
