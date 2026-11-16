@@ -32,7 +32,7 @@ begin
     raise exception 'active account required' using errcode = '42501';
   end if;
 
-  if p_resource_type not in ('image','video','raw') or p_object_key is null
+  if p_resource_type is null or p_resource_type not in ('image','video','raw') or p_object_key is null
     or p_object_key not like ('suly/' || v_user::text || '/%') then
     raise exception 'invalid cloudinary object' using errcode = '22023';
   end if;
