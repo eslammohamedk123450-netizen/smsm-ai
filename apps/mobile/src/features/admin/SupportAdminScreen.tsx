@@ -12,6 +12,7 @@ export function SupportAdminScreen() {
   const { colors } = useSulyTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
+  const [ticketsAvailable, setTicketsAvailable] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<SupportTicket | null>(null);
   const [replies, setReplies] = useState<SupportReply[]>([]);
@@ -21,9 +22,9 @@ export function SupportAdminScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true); setError(null);
-    try { setTickets(await supportService.adminListTickets()); }
-    catch (cause) { setTickets([]); setError(cause instanceof Error ? cause.message : "تعذر تحميل صندوق الدعم."); }
+    setLoading(true); setTicketsAvailable(false); setError(null);
+    try { setTickets(await supportService.adminListTickets()); setTicketsAvailable(true); }
+    catch (cause) { setTickets([]); setTicketsAvailable(false); setError(cause instanceof Error ? cause.message : "تعذر تحميل صندوق الدعم."); }
     finally { setLoading(false); }
   }, []);
   useEffect(() => { void load(); }, [load]);
@@ -63,7 +64,7 @@ export function SupportAdminScreen() {
     <View style={styles.header}><Text style={styles.title}>الدعم والشكاوى</Text><Pressable onPress={() => void load()}><Text style={styles.link}>تحديث</Text></Pressable></View>
     <Text style={styles.subtitle}>صندوق تذاكر من قاعدة البيانات؛ المرفقات تُعرض بروابط خاصة ومصرح بها.</Text>
     {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-    {loading ? <ActivityIndicator color={colors.primary} /> : tickets.length === 0 ? <Text style={styles.empty}>لا توجد طلبات دعم.</Text> : tickets.map((ticket) => <Pressable key={ticket.id} style={styles.ticket} onPress={() => void open(ticket)}>
+    {loading ? <ActivityIndicator color={colors.primary} /> : !ticketsAvailable ? <Text style={styles.empty}>بيانات صندوق الدعم غير متاحة.</Text> : tickets.length === 0 ? <Text style={styles.empty}>لا توجد طلبات دعم.</Text> : tickets.map((ticket) => <Pressable key={ticket.id} style={styles.ticket} onPress={() => void open(ticket)}>
       <View style={styles.ticketTop}><Text style={styles.badge}>{statusLabel[ticket.status] ?? ticket.status}</Text><Text style={styles.subject}>{ticket.subject}</Text></View>
       <Text style={styles.description} numberOfLines={2}>{ticket.description}</Text>
       <Text style={styles.meta}>المستخدم {ticket.user_id.slice(0, 8)}… · أولوية {ticket.priority} · {new Date(ticket.updated_at).toLocaleString("ar-EG")}</Text>
