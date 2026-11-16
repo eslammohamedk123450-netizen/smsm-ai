@@ -600,3 +600,15 @@
 - الذاكرة: لا يوجد حاليًا مسار إدارة ذاكرة مستخدم مكتمل؛ أضيف عرض حالة صريح بدل التحكم الشكلي أو الإيحاء بإمكانية حذف الذاكرة.
 - الأجهزة المتصلة والحذف المباشر: لا تغيير؛ يظلان محجوبين لحين اعتماد backend وسياسة الاحتفاظ/الحذف.
 - لا اختبارات أو typecheck أو builds شُغّلت لهذه الدفعة وفق توجيه المالك؛ أضيفت حالات قبولها إلى ملف الاختبارات الشاملة.
+
+
+## مراجعة أمنية موسعة — catalog وRPC — 2026-11-17
+- فحص read-only لـ`pg_proc` وجد 66 دالة `SECURITY DEFINER` قابلة للتنفيذ من `authenticated`، ودالة واحدة فقط متاحة أيضًا لـ`anon`: `suly_get_public_conversation(uuid)`.
+- كل الدوال الـ66 التي راجعناها لها `search_path` مضبوط عبر `proconfig`؛ لم يظهر أي منها دون إعداد search_path.
+- `suly_get_public_conversation` endpoint مشاركة مقصود يعتمد على `share_token`، ويعيد العنوان ورسائل user/assistant بحد أقصى 300 رسالة. يبقى اختبار إبطال الرمز بعد إلغاء المشاركة مطلوبًا.
+- `suly_admin_set_provider_enabled` لا يكرر حارس المدير داخل جسمه، لكنه يستدعي مباشرة `suly_admin_set_provider_lifecycle` التي تتحقق من `suly_is_admin()` قبل تغيير المزود/الارتباطات.
+- `suly_admin_update_provider` يطابق `auth.uid()` مع `p_user_id`، ويتحقق من وجود المدير في `suly_admins` وأن ملفه غير محظور قبل تعديل بيانات المزود أو تحديث Vault.
+- دالتا SQL الديناميكي هما `suly_admin_grant_feature` و`suly_my_feature_status`. كلاهما يستخدم أسماء أعمدة من `suly_feature_flags` مع `format('%I', ...)`، ولا يقبل نص SQL من المستخدم. جدول registry يمنح authenticated SELECT فقط مع RLS policy لقراءة الصفوف النشطة، ولا يمنح authenticated INSERT/UPDATE/DELETE؛ الكتابة محصورة في service_role/postgres. هذا يقلل مسار تعديل أسماء الأعمدة من العميل، مع بقاء اختبار التلاعب/الـallowlist ضمن القبول.
+- 14 جدولًا عليها RLS بلا policies؛ استعلام امتيازات مستقل أكد عدم وجود أي grants لـanon/authenticated على هذه الجداول. لذلك يظل المنع المباشر مقصودًا، ولا تُنشأ policies افتراضية.
+- Edge Function `admin-storage` حالتها ACTIVE v3 و`verify_jwt=false`، لكن المصدر يفرض POST، ويستخرج Bearer token، ويستدعي `auth.getUser(token)` للتحقق من الجلسة ثم `suly_is_admin()` قبل إنشاء عميل service-role. لا يُعامل CORS كبديل للمصادقة، ويظل اختبار الرفض/القبول مطلوبًا.
+- هذه مراجعة static/catalog وليست اختبار تفويض عمليًا ولا تثبت خلو كل فرع تنفيذي من الثغرات. لم يتم تعديل grants أو الدوال أو إعدادات Auth.
