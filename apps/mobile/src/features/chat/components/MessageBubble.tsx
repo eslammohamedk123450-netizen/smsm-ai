@@ -224,7 +224,7 @@ export function MessageBubble({
                   <View style={styles.studioActionIcon}><Ionicons name="sparkles-outline" size={19} color={colors.primary} /></View>
                   <View style={styles.studioActionCopy}>
                     <Text style={styles.studioActionTitle}>{isArabic ? "تابع طلبك في الاستوديو" : "Continue in Studio"}</Text>
-                    <Text style={styles.studioActionDescription}>{studioIntentLabel} · {isArabic ? "اختر النموذج والجودة وأكّد قبل خصم الرصيد." : "Choose a model and quality, then confirm before credits are charged."}</Text>
+                    <Text style={styles.studioActionDescription}>{studioIntentLabel} · {isArabic ? "أضف الملف في الاستوديو إن لزم، واختر النموذج وأكّد قبل خصم الرصيد." : "Add your file in Studio if needed, choose a model, and confirm before credits are charged."}</Text>
                   </View>
                   <Ionicons name={isArabic ? "arrow-back" : "arrow-forward"} size={17} color={colors.textSecondary} />
                 </Pressable>
