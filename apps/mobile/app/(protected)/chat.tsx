@@ -134,7 +134,6 @@ export default function ChatPage() {
   const selectedModelProfile = "auto" as const;
   const openNavigationDrawer = useNavigationMenu();
   const openPlusMenu = usePlusMenu();
-  const [actualModelUsed, setActualModelUsed] = useState<string | null>(null);
   const suggestions = isArabic ? TASK_SUGGESTIONS : TASK_SUGGESTIONS_EN;
   const [connectorApproval, setConnectorApproval] = useState<{ content: string; toolkit: ToolkitStatus["toolkit"]; intent: "read" | "write"; connected: boolean; accountExists: boolean; disabled: boolean; writeApproval: ConnectorWriteApproval | null } | null>(null);
   const closeShareSheet = useCallback(() => setShareVisible(false), []);
@@ -330,7 +329,6 @@ export default function ChatPage() {
         }
         await chatService.sendMessage({
           conversationId: conversationKey,
-          onModelInfo(identifier) { setActualModelUsed(identifier); },
           content,
           modelProfileKey: selectedModelProfile,
           writeApproval,
@@ -711,15 +709,6 @@ export default function ChatPage() {
             </TouchableOpacity>
           </View>
         </View>
-        {actualModelUsed ? (
-          <View style={styles.actualModelInline} accessibilityRole="text">
-            <Ionicons name="checkmark-circle-outline" size={13} color={colors.textMuted} />
-            <Text style={styles.actualModelInlineText}>
-              {isArabic ? "النموذج المستخدم في آخر رد (بتأكيد الخادم): " + actualModelUsed : "Last response model (server-confirmed): " + actualModelUsed}
-            </Text>
-          </View>
-        ) : null}
-
         {error ? <Pressable onPress={() => setError(null)} style={styles.errorBox}><Text style={styles.errorText}>{error}  ×</Text></Pressable> : null}
         {retryFailure ? <View style={styles.retryWarning} accessibilityRole="alert"><Text style={styles.retryWarningText}>{isArabic ? "حُفظت رسالتك، لكن تعذّر إكمال الرد." : "Your message was saved, but the response could not be completed."}</Text><Pressable onPress={() => void retryResponse()} disabled={isSending} accessibilityRole="button" accessibilityLabel={isArabic ? "إعادة محاولة الرد" : "Retry response"} style={styles.retryButton}><Text style={styles.retryButtonText}>{isSending ? (isArabic ? "جارٍ إعادة المحاولة…" : "Retrying…") : (isArabic ? "إعادة المحاولة" : "Retry")}</Text></Pressable></View> : null}
         {isLoading ? <View style={styles.loading}><ActivityIndicator color={colors.primary} /><Text style={styles.loadingText}>{isArabic ? "جارٍ تحميل المحادثة…" : "Loading conversation…"}</Text></View> : messages.length === 0 ? (
