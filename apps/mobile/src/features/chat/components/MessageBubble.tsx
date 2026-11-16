@@ -6,6 +6,8 @@ import * as Clipboard from "expo-clipboard";
 import { useSulyTheme } from "../../../theme/ThemeProvider";
 import type { ThemePalette } from "../../../theme/colors";
 import { useToast } from "../../../components/ui/Toast";
+import { useAppLocale } from "../../../theme/LocaleProvider";
+import type { StudioIntent } from "../image-generation";
 import { MarkdownView } from "./MarkdownView";
 import type { MediaAsset } from "../../media/media-service";
 
@@ -16,6 +18,8 @@ export interface MessageBubbleProps {
   attachments?: MediaAsset[];
   isStreaming?: boolean;
   generationState?: "pending" | "failed";
+  studioIntent?: StudioIntent | null;
+  onOpenStudio?(): void;
   feedback?: Feedback;
   onFeedback?(value: Feedback): void | Promise<void>;
   onEdit?(content: string): void;
@@ -92,6 +96,8 @@ export function MessageBubble({
   attachments = [],
   isStreaming = false,
   generationState,
+  studioIntent = null,
+  onOpenStudio,
   feedback = null,
   onFeedback,
   onEdit,
@@ -104,6 +110,7 @@ export function MessageBubble({
   const { colors } = useSulyTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const isUser = role === "user";
+  const { isArabic } = useAppLocale();
   const { show } = useToast();
   const [copied, setCopied] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -177,6 +184,10 @@ export function MessageBubble({
   };
 
   const canShowActions = !isStreaming && content.length > 0;
+  const studioIntentLabel = studioIntent === "image" ? (isArabic ? "إنشاء صورة" : "Create an image")
+    : studioIntent === "video" ? (isArabic ? "إنشاء فيديو" : "Create a video")
+    : studioIntent === "audio" ? (isArabic ? "إنشاء صوت" : "Create audio")
+    : studioIntent === "transcription" ? (isArabic ? "تفريغ صوت" : "Transcribe audio") : "";
 
   return (
     <View style={[styles.row, isUser ? styles.userRow : styles.assistantRow]}>
@@ -202,6 +213,22 @@ export function MessageBubble({
                   </View>
                 </>
               ) : content.trim() ? <View style={styles.paragraph}>{renderContent(content)}</View> : null}
+              {studioIntent ? (
+                <Pressable
+                  disabled={!onOpenStudio}
+                  onPress={onOpenStudio}
+                  accessibilityRole="button"
+                  accessibilityLabel={isArabic ? "فتح استوديو SULY" : "Open SULY Studio"}
+                  style={[styles.studioActionCard, { flexDirection: isArabic ? "row-reverse" : "row", opacity: onOpenStudio ? 1 : 0.55 }]}
+                >
+                  <View style={styles.studioActionIcon}><Ionicons name="sparkles-outline" size={19} color={colors.primary} /></View>
+                  <View style={styles.studioActionCopy}>
+                    <Text style={styles.studioActionTitle}>{isArabic ? "تابع طلبك في الاستوديو" : "Continue in Studio"}</Text>
+                    <Text style={styles.studioActionDescription}>{studioIntentLabel} · {isArabic ? "أضف الملف في الاستوديو إن لزم، واختر النموذج وأكّد قبل خصم الرصيد." : "Add your file in Studio if needed, choose a model, and confirm before credits are charged."}</Text>
+                  </View>
+                  <Ionicons name={isArabic ? "arrow-back" : "arrow-forward"} size={17} color={colors.textSecondary} />
+                </Pressable>
+              ) : null}
               {attachments.length ? <View style={styles.attachments}>{attachments.map((asset) => {
                 const isImage = asset.kind === "image" || asset.mimeType?.toLowerCase().startsWith("image/");
                 const isVideo = asset.kind === "video" || asset.mimeType?.toLowerCase().startsWith("video/");
@@ -346,6 +373,11 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
   assistantText: { fontSize: 16, lineHeight: 26, color: "#F5F5F5", fontWeight: "400", textAlign: "right", writingDirection: "rtl" },
   imageThumbnail: { width: 96, height: 96, borderRadius: 12, marginVertical: 4, backgroundColor: "#E5E7EB" },
   attachments: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 },
+  studioActionCard: { width: "100%", maxWidth: 340, alignItems: "center", gap: 10, marginTop: 10, padding: 12, borderRadius: 13, borderWidth: 1, borderColor: colors.primary, backgroundColor: colors.surfaceElevated },
+  studioActionIcon: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.primarySoft },
+  studioActionCopy: { flex: 1, minWidth: 0, gap: 3 },
+  studioActionTitle: { color: colors.textPrimary, fontSize: 13, fontWeight: "800" },
+  studioActionDescription: { color: colors.textSecondary, fontSize: 11, lineHeight: 17 },
   assistantAttachments: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 },
   generatedImage: { width: 240, height: 240, maxWidth: 260, borderRadius: 12, marginTop: 4, backgroundColor: "#1F1F1F" },
   missingGeneratedImage: { width: 240, height: 240, borderRadius: 12, marginTop: 4, backgroundColor: "#1F1F1F", justifyContent: "center", alignItems: "center" },

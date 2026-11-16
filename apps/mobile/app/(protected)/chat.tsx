@@ -10,7 +10,7 @@ import { useAppLocale } from "../../src/theme/LocaleProvider";
 import type { ThemePalette } from "../../src/theme/colors";
 import { chatService, type ChatMessage } from "../../src/features/chat/chat-service";
 import { getRotatingSuggestions } from "../../src/features/chat/suggestions";
-import { getImageGenerationPrompt } from "../../src/features/chat/image-generation";
+import { getStudioIntent } from "../../src/features/chat/image-generation";
 import { chatStreamManager } from "../../src/features/chat/chat-stream-manager";
 import { runOnce } from "../../src/features/chat/submission-guard";
 import { ChatComposer, type ChatAttachment, type ChatComposerHandle } from "../../src/features/chat/components/ChatComposer";
@@ -313,7 +313,7 @@ export default function ChatPage() {
   const sendText = async (content: string, attachment?: ChatAttachment, writeApproval?: ConnectorWriteApproval) => {
     await runOnce(lock, async () => {
       if (!user || (!content.trim() && !attachment)) return;
-      const imageGeneration = !attachment && getImageGenerationPrompt(content) !== null;
+      const studioIntent = getStudioIntent(content);
       const optimisticMessageId = `optimistic-${Date.now()}`;
       optimisticMessageIdRef.current = optimisticMessageId;
       setMessages((current) => [...current, {
@@ -328,14 +328,13 @@ export default function ChatPage() {
       setError(null);
       setRetryFailure(null);
       setIsSending(true);
-      setActiveTaskLabel(imageGeneration ? isArabic ? "جاري توليد الصورة…" : "Generating image…" : isArabic ? "جارٍ الرد على رسالتك…" : "Responding to your message…");
+      setActiveTaskLabel(studioIntent ? isArabic ? "تجهيز بطاقة الاستوديو…" : "Preparing Studio card…" : isArabic ? "جارٍ الرد على رسالتك…" : "Responding to your message…");
       void logFrictionEvent({ eventKind: "task_start", screenKey: "chat", featureKey: "chat", stepKey: "send_message", conversationId });
       const controller = new AbortController();
       abortRef.current = controller;
       let id = conversationId;
       let savedUserMessage = false;
       let savedUserMessageId: string | null = null;
-      let imagePlaceholderId: string | null = null;
       let streamCompleted = false;
       try {
         if (!id) {
@@ -367,17 +366,7 @@ export default function ChatPage() {
           async onUserSaved(message) {
             savedUserMessage = true;
             savedUserMessageId = message.id;
-            if (imageGeneration) imagePlaceholderId = `image-generation-${message.id}`;
-            setMessages((current) => [...current.filter((item) => item.id !== STREAMING_ID && item.id !== optimisticMessageId), message, ...(imageGeneration ? [{
-              id: `image-generation-${message.id}`,
-              conversationId: conversationKey,
-              role: "assistant" as const,
-              content: "",
-              createdAt: new Date().toISOString(),
-              modelId: null,
-              status: "streaming" as const,
-              generationState: "pending" as const,
-            }] : [])]);
+            setMessages((current) => [...current.filter((item) => item.id !== STREAMING_ID && item.id !== optimisticMessageId), message]);
           },
           onChunk(text) {
             streamedTextRef.current += text;
@@ -400,10 +389,7 @@ export default function ChatPage() {
         if (!savedUserMessage) setMessages((current) => current.filter((item) => item.id !== optimisticMessageId));
         const partialContent = streamedTextRef.current.trim();
         if (controller.signal.aborted) {
-          if (imageGeneration && imagePlaceholderId) {
-            setMessages((current) => current.filter((item) => item.id !== imagePlaceholderId && item.id !== STREAMING_ID));
-            if (id) void reloadMessages(id).catch(() => undefined);
-          } else if (partialContent) {
+          if (partialContent) {
             setMessages((current) => [...current.filter((item) => item.id !== STREAMING_ID), {
               id: `partial-${savedUserMessageId ?? Date.now()}`,
               conversationId: id ?? conversationId ?? "",
@@ -420,14 +406,7 @@ export default function ChatPage() {
           setRetryFailure(null);
           if (savedUserMessage) void logFrictionEvent({ eventKind: "response_stopped", screenKey: "chat", featureKey: "chat", stepKey: "response", conversationId });
         } else if (savedUserMessage && savedUserMessageId && id && !streamCompleted && !writeApproval) {
-          if (imageGeneration && imagePlaceholderId) {
-            setMessages((current) => current.map((item) => item.id === imagePlaceholderId ? { ...item, status: "error", generationState: "failed" } : item));
-            setError(cause instanceof Error ? cause.message : isArabic ? "تعذر توليد الصورة. أرسل الطلب مجددًا للمحاولة." : "Could not generate the image. Send the request again to retry.");
-            void logFrictionEvent({ eventKind: "action_failed", screenKey: "chat", featureKey: "chat", stepKey: "image_generation", errorCode: "image_generation_failed", conversationId: id });
-          } else {
-            setMessages((current) => current.filter((item) => item.id !== STREAMING_ID));
-          }
-          if (imageGeneration) return;
+          setMessages((current) => current.filter((item) => item.id !== STREAMING_ID));
           // The user message is already persisted. Retry only assistant
           // generation, never sendMessage again, so it cannot be duplicated.
           try {
@@ -454,9 +433,6 @@ export default function ChatPage() {
             void logFrictionEvent({ eventKind: "action_failed", screenKey: "chat", featureKey: "chat", stepKey: "send_failed_after_retry", errorCode: "send_failed", conversationId: id });
           }
         } else {
-          if (imageGeneration && streamCompleted && id) {
-            void reloadMessages(id).catch(() => undefined);
-          }
           setError(cause instanceof Error ? cause.message : isArabic ? "تعذر إرسال الرسالة. تحقق من الاتصال وحاول مجددًا." : "Could not send the message. Check your connection and try again.");
           void logFrictionEvent({ eventKind: "action_failed", screenKey: "chat", featureKey: "chat", stepKey: "send_message", errorCode: "send_failed", conversationId });
         }
@@ -716,6 +692,8 @@ export default function ChatPage() {
       attachments={item.attachments}
       isStreaming={item.status === "streaming"}
       generationState={item.generationState}
+      studioIntent={item.role === "user" ? getStudioIntent(item.content) : null}
+      onOpenStudio={() => router.push("/studio")}
       feedback={feedbackByMessage[item.id] ?? null}
       edited={Boolean(item.editedAt)}
       responseVariants={item.responseVariants}

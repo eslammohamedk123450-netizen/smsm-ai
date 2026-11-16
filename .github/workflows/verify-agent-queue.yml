@@ -85,7 +85,7 @@ jobs:
       - name: Typecheck mobile application
         run: npm run typecheck
       - name: Run mobile authentication regression tests
-        run: npm test -- --runInBand src/features/auth/auth-service.test.ts src/features/auth/auth-callback.test.ts src/features/auth/auth-redirect.test.ts src/features/chat/chat-service.test.ts
+        run: npm test -- --runInBand src/features/auth/auth-service.test.ts src/features/auth/auth-callback.test.ts src/features/auth/auth-redirect.test.ts src/features/chat/chat-service.test.ts src/features/chat/image-generation.test.ts
       - name: Export static Expo web app
         env:
           EXPO_PUBLIC_WEB_BASE_URL: /smsm-ai

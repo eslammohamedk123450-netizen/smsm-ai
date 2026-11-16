@@ -202,8 +202,9 @@ async function handleImageGeneratorRequest(req: Request): Promise<Response> {
   const requestedModelId = typeof body.generation_model_id === "string" ? body.generation_model_id : "";
   const quality = typeof body.quality === "string" ? body.quality : "standard";
   const requestId = typeof body.request_id === "string" && UUID_RE.test(body.request_id) ? body.request_id : crypto.randomUUID();
-  const studioRequest = body.source === "image_studio" && !conversationId && !userMessageId;
-  if (!UUID_RE.test(requestId) || (!studioRequest && (!UUID_RE.test(conversationId) || !UUID_RE.test(userMessageId)))) return json(400, { error: "معرّف المحادثة أو الرسالة أو الطلب غير صالح." });
+  const studioRequest = body.source === "image_studio";
+  if (!studioRequest || conversationId || userMessageId) return json(400, { error: "توليد الصور متاح من استوديو SULY فقط. افتح الاستوديو وأكّد الطلب هناك." });
+  if (!UUID_RE.test(requestId)) return json(400, { error: "معرّف طلب التوليد غير صالح." });
   if (!prompt || prompt.length > 2048) return json(400, { error: "اكتب وصفًا للصورة بين حرف واحد و2048 حرفًا." });
   if (!["economy","standard","high","ultra"].includes(quality)) return json(400, { error: "جودة الصورة المحددة غير مدعومة." });
 
@@ -217,13 +218,6 @@ async function handleImageGeneratorRequest(req: Request): Promise<Response> {
   }
   const userTier = ["free","lite","pro","max"].includes(effectiveTier) ? effectiveTier : "free";
 
-  if (!studioRequest) {
-    const { data: conversation, error: conversationError } = await service.from("suly_conversations").select("id").eq("id", conversationId).eq("user_id", userId).maybeSingle();
-    if (conversationError || !conversation) return json(404, { error: "المحادثة غير موجودة أو لا تملك صلاحية الوصول إليها." });
-    const { data: userMessage, error: messageError } = await service.from("suly_messages").select("id,content").eq("id", userMessageId).eq("conversation_id", conversationId).eq("user_id", userId).eq("role", "user").maybeSingle();
-    if (messageError || !userMessage) return json(404, { error: "رسالة الطلب غير موجودة أو لا تخص هذه المحادثة." });
-    if (String(userMessage.content ?? "").trim() !== prompt) return json(400, { error: "وصف الصورة يجب أن يطابق رسالة الطلب المحفوظة." });
-  }
   const { data: existingAsset } = await service.from("global_media_assets").select("id,message_id,metadata")
     .eq("user_id", userId).contains("metadata", { request_id: requestId }).maybeSingle();
   if (existingAsset) {
