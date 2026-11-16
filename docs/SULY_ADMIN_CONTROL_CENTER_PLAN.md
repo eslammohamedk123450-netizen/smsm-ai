@@ -34,7 +34,8 @@ No parallel admin application or replacement data model is introduced.
 3. **Navigation**
    - Added the existing User Friction dashboard to the admin navigation; its route existed but was previously undiscoverable from the menu.
    - Expanded global admin search to search the actual navigation catalogue and open matching pages; email/UUID searches route to users.
-4. **User subscriptions**
+4. **User directory and subscriptions**
+   - Replaced the first-200-only user list with server-side 50-row pagination, total-count reporting, server-side active/banned filtering, and server-side name/email/UUID search. Bulk selection is cleared when changing pages or filters so actions cannot accidentally target a stale page.
    - Added a user-level subscription grant workflow using the existing audited `suly_admin_grant_subscription` RPC.
    - The UI loads active plans only, shows the existing catalog values without editing them, accepts an optional expiry date, requires an administrative reason, and confirms before replacing any prior active subscription.
    - The database function verifies `auth.uid()` and `suly_is_admin()`, validates the active plan and expiry, replaces the previous active row, updates the user's tier, and writes an audit record. No user subscription was changed during implementation.
