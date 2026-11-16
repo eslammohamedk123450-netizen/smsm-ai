@@ -67,8 +67,9 @@ export function AdminDashboardScreen() {
   }, []);
   useEffect(() => { void load(); }, [load]);
 
-  const downModels = models.filter((model) => !model.enabled || model.health?.auto_restricted || model.health?.last_status === "error").length;
-  const activeModels = Math.max(0, models.length - downModels);
+  const disabledModels = models.filter((model) => !model.enabled).length;
+  const downModels = models.filter((model) => model.enabled && (model.health?.auto_restricted === true || model.health?.last_status === "error")).length;
+  const activeModels = Math.max(0, models.length - disabledModels - downModels);
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const todayUsage = transactions.filter((row) => new Date(row.created_at) >= today && row.event_type === "settle").reduce((sum, row) => sum + Math.abs(Number(row.amount ?? 0)), 0);
   const chart = useMemo(() => {
@@ -96,7 +97,7 @@ export function AdminDashboardScreen() {
   };
 
   const metrics = [
-    { title: "النماذج النشطة / المتوقفة", value: `${activeModels} / ${downModels}`, note: `${models.length} إجمالي النماذج`, path: "/admin/models", tone: downModels ? "warning" : "good" },
+    { title: "النماذج المتاحة / المتعثرة", value: `${activeModels} / ${downModels}`, note: `${disabledModels} معطلة إداريًا · ${models.length} إجمالي النماذج`, path: "/admin/models", tone: downModels ? "warning" : "good" },
     { title: "المستخدمون أونلاين", value: onlineCount === null ? "—" : valueText(onlineCount), note: `${valueText(userCount)} إجمالي الحسابات · الحضور الحي غير مفعّل`, path: "/admin/users", tone: "neutral" },
     { title: "استهلاك اليوم", value: valueText(todayUsage), note: "رصيد مُسوّى · آخر 7 أيام محمّلة", path: "/admin/credit-management", tone: "neutral" },
     { title: "أخطاء آخر ساعة", value: valueText(hourErrors), note: "محاولات النماذج الفاشلة", path: "/admin/models", tone: hourErrors ? "warning" : "good" },
@@ -112,8 +113,10 @@ export function AdminDashboardScreen() {
       <Pressable onPress={() => void toggleMaintenance()} style={[styles.quickAction, maintenanceMode && styles.quickDanger]}><Text style={styles.quickIcon}>{maintenanceMode ? "Ⅱ" : "⏻"}</Text><Text style={styles.quickText}>{maintenanceBusy ? "جارٍ التحديث…" : `الصيانة ${maintenanceMode ? "ON" : "OFF"}`}</Text></Pressable>
       <Pressable onPress={() => router.push("/admin/models")} style={styles.quickAction}><Text style={styles.quickIcon}>⏸</Text><Text style={styles.quickText}>إيقاف نموذج</Text></Pressable>
       <Pressable onPress={() => router.push("/admin/users")} style={styles.quickAction}><Text style={styles.quickIcon}>＋</Text><Text style={styles.quickText}>شحن رصيد</Text></Pressable>
-      <Pressable onPress={() => router.push("/admin/models")} style={[styles.quickAction, styles.quickPrimary]}><Text style={[styles.quickIcon, styles.quickPrimaryText]}>✓</Text><Text style={[styles.quickText, styles.quickPrimaryText]}>اختبار شامل للنماذج</Text></Pressable>
+      <Pressable onPress={() => router.push("/admin/models")} style={[styles.quickAction, styles.quickPrimary]}><Text style={[styles.quickIcon, styles.quickPrimaryText]}>✓</Text><Text style={[styles.quickText, styles.quickPrimaryText]}>فحص اتصال النماذج</Text></Pressable>
       <Pressable onPress={() => router.push("/admin/image-generation")} style={styles.quickAction}><Text style={styles.quickIcon}>🖼</Text><Text style={styles.quickText}>نماذج الصور والأسعار</Text></Pressable>
+      <Pressable onPress={() => router.push("/admin/friction")} style={styles.quickAction}><Text style={styles.quickIcon}>◇</Text><Text style={styles.quickText}>مشاكل تجربة المستخدم</Text></Pressable>
+      <Pressable onPress={() => router.push("/admin/storage")} style={styles.quickAction}><Text style={styles.quickIcon}>↥</Text><Text style={styles.quickText}>ملفات التخزين</Text></Pressable>
     </View>
     <AgentTaskQueueCard />
     <SulyFinanceOverviewCard />
