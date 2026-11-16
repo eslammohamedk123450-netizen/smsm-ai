@@ -338,6 +338,7 @@ Verified code review and current implementation (2026-11-16):
 - Existing upgrade screen loads active plans/features and obtains the current tier from `suly_effective_subscription_tier`; it does not let the client grant a tier. Paid upgrade actions are explicitly not yet available.
 - Added direct Account navigation to the existing Plans & Subscription screen and the existing Library screen; no duplicate billing or storage subsystem was introduced.
 - Added display-name editing through Supabase Auth user metadata plus the existing `suly_upsert_my_profile` RPC. Email/identity fields remain server-derived; direct client writes to `suly_profiles` remain revoked. The name update is implemented but awaits CI and authenticated-session verification.
+- PR #125 merged into `release/v1` as `965e6fc8809adb13af72a536755bf70609a7dd16`. CI passed: Expo TypeScript, mobile auth regression, static Web export, Android JS bundle, iOS JS bundle, and Deno Agent/scheduler tests/typecheck. The UI edit is code-reviewed and build-verified; authenticated end-user profile mutation still requires a real test session.
 - Existing privacy/terms sheet explicitly states that official policy text/links are not configured. This remains an owner/legal-input blocker before public launch; no policy wording has been invented.
 - Read-only Supabase audit (2026-11-16): 7 profile rows; 2 credit accounts; 174 holds (171 settled, 3 expired); 353 credit transactions (174 reserve, 171 settle, 3 expire, 4 admin_adjust, 1 daily_grant). No rows exist in either `suly_user_subscriptions` or legacy `user_subscriptions` at audit time.
 - Credit ledger structural checks: zero holds missing a reserve event; zero settled holds missing a settle event; zero expired holds missing an expire event; zero settled holds missing `settled_at`. The 3 expired holds have `settled_at` as expected by the existing stale-hold release function.
@@ -378,13 +379,22 @@ Acceptance:
 - Unverified models are not routable.
 - Admin operations are atomic and audited.
 
-**Current status:** [~] Catalog/governance foundation and pricing work exist, but full reconciliation against the complete supplied catalog and single-provider credential policy still need verification.
+**Current status:** [~] Exact source-ID reconciliation is now complete for the 65 unique model/service identifiers extracted from the complete supplied file; all 65 are represented across the existing text-model registry and media price catalog. Remaining work is provider-account consolidation/owner confirmation, metadata completeness, and end-to-end admin workflow verification.
+
+Verified database audit (2026-11-16):
+- Source file was read in full (1,133 lines); case-insensitive extraction produced 65 unique identifiers across text, image, video, and transcription.
+- All 65/65 source identifiers are represented in either `ai_models` or `suly_media_model_price_versions`; no missing source IDs were found. This confirms identifier coverage only, not SULY integration readiness.
+- `ai_models`: 251 rows, 9 enabled, no missing model identifiers, and no duplicate `(provider_id, model_identifier)` pairs.
+- 91 model identifiers occur under more than one provider account. This is historical/account duplication across provider records, not duplicate pairs within a provider. Do not delete rows or reassign routes automatically.
+- `ai_providers`: 7 provider-account records, 3 enabled. Active global role assignments currently route all five roles through the two Groq model IDs. This differs from the stated one-provider/one-key target and must be reconciled against the owner's intended single API gateway before provider disabling, secret migration, or route changes.
+- The admin UI already provides provider listing, model search/filter, health tests, model metadata editing, route governance, and pricing screens; complete permission and adversarial workflow tests remain.
 
 Known evidence:
 - PR #99 — model catalog/pricing work.
 - PR #101 — corrections to o3 and o3-pro pricing.
-- Previous governance work quarantined unverified models and constrained route assignments.
-- Re-read the original supplied catalog before any further import or price change; do not reconstruct it from memory.
+- PR #85 — strict route governance and unverified-model quarantine.
+- PR #125 — account navigation/profile improvements (merged).
+- New/unverified catalog entries remain disabled by default; preserve historical rows and usage records.
 
 ## Phase 11 — Normalize model, capability, price, and routing data
 
@@ -409,7 +419,15 @@ Acceptance:
 - RLS and grants are tested for anon, authenticated, and service roles.
 - Migrations are repeatable and rollback/forward recovery is documented.
 
-**Current status:** [~] Existing model and routing governance tables/migrations are present. Full schema normalization, source reconciliation, and all-role RLS/constraint testing remain.
+**Current status:** [~] Existing normalized foundations and governance controls are present; the audit identified a remaining verification-state modeling gap between text and media catalogs.
+
+Verified schema review (2026-11-16):
+- Existing tables are reused: `ai_providers`, `ai_models`, `model_capabilities`, `ai_model_price_versions`, `ai_route_model_assignments`, `suly_media_generation_models`, `suly_media_generation_prices`, and `suly_media_model_price_versions`.
+- Text models already carry `capabilities_json`, `task_roles`, `allowed_modes`, and route/health metadata. The text price-version table stores provider costs, selling prices, markup, currency, source, and effective/version history.
+- Media price versions explicitly separate `provider_tested` from `suly_integration_verified`; all 22 current media price rows are provider-tested and none is SULY-integration-verified.
+- The text catalog does not yet expose the same explicit three-level capability evidence (official/vendor claim, provider-tested, SULY integration-verified) as first-class fields. Do not infer those states from a marketing description, capability checkbox, price row, or model name.
+- All tables listed above have RLS enabled; the full anon/authenticated/service_role grant-and-policy matrix still needs targeted regression coverage before this phase can close.
+- No parallel routing table or duplicate provider-secret store was introduced.
 
 ## Phase 12 — Model selection, routing, cost calculation, and 40% pricing
 
@@ -433,7 +451,16 @@ Acceptance:
 - Displayed price matches server settlement.
 - No unverified model is selectable or routable.
 
-**Current status:** [~] Text-model governance and 40% pricing foundations exist. Media credit conversion is not complete; current price/FX settings and media price rows must be revalidated before enabling chargeable Studio generation.
+**Current status:** [~] Text route governance and 40% markup are verified at the data level. Media generation remains safely disabled because the credit conversion/runtime price layer is incomplete.
+
+Verified database audit (2026-11-16):
+- Text prices: 46 version rows, 45 current versions across 45 models. Every current row uses `markup_rate = 0.40`.
+- Media prices: 22 current versions (12 image, 7 video, 3 transcription/audio); every current row uses the 40% markup. All 22 are provider-tested; 0 are SULY-integration-verified.
+- Media runtime registry: 4 image model rows, 0 active. No video/audio runtime model rows were found. `suly_media_generation_prices` has 0 rows.
+- `suly_credit_pricing.credit_value_egp` and `usd_to_egp` are not configured. Do not calculate credits, activate media models, or enable chargeable Studio operations until the owner-approved credit value and FX policy are configured.
+- Nine text models are enabled: seven in the free race with no current paid price row (consistent with the current zero-cost route), and two paid fallback models with current price versions. Do not treat missing free-route prices as permission to charge.
+- All five active global role routes currently use Groq `openai/gpt-oss-120b` as primary and `qwen/qwen3.8-27b` as backup. Historical model attempts show prior successes, but full authenticated chat/Agent billing E2E remains open.
+- No complete authenticated test of provider-disable during a real request, fallback settlement, or Studio job billing is claimed.
 
 Known evidence:
 - PR #85 — model routing governance.
