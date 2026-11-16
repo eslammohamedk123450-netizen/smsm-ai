@@ -18,7 +18,7 @@ export interface FeatureContext {
 const FEATURE_RESOURCE_TERMS = /(?:محاض(?:رة|رات)|مذ(?:كرة|كرات)|مل(?:ف|فات)|ملزم(?:ة|ات)|كتاب|كتب|pdf|lecture|handout|course\s+materials?|study\s+notes?)/iu;
 const RESOURCE_SUMMARY_TERMS = /(?:ملخ(?:ص|صات)|summary)/iu;
 const RESOURCE_ACTION = /(?:ابعت|ابعث|ارسل|أرسل|هات|جيب|عايز|عاوز|محتاج|ممكن|فين|اعرض|افتح|فتح|شوف|نزّل|نزل|حمّل|حمل|download|send|show|get|open|view)/iu;
-const RESOURCE_FOLLOW_UP = /(?:ابعتها|ابعته|ابعتيها|ابعتيه|هاتها|هاته|هاتهم|ابعتهم|نزّلها|نزلها|حمّلها|حملها|افتحها|اعرضها|فينها|فينهم|الرابط|لينك|download|send\s+it|show\s+it)/iu;
+const RESOURCE_FOLLOW_UP = /(?:ابعتها|ابعته|ابعتيها|ابعتيه|هاتها|هاته|هاتهم|ابعتهم|نزّلها|نزلها|حمّلها|حملها|افتحها|اعرضها|فينها|فينهم|الرابط|لينك|download|send\s+it|show\s+it|open\s+it)/iu;
 
 export function isFeatureResourceRequest(text: string, recentUserMessages: string[] = []): boolean {
   const current = text.normalize("NFKC").trim();
