@@ -74,6 +74,32 @@ describe("adminService tests", () => {
     expect(fromSpy).not.toHaveBeenCalledWith("ai_models");
   });
 
+  test("setHimsActivationCodeActive requires admin and calls the audited status RPC", async () => {
+    (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "admin-1" } }, error: null });
+    (supabase.rpc as jest.Mock).mockImplementation((rpcName: string) => {
+      if (rpcName === "suly_is_admin") return Promise.resolve({ data: true, error: null });
+      return Promise.resolve({ data: { success: true, id: "code-1", is_active: false }, error: null });
+    });
+
+    await expect(adminService.setHimsActivationCodeActive("code-1", false)).resolves.toMatchObject({
+      success: true,
+      id: "code-1",
+      is_active: false,
+    });
+    expect(supabase.rpc).toHaveBeenNthCalledWith(2, "suly_admin_set_activation_code_active", {
+      p_code_id: "code-1",
+      p_is_active: false,
+    });
+  });
+
+  test("setHimsActivationCodeActive rejects non-admin sessions", async () => {
+    (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "user-1" } }, error: null });
+    (supabase.rpc as jest.Mock).mockResolvedValue({ data: false, error: null });
+
+    await expect(adminService.setHimsActivationCodeActive("code-1", false)).rejects.toThrow("يتطلب هذا الإجراء صلاحية مشرف موثقة.");
+    expect(supabase.rpc).toHaveBeenCalledTimes(1);
+  });
+
   test("setHimsResourceActive requires admin and preserves the existing resource identity", async () => {
     (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "admin-1" } }, error: null });
     (supabase.rpc as jest.Mock).mockImplementation((rpcName: string) => {
