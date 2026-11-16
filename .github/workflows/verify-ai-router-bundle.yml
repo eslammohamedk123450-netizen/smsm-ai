@@ -8,6 +8,20 @@ on:
       - "supabase/functions/sync-models/**"
       - "supabase/functions/image-generator/**"
       - "apps/mobile/src/features/admin/MediaGenerationModelsAdminScreen.tsx"
+      - "apps/mobile/src/theme/**"
+      - "apps/mobile/src/features/projects/project-validation.ts"
+      - "apps/mobile/src/features/projects/project-service.test.ts"
+      - "apps/mobile/app/+html.tsx"
+      - "apps/mobile/package.json"
+      - "apps/mobile/package-lock.json"
+      - "apps/mobile/tsconfig.json"
+      - "apps/mobile/src/theme/**"
+      - "apps/mobile/src/features/projects/project-validation.ts"
+      - "apps/mobile/src/features/projects/project-service.test.ts"
+      - "apps/mobile/app/+html.tsx"
+      - "apps/mobile/package.json"
+      - "apps/mobile/package-lock.json"
+      - "apps/mobile/tsconfig.json"
       - "supabase/migrations/**"
       - "supabase/deploy-artifacts/ai-router.bundle.js"
       - "supabase/deploy-artifacts/sync-models.bundle.js"
@@ -122,3 +136,26 @@ jobs:
           deno-version: v2.x
       - name: Test HIMS activation parsing and authorization boundaries
         run: deno test --node-modules-dir=auto supabase/functions/_shared/activation_command.test.ts supabase/functions/_shared/feature_flags.test.ts
+
+
+  theme-regressions:
+    name: Monochrome theme and project defaults
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
+      - name: Install mobile dependencies
+        working-directory: apps/mobile
+        run: npm ci
+      - name: Test theme contrast, grayscale tokens, and project defaults
+        working-directory: apps/mobile
+        run: npm test -- --runInBand src/theme/colors.test.ts src/features/projects/project-service.test.ts
+      - name: Type-check the shared Expo application
+        working-directory: apps/mobile
+        run: npm run typecheck
