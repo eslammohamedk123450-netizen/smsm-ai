@@ -65,6 +65,13 @@ No parallel admin application or replacement data model is introduced.
 
 These are implementation/configuration gaps, not Track B device-test deferrals. The dashboard must not be marked implementation-complete while any in-scope source-level gap remains.
 
+## HIMS activation-code collision protection applied
+
+- Applied migration `20261116180955_hims_activation_code_collision_guard` to the current Supabase development project and committed the matching migration file on `develop`.
+- The creation RPC now uses `ON CONFLICT (code_hash) DO NOTHING` and raises a duplicate-code error. A hash collision cannot reactivate a disabled code or overwrite its label, use limit, expiry, or feature mapping.
+- Verified the live function definition after migration: collision-safe insert present, old `DO UPDATE` path absent, duplicate rejection present.
+- No existing activation-code rows were changed by the migration. Full duplicate/replay/race tests remain in Track B.
+
 ## Admin Storage deployment
 
 - Deployed `admin-storage` to the current Supabase development project as Edge Function version 1.
