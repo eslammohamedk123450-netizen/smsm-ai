@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { BottomSheet } from "../../components/ui/BottomSheet";
@@ -64,7 +64,7 @@ export function TaskHistoryPanel() {
           <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{isArabic ? "المهام التي تنفذها ستظهر هنا مع حالتها ونتيجتها." : "Your executed tasks will appear here with their status and result."}</Text>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
+        <View style={styles.list}>
           {items.map((item) => (
             <Pressable key={item.jobId} onPress={() => setSelected(item)} style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.divider }]}>
               <View style={[styles.icon, { backgroundColor: colors.surfaceElevated }]}>
@@ -80,7 +80,7 @@ export function TaskHistoryPanel() {
               </View>
             </Pressable>
           ))}
-        </ScrollView>
+        </View>
       )}
       <BottomSheet visible={Boolean(selected)} title={isArabic ? "تفاصيل المهمة" : "Task details"} onClose={() => setSelected(null)}>
         {selected ? (
