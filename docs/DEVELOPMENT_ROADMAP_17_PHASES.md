@@ -307,7 +307,7 @@ Verified implementation evidence (2026-11-16):
 - Added folder create/rename/delete, folder filtering, move/remove asset, favorites filtering/toggle in the existing Library screen.
 - Rollback-only SQL regression passed for owner visibility, non-owner invisibility, cross-owner association rejection, and no residual fixture rows.
 - PR checks passed: Expo TypeScript, Deno edge-function typecheck, currency-safe media billing tests, edge-function bundle verification, and media-billing guardrails.
-- GitHub Pages and Expo OTA deployment workflows were queued after merge; deployment outcomes must be checked separately.
+- GitHub Pages deployment after merge completed successfully (workflow run `43858798658`). Expo OTA update failed (workflow run `43858798753`) because repository secret `EXPO_TOKEN` is missing; owner must add it in GitHub Actions secrets before OTA can publish.
 - No visual browser or physical-device test is claimed.
 
 ## Phase 9 — Reorganize Account, settings, subscriptions, and billing
