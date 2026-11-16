@@ -1,9 +1,14 @@
+import React from "react";
 import { Image, StyleSheet, View } from "react-native";
-import { colors } from "../../theme/colors";
+import { useSulyTheme } from "../../theme/ThemeProvider";
+import type { ThemePalette } from "../../theme/colors";
+
 
 type Props = { size?: number; accessibilityLabel?: string };
 
 export function AppLogo({ size = 76, accessibilityLabel = "أيقونة Suly" }: Props) {
+  const { colors } = useSulyTheme();
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
   const radius = Math.round(size * 0.22);
   return (
     <View style={[styles.wrap, { width: size, height: size, borderRadius: radius }]}>
@@ -17,7 +22,7 @@ export function AppLogo({ size = 76, accessibilityLabel = "أيقونة Suly" }:
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemePalette) => StyleSheet.create({
   wrap: {
     backgroundColor: "#000000",
     borderWidth: 1,

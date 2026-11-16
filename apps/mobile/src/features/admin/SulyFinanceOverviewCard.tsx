@@ -2,12 +2,13 @@ import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { supabase } from "../../lib/supabase/client";
-import { colors } from "../../theme/colors";
+import { useSulyTheme } from "../../theme/ThemeProvider";
 
 type CostRow = { service_type: string; provider_cost_usd: number | null; cost_status: string; user_credits_charged: number; revenue_egp: number | null; provider_cost_egp: number | null; gross_profit_egp: number | null; created_at: string };
 const money = (value: number, currency: string) => `${value.toLocaleString("en-US", { maximumFractionDigits: 2 })} ${currency}`;
 
 export function SulyFinanceOverviewCard() {
+  const { colors } = useSulyTheme();
   const [rows, setRows] = useState<CostRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

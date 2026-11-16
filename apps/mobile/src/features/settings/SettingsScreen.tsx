@@ -1,25 +1,25 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Image, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+
 import { useRouter } from "expo-router";
 import { getCreditLedger, type CreditEntry } from "../credits/credit-service";
 import { useAuth } from "../auth/auth-provider";
-import { colors } from "../../theme/colors";
+import type { ThemePalette } from "../../theme/colors";
 import { BottomSheet } from "../../components/ui/BottomSheet";
 import { useToast } from "../../components/ui/Toast";
 import { chatService, type Conversation } from "../chat/chat-service";
 import { useSulyTheme, type ThemeMode } from "../../theme/ThemeProvider";
 import { supabase } from "../../lib/supabase/client";
-
-type Language = "ar" | "en";
+import { useAppLocale, type AppLanguage } from "../../theme/LocaleProvider";
 
 export default function SettingsScreen() {
   const { user, profileFullName, logout } = useAuth();
   const { show } = useToast();
   const router = useRouter();
-  const { mode, effectiveMode, setMode } = useSulyTheme();
-  const [language, setLanguage] = useState<Language>("ar");
+  const { colors, mode, effectiveMode, setMode } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+  const { language, isArabic, setLanguage } = useAppLocale();
   const [isAdmin, setIsAdmin] = useState(false);
   const [balance, setBalance] = useState<number | null>(null);
   const [transactions, setTransactions] = useState<CreditEntry[]>([]);
@@ -31,12 +31,8 @@ export default function SettingsScreen() {
   const [archiveVisible, setArchiveVisible] = useState(false);
   const [archivedConversations, setArchivedConversations] = useState<Conversation[]>([]);
   const [archiveLoading, setArchiveLoading] = useState(false);
-  const isArabic = language === "ar";
 
   useEffect(() => {
-    void AsyncStorage.getItem("suly:language").then((value) => {
-      if (value === "en" || value === "ar") setLanguage(value);
-    });
     void (async () => {
       try { const { data, error } = await supabase.rpc("suly_is_admin"); setIsAdmin(!error && data === true); }
       catch { setIsAdmin(false); }
@@ -61,9 +57,8 @@ export default function SettingsScreen() {
     await setMode(next);
   };
 
-  const changeLanguage = async (next: Language) => {
-    setLanguage(next);
-    await AsyncStorage.setItem("suly:language", next);
+  const changeLanguage = async (next: AppLanguage) => {
+    await setLanguage(next);
   };
 
   const doLogout = async () => {
@@ -218,7 +213,7 @@ export default function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemePalette) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: 20, paddingBottom: 36 },
   header: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },

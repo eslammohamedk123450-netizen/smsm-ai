@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Animated, Image, Platform, Pressable, StyleSheet, TextInput, TouchableOpacity, View, Modal } from "react-native";
 import { PremiumText as Text } from "../../../components/ui/PremiumText";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
-import { colors } from "../../../theme/colors";
+import { useSulyTheme } from "../../../theme/ThemeProvider";
+import type { ThemePalette } from "../../../theme/colors";
 import { useToast } from "../../../components/ui/Toast";
 import { MarkdownView } from "./MarkdownView";
 import type { MediaAsset } from "../../media/media-service";
@@ -32,6 +33,8 @@ const imagePattern = /!\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)|(https?:\/\/[^\s]+?\
 type ActionKind = "edit" | "copy" | "like" | "dislike";
 
 function ReactionGlyph({ kind, selected, copied }: { kind: ActionKind; selected?: boolean; copied?: boolean }) {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   if (kind === "edit") return <Text style={styles.glyphText}>✎</Text>;
   const iconName = kind === "copy" ? (copied ? "checkmark-outline" : "copy-outline") : kind === "like" ? "thumbs-up-outline" : "thumbs-down-outline";
   return <Ionicons name={iconName} size={16} color={selected || copied ? "#0EA5E9" : "#A1A1AA"} />;
@@ -52,6 +55,8 @@ function MessageAction({
   showLabel?: boolean;
   onPress(): void;
 }) {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const scale = useRef(new Animated.Value(1)).current;
   const isFeedback = kind === "like" || kind === "dislike";
   const useNativeDriver = Platform.OS !== "web";
@@ -96,6 +101,8 @@ export function MessageBubble({
   responseIndex = 0,
   onResponseIndexChange,
 }: MessageBubbleProps) {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const isUser = role === "user";
   const { show } = useToast();
   const [copied, setCopied] = useState(false);
@@ -289,7 +296,7 @@ export function MessageBubble({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemePalette) => StyleSheet.create({
   row: { flexDirection: "row", width: "100%", marginVertical: 6, paddingHorizontal: 16 },
   userRow: { justifyContent: "flex-end" },
   assistantRow: { justifyContent: "flex-start" },

@@ -11,8 +11,8 @@ export async function readTavilyApiKey(supabase: { rpc: Function }): Promise<str
 }
 
 const EXPLICIT_SEARCH_REQUEST = /\b(search|browse|news|latest|recent|today|right now|look up|research|find out)\b|ابحث|دور على|على النت|على الإنترنت|أخبار|آخر الأخبار|الأخبار|اليوم|حاليًا|الآن|مصادر متعددة|في جوجل|على جوجل/iu;
-const STUDY_INTENT = /(?:اشرح|اشرحلي|وضح|وضحلي|عرّف|عرف|ما هو|ما هي|ما معنى|معنى|معلومات عن|بحث عن|ملخص|لخص|قارن|اذكر|فسر|حلل|how does|explain|define|summarize|compare)/iu;
-const STUDY_DOMAIN = /(?:دراسة|دراسي|المنهج|المادة|مادة|محاضرة|المحاضرات|المحاسبة|محاسبة|إدارة|ادارة|قانون|اقتصاد|نظم معلومات|برمجة|بايثون|جافاسكربت|رياضيات|فيزياء|كيمياء|أحياء|تاريخ|جغرافيا|حديث نبوي|نحو|بلاغة|فقه|computer science|programming|python|javascript|accounting|business|management|law|economics|mathematics|physics|chemistry|biology|history)/iu;
+const STUDY_INTENT = /(?:اشرح|اشرحلي|وضح|وضحلي|عرّف|عرف|ما هو|ما هي|ما معنى|معنى|معلومات عن|بحث عن|اعمل(?:لي)? بحث|ابحث عن|الفرق بين|ما الفرق|ايه الفرق|إيه الفرق|ملخص|لخص|قارن|اذكر|فسر|حلل|مصادر عن|how does|explain|define|summarize|compare|difference between)/iu;
+const STUDY_DOMAIN = /(?:دراسة|دراسي|المنهج|المادة|مادة|محاضرة|المحاضرات|المحاسبة|محاسبة|إدارة|ادارة|قانون|اقتصاد|نظم المعلومات|نظم معلومات|برمجة|بايثون|جافاسكربت|رياضيات|فيزياء|كيمياء|أحياء|تاريخ|جغرافيا|حديث نبوي|نحو|بلاغة|فقه|computer science|programming|python|javascript|accounting|business|management|law|economics|mathematics|physics|chemistry|biology|history)/iu;
 
 export function isWebSearchRequest(text: string): boolean {
   const message = text.normalize("NFKC").trim();

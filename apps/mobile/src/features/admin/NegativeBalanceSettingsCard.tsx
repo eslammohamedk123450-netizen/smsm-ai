@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, TextInput, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { supabase } from "../../lib/supabase/client";
-import { colors } from "../../theme/colors";
+import { useSulyTheme } from "../../theme/ThemeProvider";
 
 export function NegativeBalanceSettingsCard() {
+  const { colors } = useSulyTheme();
   const [value, setValue] = useState("5000");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

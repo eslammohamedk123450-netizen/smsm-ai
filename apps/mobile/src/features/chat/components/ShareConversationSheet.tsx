@@ -7,6 +7,7 @@ import { BottomSheet } from "../../../components/ui/BottomSheet";
 import { useToast } from "../../../components/ui/Toast";
 import { supabase } from "../../../lib/supabase/client";
 import { getThemeColors } from "../../../theme/colors";
+import { useAppLocale } from "../../../theme/LocaleProvider";
 
 type Props = { visible: boolean; conversationId: string | null; title: string; plainText: string; onClose(): void };
 function makeShareUrl(token: string): string {
@@ -19,6 +20,7 @@ function makeShareUrl(token: string): string {
   return ExpoLinking.createURL("share", { queryParams: { token } });
 }
 export function ShareConversationSheet({ visible, conversationId, title, plainText, onClose }: Props) {
+  const { isArabic } = useAppLocale();
   const [isPublic, setIsPublic] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -39,7 +41,7 @@ export function ShareConversationSheet({ visible, conversationId, title, plainTe
         setIsPublic(Boolean(token));
         setShareUrl(token ? makeShareUrl(token) : null);
       } catch {
-        if (alive) { onClose(); show("تعذّر التحقق من حالة المشاركة. حاول مرة أخرى.", "error"); }
+        if (alive) { onClose(); show(isArabic ? "تعذّر التحقق من حالة المشاركة. حاول مرة أخرى." : "Could not verify sharing status. Try again.", "error"); }
       } finally { if (alive) setLoading(false); }
     })();
     return () => { alive = false; };
@@ -58,13 +60,13 @@ export function ShareConversationSheet({ visible, conversationId, title, plainTe
       // behind this native modal sheet.
     } catch {
       onClose();
-      show("تعذّر تغيير إعداد المشاركة. تحقق من الاتصال وحاول مجددًا.", "error");
+      show(isArabic ? "تعذّر تغيير إعداد المشاركة. تحقق من الاتصال وحاول مجددًا." : "Could not update sharing settings. Check your connection and try again.", "error");
     } finally { setSaving(false); }
   };
   const copyLink = async () => {
     if (!shareUrl) return;
-    try { await Clipboard.setStringAsync(shareUrl); onClose(); show("تم نسخ رابط المشاركة.", "success"); }
-    catch { onClose(); show("تعذّر نسخ الرابط.", "error"); }
+    try { await Clipboard.setStringAsync(shareUrl); onClose(); show(isArabic ? "تم نسخ رابط المشاركة." : "Share link copied.", "success"); }
+    catch { onClose(); show(isArabic ? "تعذّر نسخ الرابط." : "Could not copy the link.", "error"); }
   };
   const shareText = async () => {
     try {
@@ -74,28 +76,28 @@ export function ShareConversationSheet({ visible, conversationId, title, plainTe
       } else if (Platform.OS === "web") {
         await Clipboard.setStringAsync(message);
         onClose();
-        show("نُسخ نص المحادثة لمشاركته.", "success");
+        show(isArabic ? "نُسخ نص المحادثة لمشاركته." : "Conversation text copied.", "success");
       } else await Share.share({ message });
-    } catch { onClose(); show("تعذّرت مشاركة نص المحادثة.", "error"); }
+    } catch { onClose(); show(isArabic ? "تعذّرت مشاركة نص المحادثة." : "Could not share conversation text.", "error"); }
   };
 
   return (
-    <BottomSheet visible={visible} title="مشاركة المحادثة" onClose={onClose}>
-      {!conversationId ? <View style={styles.notice}><Text style={[styles.body, { color: palette.textSecondary }]}>أرسل رسالة أولًا لإنشاء محادثة قابلة للمشاركة.</Text></View> : <>
+    <BottomSheet visible={visible} title={isArabic ? "مشاركة المحادثة" : "Share conversation"} onClose={onClose}>
+      {!conversationId ? <View style={styles.notice}><Text style={[styles.body, { color: palette.textSecondary }]}>{isArabic ? "أرسل رسالة أولًا لإنشاء محادثة قابلة للمشاركة." : "Send a message first to create a shareable conversation."}</Text></View> : <>
         <View style={[styles.visibilityCard, { backgroundColor: palette.surfaceElevated, borderColor: palette.divider }]}>
           <View style={styles.visibilityCopy}>
-            <Text style={[styles.visibilityTitle, { color: palette.textPrimary }]}>{isPublic ? "المحادثة عامة" : "المحادثة خاصة"}</Text>
-            <Text style={[styles.body, { color: palette.textSecondary }]}>{isPublic ? "أي شخص يملك الرابط يستطيع قراءة المحادثة." : "المحادثة متاحة لحسابك فقط."}</Text>
+            <Text style={[styles.visibilityTitle, { color: palette.textPrimary }]}>{isPublic ? (isArabic ? "المحادثة عامة" : "Public conversation") : (isArabic ? "المحادثة خاصة" : "Private conversation")}</Text>
+            <Text style={[styles.body, { color: palette.textSecondary }]}>{isPublic ? (isArabic ? "أي شخص يملك الرابط يستطيع قراءة المحادثة." : "Anyone with the link can read this conversation.") : (isArabic ? "المحادثة متاحة لحسابك فقط." : "Only you can access this conversation.")}</Text>
           </View>
           {loading || saving ? <ActivityIndicator color={palette.primary} /> : <Switch value={isPublic} onValueChange={(value) => void toggleSharing(value)} trackColor={{ false: palette.divider, true: palette.primary }} thumbColor={palette.surface} accessibilityLabel="تبديل مشاركة المحادثة" />}
         </View>
         {isPublic && shareUrl ? <Pressable onPress={() => void copyLink()} style={({ pressed }) => [styles.primaryButton, { backgroundColor: palette.primary, opacity: pressed ? 0.82 : 1 }]} accessibilityRole="button">
-          <Text style={[styles.primaryText, { color: palette.background }]}>نسخ الرابط</Text><Text style={[styles.linkGlyph, { color: palette.background }]}>↗</Text>
+          <Text style={[styles.primaryText, { color: palette.background }]}>{isArabic ? "نسخ الرابط" : "Copy link"}</Text><Text style={[styles.linkGlyph, { color: palette.background }]}>↗</Text>
         </Pressable> : null}
         <Pressable onPress={() => void shareText()} style={({ pressed }) => [styles.secondaryButton, { backgroundColor: palette.surface, borderColor: palette.divider, opacity: pressed ? 0.75 : 1 }]} accessibilityRole="button">
-          <Text style={[styles.secondaryText, { color: palette.textPrimary }]}>مشاركة كنص</Text><Text style={[styles.secondaryGlyph, { color: palette.primary }]}>⇧</Text>
+          <Text style={[styles.secondaryText, { color: palette.textPrimary }]}>{isArabic ? "مشاركة كنص" : "Share as text"}</Text><Text style={[styles.secondaryGlyph, { color: palette.primary }]}>⇧</Text>
         </Pressable>
-        {isPublic ? <Text style={[styles.warning, { color: palette.warning }]}>تنبيه: يُعرض محتوى الرسائل لمن يحصل على الرابط. يمكنك إيقاف المشاركة في أي وقت.</Text> : null}
+        {isPublic ? <Text style={[styles.warning, { color: palette.warning }]}>{isArabic ? "تنبيه: يُعرض محتوى الرسائل لمن يحصل على الرابط. يمكنك إيقاف المشاركة في أي وقت." : "Anyone with the link can read the messages. You can turn sharing off at any time."}</Text> : null}
       </>}
     </BottomSheet>
   );

@@ -279,6 +279,86 @@ export const adminService = {
     };
   },
 
+  async getModelPriceVersions() {
+    await requireAdmin();
+    const { data: prices, error: priceError } = await supabase
+      .from("ai_model_price_versions")
+      .select("id,model_id,price_version,provider_input_cost_egp_per_million,provider_output_cost_egp_per_million,selling_input_egp_per_million,selling_output_egp_per_million,markup_rate,currency,is_current,effective_at,created_at")
+      .eq("is_current", true)
+      .order("model_id");
+    if (priceError) throw priceError;
+    const modelIds = [...new Set((prices ?? []).map((row) => Number(row.model_id)))];
+    if (modelIds.length === 0) return [];
+    const { data: models, error: modelError } = await supabase
+      .from("ai_models")
+      .select("id,name,model_identifier,provider_id")
+      .in("id", modelIds);
+    if (modelError) throw modelError;
+    const modelById = new Map((models ?? []).map((row) => [Number(row.id), row]));
+    return (prices ?? []).map((price) => ({ ...price, model: modelById.get(Number(price.model_id)) ?? null }));
+  },
+
+  async updateModelPrice(modelId: number, inputCost: number, outputCost: number, expectedVersion: number) {
+    await requireAdmin();
+    if (!Number.isSafeInteger(modelId) || modelId < 1
+      || !Number.isFinite(inputCost) || inputCost < 0
+      || !Number.isFinite(outputCost) || outputCost < 0
+      || !Number.isSafeInteger(expectedVersion) || expectedVersion < 1) {
+      throw new Error("قيم تسعير النموذج غير صالحة.");
+    }
+    const { data, error } = await supabase.rpc("suly_admin_set_ai_model_price", {
+      p_model_id: modelId,
+      p_provider_input_cost_egp_per_million: inputCost,
+      p_provider_output_cost_egp_per_million: outputCost,
+      p_expected_version: expectedVersion,
+    });
+    if (error) throw error;
+    if (!data || data.success !== true) throw new Error("تعذر إنشاء إصدار سعر جديد.");
+    return data;
+  },
+
+  async getMediaModelPriceVersions() {
+    await requireAdmin();
+    const { data, error } = await supabase
+      .from("suly_media_model_price_versions")
+      .select("id,provider_id,service_type,model_identifier,display_name,unit_type,provider_cost_egp_per_unit,selling_price_egp_per_unit,markup_rate,price_version,provider_tested,suly_integration_verified,is_current")
+      .eq("is_current", true)
+      .order("service_type")
+      .order("display_name");
+    if (error) throw error;
+    return data ?? [];
+  },
+
+  async updateMediaModelPrice(input: {
+    providerId: number;
+    serviceType: "image" | "video" | "audio";
+    modelIdentifier: string;
+    displayName: string;
+    unitType: "image" | "video_second" | "audio_minute";
+    providerCost: number;
+    expectedVersion: number;
+  }) {
+    await requireAdmin();
+    if (!Number.isSafeInteger(input.providerId) || input.providerId < 1
+      || !input.modelIdentifier.trim() || !input.displayName.trim()
+      || !Number.isFinite(input.providerCost) || input.providerCost < 0
+      || !Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 1) {
+      throw new Error("قيم تسعير الخدمة غير صالحة.");
+    }
+    const { data, error } = await supabase.rpc("suly_admin_set_media_model_price", {
+      p_provider_id: input.providerId,
+      p_service_type: input.serviceType,
+      p_model_identifier: input.modelIdentifier,
+      p_display_name: input.displayName,
+      p_unit_type: input.unitType,
+      p_provider_cost_egp_per_unit: input.providerCost,
+      p_expected_version: input.expectedVersion,
+    });
+    if (error) throw error;
+    if (!data || data.success !== true) throw new Error("تعذر إنشاء إصدار سعر جديد.");
+    return data;
+  },
+
   async updateModel(modelId: number, changes: Record<string, unknown>) {
     await requireAdmin();
     const allowed = ["enabled", "priority", "routing_group", "allowed_tiers", "response_timeout_ms", "restriction_failure_threshold", "restriction_window_minutes", "capabilities_json", "task_roles"];

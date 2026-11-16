@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
-import { colors } from "../../theme/colors";
+import { useSulyTheme } from "../../theme/ThemeProvider";
+import type { ThemePalette } from "../../theme/colors";
 import { adminService, type AgentTaskQueueOverview } from "./admin-service";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -19,6 +20,8 @@ function dateLabel(value: string | null): string {
 }
 
 export function AgentTaskQueueCard() {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [overview, setOverview] = useState<AgentTaskQueueOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -98,7 +101,7 @@ export function AgentTaskQueueCard() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemePalette) => StyleSheet.create({
   card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 12, padding: 13, gap: 10 },
   header: { flexDirection: "row-reverse", alignItems: "flex-start", gap: 10 },
   copy: { flex: 1, alignItems: "flex-end", gap: 3 },
