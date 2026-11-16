@@ -9,10 +9,10 @@ import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
 import { formatBytes, pickMedia, uploadMediaFile, type MediaAsset, type PickKind } from "../media/media-service";
 
-function Field({ label, value, onChange, placeholder, keyboardType = "default" }: { label: string; value: string; onChange(value: string): void; placeholder: string; keyboardType?: "default" | "numeric" | "url" }) {
+function Field({ label, value, onChange, placeholder, keyboardType = "default", editable = true }: { label: string; value: string; onChange(value: string): void; placeholder: string; keyboardType?: "default" | "numeric" | "url"; editable?: boolean }) {
   const { colors } = useSulyTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  return <View><Text style={styles.label}>{label}</Text><TextInput style={styles.input} value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor={colors.textMuted} keyboardType={keyboardType} autoCapitalize="none" /></View>;
+  return <View><Text style={styles.label}>{label}</Text><TextInput style={styles.input} value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor={colors.textMuted} keyboardType={keyboardType} autoCapitalize="none" editable={editable} /></View>;
 }
 function Button({ label, onPress, disabled = false, tone = "primary" }: { label: string; onPress(): void; disabled?: boolean; tone?: "primary" | "ghost" }) {
   const { colors } = useSulyTheme();
@@ -51,6 +51,7 @@ export function HimsAdminScreen() {
   const [notice, setNotice] = useState<string | null>(null);
   const [lastCreated, setLastCreated] = useState<{ code: string; command: string } | null>(null);
   const [resourceBusyId, setResourceBusyId] = useState<string | null>(null);
+  const [editingResource, setEditingResource] = useState<HimsResource | null>(null);
 
   const load = async () => {
     setLoading(true); setError(null);
@@ -114,13 +115,38 @@ export function HimsAdminScreen() {
     if (!mediaAssetId) { try { if (new URL(url.trim()).protocol !== "https:") throw new Error(); } catch { setError("رابط المورد يجب أن يبدأ بـ https://"); return; } }
     setBusy(true); setError(null); setNotice(null);
     try {
-      await adminService.createHimsResource({ title, url, kind, description, mediaAssetId });
-      setTitle(""); setUrl(""); setMediaAssetId(null); setDescription(""); setPreview(null);
-      setNotice("تمت إضافة مورد HIMS بنجاح.");
+      const saved = await adminService.createHimsResource({ title, url, kind, description, mediaAssetId }, editingResource?.is_active ?? true);
+      if (editingResource && saved.id !== editingResource.id) throw new Error("لم يتم تحديث المورد نفسه؛ لم نغيّر السجل القديم.");
+      setTitle(""); setUrl(""); setMediaAssetId(null); setDescription(""); setPreview(null); setEditingResource(null);
+      setNotice(editingResource ? "تم تحديث بيانات مورد HIMS." : "تمت إضافة مورد HIMS بنجاح.");
       await load();
     }
     catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر إضافة مورد HIMS."); }
     finally { setBusy(false); }
+  };
+
+  const beginEditResource = (resource: HimsResource) => {
+    setEditingResource(resource);
+    setTitle(resource.title);
+    setUrl(resource.media_asset_id ? "" : resource.url);
+    setMediaAssetId(resource.media_asset_id ?? null);
+    setKind(resource.kind);
+    setDescription(resource.description ?? "");
+    setPreview(null);
+    setError(null);
+    setNotice("وضع التعديل: يمكنك تحديث العنوان والنوع والوصف مع الحفاظ على مصدر الملف وحالة ظهوره.");
+  };
+
+  const cancelEditResource = () => {
+    setEditingResource(null);
+    setTitle("");
+    setUrl("");
+    setMediaAssetId(null);
+    setKind("lecture");
+    setDescription("");
+    setPreview(null);
+    setError(null);
+    setNotice(null);
   };
 
   const toggleResourceActive = async (resource: HimsResource) => {
@@ -166,7 +192,8 @@ export function HimsAdminScreen() {
     <View style={styles.card}><Text style={styles.sectionTitle}>إنشاء كود تفعيل</Text><Field label="الكود" value={code} onChange={setCode} placeholder="HIMS-2026-ABC" /><View style={styles.inline}><Button label="توليد كود" tone="ghost" onPress={() => setCode(generateCode())} /><View style={styles.flex}><Field label="عدد الاستخدامات" value={maxUses} onChange={setMaxUses} placeholder="1" keyboardType="numeric" /></View></View><Field label="وصف الكود" value={codeLabel} onChange={setCodeLabel} placeholder="دفعة HIMS" /><Button label={busy ? "جارٍ الإنشاء…" : "إنشاء الكود"} onPress={() => void createCode()} disabled={busy} /></View>
 
     <View style={styles.card}>
-      <Text style={styles.sectionTitle}>إضافة محاضرة أو ملف</Text>
+      <Text style={styles.sectionTitle}>{editingResource ? "تعديل مورد HIMS" : "إضافة محاضرة أو ملف"}</Text>
+      {editingResource ? <Text style={styles.detail}>تعديل بيانات المورد الحالي مع الحفاظ على مصدره وحالة تفعيله. لإضافة مصدر مختلف، ألغِ التعديل وأنشئ موردًا جديدًا.</Text> : null}
       <Text style={styles.detail}>ارفع صورة أو فيديو أو مستندًا مباشرة، أو الصق رابطًا خارجيًا.</Text>
       <View style={styles.inline}>
         <Button label={uploading === "image" ? "جارٍ رفع الصورة…" : "رفع صورة"} tone="ghost" onPress={() => void uploadForHims("image")} disabled={uploading !== null || busy} />
@@ -185,10 +212,11 @@ export function HimsAdminScreen() {
         </View>
       </View> : null}
       <Field label="العنوان" value={title} onChange={setTitle} placeholder="محاضرة الشبكات - الوحدة الأولى" />
-      <Field label="الرابط HTTPS" value={url} onChange={(value) => { setUrl(value); setMediaAssetId(null); }} placeholder="https://..." keyboardType="url" />
+      <Field label="الرابط HTTPS" value={url} onChange={(value) => { setUrl(value); setMediaAssetId(null); }} placeholder="https://..." keyboardType="url" editable={!editingResource} />
       <Field label="النوع" value={kind} onChange={setKind} placeholder="lecture أو image أو video أو file" />
       <Field label="الوصف" value={description} onChange={setDescription} placeholder="وصف اختياري" />
-      <Button label={busy ? "جارٍ الحفظ…" : "إضافة المورد"} onPress={() => void createResource()} disabled={busy || uploading !== null} />
+      <Button label={busy ? "جارٍ الحفظ…" : editingResource ? "حفظ التعديلات" : "إضافة المورد"} onPress={() => void createResource()} disabled={busy || uploading !== null} />
+      {editingResource ? <Button label="إلغاء التعديل" tone="ghost" onPress={cancelEditResource} disabled={busy || uploading !== null} /> : null}
     </View>
 
     {loading ? <ActivityIndicator color={colors.primary} /> : null}
@@ -213,12 +241,17 @@ export function HimsAdminScreen() {
             <Text style={styles.detail}>{item.is_active ? "ظاهر للمستخدمين المستحقين" : "متوقف — غير ظاهر للمستخدمين"}</Text>
           </View>
         </View>
-        <Pressable accessibilityRole="button" disabled={resourceBusyId === item.id} onPress={() => void toggleResourceActive(item)} style={[styles.resourceAction, !item.is_active && styles.resourceActionActive, resourceBusyId === item.id && styles.disabled]}>
-          <Text style={styles.resourceActionText}>{resourceBusyId === item.id ? "جارٍ التحديث…" : item.is_active ? "إيقاف المورد" : "إعادة تفعيل المورد"}</Text>
-        </Pressable>
+        <View style={styles.inline}>
+          <Pressable accessibilityRole="button" disabled={resourceBusyId === item.id || busy} onPress={() => beginEditResource(item)} style={styles.resourceEditAction}>
+            <Text style={styles.resourceActionText}>تعديل البيانات</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" disabled={resourceBusyId === item.id || busy} onPress={() => void toggleResourceActive(item)} style={[styles.resourceAction, !item.is_active && styles.resourceActionActive, resourceBusyId === item.id && styles.disabled]}>
+            <Text style={styles.resourceActionText}>{resourceBusyId === item.id ? "جارٍ التحديث…" : item.is_active ? "إيقاف المورد" : "إعادة تفعيل المورد"}</Text>
+          </Pressable>
+        </View>
       </View>)}
     </View>
   </ScrollView>;
 }
 
-const createStyles = (colors: ThemePalette) => StyleSheet.create({ screen: { flex: 1, backgroundColor: colors.background }, content: { width: "100%", maxWidth: 1000, alignSelf: "center", padding: 16, gap: 12 }, header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" }, title: { color: colors.textPrimary, fontSize: 26, fontWeight: "800", textAlign: "right" }, explainer: { color: colors.textSecondary, lineHeight: 21, textAlign: "right" }, card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 14, padding: 16, gap: 9 }, highlightCard: { borderColor: colors.accent }, sectionTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: "700", textAlign: "right" }, label: { color: colors.textSecondary, textAlign: "right", marginTop: 3 }, input: { minHeight: 44, borderRadius: 9, borderWidth: 1, borderColor: colors.inputBorder, backgroundColor: colors.inputBackground, paddingHorizontal: 12, color: colors.textPrimary, marginTop: 4 }, button: { minHeight: 42, borderRadius: 9, backgroundColor: colors.primary, paddingHorizontal: 14, justifyContent: "center", alignItems: "center", marginTop: 6 }, ghostButton: { minHeight: 42, borderRadius: 9, borderWidth: 1, borderColor: colors.accent, paddingHorizontal: 14, justifyContent: "center", alignItems: "center", marginTop: 6 }, ghostButtonText: { color: colors.accent, fontWeight: "700" }, disabled: { opacity: 0.45 }, buttonText: { color: colors.onPrimary, fontWeight: "700" }, link: { color: colors.accent, fontWeight: "700" }, error: { color: colors.error, textAlign: "right" }, success: { color: colors.success, textAlign: "right" }, inline: { flexDirection: "row", gap: 10, alignItems: "center", flexWrap: "wrap" }, flex: { flex: 1 }, row: { borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 10, marginTop: 3, gap: 6 }, resourceAction: { minHeight: 36, borderWidth: 1, borderColor: colors.warning, borderRadius: 8, paddingHorizontal: 12, alignSelf: "flex-start", justifyContent: "center" }, resourceActionActive: { borderColor: colors.success }, resourceActionText: { color: colors.textPrimary, fontWeight: "700", fontSize: 12 }, cardTitle: { color: colors.textPrimary, fontWeight: "700", textAlign: "right" }, commandText: { color: colors.accent, fontSize: 15, fontWeight: "700", textAlign: "left", backgroundColor: colors.surfaceElevated, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, overflow: "hidden" }, detail: { color: colors.textSecondary, fontSize: 13, lineHeight: 20, textAlign: "right" }, previewRow: { flexDirection: "row-reverse", gap: 10, alignItems: "center" }, preview: { width: 84, height: 64, borderRadius: 8, backgroundColor: colors.surfaceElevated }, fileThumb: { alignItems: "center", justifyContent: "center" }, fileIcon: { color: colors.textMuted, fontWeight: "800", fontSize: 12 } });
+const createStyles = (colors: ThemePalette) => StyleSheet.create({ screen: { flex: 1, backgroundColor: colors.background }, content: { width: "100%", maxWidth: 1000, alignSelf: "center", padding: 16, gap: 12 }, header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" }, title: { color: colors.textPrimary, fontSize: 26, fontWeight: "800", textAlign: "right" }, explainer: { color: colors.textSecondary, lineHeight: 21, textAlign: "right" }, card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 14, padding: 16, gap: 9 }, highlightCard: { borderColor: colors.accent }, sectionTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: "700", textAlign: "right" }, label: { color: colors.textSecondary, textAlign: "right", marginTop: 3 }, input: { minHeight: 44, borderRadius: 9, borderWidth: 1, borderColor: colors.inputBorder, backgroundColor: colors.inputBackground, paddingHorizontal: 12, color: colors.textPrimary, marginTop: 4 }, button: { minHeight: 42, borderRadius: 9, backgroundColor: colors.primary, paddingHorizontal: 14, justifyContent: "center", alignItems: "center", marginTop: 6 }, ghostButton: { minHeight: 42, borderRadius: 9, borderWidth: 1, borderColor: colors.accent, paddingHorizontal: 14, justifyContent: "center", alignItems: "center", marginTop: 6 }, ghostButtonText: { color: colors.accent, fontWeight: "700" }, disabled: { opacity: 0.45 }, buttonText: { color: colors.onPrimary, fontWeight: "700" }, link: { color: colors.accent, fontWeight: "700" }, error: { color: colors.error, textAlign: "right" }, success: { color: colors.success, textAlign: "right" }, inline: { flexDirection: "row", gap: 10, alignItems: "center", flexWrap: "wrap" }, flex: { flex: 1 }, row: { borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 10, marginTop: 3, gap: 6 }, resourceEditAction: { minHeight: 36, borderWidth: 1, borderColor: colors.divider, borderRadius: 8, paddingHorizontal: 12, alignSelf: "flex-start", justifyContent: "center" }, resourceAction: { minHeight: 36, borderWidth: 1, borderColor: colors.warning, borderRadius: 8, paddingHorizontal: 12, alignSelf: "flex-start", justifyContent: "center" }, resourceActionActive: { borderColor: colors.success }, resourceActionText: { color: colors.textPrimary, fontWeight: "700", fontSize: 12 }, cardTitle: { color: colors.textPrimary, fontWeight: "700", textAlign: "right" }, commandText: { color: colors.accent, fontSize: 15, fontWeight: "700", textAlign: "left", backgroundColor: colors.surfaceElevated, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, overflow: "hidden" }, detail: { color: colors.textSecondary, fontSize: 13, lineHeight: 20, textAlign: "right" }, previewRow: { flexDirection: "row-reverse", gap: 10, alignItems: "center" }, preview: { width: 84, height: 64, borderRadius: 8, backgroundColor: colors.surfaceElevated }, fileThumb: { alignItems: "center", justifyContent: "center" }, fileIcon: { color: colors.textMuted, fontWeight: "800", fontSize: 12 } });
