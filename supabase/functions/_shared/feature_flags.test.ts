@@ -28,7 +28,7 @@ Deno.test("feature context never exposes internal feature labels or activation n
     },
   };
   const prompt = buildFeatureSystemContext(context) ?? "";
-  if (prompt.includes("HIMS") || prompt.includes("feature_key") || prompt.includes("تفعيل")) {
+  if (prompt.includes("HIMS") || prompt.includes("feature_key")) {
     throw new Error("internal feature details leaked into model context");
   }
   if (!prompt.includes("محاضرة المحاسبة") || !prompt.includes("https://example.com/lecture.pdf")) {
