@@ -792,3 +792,29 @@ Continue auditing the remaining authenticated SECURITY DEFINER functions in grou
 
 **Updated status:** Database privilege hardening and three targeted SQL regressions are complete. PR #110 remains subject to its current GitHub Actions checks before merge.
 
+### Next security finding identified: Activation-code attempt throttling
+
+**Status:** [>] INVESTIGATION REQUIRED — no rate-limit code changed in this session.
+
+#### Evidence
+- `suly_activate_feature(uuid,text)` is restricted to the service role, hashes the submitted code with SHA-256, locks the matching activation-code row, checks active/expiry/max-use conditions, and increments usage atomically. It does not expose the raw stored code.
+- The admin UI's default code generator uses Expo Crypto `randomUUID()`, producing a high-entropy UUID-based bearer code. The UI also permits an administrator to enter a custom code of 12 or more characters.
+- In `ai-router/index.ts`, activation is processed before the later `reserve_credits` call. The earlier `suly_claim_ai_request` RPC provides idempotency and request ownership checks, but it is not a request-rate limiter.
+- The legacy `suly_check_ai_rate_limit(uuid)` was changed by migration `037_credit_gated_text_chat_no_daily_limit.sql` to delegate text-chat gating to credits; its current implementation no longer increments the old `suly_ai_rate_limits.request_count` or applies a request limit.
+- The existing `suly_ai_rate_limits` table remains RLS-protected from client roles and service-role-only, but its old per-user counter is not currently used by the activation path.
+
+#### Assessment
+- No direct way for an unauthenticated user to call `suly_activate_feature` was found; the RPC requires the service role and is invoked by the authenticated chat Edge Function.
+- Generated UUID-based codes have high entropy, so this is not evidence that those codes can practically be guessed.
+- However, the activation path currently has no explicit per-user attempt throttle before checking a custom or weak code, and activation commands return before the credit reservation. This leaves an avoidable abuse/guessing path if a manually entered code is predictable. External platform-level rate limits were not verified and must not be assumed.
+
+#### Planned remediation
+- [ ] Add an atomic service-role-only per-user activation-attempt limiter before calling `suly_activate_feature`.
+- [ ] Inspect whether the existing `suly_ai_rate_limits` table can safely be reused without conflicting with any other consumer; avoid a duplicate table unless necessary.
+- [ ] Choose and document a conservative retry policy, and ensure it affects activation attempts only—not ordinary chat or HIMS resource retrieval.
+- [ ] Fail closed if the limiter cannot be checked; return a safe localized retry message without testing the submitted code.
+- [ ] Add SQL regression coverage for per-user limits, cooldown, concurrency/atomicity, and denial of client access.
+- [ ] Verify that valid activation, already-active responses, max-use accounting, and ordinary chat behavior remain unchanged.
+
+**Next concrete action:** Finish PR #110's CI and merge the provider-secret permission fix. Then implement activation throttling as a separate focused migration/Edge Function change and record its test evidence here.
+
