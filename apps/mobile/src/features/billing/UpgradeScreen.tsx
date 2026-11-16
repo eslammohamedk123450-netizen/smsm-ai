@@ -52,7 +52,7 @@ export default function UpgradeScreen() {
       setCurrentTier(effectiveTier.toLowerCase());
     }
     setLoading(false);
-  }, [user]);
+  }, [user, isArabic]);
   useEffect(() => { void load(); }, [load]);
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
