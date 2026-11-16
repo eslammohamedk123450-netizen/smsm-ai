@@ -59,6 +59,7 @@ export function StreamingStatus({ isStreaming, onCancel, taskLabel }: StreamingS
           </View>
           <Text style={styles.brand}>Suly</Text>
         </View>
+        <Text style={styles.taskLabel}>{taskLabel || (isArabic ? "جارٍ تجهيز الرد…" : "Preparing a response…")}</Text>
         <View style={styles.dots} accessibilityLabel={isArabic ? "جاري كتابة الرد" : "Writing a response"}>
           {dots.map((opacity, index) => (
             <Animated.View key={index} style={[styles.dot, { opacity }]} />
@@ -113,6 +114,7 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
   },
   brandMarkText: { color: colors.onPrimary, fontSize: 11, fontWeight: "900" },
   brand: { color: colors.textPrimary, fontSize: 12, fontWeight: "700" },
+  taskLabel: { color: colors.textSecondary, fontSize: 11, lineHeight: 16, marginBottom: 6 },
   dots: { flexDirection: "row", alignItems: "center", gap: 5, paddingLeft: 2 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.primary },
   stop: {
