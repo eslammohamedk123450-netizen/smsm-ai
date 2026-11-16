@@ -35,6 +35,7 @@ Deno.test("successful probe preserves existing vendor and SULY evidence", () => 
       suly_evidence_url: "https://app.example.com/test-runs/123",
       suly_tested_at: "2026-11-15T12:00:00.000Z",
       notes: "Existing verified notes",
+      updated_by: "admin-user-id",
     },
   });
   if (!patch) throw new Error("Expected a text evidence patch.");
@@ -44,6 +45,7 @@ Deno.test("successful probe preserves existing vendor and SULY evidence", () => 
   if (patch.suly_test_status !== "passed" || patch.suly_evidence_url !== "https://app.example.com/test-runs/123") {
     throw new Error("A successful provider probe must preserve an existing SULY pass.");
   }
+  if (patch.updated_by !== "admin-user-id") throw new Error("System probe sync must preserve admin audit attribution.");
 });
 
 Deno.test("one transient failure on a healthy model does not overwrite the last provider evidence", () => {
