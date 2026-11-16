@@ -1157,7 +1157,7 @@ async function handleRequest(req: Request): Promise<Response> {
     ? new Set((selectedProfileAssignments ?? []).filter((item: { route_role: string }) => item.route_role === "worker").map((item: { model_id: number }) => Number(item.model_id)))
     : null;
   if (selectedProfileKey && requestedProfileKey && requestedProfileKey !== "auto") {
-    const needsWebSearch = isWebSearchRequest(latestUserMessage);
+    const needsWebSearch = shouldSearchWeb;
     const needsComplexExecution = profileIntent === "complex_task" && executionMode === "agent";
     if (needsWebSearch && profileCapabilities.web_search !== true) {
       return await failedResponse(jsonResponse({ error: `${selectedProfileKey.toUpperCase()} لا يتضمن البحث على الويب. اختر مستوى أعلى أو غيّر اختيارك يدويًا.` }, 403, req), "profile_capability_unavailable");
@@ -1166,7 +1166,7 @@ async function handleRequest(req: Request): Promise<Response> {
       return await failedResponse(jsonResponse({ error: `${selectedProfileKey.toUpperCase()} لا يملك القدرات المطلوبة لتنفيذ هذه المهمة المعقدة. اختر مستوى أعلى أو استخدم Auto.` }, 403, req), "profile_capability_unavailable");
     }
   } else if (selectedProfileKey && requestedProfileKey === "auto") {
-    if (isWebSearchRequest(latestUserMessage) && profileCapabilities.web_search !== true) {
+    if (shouldSearchWeb && profileCapabilities.web_search !== true) {
       return await failedResponse(jsonResponse({ error: "البحث على الويب غير متاح في المستوى المؤهل ضمن اشتراكك الحالي. يمكنك ترقية الاشتراك للوصول إلى Pro." }, 403, req), "profile_capability_unavailable");
     }
     if (profileIntent === "complex_task" && executionMode === "agent" && (profileCapabilities.multi_step_agent !== true || profileCapabilities.advanced_reasoning !== true)) {
@@ -1226,7 +1226,7 @@ async function handleRequest(req: Request): Promise<Response> {
     && trustedAttachments.length === 0
     && !requestedConnector
     && !requestedMultiReadToolkits?.length
-    && !isWebSearchRequest(latestUserMessage)
+    && !shouldSearchWeb
     ? restrictModelsToAssignedRoute(
       healthyModels.filter((model: ModelRow) =>
         (!workerProfileModelIds || workerProfileModelIds.has(model.id)) && isEligibleModel(model, "worker", ["free_race"])),
@@ -1394,7 +1394,7 @@ async function handleRequest(req: Request): Promise<Response> {
       && trustedAttachments.length === 0
       && !requestedConnector
       && !requestedMultiReadToolkits?.length
-      && !isWebSearchRequest(latestUserMessage)
+      && !shouldSearchWeb
       && mind.intent === "complex_task";
     const proposedReservationParts = canDelegateReservation
       ? splitTask(latestUserMessage, settings.taskSplitMaxParts)
@@ -2107,7 +2107,7 @@ async function handleRequest(req: Request): Promise<Response> {
       "connected_app.read": !multiConnectorRequest && connectorRequest?.intent === "read",
       "connected_app.read_multiple": !multiConnectorRequest && Boolean(requestedMultiReadToolkits),
       "connected_app.write": !multiConnectorRequest && connectorRequest?.intent === "write",
-      "web.search": isWebSearchRequest(latestUserMessage),
+      "web.search": shouldSearchWeb,
     });
     const taskUpdates: Array<{ task: string; status: "pending" | "running" | "completed" | "failed" }> = [];
     const freePlanPool = prioritizeAgentProfileCandidates(
@@ -2174,7 +2174,7 @@ async function handleRequest(req: Request): Promise<Response> {
           input: { toolkit: connectorRequest.toolkit },
         };
       }
-      if (step === 0 && isWebSearchRequest(latestUserMessage)) {
+      if (step === 0 && shouldSearchWeb) {
         return { action: "tool" as const, tool: "web.search", input: { query: latestUserMessage } };
       }
       const plannerPolicy = [
@@ -2361,7 +2361,7 @@ async function handleRequest(req: Request): Promise<Response> {
         }
       }
       if (tool === "web.search") {
-        if (!isWebSearchRequest(latestUserMessage)) throw new Error("Live web search was not requested by the user.");
+        if (!shouldSearchWeb) throw new Error("Live web search was not requested by the user.");
         try {
           const apiKey = await readTavilyApiKey(supabase);
           return { status: "executed", data: await runTavilySearch(apiKey, latestUserMessage) };
