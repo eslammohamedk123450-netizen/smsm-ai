@@ -79,3 +79,14 @@ export async function resumeBrainTask(taskId: string, objective: string): Promis
   }
   return data as BrainTaskAccepted;
 }
+
+/** Recover the queued job, or idempotently re-submit the same task id if enqueue never reached the server. */
+export async function recoverBrainTask(taskId: string, objective: string): Promise<BrainTaskAccepted> {
+  try {
+    return await resumeBrainTask(taskId, objective);
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : "";
+    if (!message.includes("task_not_found") && !message.includes("العثور")) throw cause;
+    return runBrainTask(objective, taskId);
+  }
+}
