@@ -3,6 +3,7 @@ import { ActivityIndicator, Image, ScrollView, StyleSheet, TextInput, TouchableO
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 
 import { useRouter } from "expo-router";
+import Constants from "expo-constants";
 import { getCreditLedger, type CreditEntry } from "../credits/credit-service";
 import { useAuth } from "../auth/auth-provider";
 import type { ThemePalette } from "../../theme/colors";
@@ -161,7 +162,7 @@ export default function SettingsScreen() {
 
   const name = savedProfileName?.trim() || profileFullName?.trim() || "Suly";
   const avatarUrl = typeof user?.user_metadata?.avatar_url === "string" ? user.user_metadata.avatar_url : null;
-  const back = () => { if (router.canGoBack()) router.back(); else router.replace("/home"); };
+  const back = () => { if (router.canGoBack()) router.back(); else router.replace("/chat"); };
 
   return (
     <>
@@ -172,13 +173,14 @@ export default function SettingsScreen() {
         </View>
 
         <Text style={styles.sectionTitle}>{isArabic ? "الحساب" : "Account"}</Text>
-        <View style={styles.card}>
+        <TouchableOpacity activeOpacity={0.7} onPress={() => router.push("/(protected)/profile")} style={styles.card} accessibilityRole="button">
           <View style={styles.avatar}>{avatarUrl ? <Image source={{ uri: avatarUrl }} style={styles.avatarImage} /> : <Text style={styles.avatarText}>{name.slice(0, 1).toUpperCase()}</Text>}</View>
           <View style={styles.accountCopy}>
             <Text style={styles.userName}>{name}</Text>
             <Text style={styles.email}>{user?.email ?? "—"}</Text>
           </View>
-        </View>
+          <Text style={styles.chevron}>‹</Text>
+        </TouchableOpacity>
         <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => { setProfileNameDraft(name === "Suly" ? "" : name); setProfileEditVisible(true); }} accessibilityRole="button">
           <Text style={styles.rowText}>{isArabic ? "تعديل الاسم الظاهر" : "Edit display name"}</Text><Text style={styles.chevron}>‹</Text>
         </TouchableOpacity>
@@ -236,14 +238,20 @@ export default function SettingsScreen() {
             <Text style={styles.rowText}>{isArabic ? "تعذر التحقق من صلاحية الأدمن — اضغط لإعادة المحاولة" : "Could not verify admin access — tap to retry"}</Text><Text style={styles.chevron}>↻</Text>
           </TouchableOpacity>
         </> : null}
-        <Text style={styles.sectionTitle}>{isArabic ? "التكاملات" : "Integrations"}</Text>
-        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/integrations")} accessibilityRole="button"><Text style={styles.rowText}>{isArabic ? "التطبيقات المرتبطة" : "Connected apps"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
+        <Text style={styles.sectionTitle}>{isArabic ? "الموصلات" : "Connectors"}</Text>
+        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/integrations")} accessibilityRole="button"><Text style={styles.rowText}>{isArabic ? "إدارة الموصلات والتطبيقات المرتبطة" : "Manage connected apps"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
 
         <Text style={styles.sectionTitle}>{isArabic ? "المعلومات والسياسات" : "Information & policies"}</Text>
         <View style={styles.policyCard}>
           <TouchableOpacity activeOpacity={0.7} onPress={() => setPolicyModal("privacy")} style={styles.policyRow}><Text style={styles.rowText}>{isArabic ? "سياسة الخصوصية" : "Privacy policy"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
           <View style={styles.separator} />
           <TouchableOpacity activeOpacity={0.7} onPress={() => setPolicyModal("terms")} style={styles.policyRow}><Text style={styles.rowText}>{isArabic ? "شروط الاستخدام والحماية" : "Terms & safety"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
+        </View>
+
+        <Text style={styles.sectionTitle}>{isArabic ? "التطبيق" : "Application"}</Text>
+        <View style={styles.cardRow}>
+          <Text style={styles.rowText}>{isArabic ? "إصدار التطبيق" : "App version"}</Text>
+          <Text style={styles.email}>{Constants.expoConfig?.version ?? "1.0.0"}</Text>
         </View>
 
         <TouchableOpacity activeOpacity={0.7} style={styles.logoutButton} onPress={confirmLogout} disabled={loggingOut} accessibilityRole="button">
