@@ -819,7 +819,8 @@ export default function ChatPage() {
             { labelAr: "الرصيد", labelEn: "Credits", href: "/balance", icon: "wallet-outline" as const },
             { labelAr: "الباقات والاشتراك", labelEn: "Plans & subscription", href: "/upgrade", icon: "card-outline" as const },
             { labelAr: "التكاملات", labelEn: "Integrations", href: "/integrations", icon: "git-network-outline" as const },
-            { labelAr: "الإعدادات والدعم", labelEn: "Settings & support", href: "/settings", icon: "settings-outline" as const },
+            { labelAr: "الدعم والمساعدة", labelEn: "Support", href: "/support", icon: "help-circle-outline" as const },
+            { labelAr: "الإعدادات", labelEn: "Settings", href: "/settings", icon: "settings-outline" as const },
           ].map((item) => (
             <Pressable key={item.href} onPress={() => { if (item.href === "/chat") { void startNewConversation(); return; } setNavigationMenuVisible(false); router.push(item.href as never); }} style={styles.navigationMenuItem} accessibilityRole="button">
               <Ionicons name={item.icon} size={19} color={colors.textSecondary} />
