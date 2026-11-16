@@ -137,6 +137,7 @@ export default function ChatPage() {
   const [selectedModelProfile, setSelectedModelProfile] = useState<"auto" | "lite" | "pro" | "max">("auto");
   const [modelMenuVisible, setModelMenuVisible] = useState(false);
   const [navigationMenuVisible, setNavigationMenuVisible] = useState(false);
+  const [creatingNewConversation, setCreatingNewConversation] = useState(false);
   const [actualModelUsed, setActualModelUsed] = useState<string | null>(null);
   const [subscriptionTier, setSubscriptionTier] = useState("free");
   const [modelProfiles, setModelProfiles] = useState(DEFAULT_SULY_PROFILES);
@@ -711,6 +712,20 @@ export default function ChatPage() {
 
   const shareTitle = messages.find((message) => message.role === "user")?.content.slice(0, 48) || (isArabic ? "محادثة Suly" : "SULY conversation");
   const selectedModelLabel = selectedModelProfile === "auto" ? (isArabic ? "SULY تلقائي" : "SULY Auto") : localizedModelProfiles.find((profile) => profile.profile_key === selectedModelProfile)?.display_name ?? "SULY Lite";
+
+  const startNewConversation = async () => {
+    if (creatingNewConversation) return;
+    setCreatingNewConversation(true);
+    setNavigationMenuVisible(false);
+    try {
+      const next = await chatService.createConversation(isArabic ? "محادثة جديدة" : "New conversation");
+      router.push({ pathname: "/chat", params: { conversationId: next.id } });
+    } catch (cause) {
+      show(cause instanceof Error ? cause.message : (isArabic ? "تعذر بدء محادثة جديدة." : "Could not start a new conversation."), "error");
+    } finally {
+      setCreatingNewConversation(false);
+    }
+  };
   const shareText = messages.map((message) => `${message.role === "user" ? (isArabic ? "أنت" : "You") : "Suly"}:\n${message.content}`).join("\n\n");
 
   return (
@@ -810,7 +825,7 @@ export default function ChatPage() {
             { labelAr: "التكاملات", labelEn: "Integrations", href: "/integrations", icon: "git-network-outline" as const },
             { labelAr: "الإعدادات والدعم", labelEn: "Settings & support", href: "/settings", icon: "settings-outline" as const },
           ].map((item) => (
-            <Pressable key={item.href} onPress={() => { setNavigationMenuVisible(false); router.push(item.href as never); }} style={styles.navigationMenuItem} accessibilityRole="button">
+            <Pressable key={item.href} onPress={() => { if (item.href === "/chat") { void startNewConversation(); return; } setNavigationMenuVisible(false); router.push(item.href as never); }} style={styles.navigationMenuItem} accessibilityRole="button">
               <Ionicons name={item.icon} size={19} color={colors.textSecondary} />
               <Text style={styles.navigationMenuLabel}>{isArabic ? item.labelAr : item.labelEn}</Text>
               <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={16} color={colors.textMuted} />
