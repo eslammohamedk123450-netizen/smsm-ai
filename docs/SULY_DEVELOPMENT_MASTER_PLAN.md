@@ -1,7 +1,7 @@
 # SULY — خطة البناء والتطوير الشاملة
 **SULY Complete Build & Development Master Plan**
 
-- الإصدار: 2.2 | آخر تدقيق: 2026-11-17
+- الإصدار: 2.3 | آخر تدقيق: 2026-11-17
 - فرع العمل: develop | فرع الإنتاج المحمي: release/v1
 - هذا هو المرجع التنفيذي الوحيد للبناء والتطوير.
 - مرجع القبول النهائي: SULY_COMPREHENSIVE_TEST_MASTER_PLAN.md
@@ -17,7 +17,7 @@
 - لا أسرار أو مفاتيح مزودين أو service-role في العميل أو المستودع.
 - لا تفعيل نموذج غير متحقق، ولا تعديل أسعار أو FX أو قيمة الرصيد أو هامش الربح دون اعتماد.
 - هامش الخدمات المدفوعة المعتمد يظل 40% وفق القواعد الحالية؛ لا يُخترع سعر أو تحويل عملة.
-- لا تغييرات على قاعدة بيانات الإنتاج أو نشر/ترقية إنتاج دون موافقة صريحة منفصلة.
+- لا تعديل على بيانات المستخدمين أو الأرصدة أو الأسعار أو FX أو إعدادات المزودين/النماذج الحساسة دون موافقة منفصلة. المالك وجّه صراحةً بتطبيق migrations والوظائف المعتمدة على مشروع Supabase الحالي؛ هذا لا يجيز نشر واجهة التطبيق أو تعديل release/v1.
 - Supabase Free هو قيد التكلفة الحالي؛ لا ترقية أو خدمة مدفوعة جديدة دون موافقة.
 - بتوجيه المالك بتاريخ 2026-11-17: لا تُشغّل أي اختبارات أو فحوص تنفيذية أثناء استكمال البناء الحالي؛ تُسجل جميعها في ملف الاختبارات الشاملة وتظل NOT RUN حتى بدء الحملة بموافقة المالك.
 - لا يُعلن اكتمال بند لمجرد كتابة الكود أو دمج PR؛ يلزم دليل وحدود واضحة.
@@ -656,3 +656,16 @@
 - `brain-router` v13 يعيد task job بالـstable task ID، ويكتب النتيجة إلى محادثة مالكها فقط بعد التحقق من ملكية task والمحادثة ومطابقة response.
 - `agent-task-worker` v6 و`agent-task-scheduler` v5 يستخدمان settlement بعد الحالة النهائية وسجل usage؛ الإلغاء أثناء التشغيل يطلب التوقف عند safe boundary، ويظل unknown provider usage معلّقًا للتسوية المتأخرة.
 - كل ما سبق دليل source/deployment/catalog فقط. لا توجد اختبارات مستخدمين أو قبول أو تزامن نُفذت في هذه الدفعة.
+
+
+## أحدث نتيجة Supabase Advisors — 2026-11-17
+- **Security:** 14 جدول RLS بلا policies، 2 extension في public (`vector`, `pg_net`)، 1 SECURITY DEFINER متاح لـanon (`suly_get_public_conversation`)، 66 SECURITY DEFINER متاحة لـauthenticated، وميزة leaked-password protection غير مفعلة.
+- **Performance:** 73 foreign key بلا covering index، و50 index غير مستخدم في إحصاءات advisor، و9 حالات multiple permissive policies.
+- **Health:** لا توجد تحذيرات.
+- الـ14 جدولًا بلا policies تم فحص امتيازاتها منفصلًا: لا grants لـanon/authenticated؛ الوصول المباشر مغلق عمدًا. لا تضف policies لإزالة التحذير فقط.
+- لم نحذف الـ50 index غير المستخدم؛ قلة/انعدام scan في فترة الرصد لا تثبت أنه غير مطلوب، وقد يكون فهرسًا لمسار نادر أو حماية/قيد.
+- لم نضف 73 index تلقائيًا؛ يجب ترتيبها حسب استعلامات فعلية وحجم الجداول وخطة التنفيذ ومساحة Free tier.
+- لم ندمج 9 مجموعات permissive policies؛ يلزم مقارنة USING/WITH CHECK والـcommand والـroles وإثبات التكافؤ قبل التغيير.
+- لم ننقل `vector` أو `pg_net` من public؛ قد تعتمد عليهما دوال ومشغلات قائمة، ويلزم خطة ترحيل منفصلة.
+- لم نفعل leaked-password protection؛ يتطلب قرار Auth صريحًا ومراجعة أثره على التسجيل وتغيير كلمات المرور.
+- Remediation references: [Unindexed foreign keys](https://supabase.com/docs/guides/database/database-linter?lint=0001_unindexed_foreign_keys) · [Unused index](https://supabase.com/docs/guides/database/database-linter?lint=0005_unused_index) · [Multiple permissive policies](https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies) · [RLS enabled/no policy](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy) · [Extensions in public](https://supabase.com/docs/guides/database/database-linter?lint=0014_extension_in_public) · [Anon SECURITY DEFINER](https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable) · [Authenticated SECURITY DEFINER](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable) · [Leaked password protection](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection).
