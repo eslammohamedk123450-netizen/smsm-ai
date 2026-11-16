@@ -83,7 +83,7 @@ export function HimsAdminScreen() {
     let expiresAt: string | null = null;
     if (codeExpiresAt.trim()) {
       const dateValue = codeExpiresAt.trim();
-      if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(dateValue)) { setError("اكتب تاريخ الانتهاء بصيغة YYYY-MM-DD أو اتركه فارغًا."); return; }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) { setError("اكتب تاريخ الانتهاء بصيغة YYYY-MM-DD أو اتركه فارغًا."); return; }
       const calendarDate = new Date(`${dateValue}T00:00:00.000Z`);
       const endOfDay = new Date(`${dateValue}T23:59:59`);
       if (!Number.isFinite(calendarDate.getTime()) || calendarDate.toISOString().slice(0, 10) !== dateValue) { setError("تاريخ انتهاء الكود غير صحيح."); return; }
