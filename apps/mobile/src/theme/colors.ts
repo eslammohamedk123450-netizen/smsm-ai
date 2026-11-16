@@ -13,7 +13,7 @@ const lightColors = {
   primary: "#171717", onPrimary: "#FFFFFF", /* Accessible foreground for primary surfaces. */
   primaryDark: "#000000", secondary: "#525252", primarySoft: "#1717170D",
   background: "#F7F7F7", surface: "#FFFFFF", surfaceElevated: "#F0F0F0",
-  textPrimary: "#111111", textSecondary: "#525252", textMuted: "#737373", accent: "#111111",
+  textPrimary: "#111111", textSecondary: "#525252", textMuted: "#707070", accent: "#111111",
   success: "#15803D", warning: "#A16207", error: "#B91C1C",
   freeBadge: "#404040", premiumBadge: "#111111", racingBadge: "#737373",
   divider: "#E5E5E5", cardBackground: "#FFFFFF", inputBackground: "#F3F3F3",

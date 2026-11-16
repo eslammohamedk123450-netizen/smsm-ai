@@ -17,8 +17,6 @@ on:
       - "supabase/functions/_shared/cors.ts"
       - "supabase/functions/_shared/activation_command.ts"
       - "supabase/functions/_shared/activation_command.test.ts"
-      - "supabase/functions/_shared/activation_command.ts"
-      - "supabase/functions/_shared/activation_command.test.ts"
       - "supabase/functions/_shared/cors.test.ts"
       - "supabase/functions/_shared/agent_task_queue.ts"
       - "supabase/functions/_shared/brain_task_payload.ts"
@@ -37,6 +35,8 @@ on:
     branches: [release/v1, develop, 'feat/**']
     paths:
       - "apps/mobile/**"
+      - "supabase/functions/_shared/activation_command.ts"
+      - "supabase/functions/_shared/activation_command.test.ts"
       - "supabase/functions/ai-router/**"
       - "supabase/functions/brain-router/**"
       - "supabase/functions/agent-task-worker/**"

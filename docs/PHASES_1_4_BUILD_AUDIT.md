@@ -61,7 +61,7 @@ Source review confirms these safeguards already exist on `develop`:
 - `colors.ts` provides matching semantic keys for dark and light palettes (surface, text, muted text, primary, status colors, borders, cards, inputs, overlays).
 - `PremiumText` standardizes Cairo regular/bold typography; reusable `SulyButton`, `SulyCard`, and `SulyScreen` components exist.
 - The current roadmap's approved visual direction is a restrained black/white light-and-dark foundation. Do not reintroduce an older gold palette unless the owner explicitly changes the approved direction.
-- Existing app/admin/HIMS surfaces still contain local styles; a full visual/accessibility sweep is not claimed complete by this source inventory.
+- A Jest regression now checks semantic token parity and WCAG AA contrast for primary/secondary/muted text and primary controls. It exposed the light-theme muted-text contrast gap; the light token was corrected to #707070. Existing app/admin/HIMS surfaces still contain local styles; a full visual/accessibility sweep is not claimed complete by this source inventory.
 
 ## Baseline verification and constraints
 
