@@ -26,7 +26,7 @@ import {
 import { CircuitBreaker } from "./circuit_breaker.ts";
 import { buildIndependentTaskPlan, buildTaskPlan, executeTaskPlan, hasExplicitDependencyLanguage, mergePartAnswers, parseModelGeneratedTaskPlan, probeCandidates, splitTask, validateTaskPlan, type TaskPlanStep } from "./resilience.ts";
 import { parseAgentDecision, runAgentLoop, type AgentLoopResumeStep, type AgentLoopStep, type AgentTool, type AgentDecision } from "./agent/orchestrator.ts";
-import { prioritizeModelCandidate, restrictModelsToAssignedRoute } from "./agent/model_routing.ts";
+import { hasCapabilityEvidenceConflict, prioritizeModelCandidate, restrictModelsToAssignedRoute, type ModelCapabilityEvidence } from "./agent/model_routing.ts";
 import { isModelEligibleForRequest, modelSupportsRole as supportsModelRole } from "./agent/model_eligibility.ts";
 import { resolveExecutionMode } from "./execution_mode.ts";
 import { isSubscriptionTierEligible, resolveSulyProfileKey } from "./agent/suly_profile_routing.ts";
@@ -1086,6 +1086,23 @@ async function handleRequest(req: Request): Promise<Response> {
     (healthRows ?? []).map((row: { model_id: number; auto_restricted: boolean; restriction_reason: string | null }) => [row.model_id, row]),
   );
   
+  // Capability evidence is a conservative deny-list layered over the existing
+  // capabilities_json flags. Missing evidence keeps legacy routing unchanged.
+  const enabledModelIds = (allModels ?? []).map((model: ModelRow) => model.id);
+  let capabilityEvidenceRows: ModelCapabilityEvidence[] = [];
+  if (enabledModelIds.length > 0) {
+    const { data: evidenceRows, error: evidenceError } = await supabase
+      .from("ai_model_capability_evidence")
+      .select("model_id,capability_key,vendor_claim_status,provider_test_status,suly_test_status")
+      .in("model_id", enabledModelIds)
+      .limit(5000);
+    if (evidenceError) {
+      console.warn("Capability evidence unavailable; retaining legacy model capability routing:", evidenceError.message);
+    } else {
+      capabilityEvidenceRows = (evidenceRows ?? []) as ModelCapabilityEvidence[];
+    }
+  }
+
   const settings = {
     freeRaceTimeoutMs: Math.max(1000, Math.min(30000, Number(settingsRow?.free_race_timeout_ms) || 5000)),
     paidFallbackEnabled: settingsRow?.paid_fallback_enabled !== false,
@@ -1110,7 +1127,11 @@ async function handleRequest(req: Request): Promise<Response> {
     model: ModelRow,
     requiredRole?: "chat" | "planner" | "worker" | "reviewer" | "summarizer",
     allowedRoutingGroups?: ModelRow["routing_group"][],
-  ) => isModelEligibleForRequest({
+  ) => {
+    if (hasCapabilityEvidenceConflict(model.id, uniqueRequiredCapabilities, capabilityEvidenceRows)) {
+      return false;
+    }
+    return isModelEligibleForRequest({
     enabled: model.enabled,
     healthy: !healthByModel.get(model.id)?.auto_restricted,
     providerEnabled: providerById.get(model.provider_id)?.enabled === true,
@@ -1122,7 +1143,8 @@ async function handleRequest(req: Request): Promise<Response> {
     requiredRole,
     routingGroup: model.routing_group,
     allowedRoutingGroups,
-  });
+    });
+  };
   const requiredModelRole = executionMode === "agent" ? "planner" : "chat";
   const routeRole: RouteModelAssignment["route_role"] = executionMode === "agent" ? "planner" : "chat";
   const [profileAssignmentsResult, profileDefinitionResult] = selectedProfileKey

@@ -52,6 +52,15 @@ The default path must optimize time-to-first-token: simple chat should use a dir
 - The schema stores agent prompts/fallback chains and task-to-agent assignments.
 - Schema presence alone does not prove that the current runtime reads these records. Before removal or migration, trace every read/write call site, database policy, and historical data use.
 
+### 6. Capability evidence and runtime eligibility
+
+- Operational text-model evidence is stored in `ai_model_capability_evidence`, keyed by the exact `ai_models.id` and capability. Media evidence is stored separately in `suly_media_model_capability_evidence`, keyed by provider, service type, exact gateway model ID, and capability.
+- Each record separates provider/upstream documentation claims from provider probe results and SULY integration results. Evidence URLs are required for every non-unknown claim or test outcome, and all writes go through admin-guarded, audited RPCs.
+- The central router loads evidence for its enabled candidates. It only blocks a candidate when the exact required capability is explicitly unsupported or a provider/SULY probe failed. Unknown or missing evidence preserves legacy `capabilities_json` routing, preventing an unverified catalog entry from breaking existing chat.
+- A provider probe can validate a gateway-specific alias even when upstream documentation uses a different model ID. A passing SULY integration test is the strongest evidence and is authoritative for that exact provider/model/capability tuple.
+- Connector availability (Gmail, Drive, GitHub) remains controlled by the connector registry and authorization layer; it is not inferred from native model modality claims.
+- Image-generation runtime activation requires both provider and SULY integration evidence to be passed. Price records and advertised capabilities alone never activate a media model or permit user billing.
+
 ## Target architecture
 
 ```text

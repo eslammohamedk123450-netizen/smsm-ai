@@ -90,13 +90,38 @@ begin
     raise exception 'admin audit event missing for image model save';
   end if;
 
-  -- A valid shape with an enabled price but missing credit/FX conversion must
-  -- be rejected; this protects the current zero-config billing state.
+  -- An image model cannot be activated until the exact provider/model
+  -- capability has passed both the provider probe and SULY integration test.
   v_denied := false;
   begin
     perform public.suly_admin_save_image_generation_model(
       v_model_id, v_provider_id, 'Rollback test image model', 'suly-atomic-save-regression',
       'https://example.invalid/v1/images', array['free']::text[], true, true,
+      jsonb_build_array(
+        jsonb_build_object('quality','economy','price_credits',10,'estimated_provider_cost_usd',0,'target_margin',0.3,'credit_value_egp',0,'usd_to_egp',0,'resolution','1024x1024','enabled',false),
+        jsonb_build_object('quality','standard','price_credits',10,'estimated_provider_cost_usd',0,'target_margin',0.3,'credit_value_egp',0,'usd_to_egp',0,'resolution','1024x1024','enabled',false),
+        jsonb_build_object('quality','high','price_credits',10,'estimated_provider_cost_usd',0,'target_margin',0.3,'credit_value_egp',0,'usd_to_egp',0,'resolution','1024x1024','enabled',false),
+        jsonb_build_object('quality','ultra','price_credits',10,'estimated_provider_cost_usd',0,'target_margin',0.3,'credit_value_egp',0,'usd_to_egp',0,'resolution','1024x1024','enabled',false)
+      )
+    );
+  exception when invalid_parameter_value then
+    if position('requires successful provider and SULY integration evidence' in sqlerrm) > 0 then
+      v_denied := true;
+    else
+      raise;
+    end if;
+  end;
+  if not v_denied then
+    raise exception 'image model activation without passing provider/SULY evidence was not rejected';
+  end if;
+
+  -- A separate inactive model edit with an enabled price but missing credit/FX
+  -- conversion must still be rejected by the existing billing guard.
+  v_denied := false;
+  begin
+    perform public.suly_admin_save_image_generation_model(
+      v_model_id, v_provider_id, 'Rollback test image model', 'suly-atomic-save-regression',
+      'https://example.invalid/v1/images', array['free']::text[], false, false,
       jsonb_build_array(
         jsonb_build_object('quality','economy','price_credits',10,'estimated_provider_cost_usd',1,'target_margin',0.3,'credit_value_egp',0,'usd_to_egp',0,'resolution','1024x1024','enabled',true),
         jsonb_build_object('quality','standard','price_credits',10,'estimated_provider_cost_usd',0,'target_margin',0.3,'credit_value_egp',0,'usd_to_egp',0,'resolution','1024x1024','enabled',false),

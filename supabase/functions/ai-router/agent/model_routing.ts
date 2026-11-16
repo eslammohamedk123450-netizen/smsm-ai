@@ -33,3 +33,52 @@ export function restrictModelsToAssignedRoute<T extends RouteEligibleItem>(
   if (allowedIds.size === 0) return [];
   return candidates.filter((candidate) => allowedIds.has(routeEligibleModelId(candidate)));
 }
+
+
+export type ModelCapabilityEvidence = {
+  model_id: number;
+  capability_key: string;
+  vendor_claim_status: "unknown" | "supported" | "unsupported";
+  provider_test_status: "not_tested" | "passed" | "failed";
+  suly_test_status: "not_tested" | "passed" | "failed";
+};
+
+const EVIDENCE_KEY_BY_REQUIRED_CAPABILITY: Readonly<Record<string, string>> = {
+  chat: "text",
+  vision: "vision",
+  audio: "audio_input",
+  pdf: "pdf_input",
+  word: "file_input",
+  video: "video_input",
+  tools: "function_calling",
+};
+
+/**
+ * Evidence is a conservative deny-list layered over the legacy capability flags.
+ * Missing/unknown evidence keeps the old routing behavior; explicit upstream
+ * negatives or failed probes block only the affected capability. A capability-
+ * specific provider pass can validate a gateway alias; an SULY failure still
+ * blocks it, while a passing SULY integration test is authoritative.
+ */
+export function hasCapabilityEvidenceConflict(
+  modelId: number,
+  requiredCapabilities: readonly string[],
+  evidenceRows: readonly ModelCapabilityEvidence[],
+): boolean {
+  for (const requiredCapability of requiredCapabilities) {
+    const evidenceKey = EVIDENCE_KEY_BY_REQUIRED_CAPABILITY[requiredCapability];
+    if (!evidenceKey) continue;
+    const evidence = evidenceRows.find(
+      (row) => row.model_id === modelId && row.capability_key === evidenceKey,
+    );
+    if (!evidence) continue;
+    if (evidence.suly_test_status === "passed") continue;
+    if (evidence.provider_test_status === "failed" || evidence.suly_test_status === "failed") {
+      return true;
+    }
+    if (evidence.vendor_claim_status === "unsupported" && evidence.provider_test_status !== "passed") {
+      return true;
+    }
+  }
+  return false;
+}
