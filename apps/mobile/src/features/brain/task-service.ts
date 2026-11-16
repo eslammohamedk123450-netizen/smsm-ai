@@ -130,7 +130,7 @@ export function mapTaskHistory(jobs: unknown[], contexts: unknown[]): TaskHistor
 export async function listTaskHistory(limit = 100): Promise<TaskHistoryItem[]> {
   const safeLimit = Math.max(1, Math.min(100, Math.floor(Number.isFinite(limit) ? limit : 100)));
   const { data: jobs, error: jobsError } = await supabase.from("agent_task_jobs")
-    .select("id,task_id,status,result,error_code,error_message,updated_at,completed_at")
+    .select("id,task_id,status,result,updated_at,completed_at")
     .order("updated_at", { ascending: false })
     .limit(safeLimit);
   if (jobsError) throw new Error("تعذر تحميل سجل المهام.");
