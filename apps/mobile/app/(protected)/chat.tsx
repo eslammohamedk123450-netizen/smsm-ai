@@ -25,7 +25,7 @@ import { useToast } from "../../src/components/ui/Toast";
 import { supabase } from "../../src/lib/supabase/client";
 import { integrationService, type ToolkitStatus } from "../../src/features/integrations/integration-service";
 import { randomUUID } from "expo-crypto";
-import { useNavigationMenu } from "../../src/components/navigation/MainNavigation";
+import { useNavigationMenu, usePlusMenu } from "../../src/components/navigation/MainNavigation";
 
 const STREAMING_ID = "local-streaming-assistant";
 const TASK_SUGGESTIONS = getRotatingSuggestions(Date.now(), 4);
@@ -133,6 +133,7 @@ export default function ChatPage() {
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const selectedModelProfile = "auto" as const;
   const openNavigationDrawer = useNavigationMenu();
+  const openPlusMenu = usePlusMenu();
   const [actualModelUsed, setActualModelUsed] = useState<string | null>(null);
   const suggestions = isArabic ? TASK_SUGGESTIONS : TASK_SUGGESTIONS_EN;
   const [connectorApproval, setConnectorApproval] = useState<{ content: string; toolkit: ToolkitStatus["toolkit"]; intent: "read" | "write"; connected: boolean; accountExists: boolean; disabled: boolean; writeApproval: ConnectorWriteApproval | null } | null>(null);
@@ -693,6 +694,9 @@ export default function ChatPage() {
             <Text style={styles.brandTitle}>SULY</Text>
           </View>
           <View style={styles.headerActions}>
+            <TouchableOpacity onPress={openPlusMenu} style={styles.headerButton} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={isArabic ? "إضافة ملف أو أداة" : "Add file or tool"}>
+              <Ionicons name="add" size={23} color={colors.textPrimary} />
+            </TouchableOpacity>
             {creditBalance !== null ? (
               <TouchableOpacity onPress={() => router.push("/(protected)/balance")} style={styles.creditPill} accessibilityRole="button" accessibilityLabel={isArabic ? "رصيد Suly" : "SULY credits"}>
                 <Ionicons name="diamond-outline" size={14} color={colors.warning} />
