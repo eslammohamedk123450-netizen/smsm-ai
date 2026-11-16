@@ -72,6 +72,7 @@ These are implementation/configuration gaps, not Track B device-test deferrals. 
 - The creation RPC now uses `ON CONFLICT (code_hash) DO NOTHING` and raises a duplicate-code error. A hash collision cannot reactivate a disabled code or overwrite its label, use limit, expiry, or feature mapping.
 - Verified the live function definition after migration: collision-safe insert present, old `DO UPDATE` path absent, duplicate rejection present.
 - No existing activation-code rows were changed by the migration. Full duplicate/replay/race tests remain in Track B.
+- Ran a rollback-only SQL regression on the current development database: created a temporary code, disabled it, retried the same hash with changed metadata/limits/expiry, verified the duplicate was rejected and the original row stayed disabled and unchanged, then rolled back. A follow-up query confirmed zero leftover test rows. Reusable test: `supabase/tests/hims_activation_code_collision_guard.sql`.
 
 ## Admin Storage deployment
 
