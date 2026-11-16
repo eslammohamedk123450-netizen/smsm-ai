@@ -37,7 +37,7 @@ export function SupportScreen() {
     try { setTickets(await supportService.listMyTickets()); }
     catch (cause) { Alert.alert(isArabic ? "الدعم" : "Support", cause instanceof Error ? cause.message : (isArabic ? "تعذر تحميل الطلبات." : "Could not load tickets.")); }
     finally { setLoading(false); }
-  }, []);
+  }, [isArabic]);
   useEffect(() => { void refresh(); }, [refresh]);
 
   const chooseImage = async () => {
