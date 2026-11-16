@@ -136,6 +136,9 @@ A test group passes only when all required cases pass or the owner explicitly ac
 - Cross-user SELECT/INSERT/UPDATE/DELETE and cross-tenant foreign-key attempts fail.
 - Project deletion preserves conversations according to defined nulling behavior.
 - Confirm no duplicate Projects implementation or route conflict remains after PR reconciliation.
+- Verify the `develop` implementation rather than merging stale PR #83 wholesale; compare route/navigation, project service, migration, isolation SQL, and CI workflow. Confirm the open branch's older workflow does not remove current Android/iOS export or newer regression coverage.
+- Re-run the rollback-only two-user SQL isolation regression on an isolated test database; separately verify owner update, cross-user delete denial, project deletion `ON DELETE SET NULL (project_id)`, archived-project filtering, and project-aware new conversation creation.
+- Confirm project navigation is reachable from the current chat navigation menu and does not replace the five primary navigation destinations.
 
 ### Test Group 13 — Subscription, credits, wallet, and financial integrity
 - Monthly allowance grant and renewal semantics match approved policy and actual implementation.
