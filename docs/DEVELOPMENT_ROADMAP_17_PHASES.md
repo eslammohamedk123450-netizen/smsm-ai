@@ -634,7 +634,7 @@ Verified since the prior review:
 - PR #125 merged as `965e6fc8809adb13af72a536755bf70609a7dd16`.
 - Expo CI passed TypeScript, mobile auth regression, static Web export, Android JS bundle, and iOS JS bundle.
 - GitHub Pages deploy for release commit `ac861a1b6844cf3b7ca081b8fe34d65408c1ebc0` succeeded (workflow run `43866014691`); the web deployment URL remains `https://eslammohamedk123450-netizen.github.io/smsm-ai/`.
-- The PR #131 CI run passed all three JS platform exports (Web/Android/iOS), TypeScript, auth regression, and Deno checks (run `43865425383`). The corresponding post-merge release verification was still running at the latest check; do not treat it as complete until its final status is green.
+- The PR #131 CI run passed all three JS platform exports (Web/Android/iOS), TypeScript, auth regression, and Deno checks (run `43865425383`). Post-merge release verification for `ac861a1b6844cf3b7ca081b8fe34d65408c1ebc0` also passed every TypeScript/auth/Web/Android/iOS/Deno step (run `43866014685`).
 - Expo OTA publish failed because `EXPO_TOKEN` is unavailable (workflow run `43866014716`).
 - JS bundle export is not the same as building/installing native APK/IPA or testing on real devices.
 - New theme/locale hydration fixes are pending CI; no visual browser/device test is claimed.
