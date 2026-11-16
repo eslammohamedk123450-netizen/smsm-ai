@@ -7,7 +7,7 @@ export function SulyButton({ label, variant = "primary", loading = false, disabl
   const primary = variant === "primary";
   const secondary = variant === "secondary";
   return <Pressable {...props} accessibilityRole="button" disabled={disabled || loading} style={[styles.base, { backgroundColor: primary ? colors.primary : secondary ? colors.surfaceElevated : "transparent", borderColor: primary ? colors.primary : colors.divider }, !primary && styles.outlined, (disabled || loading) && styles.disabled, style]}>
-    {loading ? <ActivityIndicator size="small" color={primary ? "#FFFFFF" : colors.textPrimary} /> : <Text style={[styles.label, { color: primary ? "#FFFFFF" : colors.textPrimary }]}>{label}</Text>}
+    {loading ? <ActivityIndicator size="small" color={primary ? colors.onPrimary : colors.textPrimary} /> : <Text style={[styles.label, { color: primary ? colors.onPrimary : colors.textPrimary }]}>{label}</Text>}
   </Pressable>;
 }
 const styles = StyleSheet.create({ base: { minHeight: 46, paddingHorizontal: 18, borderRadius: 12, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8 }, outlined: { borderWidth: 1 }, label: { fontSize: 14, fontWeight: "700" }, disabled: { opacity: 0.45 } });
