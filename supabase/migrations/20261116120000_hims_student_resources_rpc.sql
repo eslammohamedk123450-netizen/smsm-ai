@@ -27,7 +27,7 @@ begin
     raise exception 'authentication required' using errcode = '42501';
   end if;
 
-  if not exists (
+  if not public.suly_is_active_user() or not exists (
     select 1
     from public.suly_profiles p
     join public.suly_feature_flags f on f.feature_key = 'hims' and f.is_active
