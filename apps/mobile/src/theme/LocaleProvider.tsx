@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { View } from "react-native";
+import { useSulyTheme } from "./ThemeProvider";
 
 export type AppLanguage = "ar" | "en";
 
@@ -14,6 +16,8 @@ const AppLocaleContext = createContext<AppLocaleContextValue | null>(null);
 
 export function LocaleProvider({ children }: { children: ReactNode }) {
   const [language, setLanguageState] = useState<AppLanguage>("ar");
+  const [ready, setReady] = useState(false);
+  const { colors } = useSulyTheme();
   const userChangedLanguage = useRef(false);
 
   useEffect(() => {
@@ -22,7 +26,8 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
       .then((value) => {
         if (active && !userChangedLanguage.current && (value === "ar" || value === "en")) setLanguageState(value);
       })
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => { if (active) setReady(true); });
     return () => { active = false; };
   }, []);
 
@@ -39,7 +44,11 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     setLanguage,
   }), [language, setLanguage]);
 
-  return <AppLocaleContext.Provider value={value}>{children}</AppLocaleContext.Provider>;
+  return (
+    <AppLocaleContext.Provider value={value}>
+      {ready ? children : <View style={{ flex: 1, backgroundColor: colors.background }} />}
+    </AppLocaleContext.Provider>
+  );
 }
 
 export function useAppLocale() {

@@ -501,7 +501,7 @@ New verified implementation (2026-11-16):
 - Updated `MediaGenerationModelsAdminScreen` to save through `adminService.saveImageGenerationModel` instead of a sequence of direct client writes.
 - Rollback-only SQL regression passed: non-admin call denied; direct client writes denied; admin RPC creates model + all four price rows atomically; audit event present; activation with missing credit/FX rejected. Test rollback left zero fixture rows.
 - Live privilege check: authenticated INSERT/UPDATE on both runtime tables is false; guarded RPC execute is true.
-- Full Expo/Deno CI for this new branch is pending; do not merge until it passes.
+- PR #127 merged into `release/v1` as `ae2bebf26c4825ee8a5766e477e85f3929934787` after Expo TypeScript/auth/Web/Android/iOS exports, Deno typecheck/tests, Edge bundle verification, and media billing guardrails all passed.
 - Studio generation remains disabled; this admin hardening does not activate image/video/audio services or invent credit conversion.
 
 Remaining:
@@ -526,7 +526,12 @@ Acceptance:
 - All major routes have been visually checked in all supported modes.
 - No unreadable text, invisible controls, or mismatched surfaces.
 
-**Current status:** [~] Theme foundation and multiple screen updates are merged. Full route-by-route visual verification remains.
+**Current status:** [>] The shared theme provider supports persisted system/light/dark selection. A hydration flash has now been addressed; hard-coded palette usage and visual route verification remain.
+
+New implementation (2026-11-16):
+- `SulyThemeProvider` now waits for the persisted appearance preference to load before mounting app screens, preventing a first-render flash in the wrong theme. While loading it shows a palette-backed neutral surface.
+- Static source audit found 11 files importing the legacy static `colors` export and 26 files with literal color values; some may be intentional brand/status colors, so they require per-screen classification rather than blind replacement.
+- PR #129 build checks passed: Expo TypeScript, mobile auth regression, static Web export, Android JS bundle, iOS JS bundle, and Deno Agent/Edge Function checks. Route-by-route visual checks in light/dark/system remain pending.
 
 ## Phase 15 — Complete Arabic and English localization and RTL/LTR
 
@@ -546,7 +551,14 @@ Acceptance:
 - RTL/LTR screenshots and interaction tests pass.
 - Text does not overflow or reverse code, IDs, or numeric values incorrectly.
 
-**Current status:** [~] Localization foundations exist, but full application/admin coverage and RTL/LTR verification are not complete.
+**Current status:** [>] Arabic/English preference persistence and root direction support exist. Saved-language hydration has now been addressed; centralized translation coverage and full RTL/LTR review remain.
+
+New implementation (2026-11-16):
+- `LocaleProvider` now waits for the saved `ar`/`en` preference before mounting app screens, preventing a brief Arabic/RTL render when the saved preference is English/LTR (and vice versa).
+- The app root applies the locale direction to the navigation container.
+- User-facing strings remain distributed across feature screens; a full key-based translation catalog, mixed-script/model-ID review, and RTL/LTR visual/interaction tests are not complete.
+- PR #129 build checks passed: Expo TypeScript, mobile auth regression, static Web export, Android JS bundle, iOS JS bundle, and Deno Agent/Edge Function checks. Full key-based translation catalog, mixed-script and RTL/LTR visual tests remain incomplete.
+- Do not auto-translate or claim legal/policy text is approved.
 
 ## Phase 16 — Security, data integrity, and end-to-end functional testing
 
@@ -577,11 +589,13 @@ Acceptance:
 - Database and wallet ledgers reconcile.
 - Any accepted residual risk is documented with owner approval.
 
-**Current status:** [>] The original set of 57 authenticated-executable SECURITY DEFINER function bodies has now been reviewed individually. After the new least-privilege migration, 56 remain executable by authenticated clients; the separate anonymous share-token endpoint remains intentional. Current classification: 42 functions contain a direct admin guard, 12 are caller/session-scoped, 1 legacy provider toggle delegates to the guarded lifecycle RPC, and 1 public-share function is scoped by its exact share token. All 56 authenticated-executable functions have fixed search_path settings. Targeted fixes and rollback-only SQL regressions passed; Deno Agent/Edge Function tests and typecheck, Edge bundle verification, and media billing guardrails also passed in PR #117 CI. Real authenticated HTTP/UI flows, true multi-session activation concurrency, and the full Phase 16 matrix remain open.
+**Current status:** [>] The original set of 57 authenticated-executable SECURITY DEFINER function bodies has now been reviewed individually. After the new least-privilege migration, 56 of the original functions remain executable by authenticated clients; the separate anonymous share-token endpoint remains intentional. The new `suly_admin_save_image_generation_model` RPC adds one more authenticated-executable function, bringing the current total to 57. Current classification: 43 functions contain a direct admin guard, 12 are caller/session-scoped, 1 legacy provider toggle delegates to the guarded lifecycle RPC, and 1 public-share function is scoped by its exact share token. All 57 authenticated-executable functions have fixed search_path settings. Targeted fixes and rollback-only SQL regressions passed; Deno Agent/Edge Function tests and typecheck, Edge bundle verification, and media billing guardrails also passed in PR #117 CI. Real authenticated HTTP/UI flows, true multi-session activation concurrency, and the full Phase 16 matrix remain open.
 
 Known constraints:
 - Supabase Free plan may not provide every optional security feature. Record limitations and compensating controls; do not claim unavailable controls are enabled.
 - A previous advisor review surfaced warnings that require triage by actual function grants/body and RLS, not by warning label alone.
+- Latest Security Advisor review (2026-11-16): 10 RLS-enabled/no-policy tables were flagged at INFO level; direct privilege inspection confirmed none grants table privileges to `anon`, `authenticated`, or `PUBLIC`, so they are not client-readable/writable through those roles. Two extension-in-public warnings (`vector`, `pg_net`) remain for separate migration planning.
+- The intentional anonymous `suly_get_public_conversation(share_token)` endpoint remains scoped to the exact token and revocation regression. The new image-model admin RPC is executable by authenticated role only, explicitly checks `suly_is_admin()`, denies anon/PUBLIC execution, and passed a rollback-only non-admin denial + admin success/audit + no-credit-FX activation rejection test.
 
 ## Phase 17 — Expo Web, Android, iOS validation and release
 
@@ -605,7 +619,15 @@ Acceptance:
 - Production secrets are stored only in appropriate secret managers.
 - Final release report lists tested commit, artifacts, test results, known limitations, and rollback procedure.
 
-**Current status:** [~] Web build/deploy succeeded on the latest reviewed release workflow. Expo OTA publish failed because `EXPO_TOKEN` was unavailable in GitHub Actions. Android/iOS end-to-end device validation remains outstanding.
+**Current status:** [~] Latest release deployment and all three platform JS exports have fresh passing evidence; OTA publish and physical-device end-to-end validation remain open.
+
+Verified since the prior review:
+- PR #125 merged as `965e6fc8809adb13af72a536755bf70609a7dd16`.
+- Expo CI passed TypeScript, mobile auth regression, static Web export, Android JS bundle, and iOS JS bundle.
+- GitHub Pages deploy for release commit `ae2bebf26c4825ee8a5766e477e85f3929934787` succeeded (workflow run `43861728685`).
+- Expo OTA publish failed again because `EXPO_TOKEN` is unavailable (workflow run `43861728829`).
+- JS bundle export is not the same as building/installing native APK/IPA or testing on real devices.
+- New theme/locale hydration fixes are pending CI; no visual browser/device test is claimed.
 
 ---
 
