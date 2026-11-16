@@ -41,7 +41,7 @@ export default function ConnectedAppsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [show]);
+  }, [show, isArabic]);
 
   useFocusEffect(useCallback(() => {
     void load();
