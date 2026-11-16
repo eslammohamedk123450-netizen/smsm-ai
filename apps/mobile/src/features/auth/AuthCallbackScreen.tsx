@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, View } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
@@ -8,13 +8,16 @@ import { mapAuthError } from "./auth-errors";
 import { parseAuthCallbackUrl } from "./auth-callback";
 import { useAuth } from "./auth-provider";
 import { authService } from "./auth-service";
-import { colors } from "../../theme/colors";
+import { useSulyTheme } from "../../theme/ThemeProvider";
+import type { ThemePalette } from "../../theme/colors";
 
 WebBrowser.maybeCompleteAuthSession();
 
 type CallbackStatus = "checking" | "processing" | "finished";
 
 export default function AuthCallbackScreen() {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
   const { status, user } = useAuth();
   const handled = useRef(false);
@@ -120,10 +123,10 @@ export default function AuthCallbackScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemePalette) { return StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", padding: 24, gap: 18 },
   message: { color: colors.textSecondary, textAlign: "center", lineHeight: 24 },
   error: { color: colors.error, textAlign: "center", lineHeight: 24 },
   button: { marginTop: 4, paddingVertical: 12, paddingHorizontal: 18, borderRadius: 10, backgroundColor: colors.primary },
   buttonText: { color: colors.textPrimary, fontWeight: "700" },
-});
+}); }
