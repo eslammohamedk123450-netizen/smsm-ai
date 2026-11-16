@@ -107,9 +107,16 @@ jobs:
   hims-regressions:
     name: HIMS activation and resource isolation regressions
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - name: Set up Node.js for the repository type dependencies
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install pinned repository dependencies
+        run: npm ci
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
