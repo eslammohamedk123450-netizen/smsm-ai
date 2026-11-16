@@ -121,7 +121,8 @@ Acceptance:
 - Agent classifies ordinary chat vs task execution automatically; no mode-selection burden or competing task-mode cards.
 - Show task plan/progress/results, cancellation, retry, partial billing, and truthful model/tool provenance.
 - Preserve streaming, attachments, history, projects, task runtime, DAG, bounded workers, leases, idempotency, and HIMS.
-- Acceptance: authenticated chat/task lifecycle and safe cancellation/settlement are verified.
+- Current `develop` implementation update: chat header now has a compact navigation menu and model selector dropdown; the menu links to new chat, conversations/search, projects, tasks, Studio, Library, credits, plans, integrations, and settings. The selector lists Auto and the three verified server profiles (Lite/Pro/Max), with plan-restricted entries disabled, and displays SULY Ultra as unavailable until a verified catalog/routing profile exists. The previous selector row above the composer was removed to keep the conversation area uncluttered. The actual server-confirmed model remains distinct from the selected profile.
+- **Implementation status: IN PROGRESS.** Remaining Track A work includes full chat-first layout refinement and preserving/clarifying task progress, cancellation, retry, partial billing, and model/tool provenance. Comprehensive E2E, visual, browser/device, and accounting tests are Track B.
 
 ### Phase 7 — Model catalog, selector, and server-side entitlements
 **Goal:** Present all approved model profiles accurately.
@@ -202,7 +203,8 @@ Acceptance:
 6. Record all comprehensive CI, SQL migration execution, adversarial security, real-user, browser/device, and end-to-end acceptance tests in Track B; these tests do not hold implementation phases open.
 7. Update both plans and the canonical 17-phase roadmap with source/change evidence and deferred test IDs.
 8. Phase 1–4 implementation completion has been reported; their comprehensive checks remain in Track B.
-9. Phase 5 navigation implementation already exists on `develop`; preserve it and move to Phase 6 chat-first experience implementation in sequence, without duplicating navigation or removing existing capabilities.
+9. Phase 5 navigation implementation is present on `develop` and recorded complete; preserve it.
+10. Continue Phase 6 on `develop`: finish the chat-first header/menu/model selector and central Agent presentation, then report Phase 6 implementation status before Phase 7. Keep all comprehensive tests in Track B.
 
 ## 6. Required execution log
 
