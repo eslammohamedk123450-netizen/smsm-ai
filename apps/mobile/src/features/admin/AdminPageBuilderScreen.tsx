@@ -172,7 +172,18 @@ export function AdminPageBuilderScreen() {
     finally { setSaving(false); }
   };
 
-  useEffect(() => {\n    if (!preview) return;\n    let active = true;\n    const sources = [...new Set(components.map((item) => item.source).filter((source) => source !== "none"))];\n    void Promise.all(sources.map(async (source) => {\n      const { data, error: rpcError } = await supabase.rpc("suly_admin_custom_page_source", { p_source: source });\n      return [source, rpcError ? t("مصدر البيانات غير متاح", "Data source unavailable") : formatAdminSource(source, data, isArabic)] as const;\n    })).then((entries) => { if (active) setSourceSnapshots(Object.fromEntries(entries)); });\n    return () => { active = false; };\n  }, [preview, components, isArabic]);\n\n  const renderPreviewComponent = (component: BuilderComponent) => (
+  useEffect(() => {
+    if (!preview) return;
+    let active = true;
+    const sources = [...new Set(components.map((item) => item.source).filter((source) => source !== "none"))];
+    void Promise.all(sources.map(async (source) => {
+      const { data, error: rpcError } = await supabase.rpc("suly_admin_custom_page_source", { p_source: source });
+      return [source, rpcError ? t("مصدر البيانات غير متاح", "Data source unavailable") : formatAdminSource(source, data, isArabic)] as const;
+    })).then((entries) => { if (active) setSourceSnapshots(Object.fromEntries(entries)); });
+    return () => { active = false; };
+  }, [preview, components, isArabic]);
+
+  const renderPreviewComponent = (component: BuilderComponent) => (
     <View key={component.id} style={styles.previewComponent}>
       <Text style={styles.componentTitle}>{component.title || t("مكون بدون عنوان","Untitled component")}</Text>
       {component.type === "metric" ? <Text style={styles.metricValue}>{component.value || "—"}</Text> : null}
@@ -289,7 +300,8 @@ function createStyles(colors: ThemePalette, isArabic: boolean) {
     outlineButton: { borderWidth: 1, borderColor: colors.primary, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9 },
     outlineButtonText: { color: colors.primary, fontSize: 11, fontWeight: "800" },
     disabled: { opacity: 0.5 },
-    previewTable: { borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 7, gap: 5 },\n    previewComponent: { borderWidth: 1, borderColor: colors.divider, borderRadius: 9, padding: 12, gap: 7, backgroundColor: colors.background },
+    previewTable: { borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 7, gap: 5 },
+    previewComponent: { borderWidth: 1, borderColor: colors.divider, borderRadius: 9, padding: 12, gap: 7, backgroundColor: colors.background },
     metricValue: { color: colors.primary, fontSize: 26, fontWeight: "900" },
     bodyText: { color: colors.textSecondary, fontSize: 12, lineHeight: 19 },
     statusText: { color: colors.success, fontSize: 12, fontWeight: "700" },
