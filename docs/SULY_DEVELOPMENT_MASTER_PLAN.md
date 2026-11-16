@@ -1,7 +1,7 @@
 # SULY — خطة البناء والتطوير الشاملة
 **SULY Complete Build & Development Master Plan**
 
-- الإصدار: 2.1 | آخر تدقيق: 2026-11-17
+- الإصدار: 2.2 | آخر تدقيق: 2026-11-17
 - فرع العمل: develop | فرع الإنتاج المحمي: release/v1
 - هذا هو المرجع التنفيذي الوحيد للبناء والتطوير.
 - مرجع القبول النهائي: SULY_COMPREHENSIVE_TEST_MASTER_PLAN.md
