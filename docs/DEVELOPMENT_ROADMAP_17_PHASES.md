@@ -207,7 +207,7 @@ Acceptance:
 - No keyboard overlap, safe-area obstruction, or lost navigation entry.
 - HIMS remains accessible through the ordinary chat/authorized resource flow.
 
-**Current status:** [~] Main five-section navigation has been merged, but route-by-route and device-level regression testing is still required.
+**Current status:** [~] The five-section navigation foundation is merged (PR #95), and the Home screen has been refreshed in the current work branch. Source review confirms five primary destinations, a mobile bottom bar, a responsive web sidebar at wide widths, native keyboard-aware bottom-bar hiding, and safe-area handling. The refreshed Home screen adds a clearer SULY welcome/primary action, four focused section shortcuts, and recent-chat loading/empty/error/retry states. Route-by-route, visual, and real-device regression testing is still required.
 
 Known evidence:
 - PR #95 — five-section navigation.
@@ -496,7 +496,7 @@ Acceptance:
 - Database and wallet ledgers reconcile.
 - Any accepted residual risk is documented with owner approval.
 
-**Current status:** [>] Security and workflow review is ongoing. Prior RLS/security foundations and model-routing regression tests exist, but this full test matrix is not yet complete.
+**Current status:** [>] The original set of 57 authenticated-executable SECURITY DEFINER function bodies has now been reviewed individually. After the new least-privilege migration, 56 remain executable by authenticated clients; the separate anonymous share-token endpoint remains intentional. Current classification: 42 functions contain a direct admin guard, 12 are caller/session-scoped, 1 legacy provider toggle delegates to the guarded lifecycle RPC, and 1 public-share function is scoped by its exact share token. All 56 authenticated-executable functions have fixed search_path settings. Targeted fixes and rollback-only SQL regressions passed, but real authenticated HTTP/UI flows and the full Phase 16 matrix remain open.
 
 Known constraints:
 - Supabase Free plan may not provide every optional security feature. Record limitations and compensating controls; do not claim unavailable controls are enabled.
@@ -687,9 +687,9 @@ For every work session, report:
 - [>] Trace service-role-only access to the ten no-policy tables through Edge Functions; verify no client-supplied user ID or untrusted parameter can cross user boundaries.
 - [>] Review model/provider administrative RPCs for policy bypasses, especially model re-enable/reset operations versus provider lifecycle and route allowlists. Admin-only access is not a substitute for correct state-transition rules.
 - [>] Review the 65 unindexed-FK findings against existing indexes; add only indexes proven useful and non-duplicative.
-- [>] Review extension placement warnings and document whether safe migration is supported/needed.
-- [ ] Add regression tests for any confirmed authorization or state-transition issue before applying a database migration.
-- [ ] Re-run Security Advisor and targeted SQL privilege checks after any fix.
+- [x] Mapped current extension dependencies. Keep `vector` and `pg_net` in their current placement for now; do not relocate without a dedicated compatibility migration and full regression.
+- [x] Added rollback-only regression coverage for profile DML isolation, safe profile RPC continuity, admin/non-admin RPC behavior, model-health reset state preservation, and the legacy provider lifecycle wrapper.
+- [x] Re-ran Security Advisor after the hardening migration: 10 intentional server-only RLS/no-policy INFO findings, 2 extension-placement WARN findings, 1 intentional public-share SECURITY DEFINER WARN, and 56 authenticated SECURITY DEFINER WARN findings remain.
 - [ ] Update this log with exact migration IDs, changed functions, tests, deployment evidence, and remaining risks.
 
 #### Owner input / blockers
@@ -821,8 +821,8 @@ Continue auditing the remaining authenticated SECURITY DEFINER functions in grou
 - [x] ai-router deployed to Supabase as version 53, status ACTIVE; existing verify_jwt=false setting preserved. Retrieved deployed function source and confirmed the activation throttle RPC call is present.
 - [x] Database activation regression: valid code activates, repeat activation returns already_active, and max-use accounting increments only once (transaction rolled back).
 - [x] Database public-share regression: owner enables sharing, token fetch returns the bounded payload, owner revokes, and the same token no longer resolves (transaction rolled back).
-- [ ] Run an authenticated chat smoke test for successful activation, throttled explicit commands, and normal conversation behavior.
-- [ ] Confirm ordinary chat and HIMS resource retrieval remain unchanged in a live session.
+- [ ] Run authenticated chat smoke tests for activation, throttled explicit commands, and ordinary conversation behavior when owner-provided test accounts are available.
+- [ ] Confirm ordinary chat and HIMS resource retrieval remain unchanged in a real authenticated session when owner-provided test accounts and the real lecture source are available.
 
 **Current status:** Database protection is applied and SQL-verified, and the Edge Function change is merged and deployed. Phase 16 remains open until authenticated end-to-end tests and the broader security audit are complete.
 
@@ -835,10 +835,10 @@ Continue auditing the remaining authenticated SECURITY DEFINER functions in grou
 #### Security advisor findings and disposition
 
 - **10 rls_enabled_no_policy INFO findings:** The listed tables have RLS enabled and no client policies. The earlier ACL review found no anon or authenticated table privileges for these server-side tables; this is intentional service-only isolation, not a reason to add permissive client policies. Keep them closed and verify each server access path as it is audited.
-- **2 extension_in_public WARN findings:** vector and pg_net are installed in public. No schema move was made because dependent functions and extension objects must be mapped first; moving them blindly could break production paths. Track a compatibility review before any relocation.
+- **2 extension_in_public WARN findings:** `vector` is used by three live `vector(1536)` columns (`agent_memories`, `ai_response_cache`, `user_task_memories`), each with an HNSW cosine index. `pg_net` backs `net.http_post` calls in the scheduled model-health check, model-recovery, and agent-task-scheduler functions; the three corresponding cron jobs are active. No extension move was made. Keep the current placement until a separately reviewed, Supabase-supported migration proves every type/operator/function/cron dependency remains valid.
 - **1 anon SECURITY DEFINER WARN:** public.suly_get_public_conversation(uuid) is the intentional public-share endpoint. Its lookup is by the exact share token, it returns only the conversation title and up to 300 user/assistant messages, and revocation clears the token. Preserve this feature; the enable → anonymous fetch → revoke → anonymous fetch regression remains an end-to-end test item.
-- **57 authenticated SECURITY DEFINER WARN:** This linter finding means signed-in users can invoke SECURITY DEFINER functions; it does not by itself prove unauthorized access. Reviewed high-impact paths include credit grants/adjustments, subscription entitlement, agent task cancellation, media registration/attachment, HIMS resources, profile upsert, conversation sharing, and provider administration. These inspected functions use caller ownership (auth.uid()), service-role checks, or administrator checks as appropriate. Continue the function-by-function review of all remaining functions; do not mass-revoke EXECUTE because legitimate app and admin workflows depend on guarded RPCs.
-- **1 auth_leaked_password_protection WARN:** Supabase Auth leaked-password protection is not enabled. This is an account-level Auth setting, not a source-code migration. **Owner action required:** enable leaked-password protection in Supabase Dashboard → Authentication → Settings / Password Security. Do not mark this item complete until the setting is verified.
+- **56 authenticated SECURITY DEFINER WARN after hardening (57 in the original audit inventory):** This linter finding means signed-in users can invoke SECURITY DEFINER functions; it does not by itself prove unauthorized access. The original 57 function bodies were reviewed individually. One legacy media self-registration RPC was removed from client EXECUTE; the remaining functions were classified by direct admin guard, delegated admin guard, caller/session ownership, or intentional public-share token lookup. Do not mass-revoke EXECUTE because legitimate app and admin workflows depend on guarded RPCs.
+- **1 auth_leaked_password_protection WARN:** Supabase Auth leaked-password protection remains disabled. The owner explicitly deferred this because the current plan does not expose the setting; revisit it after upgrading to a plan that supports the feature. Do not claim it is enabled in the meantime.
 
 #### Additional security review evidence
 
@@ -848,9 +848,9 @@ Continue auditing the remaining authenticated SECURITY DEFINER functions in grou
 
 #### Next security priorities
 
-1. Complete the remaining per-function SECURITY DEFINER review, including dynamic SQL, returned columns, ownership predicates, and mutation scope.
+1. Keep the 57-function semantic review evidence current; revisit any changed SECURITY DEFINER function in the same PR that modifies it.
 2. Run authenticated end-to-end tests for public-share revocation, activation flows, media ownership, and admin RPC denial for non-admin users.
-3. Verify the owner-level leaked-password protection setting.
+3. Revisit leaked-password protection only after the owner upgrades to a plan that exposes the setting.
 4. Map vector and pg_net dependencies before deciding whether either extension can be moved safely.
 
 **Phase 16 status:** IN PROGRESS — targeted fixes and SQL regressions are complete, but the full function audit, account-level setting, and authenticated end-to-end coverage are not yet complete.
@@ -885,3 +885,110 @@ Continue auditing the remaining authenticated SECURITY DEFINER functions in grou
 - These checks support the intended rule: students read eligible resources through the central chat/RPC path, while activation records, raw provider credentials, and feature registry mutations remain server-controlled.
 
 - HIMS resource access regression executed against Supabase: **PASS** — a temporary active HIMS resource was invisible to an active but unactivated test profile, then visible after the profile's HIMS activation flag was enabled within the test transaction. The transaction was rolled back; the temporary resource was confirmed absent afterward and the profile was unchanged.
+
+
+### Session: SECURITY DEFINER audit closure pass and Phase 5 Home implementation — 2026-11-16
+
+**Working branch:** `work/phase16-security-phase5-home-20261116`  
+**Base:** current `release/v1` at `4a8f3f20a63523a68b0d4d1d4e41b5c6f925397c`.  
+**Scope:** Complete source-level review of the original 57 authenticated-executable SECURITY DEFINER functions, apply narrowly scoped permission/state fixes, map extension dependencies, prepare HIMS without content testing, and implement the Phase 5 Home screen refinement. No real user passwords or provider credentials were used.
+
+#### SECURITY DEFINER review — verified results
+
+- Reviewed the complete function definition of each of the original 57 authenticated-executable SECURITY DEFINER functions, including caller identity, admin guard/delegation, row ownership, dynamic SQL, returned fields, and mutation scope.
+- After the client-EXECUTE revocation below, the current catalog reports **56 authenticated-executable SECURITY DEFINER functions**, **1 anonymous-executable public-share function**, and **0 functions missing an explicit fixed search_path**.
+- Current classification of the 56 authenticated-executable functions:
+  - 42 contain a direct `suly_is_admin()` guard.
+  - 12 are scoped to the caller/session identity.
+  - 1 legacy provider-toggle function delegates to the full guarded provider-lifecycle RPC.
+  - 1 public conversation-share function uses the exact share token and is intentionally available to anonymous callers.
+- The legacy `suly_set_model_settings` planner/summarizer preference remains an admin-only preference that only reorders candidates already admitted by the current role-filtered route pool. It does not bypass the strict role allowlists, but it is a legacy secondary preference control to reconcile with the single-source routing UX during the later Conversations/routing phase.
+
+#### Security fixes applied to the connected Supabase project
+
+Migration: `harden_profile_writes_and_model_health_reset` (source file `supabase/migrations/20261116110000_harden_profile_writes_and_model_health_reset.sql`).
+
+1. **Profile entitlement write isolation**
+   - Revoked client INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER privileges on `public.suly_profiles` from PUBLIC, anon, and authenticated.
+   - Authenticated SELECT remains available under the existing self/admin RLS policy; service-role and SECURITY DEFINER server workflows remain available.
+   - This closes direct client write access to sensitive columns such as `hims_activated`, `is_banned`, and `subscription_tier`.
+   - The supported `suly_upsert_my_profile` RPC was tested under a normal authenticated identity simulation and continued to update only its intended profile fields.
+
+2. **Legacy media-registration RPC**
+   - Revoked PUBLIC/anon/authenticated EXECUTE on `suly_media_register_self(...)`.
+   - Repository code search found no current app call site; the current supported upload flow uses the `media-gateway` Edge Function and the scoped `suly_media_register_self_v2(...)` RPC.
+   - The v2 RPC remains executable by authenticated users and its existing feature/owner/conversation/ticket guards remain intact.
+
+3. **Model health reset**
+   - Replaced `suly_admin_reset_model_health(integer)` so it clears automatic health restriction state without changing `ai_models.enabled`.
+   - It now preserves a model that the administrator manually disabled and writes an `admin_audit_logs` event.
+   - This prevents a health reset from unintentionally reactivating a quarantined or administratively disabled model.
+
+4. **Legacy provider toggle**
+   - Replaced `suly_admin_set_provider_enabled(integer,boolean)` with a compatibility wrapper that delegates to `suly_admin_set_provider_lifecycle(...)`.
+   - Older clients can no longer invoke the partial provider toggle path that skipped route/profile/media freeze behavior.
+
+#### Database regression evidence
+
+Executed `supabase/tests/profile_and_model_health_security_regression.sql` against the connected database: **PASS**. The test is rollback-only and verifies:
+- Authenticated profile DML is revoked while SELECT remains.
+- Service-role profile UPDATE remains.
+- Safe profile upsert still works for a normal authenticated identity simulation.
+- Legacy media registration client EXECUTE is revoked while v2 remains available.
+- The legacy provider toggle delegates to the full lifecycle guard.
+- Admin identity can list safe provider metadata and reset model health.
+- A normal authenticated identity is denied by the admin provider-list and model-health-reset RPCs.
+- Resetting model health does not re-enable a manually disabled model.
+
+Also re-executed the activation-throttle SQL regression: **PASS** for client ACL denial, service-role-only execution, fixed search_path, `FOR UPDATE` row locking, five allowed attempts, sixth-attempt denial, 3-second cooldown, and window reset. All test counter changes were rolled back.
+
+**Not yet performed:** a true multi-session concurrency stress test and authenticated chat HTTP/UI smoke test. The owner will provide test-user accounts later; do not use the owner's live account as a substitute. The row-lock implementation and sequential regression are verified, but they are not claimed as proof of a real concurrent request test.
+
+#### Admin permission testing approach
+
+- Database authorization tests used existing admin and non-admin user subjects in simulated JWT claim contexts inside rollback-only SQL transactions.
+- This verifies the database RPC guards without requiring passwords or exposing login credentials.
+- It does **not** replace a real browser/app login and admin UI journey. That is deferred until the owner provides test accounts.
+
+#### Extension dependency decision
+
+- `vector` is used by `agent_memories.embedding`, `ai_response_cache.embedding`, and `user_task_memories.embedding`, all typed `vector(1536)` and backed by HNSW cosine indexes.
+- `pg_net` is called through `net.http_post` by the scheduled model-health check, model-recovery, and agent-task-scheduler functions. Their cron jobs are active (daily, every 20 minutes, and every minute respectively).
+- No extension relocation was attempted. Current warnings remain documented/accepted until a dedicated compatibility migration is designed and proven.
+
+#### Owner-deferred items and HIMS preparation
+
+- Leaked-password protection remains disabled by owner decision until the owner upgrades to a plan that exposes the setting. This is an accepted deferred item, not a code fix.
+- HIMS work for this session is limited to preparing the existing environment and preserving the current entitlement/content access boundary. Student experience testing and real lecture delivery are deferred until the owner supplies test accounts and the actual lecture/content source.
+- No synthetic course content or fake student test results were created.
+
+#### Phase 5 Home implementation in this branch
+
+Updated `apps/mobile/src/features/home/HomeScreen.tsx`:
+- Reworked the landing hero into a clean SULY workspace welcome with a direct New Conversation action.
+- Added four clear shortcuts: Conversations, Tasks & Agent, Studio, and Library.
+- Reframed recent chats as a continue-work section, with pinned state, correct RTL/LTR chevrons, and direct conversation reopening.
+- Added explicit loading, empty, error, retry, and refresh states.
+- Reused existing auth, chat, theme, locale, and navigation services; no new dependencies, tables, routes, or parallel chat behavior were introduced.
+- All visible text supports Arabic/English and layout direction follows the current locale.
+- The existing five-section navigation and route mapping were preserved; no HIMS, account, admin, credit, support, or legacy routes were removed.
+
+**Verification limitation:** no browser/visual device session is available in this work session. The source is ready for repository CI typecheck/export and later visual route/device regression. Do not claim visual verification until that is performed.
+
+#### Remaining work before reporting Phase 5 complete
+
+1. Run GitHub Actions typecheck, tests, and Expo Web export on this branch.
+2. Review the PR diff and merge only if checks pass.
+3. Re-check the deployed web entry and preserve the existing five-section navigation.
+4. Run route-by-route checks for HIMS, Library, credits/plan, support/integrations, and admin access; perform actual visual/device tests when a test session is available.
+5. Stop after Phase 5 and report the delivered Home experience and remaining verification. Continue to Phase 6 only after that report, following the approved 17-phase order.
+
+#### Current status
+
+- **57-function source audit:** completed for the original inventory; current client-executable count reduced to 56 after retiring the legacy media RPC.
+- **Targeted security hardening:** implemented and database-regression verified; source PR/CI review pending.
+- **Activation concurrency:** implementation and sequential lock regression verified; true concurrent stress test deferred to owner-provided test accounts.
+- **Admin permissions:** database identity simulation passed; real admin UI/session verification deferred to test accounts.
+- **Extension relocation:** intentionally not performed; current dependency map supports retaining the current placement.
+- **HIMS:** environment/boundary preparation only; content and student E2E testing deferred.
+- **Phase 5 Home:** implementation in progress in this branch; waiting for CI and route/device regression before marking complete.
