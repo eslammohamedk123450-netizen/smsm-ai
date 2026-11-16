@@ -50,7 +50,7 @@ export function AdminCustomPageScreen() {
     {component.content ? <Text style={styles.body}>{component.content}</Text> : null}
     {component.type === "status" ? <Text style={styles.status}>{component.label || "—"}</Text> : null}
     {component.type === "list" ? (component.items ?? []).map((item, itemIndex) => <Text key={itemIndex} style={styles.body}>• {item}</Text>) : null}
-    {component.type === "table" ? <View style={styles.table}>{(component.rows ?? []).map((row, rowIndex) => <Text key={rowIndex} style={styles.body}>{row.join("  |  ")}</Text>)}</View> : null}
+    {component.type === "table" ? <View style={styles.table}><Text style={styles.body}>{(component.columns ?? []).join("  |  ")}</Text>{(component.rows ?? []).map((row, rowIndex) => <Text key={rowIndex} style={styles.body}>{row.join("  |  ")}</Text>)}</View> : null}
     {component.source && component.source !== "none" ? <Text style={styles.source}>{sources[component.source] ?? t("جارٍ تحميل المصدر…","Loading source…")}</Text> : null}
   </View>;
 
