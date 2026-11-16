@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { handleCorsPreflight, withCors } from "../_shared/cors.ts";
+import { extractBearerToken } from "./auth.ts";
 
 const webOrigin = Deno.env.get("WEB_CORS_ORIGIN") ?? "";
 
@@ -24,9 +25,8 @@ async function main(req: Request): Promise<Response> {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl || !anonKey || !serviceRoleKey) return json(req, { error: "Server configuration is incomplete" }, 500);
 
-  const authorization = req.headers.get("Authorization") ?? "";
-  const userJwt = authorization.replace(/^Bearer\s+/i, "").trim();
-  if (!userJwt || /\s/.test(userJwt)) return json(req, { error: "Authentication required" }, 401);
+  const userJwt = extractBearerToken(req.headers.get("Authorization"));
+  if (!userJwt) return json(req, { error: "Authentication required" }, 401);
 
   const userClient = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: `Bearer ${userJwt}` } },
