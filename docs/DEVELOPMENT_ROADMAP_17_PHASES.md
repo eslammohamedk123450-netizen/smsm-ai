@@ -196,7 +196,7 @@ Acceptance:
 - Both themes render consistently with accessible contrast.
 - No existing feature is hidden or removed by the redesign.
 
-**Current status:** [~] IMPLEMENTED — REVIEW REQUIRED. Shared semantic light/dark tokens and reusable UI primitives exist. On 2026-11-16, muted text tokens were strengthened and contrast regression coverage expanded to all shared content surfaces; the new test is included in the existing mobile test command. Exact CI and full screen/browser/device accessibility review are still pending.
+**Current status:** [~] IMPLEMENTED — REVIEW REQUIRED. Shared semantic light/dark tokens and reusable UI primitives exist. On 2026-11-16, muted text tokens were strengthened, contrast regression coverage expanded to all shared content surfaces, and the chat header/empty state, Home brand mark, and HIMS download action were migrated to semantic tokens. The new test is included in the existing mobile test command. Exact CI and full screen/browser/device accessibility review are still pending.
 
 Known evidence:
 - PR #94 — visual identity/theme foundation.
