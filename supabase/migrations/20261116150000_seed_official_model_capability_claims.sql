@@ -7,7 +7,7 @@ insert into public.ai_model_capability_evidence(
 )
 select m.id, cap.capability_key, 'supported', cap.source_url,
        'not_tested', 'not_tested',
-       'Seeded from the vendor's public model documentation; this is not evidence that the configured gateway exposes the capability.',
+       'Seeded from the vendor''s public model documentation; this is not evidence that the configured gateway exposes the capability.',
        now()
 from public.ai_models m
 join (values
