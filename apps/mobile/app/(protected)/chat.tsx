@@ -748,7 +748,8 @@ export default function ChatPage() {
           </Pressable>
           <Pressable
             onPress={() => setModelProfileMenuVisible((visible) => !visible)}
-            style={styles.modelPickerTrigger}
+            disabled={isSending || Boolean(retryFailure)}
+            style={[styles.modelPickerTrigger, (isSending || Boolean(retryFailure)) && styles.disabled]}
             accessibilityRole="button"
             accessibilityLabel={isArabic ? "اختر نموذج SULY" : "Choose SULY model"}
             accessibilityState={{ expanded: modelProfileMenuVisible }}
