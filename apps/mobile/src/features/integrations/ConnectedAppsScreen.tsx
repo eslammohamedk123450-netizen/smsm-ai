@@ -15,6 +15,8 @@ const TOOLKIT_ICONS: Record<ToolkitStatus["toolkit"], keyof typeof Ionicons.glyp
 };
 
 export default function ConnectedAppsScreen() {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { show } = useToast();
   const [statuses, setStatuses] = useState<ToolkitStatus[]>([]);
   const [loading, setLoading] = useState(true);
