@@ -3,7 +3,7 @@ import { normalizeProjectInput } from "./project-validation";
 describe("normalizeProjectInput", () => {
   it("trims and normalizes valid project details", () => {
     expect(normalizeProjectInput({ name: "  Suly Website  ", description: "  Build the web app  ", iconKey: "code" }))
-      .toEqual({ name: "Suly Website", description: "Build the web app", color: "#D4AF37", icon_key: "code" });
+      .toEqual({ name: "Suly Website", description: "Build the web app", color: "#737373", icon_key: "code" });
   });
 
   it("rejects blank or oversized names and descriptions", () => {
