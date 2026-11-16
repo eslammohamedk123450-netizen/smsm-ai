@@ -495,3 +495,10 @@
 - Remediation references: RLS no-policy: https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy ؛ extensions in public: https://supabase.com/docs/guides/database/database-linter?lint=0014_extension_in_public ؛ SECURITY DEFINER grants: https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable ؛ leaked password protection: https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection .
 - Commit: `e28ed55bb285a5d15ff711b54c5f423566798246`.
 
+
+
+### تصحيح تحقق نوع الملف في migration
+- أضيف رفض صريح لـ`p_resource_type IS NULL` في شرط تسجيل الملف، حتى لا يعتمد الرفض على قيد NOT NULL في عمود bucket.
+- آخر commit لملف migration: `61ee9d0b52f9094dce4009efe1c41db22dffb1e4`.
+- لا تزال migration غير مطبقة على قاعدة البيانات.
+
