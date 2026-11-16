@@ -29,7 +29,7 @@ export default function SharedConversationPage() {
     return () => { active = false; };
   }, [token]);
   return (
-    <SafeAreaView style={[styles.screen, { backgroundColor: palette.background }]}>
+    <SafeAreaView style={[styles.screen, { backgroundColor: palette.onPrimary }]}>
       <View style={[styles.header, { borderBottomColor: palette.divider }]}>
         <Text style={[styles.brand, { color: palette.primary }]}>Suly Agent AI</Text>
         <Text style={[styles.heading, { color: palette.textPrimary }]}>{conversation?.title ?? "محادثة مشتركة"}</Text>
@@ -41,9 +41,9 @@ export default function SharedConversationPage() {
           {conversation.messages.map((message, index) => {
             const isUser = message.role === "user";
             return <View key={`${index}-${message.created_at}`} style={[styles.messageRow, isUser ? styles.userRow : styles.assistantRow]}>
-              {!isUser ? <View style={[styles.avatar, { backgroundColor: palette.primary }]}><Text style={[styles.avatarText, { color: palette.background }]}>S</Text></View> : null}
+              {!isUser ? <View style={[styles.avatar, { backgroundColor: palette.primary }]}><Text style={[styles.avatarText, { color: palette.onPrimary }]}>S</Text></View> : null}
               <View style={[styles.bubble, { backgroundColor: isUser ? palette.primary : palette.surface, borderColor: palette.divider }]}>
-                <Text selectable style={[styles.messageText, { color: isUser ? palette.background : palette.textPrimary, textAlign: "right", writingDirection: "rtl" }]}>{message.content}</Text>
+                <Text selectable style={[styles.messageText, { color: isUser ? palette.onPrimary : palette.textPrimary, textAlign: "right", writingDirection: "rtl" }]}>{message.content}</Text>
               </View>
             </View>;
           })}
