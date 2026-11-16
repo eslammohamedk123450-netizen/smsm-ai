@@ -53,6 +53,7 @@ No parallel admin application or replacement data model is introduced.
    - Audit-log result totals now show unknown on query failure and clear stale counts instead of displaying a false zero/current total.
    - AdMob settings inputs and save are disabled until existing settings load successfully, preventing a failed read from overwriting stored identifiers with blank defaults.
    - User directory totals and pagination now show unavailable after a failed load, and stale user rows/selections are cleared instead of being mistaken for current results.
+   - Friction and feedback summaries now distinguish a failed summary request from a real zero-event/zero-rating period.
 6. **HIMS resource lifecycle**
    - Added admin actions to edit resource metadata and to deactivate/reactivate existing HIMS resources without deleting their records or stored media.
    - Updates reuse the existing admin-guarded `suly_admin_upsert_feature_resource_v2` RPC, preserve the original URL/media-asset identity and prior active state, and require confirmation before changing visibility.
