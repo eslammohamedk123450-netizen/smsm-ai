@@ -1,9 +1,10 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useMemo } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { useToast } from "../../components/ui/Toast";
-import { colors } from "../../theme/colors";
+import { useSulyTheme } from "../../theme/ThemeProvider";
+import type { ThemePalette } from "../../theme/colors";
 import { cancelBrainTask, runBrainTask, wakeBrainWorker, type BrainTaskResult } from "./brain-service";
 import { getTaskProgress, type TaskSnapshot } from "./task-service";
 
@@ -14,6 +15,8 @@ const TASK_TEMPLATES = [
 ];
 
 export function BrainTaskScreen() {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
   const { show } = useToast();
   const [objective, setObjective] = useState("");
@@ -176,7 +179,7 @@ export function BrainTaskScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemePalette) { return StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: 14, gap: 12, maxWidth: 900, width: "100%", alignSelf: "center" },
   header: { flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "flex-start", gap: 12 },
@@ -211,4 +214,4 @@ const styles = StyleSheet.create({
   review: { color: colors.textMuted, fontSize: 10, textAlign: "right", lineHeight: 18 },
   cancelButton: { alignSelf: "flex-end", borderWidth: 1, borderColor: colors.error, borderRadius: 8, paddingVertical: 9, paddingHorizontal: 12 },
   cancelText: { color: colors.error, fontSize: 10, fontWeight: "800" },
-});
+}); }
