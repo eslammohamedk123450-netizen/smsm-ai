@@ -8,9 +8,9 @@ import { logFrictionEvent } from "../telemetry/friction";
 import { pickMedia, uploadMediaFile, type PickedMedia } from "../media/media-service";
 import { supportService, type SupportAttachment, type SupportReply, type SupportTicket, type TicketCategory } from "./support-service";
 
-const categories: { key: TicketCategory; label: string }[] = [
-  { key: "bug", label: "مشكلة تقنية" }, { key: "account", label: "الحساب" },
-  { key: "billing", label: "الرصيد والدفع" }, { key: "content", label: "المحتوى" }, { key: "other", label: "أخرى" },
+const categories: { key: TicketCategory; labelAr: string; labelEn: string }[] = [
+  { key: "bug", labelAr: "مشكلة تقنية", labelEn: "Technical issue" }, { key: "account", labelAr: "الحساب", labelEn: "Account" },
+  { key: "billing", labelAr: "الرصيد والدفع", labelEn: "Credits & billing" }, { key: "content", labelAr: "المحتوى", labelEn: "Content" }, { key: "other", labelAr: "أخرى", labelEn: "Other" },
 ];
 const statusLabelAr: Record<string, string> = { new: "جديد", in_progress: "قيد المعالجة", waiting_user: "بانتظارك", resolved: "تم الحل", closed: "مغلق" };
 const statusLabelEn: Record<string, string> = { new: "New", in_progress: "In progress", waiting_user: "Waiting for you", resolved: "Resolved", closed: "Closed" };
@@ -62,7 +62,7 @@ export function SupportScreen() {
       }
       setSubject(""); setDescription(""); setPicked(null);
       await refresh();
-      Alert.alert(attachmentFailed ? "تم إرسال الطلب دون الصورة" : "تم إرسال طلب الدعم", attachmentFailed ? "حُفظ وصف المشكلة، لكن تعذر رفع الصورة. يمكنك إرسالها بردّ لاحقًا." : "سيظهر الطلب في صندوق دعم المشرف.");
+      Alert.alert(attachmentFailed ? (isArabic ? "تم إرسال الطلب دون الصورة" : "Ticket sent without image") : (isArabic ? "تم إرسال طلب الدعم" : "Support ticket sent"), attachmentFailed ? (isArabic ? "حُفظ وصف المشكلة، لكن تعذر رفع الصورة. يمكنك إرسالها بردّ لاحقًا." : "The issue was saved, but the image could not be uploaded. You can attach it in a later reply.") : (isArabic ? "سيظهر الطلب في صندوق دعم المشرف." : "Your ticket will appear in the admin support inbox."));
     } catch (cause) {
       void logFrictionEvent({ eventKind: "action_failed", screenKey: "support", featureKey: "support", stepKey: "ticket_submit", errorCode: "ticket_submit_failed" });
       Alert.alert(isArabic ? "تعذر إرسال الطلب" : "Could not send ticket", cause instanceof Error ? cause.message : (isArabic ? "حاول مرة أخرى." : "Try again."));
