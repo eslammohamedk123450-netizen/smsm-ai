@@ -873,4 +873,13 @@ Continue auditing the remaining authenticated SECURITY DEFINER functions in grou
 
 **Regression executed against Supabase: PASS** — RLS remains enabled; authenticated SELECT retained; authenticated/anon DML denied; service_role DML retained; guarded admin grant RPC remains executable and contains the administrator check.
 
-**Current status:** Database migration applied and regression passed. The canonical migration and regression file are in a focused PR pending merge. This hardens the metadata registry without changing HIMS activation behavior or normal chat.
+**Current status:** Database migration applied and regression passed; PR #114 merged into release/v1 (merge commit e0cd1d3acdf5c576a414fe5de5a19eff63e23cb4). This hardens the metadata registry without changing HIMS activation behavior or normal chat.
+
+
+#### HIMS and provider table boundary cross-check — 2026-11-16
+
+- public.suly_feature_resources: authenticated/anon have no table grants; RLS remains enabled. The authenticated SELECT policy is not independently sufficient without a grant, so student resources continue through the owner/activation-checked SECURITY DEFINER RPC path.
+- public.suly_feature_activations and public.suly_activation_codes: service_role only table privileges; client roles have no grants and have explicit deny-client RLS policies. Raw activation codes are not stored; the admin list RPC returns no plaintext code.
+- public.suly_feature_flags after PR #114: authenticated retains SELECT only (RLS restricts it to active flags); all client DML grants are revoked. service_role retains required administration access.
+- public.ai_providers after PR #110: authenticated and anon have no table privileges; service_role retains access. The admin UI continues through the guarded metadata RPC, which excludes credential fields.
+- These checks support the intended rule: students read eligible resources through the central chat/RPC path, while activation records, raw provider credentials, and feature registry mutations remain server-controlled.
