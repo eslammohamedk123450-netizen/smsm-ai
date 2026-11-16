@@ -29,14 +29,11 @@ begin
   if v_feature = '' or v_code = '' or length(v_code) < 6 or length(v_code) > 120 then
     raise exception 'invalid activation code request' using errcode = '22023';
   end if;
-  if not exists (select 1 from public.suly_feature_flags where feature_key = v_feature and is_active) then
-    raise exception 'unknown or inactive feature key' using errcode = '22023';
+  if not exists (select 1 from public.suly_feature_flags where feature_key = v_feature) then
+    raise exception 'unknown feature key' using errcode = '22023';
   end if;
   if p_max_uses is not null and p_max_uses <= 0 then
     raise exception 'max_uses must be positive' using errcode = '22023';
-  end if;
-  if p_expires_at is not null and p_expires_at <= now() then
-    raise exception 'expires_at must be in the future' using errcode = '22023';
   end if;
 
   insert into public.suly_activation_codes (
