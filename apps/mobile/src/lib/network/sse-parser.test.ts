@@ -21,8 +21,8 @@ describe("SseParser", () => {
 
   it("parses the actual routed model identifier without treating it as user text", () => {
     const parser = new SseParser();
-    expect(parser.push("data: {\"model\":\"openai/gpt-oss-120b\",\"model_id\":7,\"route\":\"free_race\"}\\n\\n")).toEqual([
-      { type: "model", identifier: "openai/gpt-oss-120b" },
+    expect(parser.push("data: {\"chunk\":\"Hello\",\"model\":\"openai/gpt-oss-120b\",\"model_id\":7,\"route\":\"free_race\"}\\n\\n")).toEqual([
+      { type: "chunk", text: "Hello", modelIdentifier: "openai/gpt-oss-120b" },
     ]);
   });
 
