@@ -8,7 +8,7 @@ import { supabase } from "../../lib/supabase/client";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
 import { useAppLocale } from "../../theme/LocaleProvider";
-import { deleteMediaAsset, formatBytes, listMyMedia, listMyGenerationJobs, pickMedia, uploadMediaFile, type MediaAsset, type MediaGenerationJob, type PickKind } from "./media-service";
+import { createMediaFolder, deleteMediaAsset, deleteMediaFolder, formatBytes, listMyMedia, listMyGenerationJobs, listMyMediaAssetFolders, listMyMediaFavorites, listMyMediaFolders, pickMedia, renameMediaFolder, setMediaAssetFolder, setMediaFavorite, uploadMediaFile, type MediaAsset, type MediaFolder, type MediaGenerationJob, type PickKind } from "./media-service";
 
 export function MediaScreen() {
   const { colors } = useSulyTheme();
@@ -16,6 +16,13 @@ export function MediaScreen() {
   const styles = useMemo(() => createStyles(colors, isArabic), [colors, isArabic]);
   const [assets, setAssets] = useState<MediaAsset[]>([]);
   const [jobs, setJobs] = useState<MediaGenerationJob[]>([]);
+  const [folders, setFolders] = useState<MediaFolder[]>([]);
+  const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
+  const [assetFolderIds, setAssetFolderIds] = useState<Record<string, string>>({});
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const [folderEditor, setFolderEditor] = useState<"create" | "rename" | null>(null);
+  const [folderName, setFolderName] = useState("");
+  const [organizationBusyId, setOrganizationBusyId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<PickKind | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -24,15 +31,20 @@ export function MediaScreen() {
   const [reuseBusyId, setReuseBusyId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const router = useRouter();
-  const [filter, setFilter] = useState<"all" | "image" | "video" | "file" | "in_progress">("all");
+  const [filter, setFilter] = useState<"all" | "image" | "video" | "file" | "in_progress" | "favorites">("all");
   const [search, setSearch] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const [nextAssets, nextJobs] = await Promise.all([listMyMedia(), listMyGenerationJobs()]);
+      const [nextAssets, nextJobs, nextFolders, nextFavorites, nextAssetFolders] = await Promise.all([
+        listMyMedia(), listMyGenerationJobs(), listMyMediaFolders(), listMyMediaFavorites(), listMyMediaAssetFolders(),
+      ]);
       setAssets(nextAssets);
       setJobs(nextJobs);
+      setFolders(nextFolders);
+      setFavoriteIds(nextFavorites);
+      setAssetFolderIds(nextAssetFolders);
     }
     catch (cause) { setError(cause instanceof Error ? cause.message : (isArabic ? "تعذر تحميل المكتبة." : "Could not load the library.")); }
     finally { setLoading(false); }
@@ -59,7 +71,86 @@ export function MediaScreen() {
     } finally { setBusy(null); }
   };
 
-  const visibleAssets = assets.filter((asset) => filter === "all" || (filter === "image" && asset.kind === "image") || (filter === "video" && asset.kind === "video") || (filter === "file" && asset.kind === "raw")).filter((asset) => !search.trim() || `${asset.filename ?? ""} ${String(asset.metadata.prompt ?? "")}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase(isArabic ? "ar" : "en")));
+  const visibleAssets = assets
+    .filter((asset) => filter === "all" || (filter === "image" && asset.kind === "image") || (filter === "video" && asset.kind === "video") || (filter === "file" && asset.kind === "raw") || (filter === "favorites" && favoriteIds.includes(asset.id)))
+    .filter((asset) => !selectedFolderId || assetFolderIds[asset.id] === selectedFolderId)
+    .filter((asset) => !search.trim() || `${asset.filename ?? ""} ${String(asset.metadata.prompt ?? "")}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase(isArabic ? "ar" : "en")));
+
+  const selectedFolder = folders.find((folder) => folder.id === selectedFolderId) ?? null;
+
+  const saveFolder = async () => {
+    setError(null); setNotice(null);
+    try {
+      if (folderEditor === "create") {
+        const folder = await createMediaFolder(folderName);
+        setFolders((current) => [...current, folder].sort((a, b) => a.name.localeCompare(b.name)));
+        setSelectedFolderId(folder.id);
+        setFilter("all");
+        setNotice(isArabic ? "تم إنشاء المجلد." : "Folder created.");
+      } else if (folderEditor === "rename" && selectedFolder) {
+        await renameMediaFolder(selectedFolder.id, folderName);
+        setFolders((current) => current.map((folder) => folder.id === selectedFolder.id ? { ...folder, name: folderName.trim(), updatedAt: new Date().toISOString() } : folder));
+        setNotice(isArabic ? "تم تغيير اسم المجلد." : "Folder renamed.");
+      }
+      setFolderEditor(null); setFolderName("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : (isArabic ? "تعذر حفظ المجلد." : "Could not save folder."));
+    }
+  };
+
+  const confirmDeleteFolder = () => {
+    if (!selectedFolder) return;
+    Alert.alert(
+      isArabic ? "حذف المجلد" : "Delete folder",
+      isArabic ? "سيتم حذف المجلد وإزالة تنظيم ملفاته فقط. لن تُحذف الملفات نفسها." : "This deletes the folder and its organization links only. The files themselves will remain in your Library.",
+      [
+        { text: isArabic ? "إلغاء" : "Cancel", style: "cancel" },
+        { text: isArabic ? "حذف" : "Delete", style: "destructive", onPress: () => {
+          void (async () => {
+            try {
+              await deleteMediaFolder(selectedFolder.id);
+              setFolders((current) => current.filter((folder) => folder.id !== selectedFolder.id));
+              setAssetFolderIds((current) => Object.fromEntries(Object.entries(current).filter(([, folderId]) => folderId !== selectedFolder.id)));
+              setSelectedFolderId(null);
+              setNotice(isArabic ? "تم حذف المجلد، والملفات ما زالت محفوظة." : "Folder deleted; files were kept.");
+            } catch (cause) {
+              setError(cause instanceof Error ? cause.message : (isArabic ? "تعذر حذف المجلد." : "Could not delete folder."));
+            }
+          })();
+        } },
+      ],
+    );
+  };
+
+  const toggleFavorite = async (asset: MediaAsset) => {
+    const nextFavorite = !favoriteIds.includes(asset.id);
+    setOrganizationBusyId(asset.id); setError(null);
+    try {
+      await setMediaFavorite(asset.id, nextFavorite);
+      setFavoriteIds((current) => nextFavorite ? [...current, asset.id] : current.filter((id) => id !== asset.id));
+      setNotice(nextFavorite ? (isArabic ? "أُضيف إلى المفضلة." : "Added to favorites.") : (isArabic ? "أُزيل من المفضلة." : "Removed from favorites."));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : (isArabic ? "تعذر تحديث المفضلة." : "Could not update favorites."));
+    } finally { setOrganizationBusyId(null); }
+  };
+
+  const toggleAssetFolder = async (asset: MediaAsset) => {
+    if (!selectedFolderId) return;
+    const nextFolderId = assetFolderIds[asset.id] === selectedFolderId ? null : selectedFolderId;
+    setOrganizationBusyId(asset.id); setError(null);
+    try {
+      await setMediaAssetFolder(asset.id, nextFolderId);
+      setAssetFolderIds((current) => {
+        const next = { ...current };
+        if (nextFolderId) next[asset.id] = nextFolderId;
+        else delete next[asset.id];
+        return next;
+      });
+      setNotice(nextFolderId ? (isArabic ? "تم تنظيم الملف داخل المجلد." : "File moved into the folder.") : (isArabic ? "تم إخراج الملف من المجلد." : "File removed from the folder."));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : (isArabic ? "تعذر تنظيم الملف." : "Could not organize file."));
+    } finally { setOrganizationBusyId(null); }
+  };
 
   const copy = async (url: string) => {
     try { await Clipboard.setStringAsync(url); setNotice(isArabic ? "تم نسخ رابط الملف." : "File link copied."); }
@@ -111,6 +202,16 @@ export function MediaScreen() {
     </View>
     <Text style={styles.explainer}>{isArabic ? "كل ملفاتك ومرفقات محادثاتك ومخرجات الاستوديو في مكان واحد. الملفات الخاصة لا تظهر إلا لصاحبها أو لمن يملك صلاحية الوصول." : "Your files, chat attachments, and Studio outputs in one place. Private files are visible only to their owner or an authorized user."}</Text>
     <TextInput value={search} onChangeText={setSearch} placeholder={isArabic ? "ابحث باسم الملف أو وصفه" : "Search by file name or description"} placeholderTextColor={colors.textMuted} style={styles.search} />
+    <View style={styles.actions}>
+      <Pressable onPress={() => { setFolderEditor("create"); setFolderName(""); }}><Text style={styles.link}>{isArabic ? "＋ مجلد جديد" : "＋ New folder"}</Text></Pressable>
+      {selectedFolder ? <Pressable onPress={() => { setFolderEditor("rename"); setFolderName(selectedFolder.name); }}><Text style={styles.link}>{isArabic ? "إعادة تسمية" : "Rename"}</Text></Pressable> : null}
+      {selectedFolder ? <Pressable onPress={confirmDeleteFolder}><Text style={styles.link}>{isArabic ? "حذف المجلد" : "Delete folder"}</Text></Pressable> : null}
+    </View>
+    {folderEditor ? <View style={styles.actions}>
+      <TextInput value={folderName} onChangeText={setFolderName} maxLength={80} placeholder={isArabic ? "اسم المجلد" : "Folder name"} placeholderTextColor={colors.textMuted} style={[styles.search, { flex: 1, minWidth: 160 }]} />
+      <Pressable onPress={() => void saveFolder()}><Text style={styles.link}>{isArabic ? "حفظ" : "Save"}</Text></Pressable>
+      <Pressable onPress={() => { setFolderEditor(null); setFolderName(""); }}><Text style={styles.link}>{isArabic ? "إلغاء" : "Cancel"}</Text></Pressable>
+    </View> : null}
     {isAdmin && (
       <View style={styles.actions}>
         <Pressable accessibilityRole="button" disabled={busy !== null} onPress={() => void pickAndUpload("image")} style={[styles.actionButton, busy !== null && styles.disabled]}>
@@ -136,10 +237,19 @@ export function MediaScreen() {
         ["video", isArabic ? "الفيديوهات" : "Videos"],
         ["file", isArabic ? "الملفات" : "Files"],
         ["in_progress", isArabic ? "قيد التنفيذ" : "In progress"],
+        ["favorites", isArabic ? "المفضلة" : "Favorites"],
       ] as const).map(([key, label]) => <Pressable key={key} onPress={() => setFilter(key)} style={[styles.filterChip, filter === key && styles.filterChipSelected]}>
         <Text style={[styles.filterText, filter === key && styles.filterTextSelected]}>{label}</Text>
       </Pressable>)}
     </View>
+    {folders.length ? <View style={styles.filters}>
+      <Pressable onPress={() => { setSelectedFolderId(null); setFilter("all"); }} style={[styles.filterChip, !selectedFolderId && styles.filterChipSelected]}>
+        <Text style={[styles.filterText, !selectedFolderId && styles.filterTextSelected]}>{isArabic ? "كل المجلدات" : "All folders"}</Text>
+      </Pressable>
+      {folders.map((folder) => <Pressable key={folder.id} onPress={() => { setSelectedFolderId(folder.id); setFilter("all"); }} style={[styles.filterChip, selectedFolderId === folder.id && styles.filterChipSelected]}>
+        <Text style={[styles.filterText, selectedFolderId === folder.id && styles.filterTextSelected]}>{folder.name}</Text>
+      </Pressable>)}
+    </View> : null}
     {filter === "in_progress" ? (jobs.length ? <View style={styles.jobsList}>
       {jobs.map((job) => <View key={job.id} style={styles.jobCard}>
         <View style={styles.jobHeader}>
@@ -167,6 +277,8 @@ export function MediaScreen() {
         <View style={styles.assetActions}>
           <Pressable onPress={() => void Linking.openURL(asset.url)}><Text style={styles.link}>{isArabic ? "فتح / تنزيل" : "Open / Download"}</Text></Pressable>
           <Pressable onPress={() => void copy(asset.url)}><Text style={styles.link}>{isArabic ? "نسخ الرابط" : "Copy link"}</Text></Pressable>
+          <Pressable disabled={organizationBusyId === asset.id} onPress={() => void toggleFavorite(asset)}><Text style={styles.link}>{favoriteIds.includes(asset.id) ? (isArabic ? "★ إزالة من المفضلة" : "★ Unfavorite") : (isArabic ? "☆ إضافة للمفضلة" : "☆ Favorite")}</Text></Pressable>
+          {selectedFolderId ? <Pressable disabled={organizationBusyId === asset.id} onPress={() => void toggleAssetFolder(asset)}><Text style={styles.link}>{assetFolderIds[asset.id] === selectedFolderId ? (isArabic ? "إزالة من المجلد" : "Remove from folder") : (isArabic ? "نقل إلى هذا المجلد" : "Move to this folder")}</Text></Pressable> : null}
           {asset.kind === "image" ? <Pressable disabled={reuseBusyId !== null} onPress={() => void reuseImageInChat(asset)}><Text style={[styles.link, reuseBusyId === asset.id && styles.disabledText]}>{reuseBusyId === asset.id ? (isArabic ? "جارٍ فتح المحادثة…" : "Opening chat…") : (isArabic ? "استخدم في محادثة" : "Use in chat")}</Text></Pressable> : null}
           <Pressable disabled={deletingId !== null} onPress={() => confirmDeleteAsset(asset)}><Text style={[styles.link, deletingId === asset.id && styles.disabledText]}>{deletingId === asset.id ? (isArabic ? "جارٍ الحذف…" : "Deleting…") : (isArabic ? "حذف" : "Delete")}</Text></Pressable>
         </View>
