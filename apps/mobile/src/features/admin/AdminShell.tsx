@@ -21,6 +21,14 @@ const NAV_GROUPS: readonly NavGroup[] = [
     ],
   },
   {
+    key: "education",
+    label: "التعليم",
+    hint: "نظام HIMS والموارد الجامعية",
+    items: [
+      { path: "/admin/hims", label: "إدارة HIMS", icon: "H" },
+    ],
+  },
+  {
     key: "intelligence",
     label: "الذكاء والتوجيه",
     hint: "النماذج والأدوار",
