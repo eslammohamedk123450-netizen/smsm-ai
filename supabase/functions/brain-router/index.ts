@@ -53,6 +53,20 @@ async function main(req: Request): Promise<Response> {
   if (profileError || !profile) return json({ error: "Application profile is missing" }, 403);
   if (profile.is_banned) return json({ error: "This account is suspended" }, 403);
 
+  if (!internalWorker && body.mode === "resume") {
+    const { data: job, error: jobError } = await admin.from("agent_task_jobs")
+      .select("id,status,payload")
+      .eq("task_id", taskId)
+      .eq("user_id", userId)
+      .eq("job_type", "brain_task")
+      .maybeSingle();
+    if (jobError) return json({ error: "Could not recover the queued task" }, 503);
+    if (!job) return json({ error: "task_not_found" }, 404);
+    const payload = asRecord(job.payload);
+    if (cleanText(payload.objective) !== objective) return json({ error: "task_id_conflict" }, 409);
+    return json({ task_id: taskId, job_id: job.id, status: job.status, queued: true, route: "brain-router" });
+  }
+
   // Persist a completed durable Agent task into its owner's ordinary chat.
   // This server-side path is required because authenticated clients may only
   // insert user messages; assistant rows are intentionally service-role only.
