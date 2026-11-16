@@ -27,6 +27,7 @@ const emptyPrices = (): Price[] => QUALITY_OPTIONS.map((item) => ({
 }));
 
 export function MediaGenerationModelsAdminScreen() {
+  const { colors } = useSulyTheme();
   const [providers, setProviders] = useState<Provider[]>([]);
   const [models, setModels] = useState<MediaModel[]>([]);
   const [prices, setPrices] = useState<Price[]>(emptyPrices());
