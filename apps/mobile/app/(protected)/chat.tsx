@@ -135,6 +135,7 @@ export default function ChatPage() {
   const [ratingSaving, setRatingSaving] = useState(false);
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const [selectedModelProfile, setSelectedModelProfile] = useState<"auto" | "lite" | "pro" | "max">("auto");
+  const [modelMenuVisible, setModelMenuVisible] = useState(false);
   const [actualModelUsed, setActualModelUsed] = useState<string | null>(null);
   const [subscriptionTier, setSubscriptionTier] = useState("free");
   const [modelProfiles, setModelProfiles] = useState(DEFAULT_SULY_PROFILES);
@@ -708,16 +709,23 @@ export default function ChatPage() {
   );
 
   const shareTitle = messages.find((message) => message.role === "user")?.content.slice(0, 48) || (isArabic ? "محادثة Suly" : "SULY conversation");
+  const selectedModelLabel = selectedModelProfile === "auto" ? "SULY Auto" : localizedModelProfiles.find((profile) => profile.profile_key === selectedModelProfile)?.display_name ?? "SULY Lite";
   const shareText = messages.map((message) => `${message.role === "user" ? (isArabic ? "أنت" : "You") : "Suly"}:\n${message.content}`).join("\n\n");
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right", "bottom"]}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : Platform.OS === "android" ? "height" : undefined} keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}>
         <View style={styles.appBar}>
-          <Pressable onPress={() => router.push("/conversations")} style={styles.headerButton} accessibilityRole="button" accessibilityLabel={isArabic ? "العودة إلى المحادثات" : "Back to chats"}>
-            <Ionicons name="list-outline" size={20} color={colors.textPrimary} />
+          <Pressable onPress={() => router.push("/conversations")} style={styles.headerButton} accessibilityRole="button" accessibilityLabel={isArabic ? "فتح المحادثات" : "Open conversations"}>
+            <Ionicons name="menu-outline" size={22} color={colors.textPrimary} />
           </Pressable>
-          <View style={styles.headerSpacer} />
+          <Pressable onPress={() => setModelMenuVisible(true)} style={styles.modelSelector} accessibilityRole="button" accessibilityLabel={isArabic ? "اختيار نموذج SULY" : "Choose SULY model"}>
+            <View style={styles.modelSelectorCopy}>
+              <Text numberOfLines={1} style={styles.modelSelectorTitle}>{selectedModelLabel}</Text>
+              <Text style={styles.modelSelectorCaption}>{isArabic ? "النموذج المختار" : "Selected model"}</Text>
+            </View>
+            <Ionicons name="chevron-down" size={16} color={colors.textSecondary} />
+          </Pressable>
           <View style={styles.headerActions}>
             {creditBalance !== null ? (
               <TouchableOpacity onPress={() => router.push("/(protected)/balance")} style={styles.creditPill} accessibilityRole="button" accessibilityLabel={isArabic ? "رصيد Suly" : "SULY credits"}>
@@ -732,31 +740,6 @@ export default function ChatPage() {
               <Ionicons name="share-social-outline" size={18} color={colors.textMuted} />
             </TouchableOpacity>
           </View>
-        </View>
-
-        <View style={{ paddingHorizontal: 14, paddingTop: 7, paddingBottom: 7, gap: 6, borderBottomWidth: 1, borderBottomColor: colors.divider }}>
-          <Text style={{ color: colors.textSecondary, textAlign: isArabic ? "right" : "left", fontSize: 12, fontWeight: "700" }}>{isArabic ? "مستوى SULY" : "SULY mode"}</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 7 }}>
-            <Pressable onPress={() => setSelectedModelProfile("auto")} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 18, borderWidth: 1, borderColor: selectedModelProfile === "auto" ? colors.primary : colors.divider, backgroundColor: selectedModelProfile === "auto" ? colors.surfaceElevated : colors.surface }}>
-              <Text style={{ color: selectedModelProfile === "auto" ? colors.primary : colors.textSecondary, fontSize: 12, fontWeight: "700" }}>{isArabic ? "تلقائي" : "Auto"}</Text>
-            </Pressable>
-            {modelProfiles.map((profile) => {
-              const tierRank: Record<string, number> = { free: 0, lite: 1, pro: 2, max: 3 };
-              const locked = (tierRank[subscriptionTier] ?? 0) < (tierRank[profile.minimum_subscription_tier] ?? 3);
-              const selected = selectedModelProfile === profile.profile_key;
-              return <Pressable key={profile.profile_key} disabled={locked} onPress={() => setSelectedModelProfile(profile.profile_key)} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 18, borderWidth: 1, borderColor: selected ? colors.primary : colors.divider, backgroundColor: selected ? colors.surfaceElevated : colors.surface, opacity: locked ? 0.45 : 1, flexDirection: "row", alignItems: "center", gap: 5 }}>
-                <Ionicons name={profile.icon_key === "diamond" ? "diamond-outline" : profile.icon_key === "rocket" ? "rocket-outline" : "flash-outline"} size={13} color={selected ? colors.primary : colors.textSecondary} />
-                <Text style={{ color: selected ? colors.primary : colors.textSecondary, fontSize: 12, fontWeight: "700" }}>{profile.display_name}</Text>
-                {locked ? <Ionicons name="lock-closed" size={11} color={colors.textMuted} /> : null}
-              </Pressable>;
-            })}
-          </ScrollView>
-          <Text style={{ color: colors.textMuted, textAlign: isArabic ? "right" : "left", fontSize: 11, lineHeight: 17 }}>
-            {selectedModelProfile === "auto"
-              ? (isArabic ? "الوضع التلقائي يختار المستوى الأنسب للمهمة من المستويات المتاحة في اشتراكك." : "Auto selects the best available mode for your task and subscription.")
-              : localizedModelProfiles.find((profile) => profile.profile_key === selectedModelProfile)?.description ?? (isArabic ? "المستوى المحدد سيُستخدم كما اخترته دون تخفيض تلقائي." : "The selected mode will be used as chosen, without automatic downgrade.")}
-          </Text>
-          {actualModelUsed ? <Text style={{ color: colors.textMuted, textAlign: isArabic ? "right" : "left", fontSize: 10 }}>{isArabic ? "النموذج المستخدم فعليًا: " : "Actual model used: "}{actualModelUsed}</Text> : null}
         </View>
 
         {error ? <Pressable onPress={() => setError(null)} style={styles.errorBox}><Text style={styles.errorText}>{error}  ×</Text></Pressable> : null}
@@ -812,6 +795,45 @@ export default function ChatPage() {
         <ChatComposer ref={composerRef} onSend={handleSend} disabled={isSending || Boolean(connectorApproval)} isStreaming={isSending} onCancel={() => abortRef.current?.abort()} creditBalance={creditBalance} onOpenRecharge={() => router.push("/(protected)/balance")} />
       </KeyboardAvoidingView>
       <ShareConversationSheet visible={shareVisible} conversationId={conversationId} title={shareTitle} plainText={shareText} onClose={closeShareSheet} />
+      <BottomSheet visible={modelMenuVisible} title={isArabic ? "اختيار نموذج SULY" : "Choose a SULY model"} onClose={() => setModelMenuVisible(false)}>
+        <View style={styles.modelMenu}>
+          <Pressable onPress={() => { setSelectedModelProfile("auto"); setModelMenuVisible(false); }} style={[styles.modelOption, selectedModelProfile === "auto" && styles.modelOptionSelected]}>
+            <View style={styles.modelOptionCopy}>
+              <Text style={styles.modelOptionTitle}>SULY Auto</Text>
+              <Text style={styles.modelOptionDescription}>{isArabic ? "الوكيل يختار المستوى المناسب تلقائيًا من الخيارات المتاحة لحسابك." : "The Agent selects the best eligible profile automatically."}</Text>
+            </View>
+            {selectedModelProfile === "auto" ? <Ionicons name="checkmark-circle" size={20} color={colors.primary} /> : null}
+          </Pressable>
+          {localizedModelProfiles.map((profile) => {
+            const tierRank: Record<string, number> = { free: 0, lite: 1, pro: 2, max: 3 };
+            const locked = (tierRank[subscriptionTier] ?? 0) < (tierRank[profile.minimum_subscription_tier] ?? 3);
+            const selected = selectedModelProfile === profile.profile_key;
+            return (
+              <Pressable key={profile.profile_key} disabled={locked} onPress={() => { setSelectedModelProfile(profile.profile_key); setModelMenuVisible(false); }} style={[styles.modelOption, selected && styles.modelOptionSelected, locked && styles.modelOptionDisabled]}>
+                <View style={styles.modelOptionCopy}>
+                  <View style={styles.modelOptionHeading}>
+                    <Text style={styles.modelOptionTitle}>{profile.display_name}</Text>
+                    {locked ? <Text style={styles.modelRestricted}>{isArabic ? "مقيد بالباقة" : "Plan restricted"}</Text> : null}
+                  </View>
+                  <Text style={styles.modelOptionDescription}>{profile.description}</Text>
+                </View>
+                {locked ? <Ionicons name="lock-closed" size={17} color={colors.textMuted} /> : selected ? <Ionicons name="checkmark-circle" size={20} color={colors.primary} /> : null}
+              </Pressable>
+            );
+          })}
+          <View style={[styles.modelOption, styles.modelOptionDisabled]}>
+            <View style={styles.modelOptionCopy}>
+              <View style={styles.modelOptionHeading}>
+                <Text style={styles.modelOptionTitle}>SULY Ultra</Text>
+                <Text style={styles.modelRestricted}>{isArabic ? "غير متاح حاليًا" : "Not available yet"}</Text>
+              </View>
+              <Text style={styles.modelOptionDescription}>{isArabic ? "سيظهر هنا عند اعتماد إعداداته وربطه بمسارات النماذج والصلاحيات." : "Listed for visibility; activation awaits verified model catalog and routing support."}</Text>
+            </View>
+            <Ionicons name="lock-closed" size={17} color={colors.textMuted} />
+          </View>
+          {actualModelUsed ? <Text style={styles.actualModelNote}>{isArabic ? "النموذج الذي أكد الخادم استخدامه في آخر رد: " : "Model confirmed by the server for the last response: "}{actualModelUsed}</Text> : null}
+        </View>
+      </BottomSheet>
       <BottomSheet visible={usageVisible} title={isArabic ? "إحصائيات المهمة الحالية" : "Current task usage"} onClose={() => setUsageVisible(false)}>
         {usageLoading ? <ActivityIndicator color={colors.primary} /> : taskUsage ? <View style={styles.usageSheet}>
           <Text style={styles.usageTaskTitle}>{taskUsage.taskTitle}</Text>
@@ -852,10 +874,24 @@ export default function ChatPage() {
 const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
-  appBar: { height: 58, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: colors.divider },
+  appBar: { minHeight: 62, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: colors.divider },
   headerButton: { width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 21 },
   headerSpacer: { width: 42, height: 42 },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 6 },
+  modelSelector: { flex: 1, minWidth: 0, minHeight: 44, maxWidth: 250, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 9, borderRadius: 12, backgroundColor: colors.surface },
+  modelSelectorCopy: { flex: 1, minWidth: 0, alignItems: isArabic ? "flex-end" : "flex-start", gap: 1 },
+  modelSelectorTitle: { color: colors.textPrimary, fontSize: 13, fontWeight: "800" },
+  modelSelectorCaption: { color: colors.textMuted, fontSize: 9 },
+  modelMenu: { gap: 9, paddingBottom: 8 },
+  modelOption: { minHeight: 62, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 12, padding: 12, borderWidth: 1, borderColor: colors.divider, borderRadius: 13, backgroundColor: colors.surface },
+  modelOptionSelected: { borderColor: colors.primary, backgroundColor: colors.surfaceElevated },
+  modelOptionDisabled: { opacity: 0.6 },
+  modelOptionCopy: { flex: 1, minWidth: 0, gap: 4 },
+  modelOptionHeading: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  modelOptionTitle: { color: colors.textPrimary, fontSize: 13, fontWeight: "800" },
+  modelOptionDescription: { color: colors.textSecondary, fontSize: 11, lineHeight: 17, textAlign: isArabic ? "right" : "left" },
+  modelRestricted: { color: colors.textMuted, fontSize: 10, fontWeight: "700" },
+  actualModelNote: { color: colors.textMuted, fontSize: 10, lineHeight: 16, textAlign: isArabic ? "right" : "left", paddingHorizontal: 3 },
   brandCenter: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 8 },
   brandTitle: { color: colors.textPrimary, fontSize: 20, fontWeight: "700", letterSpacing: -0.5 },
   creditPill: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 5, backgroundColor: colors.surfaceElevated, borderColor: colors.divider, borderWidth: 1, borderRadius: 9999, paddingHorizontal: 10, paddingVertical: 5 },
