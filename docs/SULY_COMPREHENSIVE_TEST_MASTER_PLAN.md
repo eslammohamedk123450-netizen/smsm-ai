@@ -362,3 +362,10 @@ RLS/grants للأدوار؛ RPC وSECURITY DEFINER وsearch_path؛ CORS/JWT/rate
 - `T15-032`: حفظ وإعادة فتح صفحة بها مكونات، ثم تعديل/حذف/ترتيب المكونات بعد تحميل config من قاعدة البيانات.
 - جميع الحالات: **NOT RUN**. الـmigration لم تُطبق، ولم يتم اختبار RPCs على قاعدة حية.
 
+
+
+- `T15-033`: إنشاء/تعديل/إخفاء/استرجاع صفحة يكتب سجل audit صحيحًا مع admin_id وaction وtarget وold_value/new_value.
+- `T15-034`: فشل الحفظ أو فشل استرجاع الإصدار لا ينشئ audit record مضللًا أو version ناقصًا (atomic transaction).
+- `T15-035`: مصدر admin_activity_summary يعرض آخر خمسة أحداث صحيحة، ويحسب 24 ساعة كاملة، ويخفي أي حقول غير لازمة.
+- جميع الحالات: **NOT RUN**.
+
