@@ -402,7 +402,7 @@ function createStyles(colors: ThemePalette) { return StyleSheet.create({
   upgradeBtnText: {
     fontSize: 12,
     fontWeight: "700",
-    color: colors.background,
+    color: colors.onPrimary,
   },
   dashedDivider: {
     height: 1,
@@ -447,7 +447,7 @@ function createStyles(colors: ThemePalette) { return StyleSheet.create({
   rechargeBtnText: {
     fontSize: 14,
     fontWeight: "700",
-    color: colors.background,
+    color: colors.onPrimary,
   },
   historyBtn: {
     flex: 1,
@@ -520,7 +520,7 @@ function createStyles(colors: ThemePalette) { return StyleSheet.create({
     paddingVertical: 8,
   },
   lockedButtonText: {
-    color: colors.background,
+    color: colors.onPrimary,
     fontWeight: "700",
     fontSize: 12,
   },

@@ -116,7 +116,7 @@ export default function ConnectedAppsScreen() {
             accessibilityRole="button"
             accessibilityLabel={isArabic ? "إضافة موصل" : "Add connector"}
           >
-            <Ionicons name="add" size={19} color={colors.background} />
+            <Ionicons name="add" size={19} color={colors.onPrimary} />
             <Text style={styles.addText}>{isArabic ? "إضافة موصل" : "Add connector"}</Text>
           </TouchableOpacity>
         </View>
@@ -156,7 +156,7 @@ export default function ConnectedAppsScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={isArabic ? `ربط ${status.label}` : `Connect ${status.label}`}
               >
-                {connecting === status.toolkit ? <ActivityIndicator size="small" color={colors.background} /> : <Text style={styles.connectText}>{isArabic ? "ربط" : "Connect"}</Text>}
+                {connecting === status.toolkit ? <ActivityIndicator size="small" color={colors.onPrimary} /> : <Text style={styles.connectText}>{isArabic ? "ربط" : "Connect"}</Text>}
               </TouchableOpacity>
             )}
           </View>
@@ -209,7 +209,7 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   headerActions: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 8 },
   iconButton: { width: 40, height: 40, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider },
   addButton: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "center", gap: 5, paddingHorizontal: 12, height: 40, borderRadius: 13, backgroundColor: colors.primary },
-  addText: { color: colors.background, fontSize: 12, fontWeight: "800" },
+  addText: { color: colors.onPrimary, fontSize: 12, fontWeight: "800" },
   explainer: { color: colors.textSecondary, fontSize: 13, lineHeight: 21, textAlign: isArabic ? "right" : "left", marginTop: 9 },
   serviceStatus: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 8, marginTop: 16, padding: 12, borderRadius: 13, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider },
   serviceReady: { borderColor: "rgba(16,185,129,0.4)" },
@@ -225,7 +225,7 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   badge: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: "rgba(16,185,129,0.14)", borderWidth: 1, borderColor: "rgba(16,185,129,0.4)" },
   badgeText: { color: colors.success, fontSize: 12, fontWeight: "700" },
   connectButton: { paddingHorizontal: 18, paddingVertical: 9, borderRadius: 12, backgroundColor: colors.primary, minWidth: 74, alignItems: "center", justifyContent: "center" },
-  connectText: { color: colors.background, fontWeight: "800", fontSize: 13 },
+  connectText: { color: colors.onPrimary, fontWeight: "800", fontSize: 13 },
   disconnectButton: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 12, backgroundColor: colors.surface, borderColor: colors.error, borderWidth: 1, minWidth: 94, alignItems: "center", justifyContent: "center" },
   disconnectText: { color: colors.error, fontWeight: "800", fontSize: 11 },
   note: { color: colors.textMuted, fontSize: 12, lineHeight: 20, textAlign: isArabic ? "right" : "left", marginTop: 18 },

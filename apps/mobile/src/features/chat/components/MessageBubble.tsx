@@ -41,7 +41,7 @@ function ReactionGlyph({ kind, selected, copied }: { kind: ActionKind; selected?
   const styles = useMemo(() => createStyles(colors), [colors]);
   if (kind === "edit") return <Text style={styles.glyphText}>✎</Text>;
   const iconName = kind === "copy" ? (copied ? "checkmark-outline" : "copy-outline") : kind === "like" ? "thumbs-up-outline" : "thumbs-down-outline";
-  return <Ionicons name={iconName} size={16} color={selected || copied ? "#0EA5E9" : "#A1A1AA"} />;
+  return <Ionicons name={iconName} size={16} color={selected || copied ? colors.primary : colors.textMuted} />;
 }
 
 function MessageAction({
@@ -235,11 +235,11 @@ export function MessageBubble({
                 const label = asset.filename || (isImage ? "صورة مرفقة" : isVideo ? "فيديو مرفق" : "مستند مرفق");
                 return isImage ? (
                   <Pressable key={asset.id} disabled={!asset.url} onPress={() => setViewedImage(asset.url)} accessibilityRole="button" accessibilityLabel={`فتح الصورة ${label}`}>
-                    {asset.url ? <Image source={{ uri: asset.url }} style={styles.imageThumbnail} resizeMode="cover" /> : <View style={styles.missingAttachment}><Ionicons name="image-outline" size={26} color="#A1A1AA" /></View>}
+                    {asset.url ? <Image source={{ uri: asset.url }} style={styles.imageThumbnail} resizeMode="cover" /> : <View style={styles.missingAttachment}><Ionicons name="image-outline" size={26} color={colors.textMuted} /></View>}
                   </Pressable>
                 ) : (
                   <View key={asset.id} style={styles.fileAttachment}>
-                    <Ionicons name={isVideo ? "videocam-outline" : "document-text-outline"} size={24} color="#2563EB" />
+                    <Ionicons name={isVideo ? "videocam-outline" : "document-text-outline"} size={24} color={colors.primary} />
                     <View style={styles.fileAttachmentText}><Text numberOfLines={1} style={styles.fileName}>{label}</Text><Text style={styles.fileKind}>{asset.mimeType || (isVideo ? "فيديو" : "مستند")}</Text></View>
                   </View>
                 );
@@ -254,7 +254,7 @@ export function MessageBubble({
                   <Text style={styles.assistantTitle}>Suly</Text>
                 </View>
                 {content ? <TouchableOpacity onPress={() => void copyToClipboard(content, true)} style={styles.headerCopyBtn} accessibilityLabel="نسخ الرد">
-                  <Ionicons name={copied ? "checkmark" : "copy-outline"} size={14} color={copied ? "#0EA5E9" : "#A1A1AA"} />
+                  <Ionicons name={copied ? "checkmark" : "copy-outline"} size={14} color={copied ? colors.primary : colors.textMuted} />
                 </TouchableOpacity> : null}
               </View>
               {responseVariants.length > 1 ? (
@@ -267,7 +267,7 @@ export function MessageBubble({
 
               {generationState ? (
                 <View style={styles.generationCard} accessibilityRole="progressbar" accessibilityLabel={generationState === "pending" ? "جاري توليد الصورة" : "تعذر توليد الصورة"}>
-                  {generationState === "pending" ? <ActivityIndicator size="large" color="#0EA5E9" /> : <Ionicons name="warning-outline" size={32} color="#F87171" />}
+                  {generationState === "pending" ? <ActivityIndicator size="large" color={colors.primary} /> : <Ionicons name="warning-outline" size={32} color={colors.error} />}
                   <Text style={styles.generationLabel}>{generationState === "pending" ? "جاري توليد الصورة…" : "تعذر توليد الصورة. أرسل الطلب مجددًا للمحاولة."}</Text>
                 </View>
               ) : <>
@@ -282,7 +282,7 @@ export function MessageBubble({
                   const isImage = asset.kind === "image" || asset.mimeType?.toLowerCase().startsWith("image/");
                   return isImage ? (
                     <Pressable key={asset.id} disabled={!asset.url} onPress={() => setViewedImage(asset.url)} accessibilityRole="button" accessibilityLabel="فتح الصورة المولدة">
-                      {asset.url ? <Image source={{ uri: asset.url }} style={styles.generatedImage} resizeMode="cover" /> : <View style={styles.missingGeneratedImage}><Ionicons name="image-outline" size={28} color="#A1A1AA" /></View>}
+                      {asset.url ? <Image source={{ uri: asset.url }} style={styles.generatedImage} resizeMode="cover" /> : <View style={styles.missingGeneratedImage}><Ionicons name="image-outline" size={28} color={colors.textMuted} /></View>}
                     </Pressable>
                   ) : null;
                 })}</View> : null}
@@ -296,7 +296,7 @@ export function MessageBubble({
         <Modal visible={!!viewedImage} transparent={true} animationType="fade" onRequestClose={() => setViewedImage(null)}>
           <Pressable style={styles.modalOverlay} onPress={() => setViewedImage(null)}>
              <Image source={{ uri: viewedImage || "" }} style={styles.fullImage} resizeMode="contain" />
-             <Pressable style={styles.modalClose} onPress={() => setViewedImage(null)} accessibilityRole="button" accessibilityLabel="إغلاق الصورة"><Ionicons name="close" size={24} color="#FFFFFF" /></Pressable>
+             <Pressable style={styles.modalClose} onPress={() => setViewedImage(null)} accessibilityRole="button" accessibilityLabel="إغلاق الصورة"><Ionicons name="close" size={24} color={colors.textPrimary} /></Pressable>
           </Pressable>
         </Modal>
 
@@ -332,7 +332,7 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
   assistantColumn: { alignItems: "flex-start", width: "100%", maxWidth: "94%" },
   bubble: { borderRadius: 16, padding: 16, width: "100%" },
   userBubble: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.primary,
     maxWidth: "85%",
     shadowColor: "#000",
     shadowOpacity: 0.1,
@@ -341,9 +341,9 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
     elevation: 2,
   },
   assistantBubble: {
-    backgroundColor: "#111111",
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#262626",
+    borderColor: colors.divider,
     shadowColor: "#000",
     shadowOpacity: 0.2,
     shadowRadius: 6,
@@ -357,21 +357,21 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
     paddingBottom: 8,
     marginBottom: 8,
     borderBottomWidth: 1,
-    borderBottomColor: "#262626",
+    borderBottomColor: colors.divider,
   },
   assistantBrand: { flexDirection: "row", alignItems: "center", gap: 6 },
   sulySmallIcon: { width: 18, height: 18, borderRadius: 4 },
-  assistantTitle: { color: "#F5F5F5", fontSize: 13, fontWeight: "700" },
+  assistantTitle: { color: colors.textPrimary, fontSize: 13, fontWeight: "700" },
   variantNav: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 10, marginBottom: 8 },
-  variantArrow: { minWidth: 24, minHeight: 24, alignItems: "center", justifyContent: "center", borderRadius: 6, backgroundColor: "#1F2937" },
-  variantArrowText: { color: "#F5F5F5", fontSize: 18, lineHeight: 22, fontWeight: "700" },
-  variantDisabled: { color: "#4B5563" },
-  variantCount: { color: "#A1A1AA", fontSize: 12, fontWeight: "700" },
+  variantArrow: { minWidth: 24, minHeight: 24, alignItems: "center", justifyContent: "center", borderRadius: 6, backgroundColor: colors.surfaceElevated },
+  variantArrowText: { color: colors.textPrimary, fontSize: 18, lineHeight: 22, fontWeight: "700" },
+  variantDisabled: { color: colors.textMuted },
+  variantCount: { color: colors.textMuted, fontSize: 12, fontWeight: "700" },
   headerCopyBtn: { padding: 4, borderRadius: 6 },
   paragraph: { flexDirection: "row", flexWrap: "wrap", alignItems: "center" },
-  userText: { fontSize: 16, lineHeight: 26, color: "#000000", fontWeight: "400", textAlign: "right", writingDirection: "rtl" },
-  assistantText: { fontSize: 16, lineHeight: 26, color: "#F5F5F5", fontWeight: "400", textAlign: "right", writingDirection: "rtl" },
-  imageThumbnail: { width: 96, height: 96, borderRadius: 12, marginVertical: 4, backgroundColor: "#E5E7EB" },
+  userText: { fontSize: 16, lineHeight: 26, color: colors.onPrimary, fontWeight: "400", textAlign: "right", writingDirection: "rtl" },
+  assistantText: { fontSize: 16, lineHeight: 26, color: colors.textPrimary, fontWeight: "400", textAlign: "right", writingDirection: "rtl" },
+  imageThumbnail: { width: 96, height: 96, borderRadius: 12, marginVertical: 4, backgroundColor: colors.surfaceElevated },
   attachments: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 },
   studioActionCard: { width: "100%", maxWidth: 340, alignItems: "center", gap: 10, marginTop: 10, padding: 12, borderRadius: 13, borderWidth: 1, borderColor: colors.primary, backgroundColor: colors.surfaceElevated },
   studioActionIcon: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.primarySoft },
@@ -379,32 +379,32 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
   studioActionTitle: { color: colors.textPrimary, fontSize: 13, fontWeight: "800" },
   studioActionDescription: { color: colors.textSecondary, fontSize: 11, lineHeight: 17 },
   assistantAttachments: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 },
-  generatedImage: { width: 240, height: 240, maxWidth: 260, borderRadius: 12, marginTop: 4, backgroundColor: "#1F1F1F" },
-  missingGeneratedImage: { width: 240, height: 240, borderRadius: 12, marginTop: 4, backgroundColor: "#1F1F1F", justifyContent: "center", alignItems: "center" },
-  generationCard: { width: 240, maxWidth: "100%", aspectRatio: 1, borderRadius: 14, borderWidth: 1, borderColor: "#262626", backgroundColor: "#0B0B0B", alignItems: "center", justifyContent: "center", padding: 20, gap: 14 },
-  generationLabel: { color: "#A1A1AA", fontSize: 12, lineHeight: 18, fontWeight: "600", textAlign: "center" },
-  missingAttachment: { width: 96, height: 96, borderRadius: 12, backgroundColor: "#E5E7EB", justifyContent: "center", alignItems: "center" },
-  fileAttachment: { maxWidth: 260, minWidth: 180, flexDirection: "row-reverse", alignItems: "center", gap: 10, padding: 10, borderWidth: 1, borderColor: "#E5E7EB", borderRadius: 12, backgroundColor: "#F8FAFC" },
+  generatedImage: { width: 240, height: 240, maxWidth: 260, borderRadius: 12, marginTop: 4, backgroundColor: colors.surfaceElevated },
+  missingGeneratedImage: { width: 240, height: 240, borderRadius: 12, marginTop: 4, backgroundColor: colors.surfaceElevated, justifyContent: "center", alignItems: "center" },
+  generationCard: { width: 240, maxWidth: "100%", aspectRatio: 1, borderRadius: 14, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center", padding: 20, gap: 14 },
+  generationLabel: { color: colors.textMuted, fontSize: 12, lineHeight: 18, fontWeight: "600", textAlign: "center" },
+  missingAttachment: { width: 96, height: 96, borderRadius: 12, backgroundColor: colors.surfaceElevated, justifyContent: "center", alignItems: "center" },
+  fileAttachment: { maxWidth: 260, minWidth: 180, flexDirection: "row-reverse", alignItems: "center", gap: 10, padding: 10, borderWidth: 1, borderColor: colors.divider, borderRadius: 12, backgroundColor: colors.surface },
   fileAttachmentText: { flex: 1, minWidth: 0, alignItems: "flex-end" },
-  fileName: { color: "#111827", fontSize: 12, fontWeight: "600", textAlign: "right" },
-  fileKind: { color: "#64748B", fontSize: 10, marginTop: 3, textAlign: "right" },
-  pulse: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#0EA5E9", alignSelf: "flex-end", marginTop: 4 },
+  fileName: { color: colors.textPrimary, fontSize: 12, fontWeight: "600", textAlign: "right" },
+  fileKind: { color: colors.textMuted, fontSize: 10, marginTop: 3, textAlign: "right" },
+  pulse: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary, alignSelf: "flex-end", marginTop: 4 },
   actions: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 4, marginHorizontal: 4 },
   userActions: { justifyContent: "flex-end" },
   assistantActions: { justifyContent: "flex-start" },
   action: { flexDirection: "row", alignItems: "center", minHeight: 28 },
   actionIcon: { alignItems: "center", justifyContent: "center" },
-  actionLabel: { color: "#A1A1AA", fontSize: 11, marginRight: 4 },
-  editInput: { minHeight: 96, maxHeight: 220, borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, color: "#111827", backgroundColor: "#FFFFFF", fontSize: 16, lineHeight: 25, writingDirection: "rtl" },
+  actionLabel: { color: colors.textMuted, fontSize: 11, marginRight: 4 },
+  editInput: { minHeight: 96, maxHeight: 220, borderWidth: 1, borderColor: colors.inputBorder, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, color: colors.textPrimary, backgroundColor: colors.inputBackground, fontSize: 16, lineHeight: 25, writingDirection: "rtl" },
   editButtons: { flexDirection: "row-reverse", justifyContent: "flex-start", gap: 8, marginTop: 10 },
-  saveEditButton: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, backgroundColor: "#2563EB" },
-  saveEditText: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
-  cancelEditButton: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: "#E5E7EB" },
-  cancelEditText: { color: "#374151", fontSize: 13, fontWeight: "700" },
-  editedLabel: { color: "#64748B", fontSize: 10, marginRight: 4 },
-  glyphText: { color: "#A1A1AA", fontSize: 14, textAlign: "center" },
+  saveEditButton: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, backgroundColor: colors.primary },
+  saveEditText: { color: colors.onPrimary, fontSize: 13, fontWeight: "700" },
+  cancelEditButton: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: colors.surfaceElevated },
+  cancelEditText: { color: colors.textSecondary, fontSize: 13, fontWeight: "700" },
+  editedLabel: { color: colors.textMuted, fontSize: 10, marginRight: 4 },
+  glyphText: { color: colors.textMuted, fontSize: 14, textAlign: "center" },
   markdown: { width: "100%" },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0, 0, 0, 0.9)", justifyContent: "center", alignItems: "center" },
+  modalOverlay: { flex: 1, backgroundColor: colors.modalOverlay, justifyContent: "center", alignItems: "center" },
   fullImage: { width: "100%", height: "100%" },
-  modalClose: { position: "absolute", top: Platform.OS === "ios" ? 56 : 32, right: 20, width: 42, height: 42, borderRadius: 21, backgroundColor: "rgba(45,45,45,0.9)", alignItems: "center", justifyContent: "center" },
+  modalClose: { position: "absolute", top: Platform.OS === "ios" ? 56 : 32, right: 20, width: 42, height: 42, borderRadius: 21, backgroundColor: colors.surfaceElevated, alignItems: "center", justifyContent: "center" },
 });

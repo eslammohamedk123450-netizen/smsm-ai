@@ -13,7 +13,7 @@ export function IconButton({ icon, label, onPress, disabled = false, accent = fa
       disabled={disabled}
       style={({ pressed }) => [styles.button, { backgroundColor: accent ? palette.primary : palette.surface, borderColor: accent ? palette.primary : palette.divider, opacity: disabled ? 0.45 : pressed ? 0.78 : 1 }]}
     >
-      <Text style={[styles.icon, { color: accent ? palette.background : palette.textPrimary }]}>{icon}</Text>
+      <Text style={[styles.icon, { color: accent ? palette.onPrimary : palette.textPrimary }]}>{icon}</Text>
     </Pressable>
   );
 }

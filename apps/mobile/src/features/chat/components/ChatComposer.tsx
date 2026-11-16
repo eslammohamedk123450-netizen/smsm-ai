@@ -1,4 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { useSulyTheme } from "../../../theme/ThemeProvider";
+import type { ThemePalette } from "../../../theme/colors";
 import type { ElementRef } from "react";
 import {
   ActivityIndicator,
@@ -55,7 +57,8 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
   ref
 ) {
   const { isArabic } = useAppLocale();
-  const styles = useMemo(() => createStyles(isArabic), [isArabic]);
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors, isArabic), [colors, isArabic]);
   const [text, setText] = useState("");
   const [inputHeight, setInputHeight] = useState(MIN_INPUT_HEIGHT);
   const [selection, setSelection] = useState<{ start: number; end: number } | undefined>();
@@ -280,7 +283,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
       {hasLowBalance && (
         <View style={styles.lowBalanceBanner}>
           <View style={styles.bannerTextRow}>
-            <Ionicons name="alert-circle" size={16} color="#F87171" />
+            <Ionicons name="alert-circle" size={16} color={colors.error} />
             <Text style={styles.bannerText}>
               {isArabic ? `رصيدك أوشك على النفاد (المتبقي: ${creditBalance?.toLocaleString("en-US")} نقطة)` : `Your credits are running low (${creditBalance?.toLocaleString("en-US")} remaining).`}
             </Text>
@@ -301,7 +304,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
             <Text style={styles.attachmentHint}>{isArabic ? "اضغط على الصورة للتكبير" : "Tap the image to enlarge"}</Text>
           </View>
           <Pressable onPress={() => setAttachment(null)} accessibilityRole="button" accessibilityLabel={isArabic ? "إزالة المرفق" : "Remove attachment"} style={styles.removeAttachmentButton}>
-            <Ionicons name="close" size={18} color="#A1A1AA" />
+            <Ionicons name="close" size={18} color={colors.textMuted} />
           </Pressable>
         </View>
       ) : (
@@ -343,7 +346,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
           style={styles.plusButton}
           accessibilityLabel={isArabic ? "إضافة ملف" : "Add attachment"}
         >
-          <Ionicons name="add" size={22} color="#A1A1AA" />
+          <Ionicons name="add" size={22} color={colors.textMuted} />
         </TouchableOpacity>
 
         {/* Center: TextInput with placeholder "اسأل Suly" */}
@@ -359,7 +362,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
           onSelectionChange={(event) => setSelection(event.nativeEvent.selection)}
           editable={!disabled && !isStreaming}
           placeholder={isArabic ? "اسأل Suly" : "Ask SULY"}
-          placeholderTextColor="#A1A1AA"
+          placeholderTextColor={colors.textMuted}
           style={[styles.input, { height: inputHeight }]}
           multiline
           scrollEnabled={inputHeight >= MAX_INPUT_HEIGHT}
@@ -377,13 +380,13 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
             style={styles.micButton}
             accessibilityLabel={isArabic ? "تسجيل صوتي" : "Record audio"}
           >
-            <Ionicons name={voiceActive ? "mic" : "mic-outline"} size={20} color={voiceActive ? "#F87171" : "#A1A1AA"} />
+            <Ionicons name={voiceActive ? "mic" : "mic-outline"} size={20} color={voiceActive ? colors.error : colors.textMuted} />
             {voiceActive ? <Animated.View style={styles.recordingPulse} /> : null}
           </TouchableOpacity>
 
           {isStreaming ? (
             <Pressable style={styles.blueButton} onPress={onCancel} accessibilityLabel={isArabic ? "إيقاف الرد" : "Stop response"}>
-              <ActivityIndicator size="small" color="#FFFFFF" />
+              <ActivityIndicator size="small" color={colors.onPrimary} />
             </Pressable>
           ) : (
             <Pressable
@@ -393,9 +396,9 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
               accessibilityLabel={isArabic ? "إرسال" : "Send"}
             >
               {text.trim() || attachment ? (
-                <><Ionicons name="arrow-up" size={18} color="#FFFFFF" />{Platform.OS === "web" ? <Text style={styles.webSendLabel}>{isArabic ? "إرسال" : "Send"}</Text> : null}</>
+                <><Ionicons name="arrow-up" size={18} color={colors.onPrimary} />{Platform.OS === "web" ? <Text style={styles.webSendLabel}>{isArabic ? "إرسال" : "Send"}</Text> : null}</>
               ) : (
-                <Ionicons name="radio-outline" size={18} color="#FFFFFF" />
+                <Ionicons name="radio-outline" size={18} color={colors.onPrimary} />
               )}
             </Pressable>
           )}
@@ -406,7 +409,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
       <Modal visible={previewVisible} transparent animationType="fade" onRequestClose={() => setPreviewVisible(false)}>
         <Pressable style={styles.previewOverlay} onPress={() => setPreviewVisible(false)} accessibilityRole="button" accessibilityLabel={isArabic ? "إغلاق معاينة الصورة" : "Close image preview"}>
           <Pressable style={styles.previewClose} onPress={() => setPreviewVisible(false)} accessibilityRole="button" accessibilityLabel={isArabic ? "إغلاق" : "Close"}>
-            <Ionicons name="close" size={24} color="#FFFFFF" />
+            <Ionicons name="close" size={24} color={colors.textPrimary} />
           </Pressable>
           {attachmentPreviewUri ? <Image source={{ uri: attachmentPreviewUri }} style={styles.previewImage} resizeMode="contain" /> : null}
         </Pressable>
@@ -415,29 +418,29 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
   );
 });
 
-const createStyles = (isArabic: boolean) => StyleSheet.create({
+const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.create({
   wrapper: {
     paddingHorizontal: 16,
     paddingTop: 6,
     paddingBottom: 10,
-    backgroundColor: "#000000",
+    backgroundColor: colors.background,
   },
   lowBalanceBanner: {
     flexDirection: isArabic ? "row-reverse" : "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#1F1F1F",
+    backgroundColor: colors.surfaceElevated,
     borderWidth: 1,
-    borderColor: "#262626",
+    borderColor: colors.divider,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 9,
     marginBottom: 8,
   },
   bannerTextRow: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 6, flex: 1 },
-  bannerText: { color: "#F5F5F5", fontSize: 13, fontWeight: "400", textAlign: isArabic ? "right" : "left" },
-  bannerRechargeBtn: { backgroundColor: "#FFFFFF", paddingHorizontal: 12, paddingVertical: 5, borderRadius: 999 },
-  bannerRechargeText: { color: "#000000", fontSize: 11, fontWeight: "700" },
+  bannerText: { color: colors.textPrimary, fontSize: 13, fontWeight: "400", textAlign: isArabic ? "right" : "left" },
+  bannerRechargeBtn: { backgroundColor: colors.primary, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 999 },
+  bannerRechargeText: { color: colors.onPrimary, fontSize: 11, fontWeight: "700" },
   container: {
     minHeight: 56,
     flexDirection: isArabic ? "row-reverse" : "row",
@@ -446,8 +449,8 @@ const createStyles = (isArabic: boolean) => StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 9999,
     borderWidth: 1,
-    borderColor: "#262626",
-    backgroundColor: "#1F1F1F",
+    borderColor: colors.divider,
+    backgroundColor: colors.surfaceElevated,
     shadowColor: "#000",
     shadowOpacity: 0.25,
     shadowRadius: 8,
@@ -459,7 +462,7 @@ const createStyles = (isArabic: boolean) => StyleSheet.create({
     flex: 1,
     minHeight: MIN_INPUT_HEIGHT,
     maxHeight: MAX_INPUT_HEIGHT,
-    color: "#F5F5F5",
+    color: colors.textPrimary,
     fontSize: 15,
     lineHeight: 21,
     paddingHorizontal: 10,
@@ -471,49 +474,49 @@ const createStyles = (isArabic: boolean) => StyleSheet.create({
   },
   leftControls: { flexDirection: "row", alignItems: "center", gap: 4 },
   micButton: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 18 },
-  recordingPulse: { position: "absolute", top: 4, right: 4, width: 6, height: 6, borderRadius: 3, backgroundColor: "#F87171" },
+  recordingPulse: { position: "absolute", top: 4, right: 4, width: 6, height: 6, borderRadius: 3, backgroundColor: colors.error },
   blueButton: {
     width: 38,
     height: 38,
     borderRadius: 19,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#2563EB",
+    backgroundColor: colors.primary,
   },
-  blueButtonIdle: { backgroundColor: "#2563EB", opacity: 0.9 },
+  blueButtonIdle: { backgroundColor: colors.primary, opacity: 0.9 },
   webSendButton: { width: "auto", minWidth: 72, paddingHorizontal: 12, flexDirection: "row", gap: 5, borderRadius: 20 },
-  webSendLabel: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
+  webSendLabel: { color: colors.onPrimary, fontSize: 12, fontWeight: "700" },
   attachmentChip: {
     alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "#111111",
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "#262626",
+    borderColor: colors.divider,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
     marginBottom: 6,
   },
-  imageAttachmentPreview: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 10, maxWidth: "100%", marginBottom: 8, padding: 6, borderRadius: 14, borderWidth: 1, borderColor: "#262626", backgroundColor: "#111111" },
-  attachmentThumbnail: { width: 66, height: 66, borderRadius: 9, backgroundColor: "#1F1F1F" },
+  imageAttachmentPreview: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 10, maxWidth: "100%", marginBottom: 8, padding: 6, borderRadius: 14, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
+  attachmentThumbnail: { width: 66, height: 66, borderRadius: 9, backgroundColor: colors.surfaceElevated },
   attachmentInfo: { flex: 1, minWidth: 0 },
-  attachmentHint: { color: "#A1A1AA", fontSize: 11, marginTop: 4 },
-  removeAttachmentButton: { width: 30, height: 30, alignItems: "center", justifyContent: "center", borderRadius: 15, backgroundColor: "#1F1F1F" },
-  attachmentText: { color: "#F5F5F5", fontSize: 12 },
-  removeAttachment: { color: "#A1A1AA", fontSize: 18 },
-  previewOverlay: { flex: 1, backgroundColor: "rgba(0, 0, 0, 0.94)", justifyContent: "center", alignItems: "center" },
+  attachmentHint: { color: colors.textMuted, fontSize: 11, marginTop: 4 },
+  removeAttachmentButton: { width: 30, height: 30, alignItems: "center", justifyContent: "center", borderRadius: 15, backgroundColor: colors.surfaceElevated },
+  attachmentText: { color: colors.textPrimary, fontSize: 12 },
+  removeAttachment: { color: colors.textMuted, fontSize: 18 },
+  previewOverlay: { flex: 1, backgroundColor: colors.modalOverlay, justifyContent: "center", alignItems: "center" },
   previewImage: { width: "100%", height: "85%" },
-  previewClose: { position: "absolute", top: 44, right: 20, zIndex: 1, width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 21, backgroundColor: "rgba(45, 45, 45, 0.9)" },
+  previewClose: { position: "absolute", top: 44, right: 20, zIndex: 1, width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 21, backgroundColor: colors.surfaceElevated },
   voiceToolbar: {
     minHeight: 46,
     flexDirection: isArabic ? "row-reverse" : "row",
     alignItems: "center",
     gap: 8,
     borderWidth: 1,
-    borderColor: "#262626",
-    backgroundColor: "#111111",
+    borderColor: colors.divider,
+    backgroundColor: colors.surface,
     borderRadius: 14,
     paddingHorizontal: 12,
     paddingVertical: 4,
@@ -521,9 +524,9 @@ const createStyles = (isArabic: boolean) => StyleSheet.create({
   },
   voiceStatus: { flex: 1, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 8 },
   voiceWaveform: { height: 24, flexDirection: "row", alignItems: "center", gap: 3, marginHorizontal: 2 },
-  voiceWaveBar: { width: 3, height: 18, borderRadius: 2, backgroundColor: "#0EA5E9" },
-  voiceTimer: { color: "#F5F5F5", fontSize: 14, fontWeight: "700" },
-  reconnecting: { color: "#A1A1AA", fontSize: 12 },
-  cancelVoiceButton: { width: 32, height: 32, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#262626", borderRadius: 16 },
-  cancelVoiceText: { color: "#F87171", fontSize: 20 },
+  voiceWaveBar: { width: 3, height: 18, borderRadius: 2, backgroundColor: colors.primary },
+  voiceTimer: { color: colors.textPrimary, fontSize: 14, fontWeight: "700" },
+  reconnecting: { color: colors.textMuted, fontSize: 12 },
+  cancelVoiceButton: { width: 32, height: 32, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.divider, borderRadius: 16 },
+  cancelVoiceText: { color: colors.error, fontSize: 20 },
 });

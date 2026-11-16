@@ -128,5 +128,5 @@ function createStyles(colors: ThemePalette) { return StyleSheet.create({
   message: { color: colors.textSecondary, textAlign: "center", lineHeight: 24 },
   error: { color: colors.error, textAlign: "center", lineHeight: 24 },
   button: { marginTop: 4, paddingVertical: 12, paddingHorizontal: 18, borderRadius: 10, backgroundColor: colors.primary },
-  buttonText: { color: colors.textPrimary, fontWeight: "700" },
+  buttonText: { color: colors.onPrimary, fontWeight: "700" },
 }); }

@@ -166,7 +166,7 @@ export function SulyModelProfilesAdminCard() {
           <Switch value={profile.capabilities_json?.[key] === true} onValueChange={(value) => updateProfile(profile.profile_key, { capabilities_json: { ...(profile.capabilities_json ?? {}), [key]: value } })} />
         </View>)}
         <Pressable disabled={busyKey === `profile:${profile.profile_key}`} onPress={() => void saveProfile(profile)} style={{ alignSelf: "flex-start", backgroundColor: colors.primary, borderRadius: 9, paddingHorizontal: 14, paddingVertical: 8, opacity: busyKey === `profile:${profile.profile_key}` ? 0.5 : 1 }}>
-          <Text style={{ color: colors.background, fontWeight: "800" }}>{busyKey === `profile:${profile.profile_key}` ? "جارٍ الحفظ…" : "حفظ بيانات المستوى"}</Text>
+          <Text style={{ color: colors.onPrimary, fontWeight: "800" }}>{busyKey === `profile:${profile.profile_key}` ? "جارٍ الحفظ…" : "حفظ بيانات المستوى"}</Text>
         </Pressable>
         <Text style={{ color: colors.textSecondary, fontSize: 11, textAlign: "right" }}>النماذج المرتبطة ({profileModels.size})</Text>
         {visibleModels.map((model) => {

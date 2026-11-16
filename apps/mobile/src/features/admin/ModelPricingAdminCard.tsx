@@ -158,7 +158,7 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
   input: { borderWidth: 1, borderColor: colors.divider, borderRadius: 7, color: colors.textPrimary, backgroundColor: colors.background, padding: 8, textAlign: "right", fontSize: 11 },
   selling: { color: colors.primary, fontSize: 9, fontWeight: "700", textAlign: "right" },
   save: { backgroundColor: colors.primary, borderRadius: 8, padding: 10, alignItems: "center" },
-  saveText: { color: "#07120D", fontSize: 10, fontWeight: "800" },
+  saveText: { color: colors.onPrimary, fontSize: 10, fontWeight: "800" },
   disabled: { opacity: 0.5 },
   hint: { color: colors.textMuted, fontSize: 9, textAlign: "right" },
   note: { color: colors.textMuted, fontSize: 8, textAlign: "right", lineHeight: 14 },

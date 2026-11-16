@@ -1,5 +1,6 @@
 const darkColors = {
-  primary: "#737373", primaryDark: "#525252", secondary: "#BDBDBD", primarySoft: "#FFFFFF18",
+  primary: "#737373", onPrimary: "#FFFFFF", /* Accessible foreground for primary surfaces. */
+  primaryDark: "#525252", secondary: "#BDBDBD", primarySoft: "#FFFFFF18",
   background: "#090909", surface: "#141414", surfaceElevated: "#202020",
   textPrimary: "#F5F5F5", textSecondary: "#B7B7B7", textMuted: "#858585", accent: "#F5F5F5",
   success: "#4ADE80", warning: "#FBBF24", error: "#F87171",
@@ -9,7 +10,8 @@ const darkColors = {
 } as const;
 
 const lightColors = {
-  primary: "#171717", primaryDark: "#000000", secondary: "#525252", primarySoft: "#1717170D",
+  primary: "#171717", onPrimary: "#FFFFFF", /* Accessible foreground for primary surfaces. */
+  primaryDark: "#000000", secondary: "#525252", primarySoft: "#1717170D",
   background: "#F7F7F7", surface: "#FFFFFF", surfaceElevated: "#F0F0F0",
   textPrimary: "#111111", textSecondary: "#525252", textMuted: "#737373", accent: "#111111",
   success: "#15803D", warning: "#A16207", error: "#B91C1C",

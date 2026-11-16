@@ -221,7 +221,7 @@ export function MediaGenerationModelsAdminScreen() {
         </View>
       </View>)}
       <Pressable disabled={saving} onPress={() => void save()} style={{ backgroundColor: colors.primary, borderRadius: 10, padding: 12, opacity: saving ? 0.5 : 1 }}>
-        <Text style={{ color: colors.background, fontWeight: "900", textAlign: "center" }}>{saving ? "جارٍ الحفظ…" : "حفظ نموذج الصور والأسعار"}</Text>
+        <Text style={{ color: colors.onPrimary, fontWeight: "900", textAlign: "center" }}>{saving ? "جارٍ الحفظ…" : "حفظ نموذج الصور والأسعار"}</Text>
       </Pressable>
     </View>
   </ScrollView>;

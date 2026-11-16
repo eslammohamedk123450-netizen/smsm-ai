@@ -92,7 +92,7 @@ export function ShareConversationSheet({ visible, conversationId, title, plainTe
           {loading || saving ? <ActivityIndicator color={palette.primary} /> : <Switch value={isPublic} onValueChange={(value) => void toggleSharing(value)} trackColor={{ false: palette.divider, true: palette.primary }} thumbColor={palette.surface} accessibilityLabel="تبديل مشاركة المحادثة" />}
         </View>
         {isPublic && shareUrl ? <Pressable onPress={() => void copyLink()} style={({ pressed }) => [styles.primaryButton, { backgroundColor: palette.primary, opacity: pressed ? 0.82 : 1 }]} accessibilityRole="button">
-          <Text style={[styles.primaryText, { color: palette.background }]}>{isArabic ? "نسخ الرابط" : "Copy link"}</Text><Text style={[styles.linkGlyph, { color: palette.background }]}>↗</Text>
+          <Text style={[styles.primaryText, { color: palette.onPrimary }]}>{isArabic ? "نسخ الرابط" : "Copy link"}</Text><Text style={[styles.linkGlyph, { color: palette.onPrimary }]}>↗</Text>
         </Pressable> : null}
         <Pressable onPress={() => void shareText()} style={({ pressed }) => [styles.secondaryButton, { backgroundColor: palette.surface, borderColor: palette.divider, opacity: pressed ? 0.75 : 1 }]} accessibilityRole="button">
           <Text style={[styles.secondaryText, { color: palette.textPrimary }]}>{isArabic ? "مشاركة كنص" : "Share as text"}</Text><Text style={[styles.secondaryGlyph, { color: palette.primary }]}>⇧</Text>

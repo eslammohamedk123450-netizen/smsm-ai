@@ -30,7 +30,7 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
       <Text style={{ color: colors.textPrimary, fontSize: 20, fontWeight: "700", textAlign: "center" }}>حدث خلل أثناء فتح الشاشة</Text>
       <Text selectable style={{ color: colors.textSecondary, textAlign: "center", lineHeight: 22 }}>{error.message || "خطأ غير معروف"}</Text>
       <Pressable onPress={() => void retry()} style={{ paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, backgroundColor: colors.primary }}>
-        <Text style={{ color: colors.background, fontWeight: "700" }}>إعادة المحاولة</Text>
+        <Text style={{ color: colors.onPrimary, fontWeight: "700" }}>إعادة المحاولة</Text>
       </Pressable>
       <Pressable onPress={() => void resetLocalSession()} style={{ paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.divider }}>
         <Text style={{ color: colors.textPrimary, fontWeight: "600" }}>إعادة الدخول</Text>

@@ -66,7 +66,7 @@ export function MainNavigation({ children }: Props) {
       {wide ? (
         <View style={[styles.sidebar, { backgroundColor: colors.surface, borderColor: colors.divider, borderLeftWidth: isArabic ? 1 : 0, borderRightWidth: isArabic ? 0 : 1 }]}>
           <View style={[styles.brand, { flexDirection: isArabic ? "row-reverse" : "row" }]}>
-            <View style={[styles.brandMark, { backgroundColor: colors.primary }]}><Text style={[styles.brandLetter, { color: "#FFFFFF" }]}>S</Text></View>
+            <View style={[styles.brandMark, { backgroundColor: colors.primary }]}><Text style={[styles.brandLetter, { color: colors.onPrimary }]}>S</Text></View>
             <View style={[styles.brandCopy, { alignItems: isArabic ? "flex-end" : "flex-start" }]}><Text style={[styles.brandName, { color: colors.textPrimary }]}>SULY</Text><Text style={[styles.brandTagline, { color: colors.textMuted }]}>YOUR INTELLIGENT PARTNER</Text></View>
           </View>
           <Text style={[styles.navCaption, { color: colors.textMuted, textAlign: isArabic ? "right" : "left" }]}>{isArabic ? "مساحة العمل" : "Workspace"}</Text>

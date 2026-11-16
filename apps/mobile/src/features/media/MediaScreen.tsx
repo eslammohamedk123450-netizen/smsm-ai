@@ -313,7 +313,7 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   filterText: { color: colors.textSecondary, fontSize: 11, fontWeight: "700" },
   filterTextSelected: { color: colors.primary },
   actionButton: { flexGrow: 1, minWidth: 130, minHeight: 46, borderRadius: 10, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: 14 },
-  actionText: { color: "#FFFFFF", fontWeight: "700" },
+  actionText: { color: colors.onPrimary, fontWeight: "700" },
   ghostButton: { flexGrow: 1, minWidth: 130, minHeight: 46, borderRadius: 10, borderWidth: 1, borderColor: colors.accent, alignItems: "center", justifyContent: "center", paddingHorizontal: 14 },
   ghostText: { color: colors.accent, fontWeight: "700" },
   disabled: { opacity: 0.5 },

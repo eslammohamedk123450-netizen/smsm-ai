@@ -209,12 +209,12 @@ export function ImageStudioScreen() {
         <View style={{ flexDirection: "row-reverse", justifyContent: "space-between" }}><Text style={{ color: colors.textSecondary }}>الرصيد بعد الحجز</Text><Text style={{ color: remainingAfterReserve !== null && remainingAfterReserve < 0 ? colors.error : colors.textPrimary, fontWeight: "700" }}>{remainingAfterReserve === null ? "—" : remainingAfterReserve.toLocaleString("ar-EG")}</Text></View>
       </View>
       <Pressable disabled={!canGenerate} onPress={() => void generate()} style={{ backgroundColor: colors.primary, borderRadius: 12, padding: 14, opacity: canGenerate ? 1 : 0.45, alignItems: "center" }}>
-        <Text style={{ color: colors.background, fontWeight: "900" }}>{generating ? "جاري تجهيز طلبك…" : result ? "إعادة توليد الصورة" : "تأكيد وإنشاء الصورة"}</Text>
+        <Text style={{ color: colors.onPrimary, fontWeight: "900" }}>{generating ? "جاري تجهيز طلبك…" : result ? "إعادة توليد الصورة" : "تأكيد وإنشاء الصورة"}</Text>
       </Pressable>
       <Text style={{ color: colors.textMuted, textAlign: "right", fontSize: 10, lineHeight: 17 }}>قد يسمح النظام ببدء المهمة ضمن حد الرصيد السالب الذي يحدده المشرف. سيتم التحقق من الحد الفعلي عند تأكيد الطلب.</Text>
     </View>
 
-    {generating ? <Animated.View style={{ backgroundColor: "#17150D", borderColor: "#D4AF37", borderWidth: 1, borderRadius: 16, padding: 24, alignItems: "center", gap: 12, transform: [{ scale: breathingScale }] }}>
+    {generating ? <Animated.View style={{ backgroundColor: colors.surface, borderColor: colors.primary, borderWidth: 1, borderRadius: 16, padding: 24, alignItems: "center", gap: 12, transform: [{ scale: breathingScale }] }}>
       <ActivityIndicator size="large" color={colors.primary} />
       <Text style={{ color: colors.primary, fontSize: 17, fontWeight: "900" }}>جاري التوليد</Text>
       <Text style={{ color: colors.textSecondary, textAlign: "center", fontSize: 11 }}>نموذج SULY يعمل على إنشاء صورتك. اترك المهمة تكمل.</Text>
@@ -229,7 +229,7 @@ export function ImageStudioScreen() {
         <Pressable onPress={() => void Linking.openURL(result.url)} style={{ borderWidth: 1, borderColor: colors.divider, borderRadius: 9, padding: 10 }}><Text style={{ color: colors.textPrimary, fontSize: 11 }}>فتح / تنزيل الصورة</Text></Pressable>
         <Pressable onPress={() => void copyResultLink()} style={{ borderWidth: 1, borderColor: colors.divider, borderRadius: 9, padding: 10 }}><Text style={{ color: colors.textPrimary, fontSize: 11 }}>نسخ رابط الصورة</Text></Pressable>
         <Pressable onPress={() => router.push("/(protected)/media")} style={{ borderWidth: 1, borderColor: colors.divider, borderRadius: 9, padding: 10 }}><Text style={{ color: colors.textPrimary, fontSize: 11 }}>فتح مكتبتي</Text></Pressable>
-        <Pressable disabled={openingChat} onPress={() => void startConversationAboutImage()} style={{ backgroundColor: colors.primary, borderRadius: 9, padding: 10, opacity: openingChat ? 0.55 : 1 }}><Text style={{ color: colors.background, fontSize: 11, fontWeight: "800" }}>{openingChat ? "جارٍ بدء المحادثة…" : "ابدأ محادثة عنها"}</Text></Pressable>
+        <Pressable disabled={openingChat} onPress={() => void startConversationAboutImage()} style={{ backgroundColor: colors.primary, borderRadius: 9, padding: 10, opacity: openingChat ? 0.55 : 1 }}><Text style={{ color: colors.onPrimary, fontSize: 11, fontWeight: "800" }}>{openingChat ? "جارٍ بدء المحادثة…" : "ابدأ محادثة عنها"}</Text></Pressable>
       </View>
     </Animated.View> : null}
   </ScrollView>;

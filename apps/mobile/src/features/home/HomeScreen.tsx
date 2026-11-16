@@ -98,11 +98,11 @@ export function HomeScreen() {
           onPress={() => void newConversation()}
           style={[styles.primaryButton, { backgroundColor: colors.primary }, creating && styles.disabled]}
         >
-          {creating ? <ActivityIndicator color={colors.background} /> : <Ionicons name="add" size={20} color={colors.background} />}
-          <Text style={[styles.primaryButtonText, { color: colors.background }]}>
+          {creating ? <ActivityIndicator color={colors.onPrimary} /> : <Ionicons name="add" size={20} color={colors.onPrimary} />}
+          <Text style={[styles.primaryButtonText, { color: colors.onPrimary }]}>
             {creating ? (isArabic ? "جارٍ فتح محادثة…" : "Opening chat…") : (isArabic ? "محادثة جديدة" : "New conversation")}
           </Text>
-          {!creating ? <Ionicons name={isArabic ? "arrow-back" : "arrow-forward"} size={17} color={colors.background} /> : null}
+          {!creating ? <Ionicons name={isArabic ? "arrow-back" : "arrow-forward"} size={17} color={colors.onPrimary} /> : null}
         </Pressable>
       </View>
 
