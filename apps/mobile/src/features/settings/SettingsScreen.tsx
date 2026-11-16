@@ -228,7 +228,7 @@ export default function SettingsScreen() {
           />
           <View style={styles.confirmActions}>
             <TouchableOpacity activeOpacity={0.7} onPress={() => setProfileEditVisible(false)} style={styles.cancelAction} disabled={savingProfile}><Text style={styles.cancelActionText}>{isArabic ? "إلغاء" : "Cancel"}</Text></TouchableOpacity>
-            <TouchableOpacity activeOpacity={0.7} onPress={() => void saveProfileName()} style={styles.dangerAction} disabled={savingProfile}><Text style={styles.dangerActionText}>{savingProfile ? (isArabic ? "جارٍ الحفظ…" : "Saving…") : (isArabic ? "حفظ" : "Save")}</Text></TouchableOpacity>
+            <TouchableOpacity activeOpacity={0.7} onPress={() => void saveProfileName()} style={styles.saveAction} disabled={savingProfile}><Text style={styles.saveActionText}>{savingProfile ? (isArabic ? "جارٍ الحفظ…" : "Saving…") : (isArabic ? "حفظ" : "Save")}</Text></TouchableOpacity>
           </View>
         </View>
       </BottomSheet>
@@ -332,6 +332,8 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
   confirmActions: { flexDirection: "row-reverse", gap: 10, marginTop: 18 },
   cancelAction: { flex: 1, minHeight: 48, borderRadius: 13, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" },
   cancelActionText: { color: colors.textPrimary, fontWeight: "600" },
+  saveAction: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
+  saveActionText: { color: colors.background, fontWeight: "700" },
   dangerAction: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: "#1F2937", alignItems: "center", justifyContent: "center" },
   dangerActionText: { color: "#F87171", fontWeight: "700" },
 });
