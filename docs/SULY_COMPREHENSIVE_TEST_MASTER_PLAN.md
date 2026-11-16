@@ -155,3 +155,10 @@ RLS/grants للأدوار؛ RPC وSECURITY DEFINER وsearch_path؛ CORS/JWT/rate
 
 ## 9. العلاقة بخطة البناء
 هذا الملف لا يوجه كتابة الكود اليومية. العيب الذي يظهر في فحص تطويري سريع يُصلح داخل المرحلة المناسبة في SULY_DEVELOPMENT_MASTER_PLAN.md. بعد اكتمال البناء، تُنفذ المجموعات هنا واحدة تلو الأخرى، وأي فشل يعود كإصلاح محدد إلى Track A ثم يعاد الاختبار المتأثر.
+
+
+### دليل تشغيل اختبارات HIMS الآلية — 2026-11-16
+- `T09-Unit-Activation`: **PASS** — GitHub Actions run `43960751890`, job `HIMS activation and resource isolation regressions`, commit `36ee3423e275da3c5594c8d65439e72370463e97`.
+- شمل التشغيل `activation_command.test.ts` و`feature_flags.test.ts`: parsing, safe outcome mapping, fail-closed rate limiting, bounded retry-after, no raw backend error leakage, and no resource table read/return for an unactivated user.
+- فشل CI السابق `43960322088` بسبب syntax في fixture، وفشل `43960664237` بسبب Deno npm type dependency resolution. تم إصلاحهما وإعادة التشغيل حتى PASS في run المذكور.
+- هذا دليل اختبارات وحدات/مصدر فقط؛ لا يغلق اختبارات التزامن أو اختبار SQL أو رحلة مدير/طالب أو تسليم محاضرة حقيقية.
