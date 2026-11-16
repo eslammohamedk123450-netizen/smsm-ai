@@ -279,6 +279,44 @@ export const adminService = {
     };
   },
 
+  async getModelPriceVersions() {
+    await requireAdmin();
+    const { data: prices, error: priceError } = await supabase
+      .from("ai_model_price_versions")
+      .select("id,model_id,price_version,provider_input_cost_egp_per_million,provider_output_cost_egp_per_million,selling_input_egp_per_million,selling_output_egp_per_million,markup_rate,currency,is_current,effective_at,created_at")
+      .eq("is_current", true)
+      .order("model_id");
+    if (priceError) throw priceError;
+    const modelIds = [...new Set((prices ?? []).map((row) => Number(row.model_id)))];
+    if (modelIds.length === 0) return [];
+    const { data: models, error: modelError } = await supabase
+      .from("ai_models")
+      .select("id,name,model_identifier,provider_id")
+      .in("id", modelIds);
+    if (modelError) throw modelError;
+    const modelById = new Map((models ?? []).map((row) => [Number(row.id), row]));
+    return (prices ?? []).map((price) => ({ ...price, model: modelById.get(Number(price.model_id)) ?? null }));
+  },
+
+  async updateModelPrice(modelId: number, inputCost: number, outputCost: number, expectedVersion: number) {
+    await requireAdmin();
+    if (!Number.isSafeInteger(modelId) || modelId < 1
+      || !Number.isFinite(inputCost) || inputCost < 0
+      || !Number.isFinite(outputCost) || outputCost < 0
+      || !Number.isSafeInteger(expectedVersion) || expectedVersion < 1) {
+      throw new Error("قيم تسعير النموذج غير صالحة.");
+    }
+    const { data, error } = await supabase.rpc("suly_admin_set_ai_model_price", {
+      p_model_id: modelId,
+      p_provider_input_cost_egp_per_million: inputCost,
+      p_provider_output_cost_egp_per_million: outputCost,
+      p_expected_version: expectedVersion,
+    });
+    if (error) throw error;
+    if (!data || data.success !== true) throw new Error("تعذر إنشاء إصدار سعر جديد.");
+    return data;
+  },
+
   async updateModel(modelId: number, changes: Record<string, unknown>) {
     await requireAdmin();
     const allowed = ["enabled", "priority", "routing_group", "allowed_tiers", "response_timeout_ms", "restriction_failure_threshold", "restriction_window_minutes", "capabilities_json", "task_roles"];
