@@ -44,9 +44,9 @@ function supportsChat(value: ModelChoice["capabilities_json"], modelIdentifier: 
     && !/(embed|embedding|whisper|tts|speech|audio|image|imagen|dall-e|flux|stable-diffusion|kling|seedance|seedream|ideogram|nano-banana|minimax|lyria|transcrib|robotics|deep-research|computer-use|guard|moderation|rerank)/i.test(modelIdentifier);
 }
 
-export function AgentModelPickerCard({
+export function AgentModelPickerCard({ role, models, selectedModelId, busy, onSelect }: Props) {
   const { colors } = useSulyTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]); role, models, selectedModelId, busy, onSelect }: Props) {
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [search, setSearch] = useState("");
   const isPlanner = role === "planner";
   const eligibleModels = useMemo(() => {
