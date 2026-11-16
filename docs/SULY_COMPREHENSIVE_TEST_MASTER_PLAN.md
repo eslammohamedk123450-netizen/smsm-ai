@@ -162,3 +162,11 @@ RLS/grants للأدوار؛ RPC وSECURITY DEFINER وsearch_path؛ CORS/JWT/rate
 - شمل التشغيل `activation_command.test.ts` و`feature_flags.test.ts`: parsing, safe outcome mapping, fail-closed rate limiting, bounded retry-after, no raw backend error leakage, and no resource table read/return for an unactivated user.
 - فشل CI السابق `43960322088` بسبب syntax في fixture، وفشل `43960664237` بسبب Deno npm type dependency resolution. تم إصلاحهما وإعادة التشغيل حتى PASS في run المذكور.
 - هذا دليل اختبارات وحدات/مصدر فقط؛ لا يغلق اختبارات التزامن أو اختبار SQL أو رحلة مدير/طالب أو تسليم محاضرة حقيقية.
+
+
+### فحوص المرحلة 4 — أدلة تطويرية
+- `T04-Theme-Tokens`: **PASS** — `colors.test.ts` يتحقق من تطابق semantic token keys، وتباين النصوص ≥4.5:1 على الأسطح، وتباين نص الزر، وكون كل قيم Light/Dark grayscale.
+- `T04-Project-Default`: **PASS** — `project-service.test.ts` يؤكد اللون المحايد الافتراضي للمشروع والتحقق من المدخلات.
+- `T04-Expo-Typecheck`: **PASS** — `npm run typecheck` داخل `apps/mobile`.
+- الدليل: GitHub Actions run `43961210070`, commit `6678011330c4f0083321d3486f0c460126627940`.
+- هذه فحوص tokens ومصدر فقط؛ المراجعة البصرية الشاملة على متصفحات وأحجام وأجهزة حقيقية ما زالت NOT RUN ضمن القبول.
