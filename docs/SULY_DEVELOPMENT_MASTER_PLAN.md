@@ -1,7 +1,7 @@
 # SULY — خطة البناء والتطوير الشاملة
 **SULY Complete Build & Development Master Plan**
 
-- الإصدار: 2.4 | آخر تدقيق: 2026-11-17
+- الإصدار: 2.5 | آخر تدقيق: 2026-11-17
 - فرع العمل: develop | فرع الإنتاج المحمي: release/v1
 - هذا هو المرجع التنفيذي الوحيد للبناء والتطوير.
 - مرجع القبول النهائي: SULY_COMPREHENSIVE_TEST_MASTER_PLAN.md
@@ -162,15 +162,15 @@
 
 ### المرحلة 6 — المحادثة والوكيل المركزي والنماذج
 استكمال المحادثة وSSE وخطة المهمة والتقدم والإلغاء وإعادة المحاولة والحفظ الذري والفوترة الجزئية، واختيار نماذج SULY من الشريط العلوي.
-**الحالة: [~] بنية الوكيل المركزي منشورة ومحدثة.** تعرض الواجهة Auto وLite/Pro/Max المؤهلة للاشتراك، وX مقفل لعدم وجود profile معتمد. يرسل send/regenerate/retry الاختيار إلى الخادم، ويعيد ai-router v54 التحقق من الاشتراك والقدرات والتوجيه. تم نشر brain-router v13 وagent-task-worker v6؛ scheduler v5 مطابق للمصدر الحالي. لا تحفظ الواجهة الاختيار بين تسجيلات الدخول بعد؛ اختبارات التكامل والـbilling مؤجلة.
+**الحالة: [~] بنية الوكيل المركزي منشورة واجتازت فحوص المصدر والـCI، لكن قبول المهمة الحقيقية غير مكتمل.** تعرض الواجهة Auto وLite/Pro/Max المؤهلة للاشتراك، وX مقفل لعدم وجود profile معتمد. يرسل send/regenerate/retry الاختيار إلى الخادم، ويعيد ai-router v54 التحقق من الاشتراك والقدرات والتوجيه. تم نشر brain-router v13 وagent-task-worker v6؛ scheduler v5 مطابق للمصدر الحالي. CI نجح في typecheck وDeno regressions، لكن agent_task_jobs لا يحتوي مهمة مكتملة أو نشطة (مهمة واحدة ملغاة فقط)، لذلك لم يُثبت تنفيذ مهمة Agent فعلية أو settlement. لا تحفظ الواجهة الاختيار بين تسجيلات الدخول بعد. تعرض الواجهة Auto وLite/Pro/Max المؤهلة للاشتراك، وX مقفل لعدم وجود profile معتمد. يرسل send/regenerate/retry الاختيار إلى الخادم، ويعيد ai-router v54 التحقق من الاشتراك والقدرات والتوجيه. تم نشر brain-router v13 وagent-task-worker v6؛ scheduler v5 مطابق للمصدر الحالي. لا تحفظ الواجهة الاختيار بين تسجيلات الدخول بعد؛ اختبارات التكامل والـbilling مؤجلة.
 
 ### المرحلة 7 — Studio
 إنشاء الصور والفيديو والصوت والتفريغ النصي مع التحقق من القدرات والسعر والخصم.
-**الحالة: [~] واجهة Studio موجودة ووظيفة image-generator v10 منشورة، لكن لا توجد خدمة وسائط قابلة للتفعيل حاليًا.** فحص قراءة فقط للدالة `suly_list_public_image_models` أثبت أنها لا تعرض إلا النماذج النشطة ذات الأسعار المفعلة والمسموح بها للباقة؛ العدد الحالي 0 نموذج صور نشط و0 سعر مفعّل و0 سعر موجب. لا توجد سجلات نماذج فيديو/صوت في جدول media generation الحالي. تم تحديث أوصاف Studio لتقول ذلك بوضوح، وكل بطاقات الخدمات تبقى disabled. لا تفعيل أو خصم قبل إثبات التكلفة والتكامل.
+**الحالة: [!] Studio غير جاهز لتجربة توليد فعلية.** وظيفة image-generator v10 منشورة ومطابقة للمصدر، لكن كتالوج الوسائط يحتوي 4 سجلات صور كلها غير نشطة، وعدد الأسعار المفعلة صفر، وإعداد image generation legacy معطل، ولا توجد media jobs. لذلك تظل بطاقات Studio معطلة؛ لا تفعيل أو خصم قبل اعتماد نموذج/مزود وسعر حقيقي واختبار التكلفة. CI لفوترة الوسائط نجح، لكنه لا يثبت توفر مزود صور. فحص قراءة فقط للدالة `suly_list_public_image_models` أثبت أنها لا تعرض إلا النماذج النشطة ذات الأسعار المفعلة والمسموح بها للباقة؛ العدد الحالي 0 نموذج صور نشط و0 سعر مفعّل و0 سعر موجب. لا توجد سجلات نماذج فيديو/صوت في جدول media generation الحالي. تم تحديث أوصاف Studio لتقول ذلك بوضوح، وكل بطاقات الخدمات تبقى disabled. لا تفعيل أو خصم قبل إثبات التكلفة والتكامل.
 
 ### المرحلة 8 — المكتبة
 الملفات والمخرجات والمستندات والمجلدات والمفضلة والبحث والتنزيل والملكية.
-**الحالة: [~] التنظيم والملكية موجودان؛ إصلاح مسار الرفع العام مطبق على Supabase.** تم اكتشاف تعارض بين media-gateway وRPC التسجيل: general كان يُرفض لغير المدير. طُبقت migration `20261117014500_media_general_upload_rpc_access.sql`، ونُشرت `media-gateway` بالإصدار 14 مع JWT verification. يسمح المسار للمستخدم النشط برفع general، مع بقاء HIMS للمدير فقط. لم تُختبر عمليات الرفع/IDOR؛ حالات القبول في ملف الاختبارات الشاملة.
+**الحالة: [~] مسار الرفع منشور لكن الرفع الحقيقي غير مثبت.** طُبقت migration الخاصة بـgeneral upload، ونُشرت media-gateway v14 مع JWT verification، واختبارات upload access الوحدوية نجحت ضمن CI. لكن سجلات آخر 24 ساعة تعرض 5 طلبات OPTIONS فقط ولا تعرض أي POST upload؛ جدول إعدادات Cloudinary لا يحتوي سجل إعداد، ولا يوجد Cloudinary secret ظاهر في Vault metadata (قد توجد قيمة server env لا يمكن فحصها هنا). لا يمكن اعتماد الرفع كوظيفة مجربة قبل POST فعلي بحساب اختبار وملف تجريبي. تم اكتشاف تعارض بين media-gateway وRPC التسجيل: general كان يُرفض لغير المدير. طُبقت migration `20261117014500_media_general_upload_rpc_access.sql`، ونُشرت `media-gateway` بالإصدار 14 مع JWT verification. يسمح المسار للمستخدم النشط برفع general، مع بقاء HIMS للمدير فقط. لم تُختبر عمليات الرفع/IDOR؛ حالات القبول في ملف الاختبارات الشاملة.
 
 ### المرحلة 9 — الحساب والإعدادات والاشتراك
 مركز الحساب المعتمد، الملف والأجهزة، الباقات والرصيد والمعاملات، المهارات والموصلات واللغة والمظهر والتخزين والدعم والخروج والحذف.
@@ -178,11 +178,11 @@
 
 ### المرحلة 10 — كتالوج المزودين والنماذج
 مطابقة المعرفات، إدارة المزودين، عدم تكرار الأسرار، وحالة التحقق والتعطيل للنماذج غير المؤكدة.
-**الحالة: [~] الكتالوج والإدارة موجودان، وقائمة اختيار المستخدم أضيفت.** ملفات SULY الحالية Lite/Pro/Max، ويقرأ الاختيار الباقات الفعلية ولا يكشف أسماء المزودين. X غير موجود في قاعدة البيانات ويظهر مقفلًا فقط. تبقى مطابقة كل السجلات مع كتالوج المالك واعتماد النماذج واختبارات SULY.
+**الحالة: [~] الكتالوج موصول بقاعدة حقيقية، لكن صحة كل نموذج ليست مثبتة.** توجد 9 نماذج مفعلة، وملفات Lite/Pro/Max مفعلة، وX غير موجود ومقفل. لقطة ai_model_health الحالية تعرض نموذجين فريدين فقط بحالة success (Qwen وGPT-OSS)، بينما السبعة الأخرى بحالات error/cancelled؛ كما سجلت probes أخطاء provider_http_402 وempty_response وmodel_timeout. منطق الأهلية في ai-router يستبعد النماذج غير السليمة، لذلك يوجد fallback محدود إلى النموذجين السليمين. لا تفعيل إضافي ولا تغيير routing أو الأسعار دون اختبار واعتماد. ملفات SULY الحالية Lite/Pro/Max، ويقرأ الاختيار الباقات الفعلية ولا يكشف أسماء المزودين. X غير موجود في قاعدة البيانات ويظهر مقفلًا فقط. تبقى مطابقة كل السجلات مع كتالوج المالك واعتماد النماذج واختبارات SULY.
 
 ### المرحلة 11 — القدرات والتحقق والتوجيه
 أدلة القدرات المعلنة واختبارات المزود وتكامل SULY والصحة وأدوار النماذج وقوائم السماح والـfallback.
-**الحالة: [~] منطق الأهلية والحماية موجود بالمصدر؛ اعتماد القدرات التشغيلية غير مكتمل.** ai-router يشترط النموذج والمزود المفعّلين والصحة والباقة والقدرات والدور، ويقيد profile/role إلى allowlist. تعطيل المزود يوقف ارتباطاته. provider probe لا يساوي اختبار تكامل SULY؛ لا تغييرات على routing أو تفعيل النماذج دون دليل واعتماد.
+**الحالة: [~] منطق الأهلية اجتاز الاختبارات الآلية، والتشغيل الفعلي محدود.** ai-router يشترط النموذج والمزود المفعّلين والصحة والباقة والقدرات والدور، ويقيد profile/role إلى allowlist. سجلت الوظيفة 7 POST ناجحة 200 خلال آخر 24 ساعة، مع 2 من 404 و3 من 409، و500 واحد قديم على الإصدار 53 قبل الإصدار الحالي 54. مزودو النماذج لديهم نتائج probes متباينة؛ لا يُعد نجاح endpoint دليلًا على صحة كل نموذج. ai-router يشترط النموذج والمزود المفعّلين والصحة والباقة والقدرات والدور، ويقيد profile/role إلى allowlist. تعطيل المزود يوقف ارتباطاته. provider probe لا يساوي اختبار تكامل SULY؛ لا تغييرات على routing أو تفعيل النماذج دون دليل واعتماد.
 
 ### المرحلة 12 — التسعير والخصم وهامش 40%
 تسعير النموذج حسب السعر الفعلي والاستهلاك، حجز وتسوية وإلغاء آمن، والحفاظ على هامش 40%.
@@ -190,7 +190,7 @@
 
 ### المرحلة 13 — SULY Control Center
 المجالات الإدارية الاثنا عشر، الحفاظ على المسارات، تأمين العمليات، وبناء Dynamic Admin Page & Component Builder.
-**الحالة: [~] Builder موصول بقاعدة Supabase؛ القبول التشغيلي لم يكتمل.** طُبقت migration الخاصة بالصفحات والإصدارات، وأصبحت RPCs الخمس ومصادر البيانات الثلاثة الحية وسجل audit موجودة على قاعدة المشروع. الواجهة والمحرر ومسار عرض المنشور موجودة على `develop`، ومخرجات المصادر تعرض ملخصات مقروءة. allowlist الحالي ستة أنواع فقط (text/notice/metric/status/list/table)؛ chart/form/filter العامة لم تُنفذ بعد، ولا تُضاف نماذج كتابة قبل اعتماد action allowlist. لم تُنفذ اختبارات بحساب مدير/غير مدير؛ المتبقي قبول التشغيل، صلاحيات فرعية عند اعتمادها، واستكمال المكونات المعتمدة.
+**الحالة: [~] Builder موصول بقاعدة Supabase واجتاز TypeScript والـbundle checks؛ قبول المدير/غير المدير غير منفذ.** طُبقت migration، والـRPCs الخمس ومصادر البيانات الثلاثة وسجل audit موجودة. allowlist الحالي ستة أنواع فقط (text/notice/metric/status/list/table)؛ chart/form/filter العامة لم تُنفذ، ولا تُضاف نماذج كتابة قبل اعتماد action allowlist. يلزم اختبار مدير حقيقي وغير مدير، حفظ/نشر/إخفاء/استرجاع إصدار، وظهور الصفحات المنشورة فقط. طُبقت migration الخاصة بالصفحات والإصدارات، وأصبحت RPCs الخمس ومصادر البيانات الثلاثة الحية وسجل audit موجودة على قاعدة المشروع. الواجهة والمحرر ومسار عرض المنشور موجودة على `develop`، ومخرجات المصادر تعرض ملخصات مقروءة. allowlist الحالي ستة أنواع فقط (text/notice/metric/status/list/table)؛ chart/form/filter العامة لم تُنفذ بعد، ولا تُضاف نماذج كتابة قبل اعتماد action allowlist. لم تُنفذ اختبارات بحساب مدير/غير مدير؛ المتبقي قبول التشغيل، صلاحيات فرعية عند اعتمادها، واستكمال المكونات المعتمدة.
 
 ### المرحلة 14 — Light/Dark/System
 تطبيق الثيم على كل شاشة ومكون وحالة، بتباين صحيح وألوان أبيض وأسود.
@@ -202,11 +202,11 @@
 
 ### المرحلة 16 — الأمن وسلامة البيانات
 مراجعة RPC وRLS والأسرار والصلاحيات ومعدلات الطلبات وCORS والمحاسبة وidempotency والتدقيق والتعافي.
-**الحالة: [~] تغييرات أمنية محددة طُبقت، والمراجعة الشاملة مفتوحة.** آخر Security Advisor (2026-11-17) أظهر 14 جدول RLS بلا سياسات (يجب مراجعة صلاحيات كل جدول؛ الجداول الجديدة مقصود منع الوصول المباشر لها)، وتحذيرين extensions في public، و66 SECURITY DEFINER callable من authenticated، وتحذير leaked-password protection غير المفعّل، وتحذير public-share واحد لـanon. طُبقت migrations الخاصة بـgeneral upload وBuilder وHIMS، ونُشرت media-gateway v14. بقيت مراجعة كل الدوال وإعداد Auth واختبارات IDOR/roles.
+**الحالة: [~] تغييرات محددة مطبقة وCI الأمني نجح، لكن المراجعة الشاملة غير مكتملة.** Security Advisor: 14 جدول RLS بلا policies (مقصود منع الوصول المباشر لبعض الجداول الجديدة لكن يحتاج مراجعة grants لكل جدول)، extensionان في public، دالة SECURITY DEFINER واحدة متاحة لـanon لمشاركة محادثة برمز، و66 دالة متاحة لـauthenticated. فحص catalog أكد أن 125 SECURITY DEFINER لا توجد بينها دالة بلا search_path مضبوط. بقيت مراجعة الحراس التفصيلية، leaked-password protection، 73 FK بلا index، 50 index غير مستخدم، و9 مجموعات permissive policies، واختبارات IDOR/roles. آخر Security Advisor (2026-11-17) أظهر 14 جدول RLS بلا سياسات (يجب مراجعة صلاحيات كل جدول؛ الجداول الجديدة مقصود منع الوصول المباشر لها)، وتحذيرين extensions في public، و66 SECURITY DEFINER callable من authenticated، وتحذير leaked-password protection غير المفعّل، وتحذير public-share واحد لـanon. طُبقت migrations الخاصة بـgeneral upload وBuilder وHIMS، ونُشرت media-gateway v14. بقيت مراجعة كل الدوال وإعداد Auth واختبارات IDOR/roles.
 
 ### المرحلة 17 — Web وAndroid وiOS
 التوافق المشترك والتصدير والإعدادات والأسرار والروابط العميقة والبناء الأصلي والإصدار والتراجع.
-**الحالة: [~] إعدادات Web وAndroid موجودة؛ iOS يحتاج مدخلًا من المالك.** EAS preview APK وproduction AAB، وGitHub Pages يبني production من release/v1 وpreview من develop. تم ضبط Expo appearance على automatic. لا يوجد ios.bundleIdentifier؛ لا يُخترع معرف Apple. لم تُشغّل builds أو deploy في هذه الدفعة.
+**الحالة: [~] Expo exports نجحت للمنصات الثلاث؛ النشر والبناء الأصلي غير منفذين.** CI الحالي نجح في Expo Web export وAndroid JS bundle وiOS JS bundle. هذا لا يساوي APK/AAB أو iOS native build أو اختبار أجهزة. لا يوجد ios.bundleIdentifier؛ لا يُخترع معرف Apple. Workflow النشر تخطى التنفيذ على develop، ولم يتغير release/v1 أو موقع الإنتاج/المعاينة. EAS preview APK وproduction AAB، وGitHub Pages يبني production من release/v1 وpreview من develop. تم ضبط Expo appearance على automatic. لا يوجد ios.bundleIdentifier؛ لا يُخترع معرف Apple. لم تُشغّل builds أو deploy في هذه الدفعة.
 
 ## 5. ترتيب العمل والمتبقي
 
@@ -701,3 +701,27 @@
 - آخر فحص لمشروع Supabase: `ACTIVE_HEALTHY`، Postgres 17.11؛ migrations الثلاث الخاصة بهذه الدفعة مسجلة ومطبقة، والوظائف الـ11 ACTIVE بالإصدارات الموضحة أعلاه.
 - آخر استعلام سجلات read-only خلال 24 ساعة لم يجد سجلات function_edge_logs بمستوى error/exception أو status 500/502/503. هذا لا يثبت نجاح endpoints ولا يغني عن الاختبارات.
 - لم تُشغّل اختبارات أو typecheck أو lint أو build أو endpoint probes أو مستخدمين حقيقيين في هذه الدفعة.
+
+
+## المراجعة التشغيلية النهائية — 2026-11-17
+### ما ثبت بدليل مباشر
+- كود الاختبار المراجع: 58d089f61909afcfa81c81745a6087cefd473059.
+- GitHub CI:
+  - Verify Agent task runtime run 43979877947: نجاح typecheck الموبايل، 11 test suites / 54 tests للمصادقة، ونجاح Expo exports للويب وAndroid JS وiOS JS.
+  - Deno job: نجاح 124 اختبارًا عبر orchestrator/resilience/model eligibility/routing/profile routing/budget/idempotency/Tavily/scheduler/queue/CORS/HIMS/media access/brain result وغيرها، ونجاح Deno typecheck للـAgent/Brain/Scheduler.
+  - Verify Edge Function deployment artifacts run 43979878071: نجاح بناء/مطابقة bundles، HIMS activation/resource isolation، currency-safe media billing، و3 suites / 13 theme/project-default tests.
+  - Deploy Suly Production + Development Preview run 43979878106: SKIPPED على develop حسب حاجز النشر؛ لا نشر للواجهة.
+- Supabase project razvryvazmqvvqkzetuo: ACTIVE_HEALTHY, PostgreSQL 17.11.
+- الوظائف النشطة الـ11 وإصداراتها: ai-router v54، sync-models v15، media-gateway v14، model-health-check v7، upload-media v8 (retired/410)، brain-router v13، image-generator v10، composito-integration v9، agent-task-worker v6، agent-task-scheduler v5، admin-storage v3.
+- تطابق الملفات: bundles المنشورة لـai-router/sync-models تطابق deployment artifacts على develop؛ entrypoints المنشورة لـmedia-gateway/model-health-check/brain-router/image-generator/composito-integration/agent-task-worker/agent-task-scheduler/admin-storage تطابق ملفات المصدر الحالية. upload-media endpoint متقاعد.
+- سجلات الوظائف (آخر 24 ساعة عند المراجعة): scheduler 1421 POST/200؛ ai-router 7 POST/200، و2 POST/404، و3 POST/409، و500 واحد قديم على v53؛ model-health-check 56 POST/200؛ media-gateway خمس OPTIONS/200 فقط دون POST upload؛ brain-router أربع OPTIONS/405 دون POST. هذه الأعداد لا تعني أن كل وظيفة أنجزت مهمة مستخدم.
+- queue: لا توجد مهام queued/running/completed/failed؛ توجد مهمة cancelled واحدة فقط. لم يُختبر عامل Agent على مهمة حقيقية.
+- connectors: Composio وTavily لهما Vault references وtool registry enabled؛ لكن سجل tool execution فارغ (0)، فلا يوجد دليل تنفيذ connector فعلي.
+- Studio: 4 نماذج صور غير نشطة، 0 أسعار مفعلة، إعداد image generation legacy معطل، و0 media jobs.
+- مزودو النماذج: 9 نماذج enabled، لكن ai_model_health يعرض نموذجين فريدين فقط success حاليًا؛ البقية error/cancelled. تظهر probes أخطاء 402/empty response/timeout. ai-router يستبعد النموذج غير السليم.
+- رفع الملفات: لا توجد POST upload في السجلات. جدول cloudinary settings فارغ ولا يوجد Cloudinary Vault secret في قائمة أسماء Vault؛ قد يوجد env fallback لا يمكن فحصه عبر الأدوات المتاحة، ولذلك لا نعتمد الرفع كوظيفة مثبتة.
+- HIMS: قفل التزامن والمهاجرات مطبقة، لكن لا تفعيل فعلي بحساب طالب/مدير ولا اختبار تزامن/محاسبة حقيقي.
+- النشر: release/v1 عند d03a2958ee8a72c3a76cf45e003fcdb3ced62a79 ولم يتغير. develop كان متقدمًا عليه بـ180 commit عند هذه المراجعة. لا production deployment.
+
+### قرار الجاهزية
+**ملف التطوير والبناء موثق ومحدّث، لكن المشروع ليس مكتملًا 100% ولا يجوز وصفه بأنه جاهز بالكامل لتجربة كل الوظائف.** يمكن بدء تجربة محدودة لمسار المحادثة مع النماذج السليمة فقط، أما HIMS الحقيقي، ورفع الملفات، والموصلات، والـAgent jobs، وStudio، والاختبارات الإدارية متعددة الأدوار، وقرار النشر فتحتاج قبولًا/إعدادًا إضافيًا كما هو مسجل في ملف الاختبارات.
