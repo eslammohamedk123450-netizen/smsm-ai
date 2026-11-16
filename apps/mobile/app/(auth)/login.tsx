@@ -210,7 +210,7 @@ export default function LoginPage() {
             {confirmation && <Text accessibilityRole="status" style={styles.success}>{confirmation}</Text>}
             {!isVerifyingCode && method !== "password" && <Text style={styles.attempts}>المحاولات المتاحة لإرسال البريد: {attemptsRemaining} من {MAX_EMAIL_ATTEMPTS}{cooldownSeconds > 0 ? ` — متاح بعد ${cooldownSeconds} ثانية` : ""}</Text>}
             <Pressable style={[styles.button, busy && styles.buttonDisabled]} onPress={() => void submit()} disabled={busy} accessibilityRole="button">
-              {busy ? <ActivityIndicator color={colors.textPrimary} /> : <Text style={styles.buttonText}>{isRegister ? "إنشاء الحساب" : isVerifyingCode ? "تأكيد الرمز والدخول" : method === "password" ? "دخول" : method === "otp" ? "إرسال رمز التحقق" : "إرسال رابط تسجيل الدخول"}</Text>}
+              {busy ? <ActivityIndicator color={colors.onPrimary} /> : <Text style={styles.buttonText}>{isRegister ? "إنشاء الحساب" : isVerifyingCode ? "تأكيد الرمز والدخول" : method === "password" ? "دخول" : method === "otp" ? "إرسال رمز التحقق" : "إرسال رابط تسجيل الدخول"}</Text>}
             </Pressable>
 
             <View style={styles.dividerRow}>
@@ -260,7 +260,7 @@ function createStyles(colors: ThemePalette) { return StyleSheet.create({
   attempts: { color: colors.textMuted, marginBottom: 8, textAlign: "right", fontSize: 12 },
   button: { minHeight: 50, borderRadius: 14, paddingHorizontal: 20, alignItems: "center", justifyContent: "center", backgroundColor: colors.primary, marginTop: 8 },
   buttonDisabled: { opacity: 0.65 },
-  buttonText: { color: colors.textPrimary, fontWeight: "700", fontSize: 16, textAlign: "center", paddingHorizontal: 8 },
+  buttonText: { color: colors.onPrimary, fontWeight: "700", fontSize: 16, textAlign: "center", paddingHorizontal: 8 },
   modeToggle: { marginTop: 14, alignItems: "center", padding: 8 },
   link: { color: colors.accent, textAlign: "center" },
   dividerRow: { flexDirection: "row", alignItems: "center", gap: 10, marginVertical: 18 },
