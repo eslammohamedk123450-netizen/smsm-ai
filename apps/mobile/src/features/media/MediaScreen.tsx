@@ -1,14 +1,17 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Image, Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { useRouter } from "expo-router";
 import { chatService } from "../chat/chat-service";
 import * as Clipboard from "expo-clipboard";
 import { supabase } from "../../lib/supabase/client";
-import { colors } from "../../theme/colors";
+import { useSulyTheme } from "../../theme/ThemeProvider";
+import type { ThemePalette } from "../../theme/colors";
 import { deleteMediaAsset, formatBytes, listMyMedia, listMyGenerationJobs, pickMedia, uploadMediaFile, type MediaAsset, type MediaGenerationJob, type PickKind } from "./media-service";
 
 export function MediaScreen() {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [assets, setAssets] = useState<MediaAsset[]>([]);
   const [jobs, setJobs] = useState<MediaGenerationJob[]>([]);
   const [loading, setLoading] = useState(true);
@@ -176,7 +179,7 @@ export function MediaScreen() {
   </ScrollView>;
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemePalette) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { width: "100%", maxWidth: 1000, alignSelf: "center", padding: 16, gap: 12 },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
