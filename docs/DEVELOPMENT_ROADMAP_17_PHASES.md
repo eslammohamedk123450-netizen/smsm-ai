@@ -1307,3 +1307,24 @@ The navigation is an administrative organization layer over existing screens and
 - Added `/admin/finance` as a dedicated read-only entry to the existing company-cost ledger overview. It clearly labels this as an operational ledger overview, not a complete P&L; missing FX/credit conversions and absent subscription/ad settlement sources remain excluded.
 - No database migration, pricing edit, provider/model activation, routing assignment change, credit adjustment, HIMS entitlement change, or secret modification was performed in this UI slice.
 - The legacy combined Plans + AdMob form has now been separated: the Plans screen loads/saves only plans and features, while the dedicated Ads screen owns AdMob settings. Remaining next steps: rerun CI against the latest branch head; complete the exhaustive route/RPC/table/RLS permission matrix; extend finance only after revenue/expense source reconciliation; then implement the remaining Control Center modules incrementally.
+
+
+## Repository branch governance — approved 2026-11-16
+
+The product owner requested a strict reduction in branch proliferation and merge risk. Effective immediately:
+
+- Permanent branches are limited to `release/v1` (production) and `develop` (the single integration/development line).
+- `release/v1` is protected and is never edited directly.
+- All ongoing implementation work is accumulated on `develop`; do not create a new feature/fix/docs branch for every small task.
+- A single consolidated PR from `develop` to `release/v1` is prepared only when a coherent release batch has passed the required checks.
+- Do not open parallel PRs for pieces of the same work. Finish/reconcile the active integration item before starting another.
+- Existing open PR #83 (Projects) and PR #138 (Control Center) must be reviewed and reconciled into the integration line; do not leave them as independent long-lived streams.
+- Before retiring any legacy branch, verify its PR merge status and confirm its unique code/migrations/tests/docs are present in `release/v1` or `develop`. A squash-merged PR may still show as "ahead" in commit ancestry; merged PR status plus patch/content verification is required.
+- Never force-reset a branch with unique commits. Preserve unresolved branches as archived/pending until their content is reconciled.
+- Delete only branches proven fully integrated or empty. Keep a written cleanup inventory; no mass deletion based only on branch names or age.
+
+**Integration-line reset performed:** GitHub compare confirmed `develop` was exactly 29 commits behind `release/v1` with zero commits ahead. It was safely fast-forwarded (no force push) to production commit `a80574d992630934c3a83ecc2db41ade31a4be62`. This establishes a clean integration baseline without losing unique work.
+
+**Branch inventory observed:** 42 branches including the two permanent branches. The open PR list contains #83 and #138. Many old branches map to merged PRs (#137, #136, #135, #134, #133, #132, #131, #130, #129, #127, #126, #125, #124, #123, #122, #121, #120, #119, #118, #117, #116, #115, #114, #113, #112, #111, #110, #109, #108 and earlier merged PRs). These are cleanup candidates only after content/PR verification. Other branches have unique or unresolved work and must not be deleted until reconciled.
+
+**Tooling limitation during this pass:** the connected GitHub actions expose branch listing/ref updates but no delete-reference operation. Therefore no branch was deleted in this pass. Do not claim the branch cleanup is complete; perform deletion later through an authorized GitHub repository UI/API operation after each branch is verified.
