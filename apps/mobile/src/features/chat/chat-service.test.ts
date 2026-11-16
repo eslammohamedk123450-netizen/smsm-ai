@@ -37,6 +37,23 @@ describe("chatService.retryAssistant", () => {
     streamMock.mockResolvedValue(undefined);
   });
 
+  it("forwards the server-confirmed model identifier through the retry stream", async () => {
+    const onModelInfo = jest.fn();
+    const controller = new AbortController();
+    await chatService.retryAssistant({
+      conversationId: "conversation-1",
+      userMessageId: "saved-user-1",
+      signal: controller.signal,
+      onChunk: jest.fn(),
+      onModelInfo,
+    });
+
+    const callbacks = streamMock.mock.calls[0][2] as { onModelInfo?: (identifier: string) => void };
+    expect(callbacks.onModelInfo).toBeDefined();
+    callbacks.onModelInfo?.("openai/gpt-oss-120b");
+    expect(onModelInfo).toHaveBeenCalledWith("openai/gpt-oss-120b");
+  });
+
   it("reuses the persisted message in request history without inserting a duplicate row", async () => {
     const controller = new AbortController();
     await chatService.retryAssistant({
