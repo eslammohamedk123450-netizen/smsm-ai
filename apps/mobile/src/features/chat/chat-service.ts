@@ -344,7 +344,7 @@ export const chatService = {
       routing_mode: "auto",
       execution_mode: "auto",
       stream: true,
-    }, { onChunk: options.onChunk, onTaskUpdate: options.onTaskUpdate, onDone() {} }, options.signal);
+    }, { onChunk: options.onChunk, onModelInfo: options.onModelInfo, onTaskUpdate: options.onTaskUpdate, onDone() {} }, options.signal);
   },
 
   async retryAssistant(options: {
