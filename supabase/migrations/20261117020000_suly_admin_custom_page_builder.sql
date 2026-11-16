@@ -228,7 +228,7 @@ revoke all on function public.suly_admin_save_custom_page(text,text,jsonb,text,t
 revoke all on function public.suly_admin_list_custom_page_versions(uuid) from public, anon, authenticated;
 revoke all on function public.suly_admin_restore_custom_page_version(uuid,integer) from public, anon, authenticated;
 grant execute on function public.suly_admin_list_custom_pages() to authenticated;
-grant execute on function public.suly_admin_save_custom_page(text,text,jsonb,text,text) to authenticated;
+grant execute on function public.suly_admin_save_custom_page(text,text,jsonb,text,text,uuid) to authenticated;
 grant execute on function public.suly_admin_list_custom_page_versions(uuid) to authenticated;
 grant execute on function public.suly_admin_restore_custom_page_version(uuid,integer) to authenticated;
 
