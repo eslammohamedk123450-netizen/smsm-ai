@@ -1219,3 +1219,112 @@ A second read-only audit confirms the exact boundary between the price catalogue
 - Client service and Library UI implementation (folder create/rename/delete, folder filtering, move/remove asset, favorites filtering/toggle) is in the current Phase 8 branch and awaits CI/review.
 - Existing `global_media_assets` direct client write restrictions and media-gateway flows were not loosened.
 
+
+
+## SULY Control Center — approved admin-console implementation track (2026-11-16)
+
+**Owner approval:** The product owner explicitly approved implementation of the SULY Control Center proposal. This work is additive to the existing 17-phase roadmap and must not replace, disable, or bypass existing admin workflows.
+
+### Baseline inspected on `release/v1` at `a80574d992630934c3a83ecc2db41ade31a4be62`
+
+**Existing admin UI and services (confirmed by source review):**
+- `apps/mobile/src/features/admin/AdminDashboardScreen.tsx` is the current admin landing screen. It already loads model health, user count, failed model attempts, credit settlements, recent admin audit events, and maintenance mode; it links to model, user, credit, image-generation, and audit routes.
+- Existing dashboard cards: `AgentTaskQueueCard`, `SulyFinanceOverviewCard`, `NegativeBalanceSettingsCard`, `SulyModelProfilesAdminCard`, `ModelPricingAdminCard`, `MediaModelPricingAdminCard`, and `MediaModelCapabilityEvidenceAdminCard`.
+- `apps/mobile/src/features/admin/admin-service.ts` already contains guarded admin operations for providers, model overview/health, model and media price versions, provider lifecycle, model testing, and HIMS activation/resource management. Reuse these APIs and their guarded RPC/Edge Function paths; do not create parallel write paths.
+- `ModelCapabilityEvidenceAdminCard.tsx` exposes three distinct evidence layers: vendor claim, provider test, and SULY integration test. PR #137 adds a real text/chat probe action and synchronizes provider probe outcomes without inventing vendor or SULY evidence.
+- The current dashboard deliberately shows live online users as unavailable because no authoritative presence source exists. Keep this honest; do not display fabricated zero/online counts.
+
+**Live database inventory (read-only catalog queries, 2026-11-16):**
+- `ai_models`: 251 rows, 9 enabled.
+- `ai_providers`: 7 provider-account rows, 3 enabled.
+- `ai_model_price_versions`: 46 rows, 45 current.
+- `ai_model_capability_evidence`: existing three-layer evidence registry.
+- `suly_media_model_price_versions`: 22 current rows (12 image, 7 video, 3 audio); these catalog claims do not mean Studio integration is verified.
+- `suly_media_generation_models`: 4 runtime models, 0 active.
+- `suly_media_generation_prices`: 0 rows.
+- `ai_route_model_assignments`, `suly_model_profiles`, `suly_model_profile_models`, and `ai_router_settings` already provide routing/profile configuration. The live route matrix has enabled assignments; do not replace it with a second routing registry.
+- Wallet/credit sources already include `suly_credit_accounts`, `suly_credit_holds`, `suly_credit_transactions`, `suly_credit_pricing`, `suly_daily_credit_grants`, and legacy `credit_transactions`. Treat the append-only transaction history as the financial source of truth; do not edit balances directly from a new UI.
+- Plan/subscription sources already include `subscription_plans`, `subscription_plan_features`, `suly_user_subscriptions`, and `user_subscriptions`.
+- Audit sources include `admin_audit_logs` and legacy `audit_logs`; preserve both until their usage is fully reconciled.
+- Finance/ad-related sources found include `suly_company_cost_ledger`, `suly_rewarded_ad_claims`, and `task_ledger`. The current rewarded-ad claims table records reward claims, not verified ad-network impressions, payout, or settlement. Do not report ad revenue from reward claims.
+- No dedicated ad-network revenue/settlement table was found in the inspected public table-name inventory. No standalone Coins wallet/ledger was established by this inventory; do not merge Coins with SULY Credits or invent a conversion.
+
+**Important financial configuration finding:** `suly_credit_pricing` row 1 is enabled, but `credit_value_egp` and `usd_to_egp` are NULL. Existing token-credit parameters are present. Therefore, do not infer a usable EGP/FX conversion, do not activate media runtime pricing, and do not calculate realized company profit from incomplete conversion data.
+
+### Control Center module matrix
+
+| Module | Existing evidence | Initial disposition |
+|---|---|---|
+| Overview | Existing dashboard metrics, alerts, queue, finance, audit cards | **EXTEND** into a grouped operational overview; keep unknown metrics as unavailable |
+| Providers & models | Existing provider RPCs, model catalogue, health/probe data, lifecycle controls | **REUSE + ORGANIZE**; preserve provider account identity and model IDs |
+| Capabilities & tests | Text model three-layer evidence and media evidence registry; PR #137 probe sync | **EXTEND** with clearer status/evidence display and modality-specific test actions only where real probes exist |
+| Agent & routing | Existing route assignments, profiles, router settings, task queue | **REUSE + AUDIT**; one central agent only; no second routing engine |
+| Pricing & plans | Versioned text/media price catalogues and plan tables | **REUSE + EXTEND**; retain effective-dated history and 40% target margin where already approved |
+| Wallet & Credits | Credit accounts, holds, transaction ledger, daily grants, admin credit flows | **REUSE + HARDEN**; adjustments must be ledger transactions with idempotency/audit, never direct balance edits |
+| Coins | No separate authoritative Coins ledger confirmed in this audit | **BLOCKED FOR DESIGN** until existing source is located or owner defines whether Coins are a distinct currency |
+| Users & subscriptions | Profiles, subscriptions, existing user admin routes | **REUSE + AUDIT**; server-side admin checks and least privilege |
+| Ads & rewards | Reward claims exist; no ad-network revenue/settlement source confirmed | **PARTIAL**; show reward claims separately; ad revenue stays unavailable until provider settlement data exists |
+| Finance & P&L | Company cost ledger has provider cost, revenue, costs, gross profit fields; credit transactions and subscriptions exist | **EXTEND WITH RECONCILIATION**; distinguish actual, estimated, pending, and unknown; never sum incompatible units |
+| Activity & audit | Admin audit and legacy audit logs exist | **UNIFY READ EXPERIENCE** without dropping either source or changing retention |
+| HIMS & content | Existing HIMS admin activation-code/resource functions and protected central-chat entitlement | **PRESERVE + ORGANIZE**; HIMS stays inside the ordinary chat and central agent |
+| System/security | Existing maintenance setting, admin permission guard, provider secret server-side paths | **EXTEND** with role-based least privilege, confirmation for destructive actions, and immutable audit history |
+
+### Approved Control Center information architecture
+
+1. Overview.
+2. Providers & Models.
+3. Capabilities & Verification.
+4. Central Agent & Routing.
+5. Pricing & Plans.
+6. Wallet, Credits & (only if confirmed) Coins.
+7. Users & Subscriptions.
+8. Ads & Rewards.
+9. Finance & Profit/Loss.
+10. Activity & Audit.
+11. HIMS & Content.
+12. System Settings & Security.
+
+The navigation is an administrative organization layer over existing screens and services. Keep current deep links and route behavior valid during migration. Do not hide or remove existing operations before equivalent paths are implemented and tested.
+
+### Implementation sequence and guardrails
+
+1. Complete the source/schema/route matrix for every existing admin screen, RPC, Edge Function, table, RLS policy, and audit event.
+2. Refactor the admin shell/navigation and dashboard composition without changing business logic or query semantics.
+3. Consolidate provider/model catalogue and evidence workflows using existing guarded APIs.
+4. Consolidate route/profile governance and display the actual central-agent assignments without altering production assignments by default.
+5. Consolidate price/plan editing while preserving immutable price versions and effective dates.
+6. Review wallet adjustments, subscription changes, rewarded-ad claims, cost ledger, and P&L definitions; add missing financial sources only after source-of-truth and provider settlement semantics are documented.
+7. Bring HIMS administration into the same console while preserving its existing secure code/resource workflows and ordinary-chat entitlement model.
+8. Add permission-matrix, audit, RLS, rollback-only SQL, TypeScript, Deno, Web export, Android/iOS export, and cross-feature regression tests.
+
+**Non-negotiable:** no direct table writes that bypass guarded admin RPCs; no service-role key in client code; no deleting provider/model/ledger/audit history; no guessed exchange rate, credit value, or Coins conversion; no fabricated ad revenue, presence, profit, or test result; no changes to current production route assignments or enabled models merely to make the console look tidy.
+
+**Current Control Center status:** [>] IN PROGRESS — initial source/schema mapping and first navigation/screen foundation are implemented on branch `feat/suly-control-center-foundation-20261116`. The matrix above is an initial evidence-backed map, not a claim that every screen/RPC/RLS path has been fully audited.
+
+**Initial UI slice now present on the working branch:**
+- Reorganized the existing admin shell groups around Overview & Activity, Providers & Models, Accounts & Finance, Ads & Rewards, HIMS & Content, and System & Integrations. Existing route destinations were retained; the mobile menu now respects Arabic/English group labels.
+- Added `/admin/ads` as a separate AdMob settings screen. It uses the existing admin-guarded service methods and saves only AdMob identifiers, without invoking plan updates. It explicitly does not claim ad-network revenue or settlement.
+- Added `/admin/finance` as a dedicated read-only entry to the existing company-cost ledger overview. It clearly labels this as an operational ledger overview, not a complete P&L; missing FX/credit conversions and absent subscription/ad settlement sources remain excluded.
+- No database migration, pricing edit, provider/model activation, routing assignment change, credit adjustment, HIMS entitlement change, or secret modification was performed in this UI slice.
+- The legacy combined Plans + AdMob form has now been separated: the Plans screen loads/saves only plans and features, while the dedicated Ads screen owns AdMob settings. Remaining next steps: rerun CI against the latest branch head; complete the exhaustive route/RPC/table/RLS permission matrix; extend finance only after revenue/expense source reconciliation; then implement the remaining Control Center modules incrementally.
+
+
+## Repository branch governance — approved 2026-11-16
+
+The product owner requested a strict reduction in branch proliferation and merge risk. Effective immediately:
+
+- Permanent branches are limited to `release/v1` (production) and `develop` (the single integration/development line).
+- `release/v1` is protected and is never edited directly.
+- All ongoing implementation work is accumulated on `develop`; do not create a new feature/fix/docs branch for every small task.
+- A single consolidated PR from `develop` to `release/v1` is prepared only when a coherent release batch has passed the required checks.
+- Do not open parallel PRs for pieces of the same work. Finish/reconcile the active integration item before starting another.
+- Existing open PR #83 (Projects) and PR #138 (Control Center) must be reviewed and reconciled into the integration line; do not leave them as independent long-lived streams.
+- Before retiring any legacy branch, verify its PR merge status and confirm its unique code/migrations/tests/docs are present in `release/v1` or `develop`. A squash-merged PR may still show as "ahead" in commit ancestry; merged PR status plus patch/content verification is required.
+- Never force-reset a branch with unique commits. Preserve unresolved branches as archived/pending until their content is reconciled.
+- Delete only branches proven fully integrated or empty. Keep a written cleanup inventory; no mass deletion based only on branch names or age.
+
+**Integration-line reset performed:** GitHub compare confirmed `develop` was exactly 29 commits behind `release/v1` with zero commits ahead. It was safely fast-forwarded (no force push) to production commit `a80574d992630934c3a83ecc2db41ade31a4be62`. This establishes a clean integration baseline without losing unique work.
+
+**Branch inventory observed:** 42 branches including the two permanent branches. The open PR list contains #83 and #138. Many old branches map to merged PRs (#137, #136, #135, #134, #133, #132, #131, #130, #129, #127, #126, #125, #124, #123, #122, #121, #120, #119, #118, #117, #116, #115, #114, #113, #112, #111, #110, #109, #108 and earlier merged PRs). These are cleanup candidates only after content/PR verification. Other branches have unique or unresolved work and must not be deleted until reconciled.
+
+**Tooling limitation during this pass:** the connected GitHub actions expose branch listing/ref updates but no delete-reference operation. Therefore no branch was deleted in this pass. Do not claim the branch cleanup is complete; perform deletion later through an authorized GitHub repository UI/API operation after each branch is verified.

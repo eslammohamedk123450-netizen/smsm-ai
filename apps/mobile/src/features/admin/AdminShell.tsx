@@ -12,52 +12,62 @@ type NavGroup = { key: string; label: string; labelEn: string; hint: string; hin
 
 const NAV_GROUPS: readonly NavGroup[] = [
   {
-    key: "operations",
-    label: "التشغيل", labelEn: "Operations",
-    hint: "المتابعة اليومية", hintEn: "Daily operations",
+    key: "overview",
+    label: "المتابعة والنشاط", labelEn: "Overview & activity",
+    hint: "حالة الخدمة وسجل العمليات", hintEn: "Service health and activity",
     items: [
       { path: "/admin", label: "نظرة عامة", labelEn: "Overview", icon: "⌂" },
-      { path: "/admin/users", label: "المستخدمون", labelEn: "Users", icon: "♙" },
       { path: "/admin/conversations", label: "المحادثات", labelEn: "Conversations", icon: "▤" },
-      { path: "/admin/audit", label: "سجل النشاط", labelEn: "Activity log", icon: "≡" },
+      { path: "/admin/audit", label: "سجل النشاط", labelEn: "Activity & audit", icon: "≡" },
+      { path: "/admin/support", label: "الدعم", labelEn: "Support", icon: "?" },
+    ],
+  },
+  {
+    key: "ai-platform",
+    label: "المزودون والنماذج", labelEn: "Providers & models",
+    hint: "الكتالوج والاختبارات والقدرات", hintEn: "Catalogue, tests and capabilities",
+    items: [
+      { path: "/admin/models", label: "النماذج والمزودون", labelEn: "Models & providers", icon: "◈" },
+      { path: "/admin/image-generation", label: "نماذج الوسائط", labelEn: "Media models", icon: "▣" },
+      { path: "/admin/brain", label: "القدرات والتحقق", labelEn: "Capabilities & verification", icon: "✧" },
+      { path: "/admin/agents", label: "الوكيل والتوجيه", labelEn: "Agent & routing", icon: "✦" },
+    ],
+  },
+  {
+    key: "accounts-finance",
+    label: "الحسابات والمالية", labelEn: "Accounts & finance",
+    hint: "المستخدمون والباقات والأرصدة", hintEn: "Users, plans and credits",
+    items: [
+      { path: "/admin/users", label: "المستخدمون والاشتراكات", labelEn: "Users & subscriptions", icon: "♙" },
+      { path: "/admin/credit-management", label: "المحفظة والرصيد", labelEn: "Wallet & credits", icon: "◉" },
+      { path: "/admin/pricing", label: "الأسعار والباقات", labelEn: "Pricing & plans", icon: "▧" },
+      { path: "/admin/finance", label: "المالية والربحية", labelEn: "Finance & profitability", icon: "＄" },
+    ],
+  },
+  {
+    key: "ads-rewards",
+    label: "الإعلانات والمكافآت", labelEn: "Ads & rewards",
+    hint: "إعدادات AdMob ومكافآت المستخدمين", hintEn: "AdMob configuration and user rewards",
+    items: [
+      { path: "/admin/ads", label: "إعدادات الإعلانات", labelEn: "Ad settings", icon: "▣" },
     ],
   },
   {
     key: "education",
-    label: "التعليم", labelEn: "Education",
-    hint: "نظام HIMS والموارد الجامعية", hintEn: "HIMS and university resources",
+    label: "HIMS والمحتوى", labelEn: "HIMS & content",
+    hint: "الاستحقاقات والموارد التعليمية", hintEn: "Entitlements and learning resources",
     items: [
       { path: "/admin/hims", label: "إدارة HIMS", labelEn: "Manage HIMS", icon: "H" },
     ],
   },
   {
-    key: "intelligence",
-    label: "الذكاء والتوجيه", labelEn: "AI & routing",
-    hint: "النماذج والأدوار", hintEn: "Models and roles",
-    items: [
-      { path: "/admin/models", label: "النماذج والتوجيه", labelEn: "Models & routing", icon: "◈" },
-      { path: "/admin/agents", label: "الأدوار والمساعدون", labelEn: "Roles & assistants", icon: "✦" },
-      { path: "/admin/brain", label: "العقول والقدرات", labelEn: "Agent capabilities", icon: "✧" },
-    ],
-  },
-  {
-    key: "accounts",
-    label: "الحسابات", labelEn: "Accounts",
-    hint: "الرصيد والباقات", hintEn: "Credits and plans",
-    items: [
-      { path: "/admin/credit-management", label: "الرصيد", labelEn: "Credits", icon: "◉" },
-      { path: "/admin/pricing", label: "الباقات", labelEn: "Plans", icon: "▧" },
-    ],
-  },
-  {
-    key: "infrastructure",
-    label: "البنية والتكاملات", labelEn: "Infrastructure & integrations",
-    hint: "الإعدادات المتقدمة", hintEn: "Advanced settings",
+    key: "system",
+    label: "النظام والتكاملات", labelEn: "System & integrations",
+    hint: "الأمان والمفاتيح والخدمات", hintEn: "Security, keys and services",
     items: [
       { path: "/admin/api-keys", label: "مفاتيح API", labelEn: "API keys", icon: "⌘" },
       { path: "/admin/composio", label: "Composio", labelEn: "Composio", icon: "C" },
       { path: "/admin/tavily", label: "Tavily · بحث الويب", labelEn: "Tavily · Web search", icon: "T" },
-      { path: "/admin/image-generation", label: "توليد الصور", labelEn: "Image generation", icon: "▣" },
       { path: "/admin/storage", label: "التخزين", labelEn: "Storage", icon: "↥" },
       { path: "/admin/circuit-breaker", label: "إعدادات النظام", labelEn: "System settings", icon: "⚙" },
     ],
@@ -65,7 +75,7 @@ const NAV_GROUPS: readonly NavGroup[] = [
 ] as const;
 
 const WIDE_BREAKPOINT = 900;
-const DEFAULT_OPEN_GROUPS = ["operations", "intelligence"];
+const DEFAULT_OPEN_GROUPS = ["overview", "ai-platform"];
 
 export function AdminShell() {
   const { colors } = useSulyTheme();
@@ -102,7 +112,7 @@ export function AdminShell() {
   useEffect(() => { void refreshHealth(); }, []);
 
   const isActive = (path: string) => path === "/admin" ? pathname === path : pathname === path || pathname.startsWith(path);
-  const activeGroupKey = NAV_GROUPS.find((group) => group.items.some((item) => isActive(item.path)))?.key ?? "operations";
+  const activeGroupKey = NAV_GROUPS.find((group) => group.items.some((item) => isActive(item.path)))?.key ?? "overview";
 
   useEffect(() => {
     if (!openGroups.includes(activeGroupKey)) setOpenGroups((current) => [...current, activeGroupKey]);
@@ -134,7 +144,7 @@ export function AdminShell() {
 
   return <View style={styles.root}>
     {wide ? <View style={styles.rail}>
-      <View style={styles.brand}><View style={styles.brandBadge}><Text style={styles.brandMark}>S</Text></View><View style={styles.brandCopy}><Text style={styles.brandName}>Suly</Text><Text style={styles.brandSub}>ADMIN COMMAND CENTER</Text></View></View>
+      <View style={styles.brand}><View style={styles.brandBadge}><Text style={styles.brandMark}>S</Text></View><View style={styles.brandCopy}><Text style={styles.brandName}>Suly</Text><Text style={styles.brandSub}>SULY CONTROL CENTER</Text></View></View>
       <Text style={styles.navCaption}>{isArabic ? "مساحة الإدارة" : "Admin workspace"}</Text>
       <ScrollView style={styles.nav} showsVerticalScrollIndicator={false}>
         {NAV_GROUPS.map((group) => {
@@ -169,7 +179,7 @@ export function AdminShell() {
         <Modal visible={mobileMenuOpen} transparent animationType="slide" onRequestClose={() => setMobileMenuOpen(false)}>
           <View style={styles.modalBackdrop}><View style={styles.mobileMenuCard}>
             <View style={styles.mobileMenuHeader}><View><Text style={styles.mobileMenuTitle}>مساحة الإدارة</Text><Text style={styles.mobileMenuHint}>{isArabic ? "اختر القسم أو الصفحة المطلوبة" : "Choose a section or page"}</Text></View><Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "إغلاق القائمة" : "Close menu"} onPress={() => setMobileMenuOpen(false)}><Text style={styles.modalCloseText}>×</Text></Pressable></View>
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.mobileMenuContent}>{NAV_GROUPS.map((group) => <View key={group.key} style={styles.mobileGroup}><Text style={styles.mobileGroupLabel}>{group.label}</Text><Text style={styles.mobileGroupHint}>{group.hint}</Text>{group.items.map((item) => { const active = isActive(item.path); return <Pressable key={item.path} accessibilityRole="button" accessibilityState={{ selected: active }} onPress={() => { setMobileMenuOpen(false); router.push(item.path); }} style={[styles.mobileMenuItem, active && styles.mobileMenuItemActive]}><Text style={[styles.mobileMenuIcon, active && styles.mobileMenuTextActive]}>{item.icon}</Text><Text style={[styles.mobileMenuText, active && styles.mobileMenuTextActive]}>{item.label}</Text><Text style={styles.mobileMenuArrow}>‹</Text></Pressable>; })}</View>)}</ScrollView>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.mobileMenuContent}>{NAV_GROUPS.map((group) => <View key={group.key} style={styles.mobileGroup}><Text style={styles.mobileGroupLabel}>{isArabic ? group.label : group.labelEn}</Text><Text style={styles.mobileGroupHint}>{isArabic ? group.hint : group.hintEn}</Text>{group.items.map((item) => { const active = isActive(item.path); return <Pressable key={item.path} accessibilityRole="button" accessibilityState={{ selected: active }} onPress={() => { setMobileMenuOpen(false); router.push(item.path); }} style={[styles.mobileMenuItem, active && styles.mobileMenuItemActive]}><Text style={[styles.mobileMenuIcon, active && styles.mobileMenuTextActive]}>{item.icon}</Text><Text style={[styles.mobileMenuText, active && styles.mobileMenuTextActive]}>{item.label}</Text><Text style={styles.mobileMenuArrow}>‹</Text></Pressable>; })}</View>)}</ScrollView>
           </View></View>
         </Modal>
       </> : null}

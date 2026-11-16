@@ -723,7 +723,6 @@ export function PricingAdminScreen() {
   const [features, setFeatures] = useState<PricingFeature[]>([]);
   const [drafts, setDrafts] = useState<Record<string, { price: string; max_requests: string; daily_credits: string }>>({});
   const [featureDrafts, setFeatureDrafts] = useState<Record<string, { title: string; value: string }>>({});
-  const [adMobSettings, setAdMobSettings] = useState({ appId: "", rewardedUnitId: "", bannerUnitId: "" });
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -731,13 +730,12 @@ export function PricingAdminScreen() {
   const load = async () => {
     setLoading(true); setError(null);
     try {
-      const [loadedPlans, loadedFeatures, loadedAdMobSettings] = await Promise.all([adminService.getPricingPlans(), adminService.getPricingFeatures(), adminService.getAdMobSettings()]);
+      const [loadedPlans, loadedFeatures] = await Promise.all([adminService.getPricingPlans(), adminService.getPricingFeatures()]);
       setPlans(loadedPlans);
       setFeatures(loadedFeatures);
       setFeatureDrafts(Object.fromEntries(loadedFeatures.map((feature) => [feature.id, { title: feature.title, value: feature.value }])));
       setDrafts(Object.fromEntries(loadedPlans.map((plan) => [plan.id, { price: String(plan.price), max_requests: String(plan.max_requests), daily_credits: String(plan.daily_credits) }])));
-      setAdMobSettings(loadedAdMobSettings);
-    } catch { setError("تعذر تحميل الباقات أو إعداد AdMob. تحقق من migration والصلاحية."); }
+    } catch { setError("تعذر تحميل الباقات. تحقق من migration والصلاحية."); }
     finally { setLoading(false); }
   };
   useEffect(() => { void load(); }, []);
@@ -760,8 +758,7 @@ export function PricingAdminScreen() {
         const draft = featureDrafts[feature.id];
         return adminService.updatePricingFeature(feature.id, { title: draft?.title ?? feature.title, value: draft?.value ?? feature.value });
       }));
-      await adminService.updateAdMobSettings(adMobSettings);
-      setNotice("تم حفظ الباقات وإعداد AdMob بنجاح.");
+      setNotice("تم حفظ الباقات ومزاياها بنجاح.");
       await load();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر حفظ إعدادات الباقات."); }
     finally { setBusy(false); }
@@ -788,16 +785,6 @@ export function PricingAdminScreen() {
           <Pressable onPress={() => { void adminService.createPricingFeature({ planId: plan.id, title: "مزية جديدة", value: "اكتب قيمة المزية" }).then(() => load()).catch((cause) => setError(cause instanceof Error ? cause.message : "تعذر إضافة المزية.")); }} style={styles.addFeature}><Text style={styles.addFeatureText}>＋ إضافة مزية</Text></Pressable>
         </Card>;
       })}
-      <Card>
-        <Text style={styles.sectionTitle}>إعدادات الإدارة</Text>
-        <Text style={styles.label}>AdMob App ID</Text>
-        <TextInput style={styles.input} value={adMobSettings.appId} onChangeText={(val) => setAdMobSettings(s => ({ ...s, appId: val }))} placeholder="ca-app-pub-..." placeholderTextColor={colors.textMuted} autoCapitalize="none" autoCorrect={false} />
-        <Text style={styles.label}>Rewarded Ad Unit ID</Text>
-        <TextInput style={styles.input} value={adMobSettings.rewardedUnitId} onChangeText={(val) => setAdMobSettings(s => ({ ...s, rewardedUnitId: val }))} placeholder="ca-app-pub-..." placeholderTextColor={colors.textMuted} autoCapitalize="none" autoCorrect={false} />
-        <Text style={styles.label}>Banner Ad Unit ID</Text>
-        <TextInput style={styles.input} value={adMobSettings.bannerUnitId} onChangeText={(val) => setAdMobSettings(s => ({ ...s, bannerUnitId: val }))} placeholder="ca-app-pub-..." placeholderTextColor={colors.textMuted} autoCapitalize="none" autoCorrect={false} />
-        <PrimaryButton label={busy ? "جارٍ الحفظ…" : "حفظ الباقات والإعدادات"} onPress={() => void save()} disabled={busy} />
-      </Card>
     </>}
   </ScrollView>;
 }
