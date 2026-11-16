@@ -130,7 +130,7 @@ These are review findings, not proof that each function is exploitable. Do not b
 - The development preview is built from `develop` and published under `/smsm-ai/preview/`. Development pushes refresh the preview while the production root is rebuilt from the unchanged release branch.
 - Both builds use the same Expo application source structure and public Supabase configuration; they differ only by the Expo web base path and source branch.
 - Promoting a tested development change to `release/v1` remains an explicit reviewed action. No automatic merge or production source update is performed.
-- The combined Pages workflow is implemented on `develop`; the first preview deployment remains pending its current GitHub Actions build/deploy run. Do not announce a live preview URL until the Pages deployment succeeds and the preview path responds.
+- The combined Pages workflow is implemented on `develop`. The production and development web exports, site assembly, Pages configuration, and artifact upload succeeded in run `43931684149`; the deploy job failed before a runner was assigned (`runner_id=0`, no job steps). This points to the `github-pages` environment deployment-branch allow-list blocking `develop`; add `develop` to that environment's allowed deployment branches, then rerun the deploy job. Do not announce a live preview URL until deployment succeeds and the preview path responds.
 
 ## Track B — required comprehensive verification
 
