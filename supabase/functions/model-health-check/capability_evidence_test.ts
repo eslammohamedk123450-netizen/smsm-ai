@@ -52,7 +52,6 @@ Deno.test("one transient failure on a healthy model does not overwrite the last 
     checkKey: "manual-failure",
     result: { status: "error", duration_ms: 1000, error_code: "timeout" },
     isRestricted: false,
-    existing: { provider_test_status: "passed" } as never,
   });
   if (patch !== null) throw new Error("Transient failures must not overwrite provider evidence.");
 });
