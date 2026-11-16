@@ -122,6 +122,45 @@ export async function getFeatureContext(supabase: any, userId: string): Promise<
  * Builds the prompt block describing activated features and their links. It is
  * generated from data, so a new feature needs no code change here.
  */
+export interface FeatureActivationRateLimit {
+  allowed: boolean;
+  reason: "allowed" | "limited" | "unavailable";
+  retryAfterSeconds: number | null;
+}
+
+/**
+ * Checks a service-side per-user activation throttle. Errors fail closed:
+ * the caller must not attempt code verification when this check is unavailable.
+ */
+export async function checkFeatureActivationRateLimit(
+  supabase: any,
+  userId: string,
+): Promise<FeatureActivationRateLimit> {
+  try {
+    const { data, error } = await supabase.rpc("suly_check_feature_activation_rate_limit", {
+      p_user_id: userId,
+    });
+    if (error) throw new Error(error.message);
+
+    const result = asRecord(data);
+    if (result.allowed === true) {
+      return { allowed: true, reason: "allowed", retryAfterSeconds: null };
+    }
+
+    const retryAfter = Number(result.retry_after_seconds);
+    return {
+      allowed: false,
+      reason: result.reason === "activation_attempt_limit" || result.reason === "activation_cooldown"
+        ? "limited"
+        : "unavailable",
+      retryAfterSeconds: Number.isFinite(retryAfter) && retryAfter > 0 ? Math.ceil(retryAfter) : null,
+    };
+  } catch (error) {
+    console.warn("Feature activation throttle unavailable:", error instanceof Error ? error.message : String(error));
+    return { allowed: false, reason: "unavailable", retryAfterSeconds: null };
+  }
+}
+
 /** Activates any feature by code. The feature itself is decided by the code row. */
 export async function activateFeatureByCode(supabase: any, userId: string, code: string): Promise<ActivationResult> {
   try {
