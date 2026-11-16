@@ -1,7 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { PremiumText as Text } from "../../../components/ui/PremiumText";
-import { colors } from "../../../theme/colors";
+import { useSulyTheme } from "../../../theme/ThemeProvider";
+import type { ThemePalette } from "../../../theme/colors";
 
 export interface StreamingStatusProps {
   isStreaming: boolean;
@@ -10,6 +11,8 @@ export interface StreamingStatusProps {
 }
 
 export function StreamingStatus({ isStreaming, onCancel, taskLabel }: StreamingStatusProps) {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const dots = useRef([
     new Animated.Value(0.35),
     new Animated.Value(0.35),
@@ -74,7 +77,7 @@ export function StreamingStatus({ isStreaming, onCancel, taskLabel }: StreamingS
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemePalette) => StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "center",
