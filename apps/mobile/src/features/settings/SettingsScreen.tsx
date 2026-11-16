@@ -238,6 +238,12 @@ export default function SettingsScreen() {
             <Text style={styles.rowText}>{isArabic ? "تعذر التحقق من صلاحية الأدمن — اضغط لإعادة المحاولة" : "Could not verify admin access — tap to retry"}</Text><Text style={styles.chevron}>↻</Text>
           </TouchableOpacity>
         </> : null}
+        <Text style={styles.sectionTitle}>{isArabic ? "المهارات" : "Skills"}</Text>
+        <View style={styles.cardRow}>
+          <Text style={styles.rowText}>{isArabic ? "مهارات SULY" : "SULY skills"}</Text>
+          <Text style={styles.email}>{isArabic ? "سجل المهارات غير متصل بعد" : "Skill registry is not connected yet"}</Text>
+        </View>
+
         <Text style={styles.sectionTitle}>{isArabic ? "الموصلات" : "Connectors"}</Text>
         <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/integrations")} accessibilityRole="button"><Text style={styles.rowText}>{isArabic ? "إدارة الموصلات والتطبيقات المرتبطة" : "Manage connected apps"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
 
@@ -246,6 +252,12 @@ export default function SettingsScreen() {
           <TouchableOpacity activeOpacity={0.7} onPress={() => setPolicyModal("privacy")} style={styles.policyRow}><Text style={styles.rowText}>{isArabic ? "سياسة الخصوصية" : "Privacy policy"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
           <View style={styles.separator} />
           <TouchableOpacity activeOpacity={0.7} onPress={() => setPolicyModal("terms")} style={styles.policyRow}><Text style={styles.rowText}>{isArabic ? "شروط الاستخدام والحماية" : "Terms & safety"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
+        </View>
+
+        <Text style={styles.sectionTitle}>{isArabic ? "تقييم التطبيق" : "Rate the app"}</Text>
+        <View style={styles.cardRow}>
+          <Text style={styles.rowText}>{isArabic ? "تقييم SULY" : "Rate SULY"}</Text>
+          <Text style={styles.email}>{isArabic ? "رابط المتجر غير مُعتمد بعد" : "Store listing is not configured yet"}</Text>
         </View>
 
         <Text style={styles.sectionTitle}>{isArabic ? "التطبيق" : "Application"}</Text>
