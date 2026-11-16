@@ -121,6 +121,8 @@ A read-only Supabase Security Advisor snapshot on 2026-11-16 reported:
 
 These are review findings, not proof that each function is exploitable. Do not blanket-revoke grants or add broad RLS policies: inspect each function body, its `auth.uid()`/admin checks, grants, callers, and intended exposure first. Any remediation that changes production security behavior requires its own reviewed migration and isolated regression checks.
 
+- Support inbox now uses exact-count server-side pagination (50 tickets per page) instead of loading only the first 200 records. Ticket-detail loading also ignores stale responses when the administrator switches between tickets or closes the detail view while requests are still running.
+
 ## Development preview and production separation
 
 - GitHub Pages is a single published site for this repository; deploying a separate branch directly would replace the existing site. The Pages workflow therefore assembles one artifact with two isolated paths.
