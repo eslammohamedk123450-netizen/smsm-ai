@@ -42,7 +42,7 @@ export interface Conversation {
   updatedAt: string;
   isPinned: boolean;
   archivedAt: string | null;
-  projectId: string | null;
+  projectId?: string | null;
 }
 interface MessageRow {
   id: string;
