@@ -201,3 +201,11 @@ For each test case record:
 - cleanup confirmation and follow-up owner.
 
 **Current campaign status:** NOT STARTED. Routine regression checks performed during development remain part of Track A and must not be represented as completion of this independent campaign.
+
+
+## 8. Readiness snapshot — 2026-11-16
+
+- Track B remains **NOT STARTED** by design; it must wait until Track A Phase 17 integration is complete.
+- Routine focused regression tests continue under Track A.
+- Current first-four-phase gaps that Track B must later verify include HIMS duplicate-code collision/replay, real student activation and protected lecture delivery, ordinary-chat behavior, full design accessibility, and actual browser/device journeys.
+- No test is marked PASS unless it has a verified run/result. The new HIMS collision SQL regression is committed but not executed. The expanded theme Jest test is committed but awaits a current-commit CI run.
