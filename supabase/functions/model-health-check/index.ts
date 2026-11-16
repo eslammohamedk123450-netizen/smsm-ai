@@ -294,7 +294,7 @@ async function syncTextCapabilityEvidence(
   try {
     const { data: existing, error: readError } = await serviceClient
       .from("ai_model_capability_evidence")
-      .select("vendor_claim_status,vendor_evidence_url,suly_test_status,suly_test_evidence_url,notes")
+      .select("vendor_claim_status,vendor_evidence_url,suly_test_status,suly_evidence_url,suly_tested_at,notes")
       .eq("model_id", model.id)
       .eq("capability_key", "text")
       .maybeSingle();
