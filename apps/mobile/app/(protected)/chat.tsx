@@ -55,7 +55,7 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
           {error.message || (isArabic ? "حدث خطأ غير متوقع أثناء تجهيز الشاشة." : "An unexpected error occurred while preparing the screen.")}
         </Text>
         <Pressable onPress={() => void retry()} style={{ backgroundColor: colors.primary, borderRadius: 12, paddingHorizontal: 22, paddingVertical: 12 }}>
-          <Text style={{ color: colors.background, fontWeight: "700" }}>{isArabic ? "إعادة المحاولة" : "Retry"}</Text>
+          <Text style={{ color: colors.onPrimary, fontWeight: "700" }}>{isArabic ? "إعادة المحاولة" : "Retry"}</Text>
         </Pressable>
       </View>
     </SafeAreaView>
@@ -863,7 +863,7 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   adminShortcut: { minWidth: 42, height: 36, paddingHorizontal: 7, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceElevated },
   adminShortcutText: { color: colors.primary, fontSize: 11, fontWeight: "700" },
   upgradeShortcut: { minHeight: 32, borderRadius: 9, paddingHorizontal: 9, justifyContent: "center", backgroundColor: colors.primary },
-  upgradeShortcutText: { color: colors.background, fontSize: 11, fontWeight: "800" },
+  upgradeShortcutText: { color: colors.onPrimary, fontSize: 11, fontWeight: "800" },
   errorBox: { marginHorizontal: 14, marginTop: 8, padding: 10, borderRadius: 10, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.error },
   errorText: { color: colors.error, textAlign: isArabic ? "right" : "left", fontSize: 12 },
   retryWarning: { marginHorizontal: 14, marginTop: 8, padding: 12, borderRadius: 10, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
@@ -894,7 +894,7 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   ratingInput: { minHeight: 90, borderWidth: 1, borderColor: colors.inputBorder, borderRadius: 10, backgroundColor: colors.inputBackground, color: colors.textPrimary, padding: 12, textAlign: isArabic ? "right" : "left" },
   ratingSubmit: { minHeight: 44, borderRadius: 14, paddingHorizontal: 20, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
   disabled: { opacity: 0.5 },
-  ratingSubmitText: { color: colors.background, fontWeight: "800" },
+  ratingSubmitText: { color: colors.onPrimary, fontWeight: "800" },
   usageSheet: { gap: 12 },
   usageTaskTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: "700", textAlign: isArabic ? "right" : "left" },
   usageMetric: { padding: 18, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, alignItems: "center", gap: 5 },
@@ -909,5 +909,5 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   connectorCancel: { minHeight: 46, paddingHorizontal: 18, borderRadius: 13, borderWidth: 1, borderColor: colors.divider, alignItems: "center", justifyContent: "center" },
   connectorCancelText: { color: colors.textSecondary, fontWeight: "700" },
   connectorContinue: { flex: 1, minHeight: 46, paddingHorizontal: 14, borderRadius: 13, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
-  connectorContinueText: { color: colors.background, fontSize: 12, fontWeight: "800", textAlign: "center" },
+  connectorContinueText: { color: colors.onPrimary, fontSize: 12, fontWeight: "800", textAlign: "center" },
 });
