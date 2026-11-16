@@ -93,6 +93,10 @@ A test group passes only when all required cases pass or the owner explicitly ac
 - Duplicate delivery/idempotency; no duplicate tool execution or charge.
 - Provider outage/freeze and fallback rules remain bounded and truthful.
 - Verify central Agent remains the single decision-maker; worker roles do not become independent assistants.
+- From an existing chat, open Tasks and confirm the conversation ID is carried into the task workspace; after completion, confirm the objective and final response appear exactly once in the same conversation with a traceable task ID.
+- Open Tasks without an existing conversation; confirm a conversation is created for the completed task exchange and the app returns to it.
+- Simulate a task completion followed by an interrupted/failed message save; verify the task remains completed, the UI reports the chat-save failure truthfully, and a retry does not duplicate the assistant result.
+- Verify that live plan/progress remains visible in the task workspace while the task is running; chat transcript receives the final result only after completion (live in-chat progress is still an implementation follow-up).
 
 ### Test Group 8 — Task cancellation, partial completion, and billing
 - Cancel before queueing, while queued, before worker starts, during running work, and after partial completion.
