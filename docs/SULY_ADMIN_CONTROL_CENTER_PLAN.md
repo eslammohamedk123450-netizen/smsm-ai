@@ -73,4 +73,4 @@ These are review findings, not proof that each function is exploitable. Do not b
 
 ## Completion semantics
 
-Implementation commits on `develop` mean the source changes are present; they do not mean browser/device/E2E/security tests passed or that the hosted Edge Function is deployed. The admin workspace should be called complete only after all existing modules and the additions above have been reviewed, CI is current and successful, and Track B confirms the required role and runtime behavior.
+Implementation completion and runtime acceptance are tracked separately. The admin workspace may be marked **implementation complete on `develop`** after every existing module and additive source change has been reviewed, current CI succeeds, and no known source-level blocker remains. This does not mean browser/device/E2E/security tests passed or that the hosted Edge Function is deployed. Those outcomes remain explicitly **pending Track B** and must not be represented as passed. Production deployment remains a separate owner-authorized action.
