@@ -322,3 +322,15 @@ RLS/grants للأدوار؛ RPC وSECURITY DEFINER وsearch_path؛ CORS/JWT/rate
 
 - إضافة إلى `T14-013`: تمرير `p_resource_type = NULL` أو قيمة خارج allowlist يجب أن يُرفض قبل إنشاء سجل في `global_media_assets`.
 
+
+
+### تحديث حالات قبول Expo Release — 2026-11-17
+- `T17-008`: Web export يعمل من `develop` كمعاينة، ولا يغيّر ملفات أو محتوى الإنتاج.
+- `T17-009`: Web production export يُبنى من `release/v1` فقط، مع التحقق من شرط الموافقة اليدوية للنشر.
+- `T17-010`: Android preview APK build وinstall وauth/chat/media flows على جهاز فعلي.
+- `T17-011`: Android production AAB build/signing/versionCode ومراجعة صلاحيات Manifest.
+- `T17-012`: اعتماد `ios.bundleIdentifier` ثم iOS simulator/device build/signing وTestFlight preparation.
+- `T17-013`: اختبار light/dark/system وRTL/LTR على Web/Android/iOS وأحجام الهاتف/التابلت.
+- `T17-014`: التحقق من عدم تضمين service-role أو provider secrets في أي client bundle أو APK/AAB/IPA.
+- جميع الحالات: **NOT RUN**. iOS build blocked إلى حين اعتماد bundle identifier.
+
