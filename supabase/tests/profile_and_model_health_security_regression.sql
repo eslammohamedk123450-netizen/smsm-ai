@@ -122,6 +122,13 @@ begin
   exception when insufficient_privilege then
     null;
   end;
+
+  begin
+    perform public.suly_admin_set_provider_enabled(-1, false);
+    raise exception 'Non-admin user unexpectedly passed the legacy provider toggle';
+  exception when insufficient_privilege then
+    null;
+  end;
 end;
 $test$;
 
