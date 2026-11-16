@@ -1,3 +1,5 @@
+jest.mock("../../lib/supabase/client", () => ({ supabase: {} }));
+
 import { mapTaskHistory } from "./task-service";
 
 describe("mapTaskHistory", () => {
