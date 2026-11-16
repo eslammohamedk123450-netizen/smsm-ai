@@ -6,10 +6,12 @@ import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { BottomSheet } from "../../components/ui/BottomSheet";
 import { chatService, type Conversation } from "../chat/chat-service";
 import { useSulyTheme } from "../../theme/ThemeProvider";
+import type { ThemePalette } from "../../theme/colors";
 
 export function ConversationsScreen() {
   const router = useRouter();
   const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [items, setItems] = useState<Conversation[]>([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -136,7 +138,7 @@ export function ConversationsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemePalette) => StyleSheet.create({
   screen: { flex: 1 },
   content: { width: "100%", maxWidth: 1040, alignSelf: "center", padding: 20, paddingBottom: 36, gap: 13 },
   header: { flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center", gap: 12 },
