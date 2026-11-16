@@ -4,7 +4,7 @@ import * as Clipboard from "expo-clipboard";
 import { randomUUID } from "expo-crypto";
 import { useRouter } from "expo-router";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
-import { colors } from "../../theme/colors";
+import { useSulyTheme } from "../../theme/ThemeProvider";
 import { supabase } from "../../lib/supabase/client";
 import { getCurrentCreditBalance } from "../credits/credit-service";
 import { getMediaDeliveryUrl, type MediaAsset } from "../media/media-service";
@@ -16,6 +16,7 @@ type GeneratedImage = { id: string; url: string; prompt: string; modelName: stri
 const QUALITY_LABELS: Record<string, string> = { economy: "اقتصادية", standard: "متوسطة", high: "عالية", ultra: "فائقة" };
 
 export function ImageStudioScreen() {
+  const { colors } = useSulyTheme();
   const router = useRouter();
   const [models, setModels] = useState<Model[]>([]);
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
