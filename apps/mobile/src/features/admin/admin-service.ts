@@ -154,6 +154,20 @@ export const adminService = {
     if (error) throw error;
     return data as { success?: boolean; id?: string; feature_key?: string; code?: string; command?: string };
   },
+
+  async setHimsActivationCodeActive(codeId: string, isActive: boolean) {
+    await requireAdmin();
+    if (!codeId || typeof isActive !== "boolean") throw new Error("بيانات كود التفعيل غير صالحة.");
+    const { data, error } = await supabase.rpc("suly_admin_set_activation_code_active", {
+      p_code_id: codeId,
+      p_is_active: isActive,
+    });
+    if (error) throw error;
+    if (!data || data.success !== true || data.id !== codeId || data.is_active !== isActive) {
+      throw new Error("لم تؤكد قاعدة البيانات تحديث حالة كود التفعيل.");
+    }
+    return data as { success: true; id: string; is_active: boolean };
+  },
   async getHimsResources(): Promise<HimsResource[]> {
     await requireAdmin();
     const { data, error } = await supabase.rpc("suly_admin_list_feature_resources_v2", { p_feature_key: "hims" });
