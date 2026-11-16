@@ -618,3 +618,85 @@ For every work session, report:
 ---
 
 **Source of truth:** Current code, migrations, database state, CI evidence, and merged PRs take precedence over stale notes. When evidence conflicts, investigate and update this document rather than silently choosing the more optimistic status.
+
+---
+
+## 7. Dated execution log — 2026-11-16
+
+### Session: Initial Supabase security triage and next-work baseline
+
+**Target baseline:** `release/v1` at the currently reviewed project state on 2026-11-16.  
+**Scope:** Read-only inspection of Supabase Security Advisor and PostgreSQL catalog metadata. No database rows, grants, policies, functions, migrations, or application code were changed in this audit pass.
+
+#### Work performed
+- Re-read this canonical roadmap before beginning.
+- Queried Supabase Security Advisor for security, performance, and health findings.
+- Inspected PostgreSQL catalog metadata for exposed `SECURITY DEFINER` functions, effective EXECUTE privileges, configured search paths, RLS-enabled tables with no policies, and effective client DML grants.
+- Inspected the public conversation-share function definition and share-token column type.
+- Reviewed current GitHub workflow status for the release baseline.
+
+#### Verified findings
+
+1. **RLS-enabled tables with no policies: 10.**
+   - `agent_step_usage`
+   - `agent_tool_execution_checkpoints`
+   - `brain_attempt_logs`
+   - `brain_usage_daily`
+   - `brain_usage_events`
+   - `cloudinary_integration_settings`
+   - `composio_integration_settings`
+   - `suly_image_generation_settings`
+   - `suly_rewarded_ad_claims`
+   - `tavily_integration_settings`
+   
+   The catalog check found no effective SELECT/INSERT/UPDATE/DELETE privileges for either `anon` or `authenticated` on these ten tables. This is consistent with server-only/service-role access and RLS fail-closed behavior. The Advisor warning is therefore **not, by itself, evidence of public table exposure**. Remaining check: inspect each server-side access path and confirm that service-role access is limited to trusted Edge Functions.
+
+2. **SECURITY DEFINER inventory:**
+   - 114 SECURITY DEFINER functions exist in the `public` schema.
+   - 57 are executable by `authenticated`.
+   - Exactly 1 is executable by `anon`: `suly_get_public_conversation(uuid)`.
+   - All 57 authenticated-executable SECURITY DEFINER functions have an explicit function-level search_path setting (including the intentionally empty search_path used by the task cancellation function).
+   - The catalog scan found no authenticated-executable SECURITY DEFINER function missing both an `auth.uid()` check and an explicit `suly_is_admin()` check, except the public conversation-share function, whose intended anonymous access is reviewed separately below.
+   
+   The count of 57 is an inventory count, **not 57 confirmed vulnerabilities**. Each function still requires classification by intended caller, ownership checks, admin checks, data returned, and mutation scope.
+
+3. **Public conversation sharing:**
+   - `suly_get_public_conversation(uuid)` is intentionally executable by anonymous users and reads a conversation using its `share_token`.
+   - The share token column is UUID typed.
+   - The function returns the conversation title and up to 300 user/assistant messages.
+   - This may be the intended public-link feature, not an accidental exposure. Before changing grants, verify token generation, uniqueness, entropy, revocation behavior, and that the UI only enables sharing after explicit owner action. **Do not revoke anonymous execution until this product flow is confirmed**, because doing so could break shared-conversation links.
+
+4. **Advisor interpretation:**
+   - Security Advisor reported the 10 no-policy tables and the anonymous/authenticated SECURITY DEFINER counts described above.
+   - The performance Advisor reported unindexed foreign keys (65 findings in the reviewed result). These are performance candidates, not automatically security issues; index additions must be justified against existing indexes and write cost.
+   - Health Advisor returned no findings in the reviewed result.
+   - Extensions in `public` (`vector`, `pg_net`) were reported by the Security Advisor. Do not relocate extensions without checking dependencies and Supabase-supported migration procedure.
+
+5. **Release workflow baseline:**
+   - Latest reviewed web deployment workflow on the current release SHA completed successfully.
+   - Latest reviewed OTA publish workflow failed because `EXPO_TOKEN` was unavailable to GitHub Actions. No OTA publication is claimed.
+   - This audit did not perform a visual browser test or authenticated end-to-end user journey.
+
+#### Changes made
+- No application code or database changes in this audit pass.
+- This execution record is being added to the canonical roadmap so the next contributor can distinguish verified observations from pending investigation.
+
+#### Remaining work — security triage
+- [>] Inspect all 57 authenticated-executable SECURITY DEFINER functions in batches, grouping them into admin-only, self-owned user operations, internal/service-only candidates, and intentionally public operations.
+- [>] Inspect the complete definition and caller path of `suly_get_public_conversation(uuid)`; verify share-token uniqueness/generation/revocation and explicit sharing UX before changing its grant.
+- [>] Trace service-role-only access to the ten no-policy tables through Edge Functions; verify no client-supplied user ID or untrusted parameter can cross user boundaries.
+- [>] Review model/provider administrative RPCs for policy bypasses, especially model re-enable/reset operations versus provider lifecycle and route allowlists. Admin-only access is not a substitute for correct state-transition rules.
+- [>] Review the 65 unindexed-FK findings against existing indexes; add only indexes proven useful and non-duplicative.
+- [>] Review extension placement warnings and document whether safe migration is supported/needed.
+- [ ] Add regression tests for any confirmed authorization or state-transition issue before applying a database migration.
+- [ ] Re-run Security Advisor and targeted SQL privilege checks after any fix.
+- [ ] Update this log with exact migration IDs, changed functions, tests, deployment evidence, and remaining risks.
+
+#### Owner input / blockers
+- No owner decision is required to continue read-only inspection.
+- OTA release publication remains blocked until the owner configures `EXPO_TOKEN` as a GitHub Actions secret. Never place the token in source code or the roadmap.
+- Public conversation sharing must be preserved unless the owner confirms the feature should be removed; current safe approach is to verify and harden it, not disable it.
+
+#### Next concrete action
+Continue the function-by-function security review, beginning with the anonymous public-share function and high-impact administrative state-changing RPCs. Make no production permission or schema changes until the relevant caller flow and regression coverage are understood.
+
