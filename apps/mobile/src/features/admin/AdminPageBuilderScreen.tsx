@@ -156,12 +156,12 @@ export function AdminPageBuilderScreen() {
     <View style={styles.header}>
       <View style={styles.headerCopy}>
         <Text style={styles.heading}>{t("منشئ صفحات الإدارة","Admin page builder")}</Text>
-        <Text style={styles.subheading}>{t("صفحات مخصصة بمكونات ومكونات ومصادر بيانات مسموحة فقط؛ مصادر البيانات المعروضة في هذه النسخة معرفات محجوزة حتى ربط adapters الحية.","Custom pages using approved components and data sources only. Data-source keys are reserved until live adapters are connected.")}</Text>
+        <Text style={styles.subheading}>{t("إنشاء صفحات مخصصة بمكونات مسموحة، مع حفظ مصادر البيانات المعتمدة كروابط تعريفية حتى ربط adapters الحية.","Build custom pages with approved components. Data-source keys are stored as references until live adapters are connected.")}</Text>
       </View>
       <Pressable onPress={newPage} style={styles.outlineButton}><Text style={styles.outlineButtonText}>{t("صفحة جديدة","+ New page")}</Text></Pressable>
     </View>
     <View style={styles.notice}>
-      <Text style={styles.noticeText}>{t("الحماية: لا يوجد SQL أو RPC حر. المكونات ومصادر البيانات تُراجع على الخادم. الأقسام الأساسية مثل الأمان والمحاسبة وHIMS لا يمكن حذفها من هذا المنشئ.","Safety: no arbitrary SQL or RPC. Components and data sources are validated server-side. Core security, finance and HIMS sections cannot be removed here.")}</Text>
+      <Text style={styles.noticeText}>{t("الحماية: لا يوجد SQL أو RPC حر. الخادم يتحقق من قائمة المكونات ومفاتيح مصادر البيانات. مفاتيح المصادر محفوظة كتعريفات فقط حتى تنفيذ adapters الحية. الأقسام الأساسية مثل الأمان والمحاسبة وHIMS خارج نطاق التعديل.","Safety: no arbitrary SQL or RPC. Components and source keys are validated server-side. Source keys are metadata only until live adapters are implemented. Core security, finance and HIMS sections are outside this builder's scope.")}</Text>
     </View>
     {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
     {message ? <Text style={styles.success}>{message}</Text> : null}
