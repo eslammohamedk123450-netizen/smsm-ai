@@ -30,6 +30,14 @@ describe("adminService tests", () => {
     await expect(adminService.getProviders()).rejects.toThrow("يتطلب هذا الإجراء صلاحية مشرف موثقة.");
   });
 
+  test("getConversationsPage requires a verified admin before reading conversation metadata", async () => {
+    (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "user-123" } }, error: null });
+    (supabase.rpc as jest.Mock).mockResolvedValue({ data: false, error: null });
+
+    await expect(adminService.getConversationsPage()).rejects.toThrow("يتطلب هذا الإجراء صلاحية مشرف موثقة.");
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
   test("adjustCredits validates amount and reason", async () => {
     (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "admin-1" } }, error: null });
     (supabase.rpc as jest.Mock).mockImplementation((rpcName: string) => {
