@@ -36,6 +36,7 @@ Phases 1–4 implementation scope has been completed and reported; Phase 5 navig
 - A platform that cannot support a capability must show a clear disabled/not-supported state; never leave a decorative or nonfunctional control.
 - CI must typecheck the shared application and export Web, Android, and iOS bundles for every relevant change. A bundle export is not a substitute for physical-device/browser acceptance; platform-specific E2E remains in Track B.
 - Keep feature behavior and backend contracts identical across platforms. Do not maintain separate copies of business logic per platform.
+- Development web previews must use an isolated preview host or environment. The current GitHub Pages workflow deploys `release/v1` only; never point it at `develop` or replace the stable production site just to provide a test preview.
 
 ## 3. Phase status rules
 
