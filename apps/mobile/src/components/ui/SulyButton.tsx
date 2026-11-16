@@ -1,7 +1,7 @@
-import { ActivityIndicator, Pressable, StyleSheet, type PressableProps } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, type PressableProps, type StyleProp, type ViewStyle } from "react-native";
 import { PremiumText as Text } from "./PremiumText";
 import { useSulyTheme } from "../../theme/ThemeProvider";
-type Props = Omit<PressableProps, "children"> & { label: string; variant?: "primary" | "secondary" | "ghost"; loading?: boolean };
+type Props = Omit<PressableProps, "children" | "style"> & { label: string; variant?: "primary" | "secondary" | "ghost"; loading?: boolean; style?: StyleProp<ViewStyle> };
 export function SulyButton({ label, variant = "primary", loading = false, disabled, style, ...props }: Props) {
   const { colors } = useSulyTheme();
   const primary = variant === "primary";
