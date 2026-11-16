@@ -819,7 +819,9 @@ Continue auditing the remaining authenticated SECURITY DEFINER functions in grou
 #### Remaining verification
 - [x] PR #111 merged into release/v1 (merge commit bf03b01820e371df069d11e8489b68cae5a96eea).
 - [x] ai-router deployed to Supabase as version 53, status ACTIVE; existing verify_jwt=false setting preserved. Retrieved deployed function source and confirmed the activation throttle RPC call is present.
-- [ ] Run an authenticated chat smoke test for successful activation, already-active behavior, max-use accounting, and throttled explicit commands.
+- [x] Database activation regression: valid code activates, repeat activation returns already_active, and max-use accounting increments only once (transaction rolled back).
+- [x] Database public-share regression: owner enables sharing, token fetch returns the bounded payload, owner revokes, and the same token no longer resolves (transaction rolled back).
+- [ ] Run an authenticated chat smoke test for successful activation, throttled explicit commands, and normal conversation behavior.
 - [ ] Confirm ordinary chat and HIMS resource retrieval remain unchanged in a live session.
 
 **Current status:** Database protection is applied and SQL-verified, and the Edge Function change is merged and deployed. Phase 16 remains open until authenticated end-to-end tests and the broader security audit are complete.
@@ -852,3 +854,12 @@ Continue auditing the remaining authenticated SECURITY DEFINER functions in grou
 4. Map vector and pg_net dependencies before deciding whether either extension can be moved safely.
 
 **Phase 16 status:** IN PROGRESS — targeted fixes and SQL regressions are complete, but the full function audit, account-level setting, and authenticated end-to-end coverage are not yet complete.
+
+
+#### SECURITY DEFINER source-level inventory — 2026-11-16
+
+- Current catalog query classified the 57 authenticated-executable SECURITY DEFINER functions as: 42 functions whose source contains the administrator guard helper, 14 functions scoped to caller/session identity, and one public-share function scoped by an unguessable share token. This is a source-level classification, not proof that all 56 guarded functions have been semantically audited.
+- Catalog verification: all 57 authenticated-executable SECURITY DEFINER functions have an explicit fixed search_path; 0 are missing it. The only anonymous-executable SECURITY DEFINER function remains suly_get_public_conversation(uuid), the intentional share-token endpoint.
+- Additional database regression: valid activation, already_active idempotency, and max-use accounting **PASS**; public-share enable/fetch/revoke/token invalidation **PASS**. Both tests ran inside transactions and were rolled back, leaving production data unchanged.
+- Reviewed function bodies for representative high-impact paths: cancel_agent_task_job, suly_claim_daily_credits, suly_effective_subscription_tier, suly_media_register_self, suly_media_register_self_v2, suly_media_attach_to_message, suly_my_feature_resources, suly_upsert_my_profile, suly_admin_update_provider, and public-share lookup. These inspected paths enforce owner identity, administrator membership, service-role restriction, or exact share-token lookup as appropriate.
+- Remaining: inspect the full bodies of all 57 functions individually for edge cases in dynamic SQL, row mutation scope, returned fields, and helper-call semantics. Do not treat the static counts as closure of Phase 16.
