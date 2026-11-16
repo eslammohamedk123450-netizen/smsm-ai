@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { randomUUID } from "expo-crypto";
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import * as Clipboard from "expo-clipboard";
@@ -13,10 +14,8 @@ function Button({ label, onPress, disabled = false, tone = "primary" }: { label:
   return <Pressable accessibilityRole="button" onPress={onPress} disabled={disabled} style={[tone === "primary" ? styles.button : styles.ghostButton, disabled && styles.disabled]}><Text style={tone === "primary" ? styles.buttonText : styles.ghostButtonText}>{label}</Text></Pressable>;
 }
 function generateCode() {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let value = "HIMS-";
-  for (let i = 0; i < 10; i += 1) value += alphabet[Math.floor(Math.random() * alphabet.length)];
-  return value;
+  // Expo Crypto's UUID source is cryptographically secure; never use Math.random for bearer codes.
+  return `HIMS-${randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase()}`;
 }
 function commandFor(code: string) {
   return `!ACTIVATE_${code}`;
@@ -67,7 +66,7 @@ export function HimsAdminScreen() {
   const createCode = async () => {
     const normalized = code.trim().toUpperCase();
     const uses = maxUses.trim() ? Number(maxUses) : null;
-    if (normalized.length < 6) { setError("اكتب كودًا من 6 أحرف على الأقل أو اضغط توليد كود."); return; }
+    if (normalized.length < 12) { setError("اكتب كودًا من 12 حرفًا على الأقل أو اضغط توليد كود."); return; }
     if (uses !== null && (!Number.isInteger(uses) || uses < 1)) { setError("عدد الاستخدامات يجب أن يكون رقمًا صحيحًا موجبًا."); return; }
     setBusy(true); setError(null); setNotice(null);
     try {
