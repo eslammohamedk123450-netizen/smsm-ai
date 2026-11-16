@@ -794,7 +794,7 @@ Continue auditing the remaining authenticated SECURITY DEFINER functions in grou
 
 ### Next security finding identified: Activation-code attempt throttling
 
-**Status:** [>] INVESTIGATION REQUIRED — no rate-limit code changed in this session.
+**Status:** [x] IMPLEMENTED — database migration applied and regression checks passed; application changes are in the focused PR pending CI and merge.
 
 #### Evidence
 - `suly_activate_feature(uuid,text)` is restricted to the service role, hashes the submitted code with SHA-256, locks the matching activation-code row, checks active/expiry/max-use conditions, and increments usage atomically. It does not expose the raw stored code.
@@ -808,13 +808,18 @@ Continue auditing the remaining authenticated SECURITY DEFINER functions in grou
 - Generated UUID-based codes have high entropy, so this is not evidence that those codes can practically be guessed.
 - However, the activation path currently has no explicit per-user attempt throttle before checking a custom or weak code, and activation commands return before the credit reservation. This leaves an avoidable abuse/guessing path if a manually entered code is predictable. External platform-level rate limits were not verified and must not be assumed.
 
-#### Planned remediation
-- [ ] Add an atomic service-role-only per-user activation-attempt limiter before calling `suly_activate_feature`.
-- [ ] Inspect whether the existing `suly_ai_rate_limits` table can safely be reused without conflicting with any other consumer; avoid a duplicate table unless necessary.
-- [ ] Choose and document a conservative retry policy, and ensure it affects activation attempts only—not ordinary chat or HIMS resource retrieval.
-- [ ] Fail closed if the limiter cannot be checked; return a safe localized retry message without testing the submitted code.
-- [ ] Add SQL regression coverage for per-user limits, cooldown, concurrency/atomicity, and denial of client access.
-- [ ] Verify that valid activation, already-active responses, max-use accounting, and ordinary chat behavior remain unchanged.
+#### Implementation and verification — 2026-11-16
+- Reused `suly_ai_rate_limits` rather than creating a duplicate table. Added separate activation-only window/count/last-attempt columns, leaving legacy/general AI counters untouched. Database inspection found no active function referencing the old table counters after the credit-gating change.
+- Applied migration `20261116101305_feature_activation_attempt_throttle` to the connected Supabase project.
+- Added `suly_check_feature_activation_rate_limit(uuid)`: service-role-only, SECURITY DEFINER with fixed `search_path`, per-user row lock (`FOR UPDATE`), 5 attempts per 15-minute window, and a 3-second minimum interval. The row lock serializes concurrent attempts for the same user.
+- The Edge Function checks the limiter before `suly_activate_feature`. If the limiter is unavailable, explicit activation fails closed without checking the code. Throttled responses do not reveal whether a submitted code exists. Bare-code messages preserve the existing ordinary-chat fallback.
+- SQL regression executed against the connected database: **PASS** for RLS/ACL, service-role-only RPC execution, fixed search path, row-lock presence, five allowed attempts, sixth-attempt denial, cooldown denial, and window reset. Test changes were rolled back.
+- The regression verifies the row-lock implementation and sequential limits; a multi-session concurrency stress test and full authenticated chat activation smoke test remain outstanding.
 
-**Next concrete action:** Finish PR #110's CI and merge the provider-secret permission fix. Then implement activation throttling as a separate focused migration/Edge Function change and record its test evidence here.
+#### Remaining verification
+- [ ] Run PR CI and merge the Edge Function/helper/test/roadmap changes.
+- [ ] Run an authenticated chat smoke test for successful activation, already-active behavior, max-use accounting, and throttled explicit commands.
+- [ ] Confirm ordinary chat and HIMS resource retrieval remain unchanged in a live session.
+
+**Current status:** Database protection is applied and SQL-verified. App enforcement is implemented in the focused PR; Phase 16 remains open until integration checks and the broader security audit are complete.
 
