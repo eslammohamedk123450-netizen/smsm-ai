@@ -1,23 +1,23 @@
 const darkColors = {
-  primary: "#737373", onPrimary: "#FFFFFF", /* Accessible foreground for primary surfaces. */
-  primaryDark: "#525252", secondary: "#BDBDBD", primarySoft: "#FFFFFF18",
-  background: "#090909", surface: "#141414", surfaceElevated: "#202020",
-  textPrimary: "#F5F5F5", textSecondary: "#B7B7B7", textMuted: "#888888", accent: "#F5F5F5",
+  primary: "#D4AF37", onPrimary: "#080B14",
+  primaryDark: "#B88A2B", secondary: "#B8B8B8", primarySoft: "#D4AF3720",
+  background: "#080B14", surface: "#151A27", surfaceElevated: "#252B3A",
+  textPrimary: "#F5F0E2", textSecondary: "#C3C0B7", textMuted: "#96938B", accent: "#D4AF37",
   success: "#4ADE80", warning: "#FBBF24", error: "#F87171",
-  freeBadge: "#D4D4D4", premiumBadge: "#FFFFFF", racingBadge: "#A3A3A3",
-  divider: "#2B2B2B", cardBackground: "#141414", inputBackground: "#1B1B1B",
-  inputBorder: "#353535", modalOverlay: "#000000B8",
+  freeBadge: "#C3C0B7", premiumBadge: "#D4AF37", racingBadge: "#B88A2B",
+  divider: "#303747", cardBackground: "#151A27", inputBackground: "#101522",
+  inputBorder: "#3A4252", modalOverlay: "#000000C7",
 } as const;
 
 const lightColors = {
-  primary: "#171717", onPrimary: "#FFFFFF", /* Accessible foreground for primary surfaces. */
-  primaryDark: "#000000", secondary: "#525252", primarySoft: "#1717170D",
-  background: "#F7F7F7", surface: "#FFFFFF", surfaceElevated: "#F0F0F0",
-  textPrimary: "#111111", textSecondary: "#525252", textMuted: "#6B6B6B", accent: "#111111",
+  primary: "#B88A2B", onPrimary: "#FFFFFF",
+  primaryDark: "#8F6A1D", secondary: "#5B5A55", primarySoft: "#B88A2B18",
+  background: "#F7F5EF", surface: "#FFFFFF", surfaceElevated: "#F0EDE4",
+  textPrimary: "#171A22", textSecondary: "#55565A", textMuted: "#77766F", accent: "#9B741F",
   success: "#15803D", warning: "#A16207", error: "#B91C1C",
-  freeBadge: "#404040", premiumBadge: "#111111", racingBadge: "#737373",
-  divider: "#E5E5E5", cardBackground: "#FFFFFF", inputBackground: "#F3F3F3",
-  inputBorder: "#D4D4D4", modalOverlay: "#00000066",
+  freeBadge: "#55565A", premiumBadge: "#9B741F", racingBadge: "#8F6A1D",
+  divider: "#E5E0D4", cardBackground: "#FFFFFF", inputBackground: "#F5F2EA",
+  inputBorder: "#D8D1C1", modalOverlay: "#00000066",
 } as const;
 
 export const colors = darkColors;
