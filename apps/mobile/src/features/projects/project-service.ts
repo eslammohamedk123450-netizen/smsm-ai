@@ -1,0 +1,74 @@
+import { supabase } from "../../lib/supabase/client";
+import { normalizeProjectInput, type ProjectInput } from "./project-validation";
+
+export type SulyProject = {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string | null;
+  color: string;
+  icon_key: string;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const PROJECT_COLUMNS = "id,user_id,name,description,color,icon_key,archived_at,created_at,updated_at";
+
+async function currentUserId(): Promise<string> {
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user) throw new Error("سجّل الدخول لإدارة مشاريعك.");
+  return data.user.id;
+}
+
+export const projectService = {
+  async listProjects(includeArchived = false): Promise<SulyProject[]> {
+    const userId = await currentUserId();
+    let query = supabase.from("suly_projects")
+      .select(PROJECT_COLUMNS)
+      .eq("user_id", userId)
+      .order("updated_at", { ascending: false })
+      .limit(100);
+    query = includeArchived ? query.not("archived_at", "is", null) : query.is("archived_at", null);
+    const { data, error } = await query;
+    if (error) throw new Error("تعذر تحميل المشاريع.");
+    return (data ?? []) as SulyProject[];
+  },
+
+  async createProject(input: ProjectInput): Promise<SulyProject> {
+    const userId = await currentUserId();
+    const normalized = normalizeProjectInput(input);
+    const { data, error } = await supabase.from("suly_projects")
+      .insert({ user_id: userId, ...normalized })
+      .select(PROJECT_COLUMNS)
+      .single();
+    if (error || !data) throw new Error("تعذر إنشاء المشروع.");
+    return data as SulyProject;
+  },
+
+  async updateProject(projectId: string, input: ProjectInput): Promise<void> {
+    if (!UUID_PATTERN.test(projectId)) throw new Error("معرّف المشروع غير صالح.");
+    const userId = await currentUserId();
+    const normalized = normalizeProjectInput(input);
+    const { data, error } = await supabase.from("suly_projects")
+      .update(normalized)
+      .eq("id", projectId)
+      .eq("user_id", userId)
+      .select("id")
+      .maybeSingle();
+    if (error || !data) throw new Error("تعذر تحديث المشروع أو أنه لم يعد متاحًا.");
+  },
+
+  async setArchived(projectId: string, archived: boolean): Promise<void> {
+    if (!UUID_PATTERN.test(projectId)) throw new Error("معرّف المشروع غير صالح.");
+    const userId = await currentUserId();
+    const { data, error } = await supabase.from("suly_projects")
+      .update({ archived_at: archived ? new Date().toISOString() : null })
+      .eq("id", projectId)
+      .eq("user_id", userId)
+      .select("id")
+      .maybeSingle();
+    if (error || !data) throw new Error("تعذر تحديث أرشيف المشروع.");
+  },
+};
