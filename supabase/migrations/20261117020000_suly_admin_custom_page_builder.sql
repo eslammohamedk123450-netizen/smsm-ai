@@ -45,6 +45,8 @@ declare
   v_type text;
   v_source text;
   v_count integer;
+  v_item jsonb;
+  v_row jsonb;
 begin
   if jsonb_typeof(p_config) is distinct from 'object'
      or jsonb_typeof(p_config->'components') is distinct from 'array' then
@@ -67,19 +69,36 @@ begin
     if v_source not in ('none','system_health_summary','model_catalog_summary','admin_activity_summary') then
       return false;
     end if;
-    if v_component ? 'sql' or v_component ? 'query' or v_component ? 'rpc'
-       or v_component ? 'secret' or v_component ? 'service_role_key' then
-      return false;
-    end if;
+    if exists (
+      select 1 from jsonb_object_keys(v_component) as keys(key)
+      where lower(key) in ('sql','query','rpc','secret','service_role_key','service_role','api_key')
+    ) then return false; end if;
     if v_type = 'table' then
       if jsonb_typeof(v_component->'columns') is distinct from 'array'
          or jsonb_typeof(v_component->'rows') is distinct from 'array' then return false; end if;
       if jsonb_array_length(v_component->'columns') > 8
-         or jsonb_array_length(v_component->'rows') > 20 then return false; end if;
+         or jsonb_array_length(v_component->'rows') > 20
+         or jsonb_array_length(v_component->'columns') = 0 then return false; end if;
+      for v_item in select value from jsonb_array_elements(v_component->'columns')
+      loop
+        if jsonb_typeof(v_item) <> 'string' or length(v_item #>> '{}') > 100 then return false; end if;
+      end loop;
+      for v_row in select value from jsonb_array_elements(v_component->'rows')
+      loop
+        if jsonb_typeof(v_row) is distinct from 'array' or jsonb_array_length(v_row) > 8 then return false; end if;
+        for v_item in select value from jsonb_array_elements(v_row)
+        loop
+          if jsonb_typeof(v_item) <> 'string' or length(v_item #>> '{}') > 200 then return false; end if;
+        end loop;
+      end loop;
     end if;
     if v_type = 'list' then
       if jsonb_typeof(v_component->'items') is distinct from 'array'
          or jsonb_array_length(v_component->'items') > 20 then return false; end if;
+      for v_item in select value from jsonb_array_elements(v_component->'items')
+      loop
+        if jsonb_typeof(v_item) <> 'string' or length(v_item #>> '{}') > 200 then return false; end if;
+      end loop;
     end if;
   end loop;
   return true;
