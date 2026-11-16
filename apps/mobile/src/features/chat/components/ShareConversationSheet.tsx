@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Platform, Pressable, Share, StyleSheet, Switch, View, useColorScheme } from "react-native";
+import { ActivityIndicator, Platform, Pressable, Share, StyleSheet, Switch, View } from "react-native";
+import { useSulyTheme } from "../../../theme/ThemeProvider";
 import { PremiumText as Text } from "../../../components/ui/PremiumText";
 import * as ExpoLinking from "expo-linking";
 import * as Clipboard from "expo-clipboard";
 import { BottomSheet } from "../../../components/ui/BottomSheet";
 import { useToast } from "../../../components/ui/Toast";
 import { supabase } from "../../../lib/supabase/client";
-import { getThemeColors } from "../../../theme/colors";
 import { useAppLocale } from "../../../theme/LocaleProvider";
 
 type Props = { visible: boolean; conversationId: string | null; title: string; plainText: string; onClose(): void };
@@ -25,7 +25,7 @@ export function ShareConversationSheet({ visible, conversationId, title, plainTe
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const palette = getThemeColors(useColorScheme() === "light" ? "light" : "dark");
+  const { colors: palette } = useSulyTheme();
   const { show } = useToast();
 
   useEffect(() => {

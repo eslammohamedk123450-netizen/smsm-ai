@@ -528,6 +528,8 @@ Acceptance:
 
 **Current status:** [>] The shared theme provider supports persisted system/light/dark selection. A hydration flash has now been addressed; hard-coded palette usage and visual route verification remain.
 
+**Additional Phase 14 work in progress (2026-11-16):** A focused follow-up branch now migrates the Balance screen's fixed dark-only palette to the shared `ThemePalette` tokens, and updates Toast, IconButton, BottomSheet, AttachSheet, SharedConversationPage, and ShareConversationSheet to consume `useSulyTheme()` rather than independently reading the OS color scheme. This fixes a real mismatch where a saved in-app light/dark choice could be ignored by shared surfaces. The changes are pending CI and merge; full visual/browser/device coverage and the remaining hard-coded color audit are still open.
+
 New implementation (2026-11-16):
 - `SulyThemeProvider` now waits for the persisted appearance preference to load before mounting app screens, preventing a first-render flash in the wrong theme. While loading it shows a palette-backed neutral surface.
 - Migrated all 11 audited legacy static `colors` imports to the active theme hook or system-aware palette (including auth screens/layouts, chat, balance, admin users, and Brain task UI). The remaining source scan finds 26 files with literal color values; some are intentional brand/status/code colors, while others need per-screen classification and replacement. No blind global replacement was applied.
@@ -597,6 +599,10 @@ Known constraints:
 - A previous advisor review surfaced warnings that require triage by actual function grants/body and RLS, not by warning label alone.
 - Latest Security Advisor review (2026-11-16): 10 RLS-enabled/no-policy tables were flagged at INFO level; direct privilege inspection confirmed none grants table privileges to `anon`, `authenticated`, or `PUBLIC`, so they are not client-readable/writable through those roles. Two extension-in-public warnings (`vector`, `pg_net`) remain for separate migration planning.
 - The intentional anonymous `suly_get_public_conversation(share_token)` endpoint remains scoped to the exact token and revocation regression. The new image-model admin RPC is executable by authenticated role only, explicitly checks `suly_is_admin()`, denies anon/PUBLIC execution, and passed a rollback-only non-admin denial + admin success/audit + no-credit-FX activation rejection test.
+
+- Live Supabase advisor + read-only SQL recheck (2026-11-16): the 10 INFO-level RLS/no-policy tables still have RLS enabled and grant no SELECT/INSERT/UPDATE/DELETE to either `anon` or `authenticated`; the INFO findings are therefore not evidence of client access. The 9 multiple-permissive-policy warnings were inspected: overlaps are admin-read plus owner/active-read, or admin `ALL` plus a separate public/owner read policy. No policy was changed because combining them without targeted regression could alter administrator or public-plan visibility semantics.
+- Performance advisor currently reports 68 unindexed foreign keys and 53 unused indexes (INFO). These are not auto-remediated: adding/removing indexes requires query-plan and workload evidence, and unused-index observations can be misleading on a young/low-traffic project.
+- Remaining advisor owner action: enable leaked-password protection in Supabase Auth settings if available on the current plan. The `vector`/`pg_net` extension schema warnings need a dependency-reviewed migration plan; do not move extensions blindly. The 57 authenticated-executable SECURITY DEFINER warning rows still require preserving the documented per-function guard classification and regression evidence; the anonymous share-token endpoint is intentionally token-scoped.
 
 ## Phase 17 — Expo Web, Android, iOS validation and release
 

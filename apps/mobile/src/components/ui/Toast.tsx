@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, StyleSheet, View, useColorScheme } from "react-native";
+import { Animated, StyleSheet, View } from "react-native";
 import { PremiumText as Text } from "./PremiumText";
-import { getThemeColors } from "../../theme/colors";
+import { useSulyTheme } from "../../theme/ThemeProvider";
 
 type ToastKind = "success" | "error" | "info";
 type ToastValue = { show(message: string, kind?: ToastKind): void };
@@ -11,7 +11,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [item, setItem] = useState<{ message: string; kind: ToastKind; key: number } | null>(null);
   const opacity = useRef(new Animated.Value(0)).current;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const palette = getThemeColors(useColorScheme() === "light" ? "light" : "dark");
+  const { colors: palette } = useSulyTheme();
   const show = useCallback((message: string, kind: ToastKind = "info") => {
     if (timer.current) clearTimeout(timer.current);
     setItem({ message, kind, key: Date.now() });

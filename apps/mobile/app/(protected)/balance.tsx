@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   View,
   ScrollView,
@@ -15,6 +15,8 @@ import { PremiumText as Text } from "../../src/components/ui/PremiumText";
 import { getCreditLedger, getMonthlyCreditUsage, type CreditEntry } from "../../src/features/credits/credit-service";
 import { useAuth } from "../../src/features/auth/auth-provider";
 import { supabase } from "../../src/lib/supabase/client";
+import { useSulyTheme } from "../../src/theme/ThemeProvider";
+import type { ThemePalette } from "../../src/theme/colors";
 
 interface TransactionItem {
   id: string;
@@ -58,6 +60,8 @@ function mapCreditEntries(entries: CreditEntry[]): TransactionItem[] {
 
 export default function BalanceScreen() {
   const router = useRouter();
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { user } = useAuth();
   const scrollRef = useRef<any>(null);
   const historyYRef = useRef<number>(0);
@@ -140,11 +144,11 @@ export default function BalanceScreen() {
   const renderIcon = (type: TransactionItem["type"]) => {
     switch (type) {
       case "recharge":
-        return <Ionicons name="flash" size={16} color="#4ADE80" />;
+        return <Ionicons name="flash" size={16} color={colors.success} />;
       case "chat":
       case "other":
       default:
-        return <Ionicons name="chatbubble-ellipses" size={16} color="#0EA5E9" />;
+        return <Ionicons name="chatbubble-ellipses" size={16} color={colors.primary} />;
     }
   };
 
@@ -158,7 +162,7 @@ export default function BalanceScreen() {
           accessibilityRole="button"
           accessibilityLabel="العودة للمحادثة"
         >
-          <Ionicons name="arrow-forward" size={22} color="#F5F5F5" />
+          <Ionicons name="arrow-forward" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>الرصيد والاستهلاك</Text>
         <View style={styles.headerSpacer} />
@@ -192,7 +196,7 @@ export default function BalanceScreen() {
           <View style={styles.balanceSection}>
             <Text style={styles.balanceLabel}>الرصيد الحالي</Text>
             {loading ? (
-              <ActivityIndicator color="#0EA5E9" style={{ marginVertical: 8 }} />
+              <ActivityIndicator color={colors.primary} style={{ marginVertical: 8 }} />
             ) : (
               <Text style={styles.balanceNumber}>
                 {balance === null ? "—" : balance.toLocaleString("en-US")}
@@ -228,7 +232,7 @@ export default function BalanceScreen() {
 
         {/* 2. كارت الاستهلاك: عنوان استهلاك هذا الشهر + Progress Bar */}
         <View style={styles.consumptionCard}>
-          {!isPaidPlan ? <View style={styles.lockedConsumption}><Ionicons name="lock-closed" size={22} color="#A1A1AA" /><Text style={styles.lockedText}>تفاصيل الاستهلاك متاحة للمشتركين في باقة مدفوعة</Text><TouchableOpacity onPress={() => router.push("/(protected)/upgrade")} style={styles.lockedButton}><Text style={styles.lockedButtonText}>عرض الباقات</Text></TouchableOpacity></View> : null}
+          {!isPaidPlan ? <View style={styles.lockedConsumption}><Ionicons name="lock-closed" size={22} color={colors.textMuted} /><Text style={styles.lockedText}>تفاصيل الاستهلاك متاحة للمشتركين في باقة مدفوعة</Text><TouchableOpacity onPress={() => router.push("/(protected)/upgrade")} style={styles.lockedButton}><Text style={styles.lockedButtonText}>عرض الباقات</Text></TouchableOpacity></View> : null}
           {isPaidPlan ? <>
           <View style={styles.consumptionHeaderRow}>
             <Text style={styles.consumptionTitle}>استهلاك هذا الشهر</Text>
@@ -330,20 +334,20 @@ export default function BalanceScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemePalette) { return StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: "#000000",
+    backgroundColor: colors.background,
   },
   header: {
     height: 56,
     borderBottomWidth: 1,
-    borderBottomColor: "#262626",
+    borderBottomColor: colors.divider,
     flexDirection: "row-reverse",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    backgroundColor: "#000000",
+    backgroundColor: colors.background,
   },
   headerBackBtn: {
     width: 40,
@@ -355,14 +359,14 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 17,
     fontWeight: "700",
-    color: "#F5F5F5",
+    color: colors.textPrimary,
   },
   headerSpacer: {
     width: 40,
   },
   container: {
     flex: 1,
-    backgroundColor: "#000000",
+    backgroundColor: colors.background,
   },
   content: {
     padding: 16,
@@ -373,11 +377,11 @@ const styles = StyleSheet.create({
     alignSelf: "center",
   },
   topCard: {
-    backgroundColor: "#111111",
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: "#262626",
+    borderColor: colors.divider,
   },
   cardHeaderRow: {
     flexDirection: "row-reverse",
@@ -387,10 +391,10 @@ const styles = StyleSheet.create({
   planName: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: colors.textPrimary,
   },
   upgradeBtn: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.primary,
     borderRadius: 9999,
     paddingHorizontal: 16,
     paddingVertical: 6,
@@ -398,12 +402,12 @@ const styles = StyleSheet.create({
   upgradeBtnText: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#000000",
+    color: colors.background,
   },
   dashedDivider: {
     height: 1,
     borderWidth: 1,
-    borderColor: "#262626",
+    borderColor: colors.divider,
     borderStyle: "dashed",
     marginVertical: 14,
   },
@@ -412,19 +416,19 @@ const styles = StyleSheet.create({
   },
   balanceLabel: {
     fontSize: 13,
-    color: "#A1A1AA",
+    color: colors.textMuted,
     textAlign: "right",
   },
   balanceNumber: {
     fontSize: 32,
     fontWeight: "700",
-    color: "#F5F5F5",
+    color: colors.textPrimary,
     textAlign: "right",
     marginVertical: 4,
   },
   balanceNotice: {
     fontSize: 11,
-    color: "#A1A1AA",
+    color: colors.textMuted,
     textAlign: "right",
     marginTop: 2,
   },
@@ -435,7 +439,7 @@ const styles = StyleSheet.create({
   rechargeBtn: {
     flex: 1,
     height: 44,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.primary,
     borderRadius: 9999,
     alignItems: "center",
     justifyContent: "center",
@@ -443,12 +447,12 @@ const styles = StyleSheet.create({
   rechargeBtnText: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#000000",
+    color: colors.background,
   },
   historyBtn: {
     flex: 1,
     height: 44,
-    backgroundColor: "#262626",
+    backgroundColor: colors.surfaceElevated,
     borderRadius: 9999,
     alignItems: "center",
     justifyContent: "center",
@@ -456,14 +460,14 @@ const styles = StyleSheet.create({
   historyBtnText: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: colors.textPrimary,
   },
   consumptionCard: {
-    backgroundColor: "#111111",
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: "#262626",
+    borderColor: colors.divider,
   },
   consumptionHeaderRow: {
     flexDirection: "row-reverse",
@@ -474,28 +478,28 @@ const styles = StyleSheet.create({
   consumptionTitle: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#F5F5F5",
+    color: colors.textPrimary,
   },
   consumptionPercent: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#0EA5E9",
+    color: colors.primary,
   },
   progressBarBackground: {
     width: "100%",
     height: 10,
-    backgroundColor: "#262626",
+    backgroundColor: colors.surfaceElevated,
     borderRadius: 9999,
     overflow: "hidden",
   },
   progressBarFill: {
     height: "100%",
-    backgroundColor: "#0EA5E9",
+    backgroundColor: colors.primary,
     borderRadius: 9999,
   },
   consumptionSubtitle: {
     fontSize: 13,
-    color: "#A1A1AA",
+    color: colors.textMuted,
     textAlign: "right",
     marginTop: 10,
   },
@@ -505,18 +509,18 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   lockedText: {
-    color: "#A1A1AA",
+    color: colors.textMuted,
     fontSize: 13,
     textAlign: "center",
   },
   lockedButton: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.primary,
     borderRadius: 9999,
     paddingHorizontal: 18,
     paddingVertical: 8,
   },
   lockedButtonText: {
-    color: "#000000",
+    color: colors.background,
     fontWeight: "700",
     fontSize: 12,
   },
@@ -527,20 +531,20 @@ const styles = StyleSheet.create({
   historySectionTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#F5F5F5",
+    color: colors.textPrimary,
     textAlign: "right",
   },
   emptyCard: {
-    backgroundColor: "#111111",
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 24,
     borderWidth: 1,
-    borderColor: "#262626",
+    borderColor: colors.divider,
     alignItems: "center",
   },
   emptyText: {
     fontSize: 13,
-    color: "#A1A1AA",
+    color: colors.textMuted,
   },
   dateGroup: {
     gap: 8,
@@ -548,16 +552,16 @@ const styles = StyleSheet.create({
   },
   dateHeader: {
     fontSize: 11,
-    color: "#A1A1AA",
+    color: colors.textMuted,
     textAlign: "right",
     paddingHorizontal: 4,
   },
   transactionCard: {
-    backgroundColor: "#111111",
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
-    borderColor: "#262626",
+    borderColor: colors.divider,
     flexDirection: "row-reverse",
     alignItems: "center",
     justifyContent: "space-between",
@@ -572,9 +576,9 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#1F1F1F",
+    backgroundColor: colors.surfaceElevated,
     borderWidth: 1,
-    borderColor: "#262626",
+    borderColor: colors.divider,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -585,12 +589,12 @@ const styles = StyleSheet.create({
   txTitle: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#F5F5F5",
+    color: colors.textPrimary,
     textAlign: "right",
   },
   txMeta: {
     fontSize: 11,
-    color: "#A1A1AA",
+    color: colors.textMuted,
     marginTop: 2,
     textAlign: "right",
   },
@@ -601,36 +605,36 @@ const styles = StyleSheet.create({
   debitAmount: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#F87171",
+    color: colors.error,
   },
   creditAmount: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#4ADE80",
+    color: colors.success,
   },
   txTime: {
     fontSize: 11,
-    color: "#A1A1AA",
+    color: colors.textMuted,
     marginTop: 2,
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.75)",
+    backgroundColor: colors.modalOverlay,
     justifyContent: "flex-end",
   },
   modalCard: {
-    backgroundColor: "#1F1F1F",
+    backgroundColor: colors.surfaceElevated,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     borderWidth: 1,
-    borderColor: "#262626",
+    borderColor: colors.divider,
     padding: 20,
     paddingBottom: 36,
   },
   modalHandle: {
     width: 40,
     height: 4,
-    backgroundColor: "#333333",
+    backgroundColor: colors.divider,
     borderRadius: 2,
     alignSelf: "center",
     marginBottom: 16,
@@ -638,12 +642,12 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#F5F5F5",
+    color: colors.textPrimary,
     textAlign: "center",
   },
   modalSub: {
     fontSize: 12,
-    color: "#A1A1AA",
+    color: colors.textMuted,
     textAlign: "center",
     marginTop: 4,
     marginBottom: 20,
@@ -656,14 +660,14 @@ const styles = StyleSheet.create({
     flexDirection: "row-reverse",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#111111",
+    backgroundColor: colors.surface,
     borderRadius: 14,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#262626",
+    borderColor: colors.divider,
   },
   packItemPopular: {
-    borderColor: "#0EA5E9",
+    borderColor: colors.primary,
   },
   packInfo: {
     flexDirection: "row-reverse",
@@ -673,13 +677,13 @@ const styles = StyleSheet.create({
   packPoints: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#F5F5F5",
+    color: colors.textPrimary,
   },
   popularBadge: {
     fontSize: 10,
     fontWeight: "700",
-    color: "#0EA5E9",
-    backgroundColor: "rgba(14, 165, 233, 0.15)",
+    color: colors.primary,
+    backgroundColor: colors.primarySoft,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
@@ -687,11 +691,11 @@ const styles = StyleSheet.create({
   packPrice: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#A1A1AA",
+    color: colors.textMuted,
   },
   modalCloseBtn: {
     height: 44,
-    backgroundColor: "#262626",
+    backgroundColor: colors.surfaceElevated,
     borderRadius: 9999,
     alignItems: "center",
     justifyContent: "center",
@@ -699,6 +703,6 @@ const styles = StyleSheet.create({
   modalCloseText: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#F5F5F5",
+    color: colors.textPrimary,
   },
-});
+}); }

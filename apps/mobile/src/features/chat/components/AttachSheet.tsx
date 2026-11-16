@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, View, useColorScheme } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
+import { useSulyTheme } from "../../../theme/ThemeProvider";
 import { PremiumText as Text } from "../../../components/ui/PremiumText";
 import { BottomSheet } from "../../../components/ui/BottomSheet";
 import { useToast } from "../../../components/ui/Toast";
-import { getThemeColors } from "../../../theme/colors";
 import { pickMedia, type PickedMedia, type PickKind } from "../../media/media-service";
 
 type Props = { visible: boolean; onClose(): void; onPicked(media: PickedMedia): void };
@@ -15,7 +15,7 @@ const choices: { kind: PickKind; title: string; subtitle: string; icon: string }
 export function AttachSheet({ visible, onClose, onPicked }: Props) {
   const [busy, setBusy] = useState<PickKind | null>(null);
   const { show } = useToast();
-  const palette = getThemeColors(useColorScheme() === "light" ? "light" : "dark");
+  const { colors: palette } = useSulyTheme();
   const choose = async (kind: PickKind) => {
     setBusy(kind);
     try {

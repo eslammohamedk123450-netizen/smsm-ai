@@ -1,16 +1,16 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, View, useColorScheme } from "react-native";
+import { ActivityIndicator, ScrollView, StyleSheet, View } from "react-native";
+import { useSulyTheme } from "../../theme/ThemeProvider";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../../lib/supabase/client";
-import { getThemeColors } from "../../theme/colors";
 
 type SharedMessage = { role: "user" | "assistant"; content: string; created_at: string };
 type SharedConversation = { title: string; messages: SharedMessage[] };
 export default function SharedConversationPage() {
   const { token } = useLocalSearchParams<{ token: string }>();
-  const palette = getThemeColors(useColorScheme() === "light" ? "light" : "dark");
+  const { colors: palette } = useSulyTheme();
   const [conversation, setConversation] = useState<SharedConversation | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
