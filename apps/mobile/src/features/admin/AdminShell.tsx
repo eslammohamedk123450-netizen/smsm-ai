@@ -71,6 +71,7 @@ const NAV_GROUPS: readonly NavGroup[] = [
       { path: "/admin/tavily", label: "Tavily · بحث الويب", labelEn: "Tavily · Web search", icon: "T" },
       { path: "/admin/storage", label: "التخزين", labelEn: "Storage", icon: "↥" },
       { path: "/admin/circuit-breaker", label: "إعدادات النظام", labelEn: "System settings", icon: "⚙" },
+      { path: "/admin/page-builder", label: "منشئ صفحات الإدارة", labelEn: "Admin page builder", icon: "▦" },
     ],
   },
 ] as const;
