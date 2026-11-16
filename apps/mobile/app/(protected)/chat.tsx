@@ -141,6 +141,7 @@ export default function ChatPage() {
   const [actualModelUsed, setActualModelUsed] = useState<string | null>(null);
   const [subscriptionTier, setSubscriptionTier] = useState("free");
   const [modelProfiles, setModelProfiles] = useState(DEFAULT_SULY_PROFILES);
+  const [modelCatalogLoaded, setModelCatalogLoaded] = useState(false);
   const suggestions = isArabic ? TASK_SUGGESTIONS : TASK_SUGGESTIONS_EN;
   const localizedModelProfiles = useMemo(() => modelProfiles.map((profile) => {
     if (isArabic) return profile;
@@ -193,8 +194,11 @@ export default function ChatPage() {
       if (!active) return;
       const tier = typeof tierResult.data === "string" ? tierResult.data.toLowerCase() : "free";
       setSubscriptionTier(!tierResult.error && ["free", "lite", "pro", "max"].includes(tier) ? tier : "free");
-      if (Array.isArray(modelResult.data) && modelResult.data.length) {
+      if (!modelResult.error && Array.isArray(modelResult.data)) {
         setModelProfiles(modelResult.data as typeof DEFAULT_SULY_PROFILES);
+        setModelCatalogLoaded(true);
+      } else {
+        setModelCatalogLoaded(false);
       }
     })().catch(() => undefined);
     return () => { active = false; };
@@ -458,6 +462,7 @@ export default function ChatPage() {
     await runOnce(lock, async () => {
       setError(null);
       setRetryFailure(null);
+      setActualModelUsed(null);
       setIsSending(true);
       setActiveTaskLabel(isArabic ? "جاري إعادة تنفيذ المهمة…" : "Retrying task…");
       const controller = new AbortController();
@@ -468,6 +473,7 @@ export default function ChatPage() {
         await chatService.retryAssistant({
           ...failed,
           signal: controller.signal,
+          onModelInfo(identifier) { setActualModelUsed(identifier); },
           onChunk(text) {
             streamedTextRef.current += text;
             setMessages((current) => {
@@ -849,14 +855,15 @@ export default function ChatPage() {
           </Pressable>
           {localizedModelProfiles.map((profile) => {
             const tierRank: Record<string, number> = { free: 0, lite: 1, pro: 2, max: 3 };
-            const locked = (tierRank[subscriptionTier] ?? 0) < (tierRank[profile.minimum_subscription_tier] ?? 3);
+            const planLocked = (tierRank[subscriptionTier] ?? 0) < (tierRank[profile.minimum_subscription_tier] ?? 3);
+            const locked = !modelCatalogLoaded || planLocked;
             const selected = selectedModelProfile === profile.profile_key;
             return (
               <Pressable key={profile.profile_key} disabled={locked} onPress={() => { setSelectedModelProfile(profile.profile_key); setModelMenuVisible(false); }} style={[styles.modelOption, selected && styles.modelOptionSelected, locked && styles.modelOptionDisabled]}>
                 <View style={styles.modelOptionCopy}>
                   <View style={styles.modelOptionHeading}>
                     <Text style={styles.modelOptionTitle}>{profile.display_name}</Text>
-                    {locked ? <Text style={styles.modelRestricted}>{isArabic ? "مقيد بالباقة" : "Plan restricted"}</Text> : null}
+                    {locked ? <Text style={styles.modelRestricted}>{!modelCatalogLoaded ? (isArabic ? "تعذر التحقق من الكتالوج" : "Catalog unavailable") : (isArabic ? "مقيد بالباقة" : "Plan restricted")}</Text> : null}
                   </View>
                   <Text style={styles.modelOptionDescription}>{profile.description}</Text>
                 </View>
