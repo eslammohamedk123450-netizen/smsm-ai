@@ -4,7 +4,7 @@ import { buildAgentUsageLedgerRecord } from "./agent_usage_ledger.ts";
 import { prepareAgentMemory, saveAgentMemory } from "./agent/memory.ts";
 import { activationOutcomeMessage, parseActivationCommand, shouldReportActivationFailure } from "../_shared/activation_command.ts";
 import { activateFeatureByCode, getFeatureContext } from "../_shared/feature_flags.ts";
-import { buildFeatureSystemContext, isFeatureResourceRequest } from "../_shared/feature_resource_context.ts";
+import { buildFeatureSystemContext, isFeatureResourceRequest, shouldSearchWebForMessage } from "../_shared/feature_resource_context.ts";
 import { buildSulyIdentityContext, containsHimsReference, getIdentityAnswer, INACTIVE_UNKNOWN_ANSWER, sanitizeContextText } from "../_shared/identity_context.ts";
 import { normalizeFeatureKey } from "../_shared/prompt_keys.ts";
 import { capabilityForMime, supportsModelCapabilities, type ModelCapability } from "../_shared/model_capabilities.ts";
