@@ -35,6 +35,7 @@ export function BrainTaskScreen() {
         setProgress((current) => current ? { ...current, status: "cancelled" } : current);
         show("تم إلغاء المهمة قبل أن يبدأ العامل تنفيذها.", "success");
       } else {
+        cancellationRequested.current = jobId;
         setCancelRequested(true);
         show("تم استلام طلب الإيقاف. ستكتمل الخطوة الجارية أولًا، ثم يتوقف العامل دون بدء خطوات جديدة.", "success");
       }
@@ -65,7 +66,13 @@ export function BrainTaskScreen() {
       for (let attempt = 0; attempt < 180; attempt += 1) {
         latest = await getTaskProgress(accepted.task_id, accepted.job_id);
         if (latest) setProgress(latest);
-        if (cancellationRequested.current === accepted.job_id || latest?.status === "cancelled") return;
+        if (latest?.status === "cancelled") {
+          if (cancellationRequested.current === accepted.job_id) {
+            show("تم إيقاف المهمة بأمان بعد الخطوة الجارية.", "success");
+            return;
+          }
+          throw new Error(latest.errorMessage || "تم إلغاء المهمة.");
+        }
         if (latest?.status === "completed" && latest.result && typeof latest.result.response === "string") {
           setResult({
             task_id: accepted.task_id,
@@ -80,7 +87,7 @@ export function BrainTaskScreen() {
           return;
         }
         if (latest?.status === "queued" && attempt > 0 && attempt % 8 === 0) wakeBrainWorker();
-        if (latest?.status === "failed" || latest?.status === "cancelled") {
+        if (latest?.status === "failed") {
           throw new Error(latest.errorMessage || "تعذر إكمال المهمة.");
         }
         await new Promise((resolve) => setTimeout(resolve, 2500));
