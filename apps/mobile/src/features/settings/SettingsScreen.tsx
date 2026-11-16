@@ -10,6 +10,7 @@ import { BottomSheet } from "../../components/ui/BottomSheet";
 import { useToast } from "../../components/ui/Toast";
 import { chatService, type Conversation } from "../chat/chat-service";
 import { useSulyTheme, type ThemeMode } from "../../theme/ThemeProvider";
+import { supabase } from "../../lib/supabase/client";
 
 type Language = "ar" | "en";
 
@@ -19,6 +20,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { mode, effectiveMode, setMode } = useSulyTheme();
   const [language, setLanguage] = useState<Language>("ar");
+  const [isAdmin, setIsAdmin] = useState(false);
   const [balance, setBalance] = useState<number | null>(null);
   const [transactions, setTransactions] = useState<CreditEntry[]>([]);
   const [loadingCredits, setLoadingCredits] = useState(true);
@@ -35,6 +37,10 @@ export default function SettingsScreen() {
     void AsyncStorage.getItem("suly:language").then((value) => {
       if (value === "en" || value === "ar") setLanguage(value);
     });
+    void (async () => {
+      try { const { data, error } = await supabase.rpc("suly_is_admin"); setIsAdmin(!error && data === true); }
+      catch { setIsAdmin(false); }
+    })();
   }, []);
 
   const loadCredits = useCallback(async () => {
@@ -101,7 +107,7 @@ export default function SettingsScreen() {
 
   const name = profileFullName?.trim() || "Suly";
   const avatarUrl = typeof user?.user_metadata?.avatar_url === "string" ? user.user_metadata.avatar_url : null;
-  const back = () => { if (router.canGoBack()) router.back(); else router.replace("/(protected)/chat"); };
+  const back = () => { if (router.canGoBack()) router.back(); else router.replace("/home"); };
 
   return (
     <>
@@ -149,6 +155,12 @@ export default function SettingsScreen() {
         <Text style={styles.sectionTitle}>{isArabic ? "المحادثات" : "Conversations"}</Text>
         <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => void openArchive()} accessibilityRole="button"><Text style={styles.rowText}>{isArabic ? "الأرشيف" : "Archive"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
 
+        {isAdmin ? <>
+          <Text style={styles.sectionTitle}>{isArabic ? "إدارة النظام" : "Administration"}</Text>
+          <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/admin")} accessibilityRole="button">
+            <Text style={styles.rowText}>{isArabic ? "لوحة التحكم الإدارية" : "Admin dashboard"}</Text><Text style={styles.chevron}>‹</Text>
+          </TouchableOpacity>
+        </> : null}
         <Text style={styles.sectionTitle}>{isArabic ? "التكاملات" : "Integrations"}</Text>
         <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/integrations")} accessibilityRole="button"><Text style={styles.rowText}>{isArabic ? "التطبيقات المرتبطة" : "Connected apps"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
 
