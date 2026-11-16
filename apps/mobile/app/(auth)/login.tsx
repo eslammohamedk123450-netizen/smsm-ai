@@ -42,7 +42,7 @@ export default function LoginPage() {
     return () => clearInterval(timer);
   }, [cooldownSeconds]);
 
-  if (status === "authenticated" && user) return <Redirect href="/chat" />;
+  if (status === "authenticated" && user) return <Redirect href="/home" />;
 
   const resetMessage = () => {
     setError(null);
@@ -89,18 +89,18 @@ export default function LoginPage() {
         if (!canSendEmail()) return;
         const hasSession = await register(cleanEmail, password, fullName);
         if (!hasSession) recordEmailAttempt();
-        if (hasSession) router.replace("/chat");
+        if (hasSession) router.replace("/home");
         else setConfirmation("أرسلنا رسالة تأكيد إلى بريدك الإلكتروني. افتح الرسالة واضغط «تأكيد البريد» من هذا الهاتف؛ سيفتح SULY ويكمل تسجيل دخولك تلقائيًا، ولن تحتاج إلى كتابة بياناتك مرة أخرى. إذا لم تجد الرسالة، افحص مجلد Spam.");
       } else if (method === "password") {
         const session = await signInWithPassword(cleanEmail, password);
         if (!session.user) throw new Error("Password authentication did not return a user session.");
-        router.replace("/chat");
+        router.replace("/home");
       } else if (method === "otp" && codeSent) {
         const session = await verifyEmailOtp(cleanEmail, code);
         if (!session.user) throw new Error("Email verification did not return a user session.");
         setEmailAttempts(0);
         setCooldownSeconds(0);
-        router.replace("/chat");
+        router.replace("/home");
       } else if (method === "otp") {
         if (!canSendEmail()) return;
         await sendEmailOtp(cleanEmail);
@@ -128,7 +128,7 @@ export default function LoginPage() {
     try {
       const session = await signInWithGoogle();
       if (!session.user) throw new Error("Google authentication did not return a user session.");
-      router.replace("/chat");
+      router.replace("/home");
     } catch (cause) {
       setError(mapAuthError(cause));
       setBusy(false);
