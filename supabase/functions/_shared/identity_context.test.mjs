@@ -27,7 +27,7 @@ test("active identity context includes the HIMS instructions and verified badge 
   assert.ok(context.systemPrompt.includes("الأسئلة الدراسية العامة"));
   assert.ok(context.systemPrompt.includes("التحية والمحادثات اليومية بصورة طبيعية"));
   assert.ok(context.systemPrompt.includes("داخل المحادثة نفسها"));
-  assert.ok(context.systemPrompt.includes(JSON.stringify({ badges: ["HIMS"] })));
+  assert.equal(context.systemPrompt.includes("HIMS"), false);
   assert.deepEqual(context.userMetadata, { badges: ["HIMS"] });
 });
 
