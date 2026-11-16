@@ -32,12 +32,14 @@ export function ModelPricingAdminCard() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const load = async () => {
+  const load = async (): Promise<PriceRow[] | null> => {
     setLoading(true);
     setError(null);
     try {
       const result = await adminService.getModelPriceVersions() as PriceRow[];
-      setRows(result.filter((row) => row.model));
+      const nextRows = result.filter((row) => row.model);
+      setRows(nextRows);
+      return nextRows;
     } catch {
       setError("تعذر تحميل أسعار النماذج. تحقق من صلاحية الأدمن وتطبيق ترحيل الأسعار.");
     } finally {
@@ -75,11 +77,12 @@ export function ModelPricingAdminCard() {
     try {
       await adminService.updateModelPrice(selected.model_id, input, output, selected.price_version);
       setNotice("تم حفظ إصدار سعر جديد مع الاحتفاظ بالإصدار السابق.");
-      await load();
-      const updated = rows.find((row) => row.model_id === selected.model_id);
+      const updatedRows = await load();
+      const updated = updatedRows?.find((row) => row.model_id === selected.model_id);
       if (updated) {
-        setInputCost(String(input));
-        setOutputCost(String(output));
+        setSelectedId(updated.model_id);
+        setInputCost(String(updated.provider_input_cost_egp_per_million));
+        setOutputCost(String(updated.provider_output_cost_egp_per_million));
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "تعذر حفظ السعر.");
