@@ -104,15 +104,6 @@ export function MediaScreen() {
       <Pressable onPress={() => void load()}><Text style={styles.link}>تحديث</Text></Pressable>
     </View>
     <Text style={styles.explainer}>ارفع صورك وفيديوهاتك وملفاتك للوصول إليها بأمان. الصور تُضغط قبل الرفع لتوفير المساحة.</Text>
-    <Pressable accessibilityRole="button" onPress={() => router.push("/(protected)/hims")} style={styles.himsCard}>
-      <View style={styles.himsIcon}><Text style={styles.himsIconText}>H</Text></View>
-      <View style={styles.himsCopy}>
-        <Text style={styles.himsTitle}>محتوى الجامعة · HIMS</Text>
-        <Text style={styles.meta}>محاضراتك وملفاتك التعليمية، مع التحقق من صلاحية حسابك قبل عرض المحتوى.</Text>
-      </View>
-      <Text style={styles.himsArrow}>‹</Text>
-    </Pressable>
-
     {isAdmin && (
       <View style={styles.actions}>
         <Pressable accessibilityRole="button" disabled={busy !== null} onPress={() => void pickAndUpload("image")} style={[styles.actionButton, busy !== null && styles.disabled]}>
