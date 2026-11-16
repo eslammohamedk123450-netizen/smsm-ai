@@ -141,7 +141,7 @@ export default function ChatPage() {
   const [ratingNote, setRatingNote] = useState("");
   const [ratingSaving, setRatingSaving] = useState(false);
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
-  const selectedModelProfile = "auto" as const;
+  const [selectedModelProfile, setSelectedModelProfile] = useState<string>("auto");
   useEffect(() => {
     let active = true;
     if (!user?.id) {
