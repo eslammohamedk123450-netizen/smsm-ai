@@ -88,7 +88,7 @@ export function AdminShell() {
       if (active) setAdminName((data.user?.email?.[0] ?? "A").toLocaleUpperCase(isArabic ? "ar" : "en"));
     });
     return () => { active = false; };
-  }, []);
+  }, [isArabic]);
 
   const refreshHealth = async () => {
     setChecking(true);
