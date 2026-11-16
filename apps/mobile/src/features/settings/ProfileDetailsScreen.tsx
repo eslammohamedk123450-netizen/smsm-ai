@@ -9,6 +9,7 @@ import { useToast } from "../../components/ui/Toast";
 import { useAuth } from "../auth/auth-provider";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import { useAppLocale } from "../../theme/LocaleProvider";
+import type { ThemePalette } from "../../theme/colors";
 
 export default function ProfileDetailsScreen() {
   const { user, profileFullName, logout } = useAuth();
@@ -122,7 +123,7 @@ export default function ProfileDetailsScreen() {
   );
 }
 
-const createStyles = (colors: ReturnType<typeof import("../../theme/ThemeProvider").useSulyTheme>["colors"], isArabic: boolean) => StyleSheet.create({
+const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: 20, paddingBottom: 36, gap: 10 },
   header: { alignItems: "center", gap: 12, marginBottom: 10 },
