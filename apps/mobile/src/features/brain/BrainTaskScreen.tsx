@@ -3,12 +3,13 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View }
 import { useLocalSearchParams, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "../../lib/supabase/client";
+import { randomUUID } from "expo-crypto";
 import { chatService } from "../chat/chat-service";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { useToast } from "../../components/ui/Toast";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
-import { cancelBrainTask, runBrainTask, wakeBrainWorker, type BrainTaskResult } from "./brain-service";
+import { cancelBrainTask, runBrainTask, recoverBrainTask, wakeBrainWorker, type BrainTaskResult } from "./brain-service";
 import { getTaskProgress, type TaskSnapshot } from "./task-service";
 
 const PENDING_TASK_STORAGE_PREFIX = "@suly/brain-task-pending:";
@@ -113,7 +114,14 @@ export function BrainTaskScreen() {
         if (saved.user_id !== user.id || !saved.task_id || !saved.job_id || !saved.objective || !saved.conversation_id) return;
         setObjective(saved.objective);
         setPendingTask(saved);
-        void monitorAcceptedTask({ task_id: saved.task_id, job_id: saved.job_id }, saved.objective, saved.conversation_id, user.id);
+        const accepted = saved.job_id
+          ? { task_id: saved.task_id, job_id: saved.job_id }
+          : await recoverBrainTask(saved.task_id, saved.objective);
+        if (!active) return;
+        const recovered = { ...saved, job_id: accepted.job_id };
+        await AsyncStorage.setItem(key, JSON.stringify(recovered));
+        setPendingTask(recovered);
+        void monitorAcceptedTask(accepted, saved.objective, saved.conversation_id, user.id);
       } catch { await AsyncStorage.removeItem(key); }
     })().catch(() => undefined);
     return () => { active = false; mounted.current = false; };
@@ -160,16 +168,22 @@ export function BrainTaskScreen() {
       if (authError || !user) throw new Error("انتهت الجلسة. سجّل الدخول مجددًا.");
       const targetConversationId = linkedConversationId
         ?? (await chatService.createConversation(value.slice(0, 48))).id;
-      const accepted = await runBrainTask(value);
+      const taskId = randomUUID();
       const pending: PendingBrainTask = {
-        task_id: accepted.task_id,
-        job_id: accepted.job_id,
+        task_id: taskId,
+        job_id: "",
         objective: value,
         conversation_id: targetConversationId,
         user_id: user.id,
       };
+      // Save the task identity before the network enqueue. If the app closes
+      // while the request is in flight, the same task ID can recover the job.
       await AsyncStorage.setItem(`${PENDING_TASK_STORAGE_PREFIX}${user.id}`, JSON.stringify(pending));
       setPendingTask(pending);
+      const accepted = await runBrainTask(value, taskId);
+      const queued = { ...pending, job_id: accepted.job_id };
+      await AsyncStorage.setItem(`${PENDING_TASK_STORAGE_PREFIX}${user.id}`, JSON.stringify(queued));
+      setPendingTask(queued);
       void monitorAcceptedTask(accepted, value, targetConversationId, user.id);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "تعذر تنفيذ المهمة.");
