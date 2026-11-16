@@ -136,6 +136,7 @@ A test group passes only when all required cases pass or the owner explicitly ac
 - Delete/archive/retention behavior and audit records.
 - Verify generated outputs remain associated with the correct user/conversation/task.
 - Audio MIME types are discoverable through the audio filter and labeled as audio without changing or corrupting the existing raw/document storage-kind contract.
+- Admin storage explorer: authorized admin only; private bucket remains private; bucket/object metadata is sanitized; path traversal and unsupported actions are rejected; no upload/delete/public URL/policy mutation is exposed; first-100-item behavior and nested folder navigation are correct.
 
 ### Test Group 12 — Projects and conversation grouping
 - Create/list/update/archive/restore/delete projects.
@@ -154,6 +155,7 @@ A test group passes only when all required cases pass or the owner explicitly ac
 - Concurrent spend, insufficient balance, duplicate webhook, failed provider, cancellation, partial usage, and retry.
 - Verify source-level balance breakdown; no misleading combined percentage across pools with different expiry.
 - Prices, FX, credit conversion, and quantities must be tested only against explicitly approved configuration; do not invent values or mutate real balances.
+- Admin subscription grant: active plan only, optional future expiry, mandatory reason, confirmation, prior-active replacement, profile tier update, and audit event; never run against a real user's account during testing.
 
 ### Test Group 14 — Reward ads and promotional credits
 - Only verified ad-network server callback can award a reward.
@@ -168,6 +170,9 @@ A test group passes only when all required cases pass or the owner explicitly ac
 - Provider/model/pricing/credit/reward/HIMS changes require correct role and are audited.
 - Verify safe disable/quarantine, immutable audit trail, pagination/export privacy, and sensitive data masking.
 - Check that admin UI hiding is not the only authorization control.
+- Review the complete responsive admin navigation: every route is discoverable, Arabic/English global search routes correctly, and the user-friction and storage pages are accessible on desktop/mobile.
+- Verify admin-storage Edge Function returns 401 for missing/expired sessions and 403 for authenticated non-admin users, with no service-role material in client output.
+- Verify user subscription grant uses the server-side admin RPC, cannot grant inactive/retired plans, records reason and actor in the audit log, and cannot be invoked by non-admins.
 
 ### Test Group 16 — Cross-platform UX, accessibility, localization, and performance
 - Browser test across supported viewport widths and current target browsers; no black/blank screen or broken navigation.
