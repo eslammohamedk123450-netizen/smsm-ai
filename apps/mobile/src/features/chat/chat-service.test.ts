@@ -1,5 +1,5 @@
 jest.mock("expo-crypto", () => ({ randomUUID: () => "retry-request-id" }));
-jest.mock("../../lib/supabase/client", () => ({ supabase: { from: jest.fn(), auth: { getSession: jest.fn() }, functions: { invoke: jest.fn() } } }));
+jest.mock("../../lib/supabase/client", () => ({ supabase: { from: jest.fn(), auth: { getSession: jest.fn(), getUser: jest.fn() }, functions: { invoke: jest.fn() } } }));
 jest.mock("../../lib/network/sse-client", () => ({ streamChatPlatform: jest.fn().mockResolvedValue(undefined) }));
 
 import { chatService } from "./chat-service";
@@ -13,6 +13,7 @@ const streamMock = streamChatPlatform as jest.Mock;
 describe("chatService.retryAssistant", () => {
   beforeEach(() => {
     (supabase.auth.getSession as unknown as jest.Mock).mockResolvedValue({ data: { session: null }, error: null });
+    (supabase.auth.getUser as unknown as jest.Mock).mockResolvedValue({ data: { user: { id: "user-1" } }, error: null });
     (supabase.functions.invoke as unknown as jest.Mock).mockResolvedValue({ data: { assets: [] }, error: null });
     const messagesQuery = {
       select: jest.fn().mockReturnThis(),
@@ -25,7 +26,12 @@ describe("chatService.retryAssistant", () => {
         ],
         error: null,
       }),
-      insert: jest.fn(),
+      insert: jest.fn().mockReturnThis(),
+      single: jest.fn().mockResolvedValue({ data: { id: "new-user-1", conversation_id: "conversation-1", role: "user", content: "Hello", model_id: null, created_at: "2026-01-01T00:00:01.000Z" }, error: null }),
+    };
+    const conversationQuery = {
+      update: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockResolvedValue({ error: null }),
     };
     const assetsQuery = {
       select: jest.fn().mockReturnThis(),
@@ -33,7 +39,7 @@ describe("chatService.retryAssistant", () => {
       in: jest.fn().mockReturnThis(),
       limit: jest.fn().mockResolvedValue({ data: [], error: null }),
     };
-    fromMock.mockImplementation((table: string) => (table === "global_media_assets" ? assetsQuery : messagesQuery));
+    fromMock.mockImplementation((table: string) => table === "global_media_assets" ? assetsQuery : table === "suly_conversations" ? conversationQuery : messagesQuery);
     streamMock.mockResolvedValue(undefined);
   });
 
@@ -50,6 +56,22 @@ describe("chatService.retryAssistant", () => {
 
     const callbacks = streamMock.mock.calls[0][2] as { onModelInfo?: (identifier: string) => void };
     expect(callbacks.onModelInfo).toBeDefined();
+    callbacks.onModelInfo?.("openai/gpt-oss-120b");
+    expect(onModelInfo).toHaveBeenCalledWith("openai/gpt-oss-120b");
+  });
+
+  it("forwards the server-confirmed model identifier on a normal new message", async () => {
+    const onModelInfo = jest.fn();
+    await chatService.sendMessage({
+      conversationId: "conversation-1",
+      content: "Hello",
+      signal: new AbortController().signal,
+      onUserSaved: jest.fn(),
+      onChunk: jest.fn(),
+      onModelInfo,
+    });
+
+    const callbacks = streamMock.mock.calls[0][2] as { onModelInfo?: (identifier: string) => void };
     callbacks.onModelInfo?.("openai/gpt-oss-120b");
     expect(onModelInfo).toHaveBeenCalledWith("openai/gpt-oss-120b");
   });
