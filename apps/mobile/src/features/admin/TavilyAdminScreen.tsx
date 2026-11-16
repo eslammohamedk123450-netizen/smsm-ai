@@ -11,11 +11,19 @@ export function TavilyAdminScreen() {
   const [configured, setConfigured] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [loading, setLoading] = useState(true);
+  const [statusAvailable, setStatusAvailable] = useState(false);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => { void adminService.getTavilyStatus().then((status) => setConfigured(status.configured)).catch((cause) => setError(cause instanceof Error ? cause.message : "تعذر قراءة حالة Tavily.")).finally(() => setLoading(false)); }, []);
+  const loadStatus = async () => {
+    setLoading(true); setStatusAvailable(false); setError(null);
+    try { const status = await adminService.getTavilyStatus(); setConfigured(status.configured); setStatusAvailable(true); }
+    catch (cause) { setStatusAvailable(false); setError(cause instanceof Error ? cause.message : "تعذر قراءة حالة Tavily."); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { void loadStatus(); }, []);
   const save = async () => {
+    if (!statusAvailable) { setError("أعد التحقق من الحالة الحالية قبل استبدال المفتاح."); return; }
     const value = apiKey.trim();
     if (!/^tvly\S+$/i.test(value)) { setError("مفتاح Tavily يجب أن يبدأ بـ tvly."); return; }
     setSaving(true); setError(null); setNotice(null);
@@ -26,10 +34,11 @@ export function TavilyAdminScreen() {
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <Text style={styles.title}>Tavily Web Search</Text>
     <Text style={styles.explainer}>يُستخدم هذا المفتاح فقط عندما يطلب المستخدم بحثًا على الإنترنت من وضع Agent. لا يُرسل إلى التطبيق ولا يُستخدم في المحادثة العادية.</Text>
-    <View style={styles.card}><View style={styles.headerRow}><View style={styles.badge}><Text style={styles.badgeText}>T</Text></View><View style={styles.headerCopy}><Text style={styles.sectionTitle}>مفتاح API</Text><Text style={styles.detail}>{loading ? "جارٍ التحقق…" : configured ? "مفتاح محفوظ وآمن" : "لم تتم الإضافة بعد"}</Text></View>{loading ? <ActivityIndicator color={colors.primary} /> : <Text style={configured ? styles.ready : styles.pending}>{configured ? "مُضاف" : "غير مُضاف"}</Text>}</View>
+    <View style={styles.card}><View style={styles.headerRow}><View style={styles.badge}><Text style={styles.badgeText}>T</Text></View><View style={styles.headerCopy}><Text style={styles.sectionTitle}>مفتاح API</Text><Text style={styles.detail}>{loading ? "جارٍ التحقق…" : !statusAvailable ? "تعذر التحقق من الحالة" : configured ? "مفتاح محفوظ وآمن" : "لم تتم الإضافة بعد"}</Text></View>{loading ? <ActivityIndicator color={colors.primary} /> : <Text style={statusAvailable ? (configured ? styles.ready : styles.pending) : styles.pending}>{!statusAvailable ? "غير معروف" : configured ? "مُضاف" : "غير مُضاف"}</Text>}</View>
       <Text style={styles.label}>المفتاح الجديد</Text><TextInput value={apiKey} onChangeText={setApiKey} style={styles.input} placeholder={configured ? "tvly… للاستبدال" : "tvly…"} placeholderTextColor={colors.textMuted} secureTextEntry autoCapitalize="none" autoCorrect={false} textContentType="password" />
       <Text style={styles.detail}>يُقبل فقط مفتاح يبدأ بـ tvly، وتُحفظ قيمته داخل Vault المشفّر.</Text>{error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}{notice ? <Text style={styles.success}>{notice}</Text> : null}
-      <Pressable onPress={() => void save()} disabled={saving || !apiKey.trim()} style={[styles.button, (saving || !apiKey.trim()) && styles.disabled]}><Text style={styles.buttonText}>{saving ? "جارٍ الحفظ…" : "حفظ المفتاح بأمان"}</Text></Pressable>
+      <Pressable onPress={() => void save()} disabled={saving || loading || !statusAvailable || !apiKey.trim()} style={[styles.button, (saving || loading || !statusAvailable || !apiKey.trim()) && styles.disabled]}><Text style={styles.buttonText}>{saving ? "جارٍ الحفظ…" : "حفظ المفتاح بأمان"}</Text></Pressable>
+      <Pressable onPress={() => void loadStatus()} disabled={loading || saving} style={styles.secondaryButton}><Text style={styles.secondaryText}>إعادة التحقق من الحالة</Text></Pressable>
     </View>
   </ScrollView>;
 }
