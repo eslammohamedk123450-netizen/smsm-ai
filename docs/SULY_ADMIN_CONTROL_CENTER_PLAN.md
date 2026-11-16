@@ -60,10 +60,18 @@ No parallel admin application or replacement data model is introduced.
 
 - **HIMS activation-code lifecycle:** implemented create/list/disable/reactivate using the existing admin-guarded, audited `suly_admin_set_activation_code_active` RPC. The UI blocks reactivation of expired or exhausted codes. Track B must verify the RPC permission boundary and that disabled codes are rejected during student activation.
 - **HIMS resource deletion/retention:** metadata editing and visibility controls are implemented. A separately reviewed deletion/retention policy remains intentionally unimplemented; do not hard-delete private media as a shortcut.
-- **Storage explorer deployment:** `admin-storage` is present in source and CI typechecked, but the hosted Edge Function has not been deployed. The page must report unavailable until the server function is deployed and verified.
+- **Storage explorer runtime acceptance:** `admin-storage` is deployed to the current Supabase development project as version 1 with `verify_jwt=false` because the function performs its own Bearer-session and `suly_is_admin()` checks before creating a service-role client. Source and deployed entrypoint/shared CORS code were compared. Owner-authenticated browser/device E2E and unauthorized-request checks remain in Track B.
 - **Provider-dependent services:** media video/audio generation, ad impression/revenue reporting, and any unconfigured provider integrations must remain explicitly unavailable or configuration-only until verified credentials and real backend support exist.
 
 These are implementation/configuration gaps, not Track B device-test deferrals. The dashboard must not be marked implementation-complete while any in-scope source-level gap remains.
+
+## Admin Storage deployment
+
+- Deployed `admin-storage` to the current Supabase development project as Edge Function version 1.
+- The deployed entrypoint and shared CORS dependency were retrieved and compared with the `develop` source.
+- The function is intentionally configured with platform JWT verification disabled because it performs its own Bearer-token validation, verifies the caller via Auth, and checks `suly_is_admin()` before using the server-only service-role client.
+- The function is read-only: it lists bucket metadata and objects, returns sanitized metadata, and does not upload, delete, change policies, or expose public URLs.
+- Real browser/device invocation, invalid-token denial, non-admin denial, and bucket/object inventory acceptance remain Track B; deployment alone is not an E2E pass.
 
 ## HIMS activation-code lifecycle update
 
