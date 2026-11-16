@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Appearance, Image, ScrollView, StyleSheet, Switch, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Image, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
@@ -9,23 +9,15 @@ import { colors } from "../../theme/colors";
 import { BottomSheet } from "../../components/ui/BottomSheet";
 import { useToast } from "../../components/ui/Toast";
 import { chatService, type Conversation } from "../chat/chat-service";
+import { useSulyTheme, type ThemeMode } from "../../theme/ThemeProvider";
 
 type Language = "ar" | "en";
-
-function applyColorScheme(dark: boolean): void {
-  // The web runtime bundled with Expo 58 may expose Appearance without the
-  // optional native setter. Persistence still works even when the setter is
-  // unavailable on that platform.
-  if (typeof Appearance?.setColorScheme === "function") {
-    Appearance.setColorScheme(dark ? "dark" : "light");
-  }
-}
 
 export default function SettingsScreen() {
   const { user, profileFullName, logout } = useAuth();
   const { show } = useToast();
   const router = useRouter();
-  const [isDarkMode, setIsDarkMode] = useState(true);
+  const { mode, effectiveMode, setMode } = useSulyTheme();
   const [language, setLanguage] = useState<Language>("ar");
   const [balance, setBalance] = useState<number | null>(null);
   const [transactions, setTransactions] = useState<CreditEntry[]>([]);
@@ -40,16 +32,9 @@ export default function SettingsScreen() {
   const isArabic = language === "ar";
 
   useEffect(() => {
-    void Promise.all([
-      AsyncStorage.getItem("suly:appearance").then((value) => {
-        const dark = value !== "light";
-        setIsDarkMode(dark);
-        applyColorScheme(dark);
-      }),
-      AsyncStorage.getItem("suly:language").then((value) => {
-        if (value === "en" || value === "ar") setLanguage(value);
-      }),
-    ]);
+    void AsyncStorage.getItem("suly:language").then((value) => {
+      if (value === "en" || value === "ar") setLanguage(value);
+    });
   }, []);
 
   const loadCredits = useCallback(async () => {
@@ -66,10 +51,8 @@ export default function SettingsScreen() {
   }, [user]);
   useEffect(() => { void loadCredits(); }, [loadCredits]);
 
-  const changeAppearance = async (dark: boolean) => {
-    setIsDarkMode(dark);
-    applyColorScheme(dark);
-    await AsyncStorage.setItem("suly:appearance", dark ? "dark" : "light");
+  const changeAppearance = async (next: ThemeMode) => {
+    await setMode(next);
   };
 
   const changeLanguage = async (next: Language) => {
@@ -138,10 +121,14 @@ export default function SettingsScreen() {
         </View>
 
         <Text style={styles.sectionTitle}>{isArabic ? "المظهر" : "Appearance"}</Text>
-        <View style={styles.cardRow}>
-          <Text style={styles.rowText}>{isDarkMode ? (isArabic ? "داكن" : "Dark") : (isArabic ? "فاتح" : "Light")}</Text>
-          <Switch value={isDarkMode} onValueChange={(value) => void changeAppearance(value)} trackColor={{ true: colors.primary, false: colors.divider }} />
+        <View style={styles.languageControl}>
+          {(["system", "light", "dark"] as const).map((value) => (
+            <TouchableOpacity key={value} activeOpacity={0.7} onPress={() => void changeAppearance(value)} style={[styles.languageOption, mode === value && styles.languageSelected]}>
+              <Text style={[styles.rowText, mode === value && styles.languageSelectedText]}>{value === "system" ? (isArabic ? "تلقائي" : "System") : value === "light" ? (isArabic ? "فاتح" : "Light") : (isArabic ? "داكن" : "Dark")}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
+        <Text style={styles.email}>{isArabic ? `المظهر الحالي: ${effectiveMode === "dark" ? "داكن" : "فاتح"}` : `Current appearance: ${effectiveMode}`}</Text>
 
         <Text style={styles.sectionTitle}>{isArabic ? "اللغة" : "Language"}</Text>
         <View style={styles.languageControl}>
