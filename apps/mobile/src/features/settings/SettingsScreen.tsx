@@ -61,11 +61,14 @@ export default function SettingsScreen() {
       return () => { active = false; };
     }
     setAdminAccess({ userId, state: "checking" });
-    void supabase.rpc("suly_is_admin").then(({ data, error }) => {
-      if (active) setAdminAccess({ userId, state: error ? "error" : data === true ? "allowed" : "denied" });
-    }).catch(() => {
-      if (active) setAdminAccess({ userId, state: "error" });
-    });
+    void (async () => {
+      try {
+        const { data, error } = await supabase.rpc("suly_is_admin");
+        if (active) setAdminAccess({ userId, state: error ? "error" : data === true ? "allowed" : "denied" });
+      } catch {
+        if (active) setAdminAccess({ userId, state: "error" });
+      }
+    })();
     return () => { active = false; };
   }, [user?.id]);
 
