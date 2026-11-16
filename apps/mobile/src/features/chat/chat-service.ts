@@ -1,4 +1,4 @@
-import { randomUUID } from "expo-crypto";
+import { digestStringAsync, CryptoDigestAlgorithm, randomUUID } from "expo-crypto";
 import { env } from "../../config/env";
 import { supabase } from "../../lib/supabase/client";
 import type { ChatRequestBody } from "../../lib/network/sse-transport";
@@ -275,33 +275,48 @@ export const chatService = {
       const conversation = await this.createConversation(summarizeContent(objective));
       conversationId = conversation.id;
     }
-    const marker = `[SULY_TASK_ID:${options.taskId}]`;
-    const { data: existing, error: existingError } = await supabase.from("suly_messages")
-      .select("id")
-      .eq("conversation_id", conversationId)
-      .eq("user_id", user.id)
-      .eq("role", "assistant")
-      .ilike("content", `%${marker}%`)
-      .limit(1);
-    if (existingError) throw new Error("تعذر التحقق من حفظ نتيجة المهمة.");
-    if (existing?.length) return conversationId;
-    const { error: userMessageError } = await supabase.from("suly_messages").insert({
-      conversation_id: conversationId,
-      user_id: user.id,
-      role: "user",
-      content: objective,
-      tokens_used: Math.ceil(objective.length / 4),
-    });
-    if (userMessageError) throw new Error("تعذر حفظ طلب المهمة داخل المحادثة.");
-    const assistantContent = `${response}\n\nمعرّف المهمة: ${options.taskId}\n${marker}`;
-    const { error: assistantMessageError } = await supabase.from("suly_messages").insert({
-      conversation_id: conversationId,
-      user_id: user.id,
-      role: "assistant",
-      content: assistantContent,
-      tokens_used: Math.ceil(assistantContent.length / 4),
-    });
-    if (assistantMessageError) throw new Error("حُفظ طلب المهمة، لكن تعذر حفظ النتيجة داخل المحادثة.");
+
+    // suly_messages.request_id has a unique index. Derive a stable, role-specific
+    // UUID so a retry can safely finish either half of an interrupted exchange.
+    const requestIdFor = async (role: "user" | "assistant"): Promise<string> => {
+      const digest = await digestStringAsync(
+        CryptoDigestAlgorithm.SHA256,
+        `suly-task-chat:${options.taskId}:${role}`,
+      );
+      return `${digest.slice(0, 8)}-${digest.slice(8, 12)}-5${digest.slice(13, 16)}-8${digest.slice(17, 20)}-${digest.slice(20, 32)}`;
+    };
+
+    const persistOnce = async (role: "user" | "assistant", body: string): Promise<void> => {
+      const requestId = await requestIdFor(role);
+      const { error: writeError } = await supabase.from("suly_messages").upsert({
+        conversation_id: conversationId,
+        user_id: user.id,
+        role,
+        content: body,
+        request_id: requestId,
+        tokens_used: Math.ceil(body.length / 4),
+      }, { onConflict: "request_id", ignoreDuplicates: true });
+      if (writeError) throw new Error(role === "user"
+        ? "تعذر حفظ طلب المهمة داخل المحادثة."
+        : "تعذر حفظ نتيجة المهمة داخل المحادثة.");
+
+      // Verify the idempotency key still points to this exact owner's row.
+      const { data: saved, error: verifyError } = await supabase.from("suly_messages")
+        .select("id,conversation_id,user_id,role,content")
+        .eq("request_id", requestId)
+        .maybeSingle();
+      if (verifyError || !saved || saved.user_id !== user.id
+        || saved.conversation_id !== conversationId || saved.role !== role || saved.content !== body) {
+        throw new Error("تعذر تأكيد حفظ تبادل المهمة بأمان. أعد المحاولة دون إنشاء مهمة جديدة.");
+      }
+    };
+
+    // Each row has its own deterministic request_id. If the app closes after
+    // the first insert, retry skips that row and persists only the missing one.
+    await persistOnce("user", objective);
+    const assistantContent = `${response}\n\nمعرّف المهمة: ${options.taskId}\n[SULY_TASK_ID:${options.taskId}]`;
+    await persistOnce("assistant", assistantContent);
+
     const { error: conversationError } = await supabase.from("suly_conversations")
       .update({ updated_at: new Date().toISOString() })
       .eq("id", conversationId)
