@@ -8,7 +8,8 @@ export type ExistingTextCapabilityEvidence = {
   vendor_claim_status?: "unknown" | "supported" | "unsupported" | null;
   vendor_evidence_url?: string | null;
   suly_test_status?: "not_tested" | "passed" | "failed" | null;
-  suly_test_evidence_url?: string | null;
+  suly_evidence_url?: string | null;
+  suly_tested_at?: string | null;
   notes?: string | null;
 };
 
@@ -18,9 +19,11 @@ export type TextCapabilityEvidencePatch = {
   vendor_claim_status: "unknown" | "supported" | "unsupported";
   vendor_evidence_url: string | null;
   provider_test_status: "passed" | "failed";
-  provider_test_evidence_url: string;
+  provider_evidence_url: string;
+  provider_tested_at: string;
   suly_test_status: "not_tested" | "passed" | "failed";
-  suly_test_evidence_url: string | null;
+  suly_evidence_url: string | null;
+  suly_tested_at: string | null;
   notes: string;
   updated_at: string;
 };
@@ -54,6 +57,7 @@ export function buildTextCapabilityEvidencePatch(input: {
     resetSuly ? "Previous SULY pass reset because provider probe failed after restriction." : "",
   ].filter(Boolean).join("; ");
   const notes = [input.existing?.notes?.trim(), note].filter(Boolean).join("\n").slice(-2000);
+  const testedAt = input.nowIso ?? new Date().toISOString();
 
   return {
     model_id: input.modelId,
@@ -61,10 +65,12 @@ export function buildTextCapabilityEvidencePatch(input: {
     vendor_claim_status: input.existing?.vendor_claim_status ?? "unknown",
     vendor_evidence_url: input.existing?.vendor_evidence_url ?? null,
     provider_test_status: providerStatus,
-    provider_test_evidence_url: input.providerEndpoint,
+    provider_evidence_url: input.providerEndpoint,
+    provider_tested_at: testedAt,
     suly_test_status: resetSuly ? "not_tested" : previousSulyStatus,
-    suly_test_evidence_url: resetSuly ? null : input.existing?.suly_test_evidence_url ?? null,
+    suly_evidence_url: resetSuly ? null : input.existing?.suly_evidence_url ?? null,
+    suly_tested_at: resetSuly ? null : input.existing?.suly_tested_at ?? null,
     notes,
-    updated_at: input.nowIso ?? new Date().toISOString(),
+    updated_at: testedAt,
   };
 }
