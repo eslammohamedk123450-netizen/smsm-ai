@@ -75,7 +75,7 @@ export function AdminDashboardScreen() {
   }, []);
   useEffect(() => { void load(); }, [load]);
 
-  const modelStatusReady = modelsAvailable && modelHealthAvailable;
+  const modelStatusReady = modelsAvailable && modelHealthAvailable && models.filter((model) => model.enabled).every((model) => model.health !== null);
   const disabledModels = models.filter((model) => !model.enabled).length;
   const downModels = models.filter((model) => model.enabled && (model.health?.auto_restricted === true || model.health?.last_status === "error")).length;
   const activeModels = Math.max(0, models.length - disabledModels - downModels);
