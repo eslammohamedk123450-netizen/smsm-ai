@@ -46,8 +46,8 @@ declare
   v_source text;
   v_count integer;
 begin
-  if jsonb_typeof(p_config) <> 'object'
-     or jsonb_typeof(p_config->'components') <> 'array' then
+  if jsonb_typeof(p_config) is distinct from 'object'
+     or jsonb_typeof(p_config->'components') is distinct from 'array' then
     return false;
   end if;
   v_count := jsonb_array_length(p_config->'components');
@@ -57,7 +57,7 @@ begin
   loop
     if jsonb_typeof(v_component) <> 'object' then return false; end if;
     v_type := v_component->>'type';
-    if v_type not in ('text','notice','metric','status','list','table') then return false; end if;
+    if coalesce(v_type,'') not in ('text','notice','metric','status','list','table') then return false; end if;
     if length(coalesce(v_component->>'title','')) > 100
        or length(coalesce(v_component->>'content','')) > 600
        or length(coalesce(v_component->>'label','')) > 100 then
@@ -71,16 +71,16 @@ begin
        or v_component ? 'secret' or v_component ? 'service_role_key' then
       return false;
     end if;
-    if v_type = 'table' and (
-      jsonb_typeof(v_component->'columns') <> 'array'
-      or jsonb_typeof(v_component->'rows') <> 'array'
-      or jsonb_array_length(v_component->'columns') > 8
-      or jsonb_array_length(v_component->'rows') > 20
-    ) then return false; end if;
-    if v_type = 'list' and (
-      jsonb_typeof(v_component->'items') <> 'array'
-      or jsonb_array_length(v_component->'items') > 20
-    ) then return false; end if;
+    if v_type = 'table' then
+      if jsonb_typeof(v_component->'columns') is distinct from 'array'
+         or jsonb_typeof(v_component->'rows') is distinct from 'array' then return false; end if;
+      if jsonb_array_length(v_component->'columns') > 8
+         or jsonb_array_length(v_component->'rows') > 20 then return false; end if;
+    end if;
+    if v_type = 'list' then
+      if jsonb_typeof(v_component->'items') is distinct from 'array'
+         or jsonb_array_length(v_component->'items') > 20 then return false; end if;
+    end if;
   end loop;
   return true;
 exception when others then
@@ -133,7 +133,6 @@ begin
   end if;
   if v_key !~ '^[a-z0-9][a-z0-9-]{1,47}$'
      or v_key in ('overview','users','models','pricing','finance','hims','audit','support','page-builder')
-     or v_title not between '  ' and repeat('z',100)
      or char_length(v_title) < 2 or char_length(v_title) > 100
      or v_status not in ('draft','published','hidden')
      or not public.suly_admin_validate_custom_page_config(p_config) then
