@@ -692,6 +692,8 @@ export default function ChatPage() {
       attachments={item.attachments}
       isStreaming={item.status === "streaming"}
       generationState={item.generationState}
+      studioIntent={item.role === "user" ? getStudioIntent(item.content) : null}
+      onOpenStudio={() => router.push("/studio")}
       feedback={feedbackByMessage[item.id] ?? null}
       edited={Boolean(item.editedAt)}
       responseVariants={item.responseVariants}
