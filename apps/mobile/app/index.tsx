@@ -16,7 +16,7 @@ export default function HomeRoute() {
   if (status === "misconfigured") {
     return <View style={styles.center}><Text style={styles.errorTitle}>إعداد التطبيق غير مكتمل</Text><Text style={styles.text}>{configurationError}</Text></View>;
   }
-  return <Redirect href={user ? "/home" : "/login"} />;
+  return <Redirect href={user ? "/chat" : "/login"} />;
 }
 
 function createStyles(colors: ThemePalette) { return StyleSheet.create({
