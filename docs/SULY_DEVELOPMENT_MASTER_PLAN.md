@@ -549,3 +549,15 @@
 - Commit: `82caa365d12a197b135f2e866ba95f7d617042f9`.
 - تصحيح للحالة السابقة: سجل التدقيق لم يعد متبقيًا في المصدر؛ الذي ما زال متبقيًا هو تطبيق migration والتحقق التشغيلي، وربط صلاحيات فرعية للصفحات عند اعتمادها.
 
+
+
+## مراجعة إضافية لـSECURITY DEFINER — 2026-11-17
+- أُعيد فحص catalog الحالي في Supabase read-only: يوجد **61** SECURITY DEFINER function قابلة للتنفيذ من `authenticated` أو `anon`.
+- واحدة فقط قابلة للتنفيذ من `anon`: `suly_get_public_conversation(uuid)`. تمت مراجعة تعريفها: لا تعيد إلا المحادثة المطابقة لـshare token، وتقتصر على الرسائل user/assistant وبحد 300 رسالة. تبقى حالة إلغاء المشاركة وإبطال الرمز اختبارًا مؤجلًا.
+- فحص علامات الحراسة المباشرة وجد دالتين دون ظهور `suly_is_admin` أو `auth.uid` أو `service_role` في النص:
+  - `suly_admin_set_provider_enabled`: wrapper لا يكرر الحراسة بنفسه، لكنه يفوض مباشرة إلى `suly_admin_set_provider_lifecycle` التي تتحقق من `suly_is_admin()` قبل أي تغيير.
+  - `suly_get_public_conversation`: endpoint مشاركة عامة يعتمد على share token كما سبق.
+- `suly_admin_update_provider` لا يستدعي `suly_is_admin` بالاسم، لكنه يطابق `auth.uid()` مع p_user_id ثم يتحقق من عضوية `suly_admins` وأن الحساب غير محظور قبل تعديل المزود.
+- لم يُكتشف في هذه المراجعة أي SECURITY DEFINER أخرى callable من anon. لم تُجرَ تغييرات على الدوال الحالية؛ المراجعة النصية ليست بديلًا عن مراجعة كل فرع تنفيذ واختبارات التفويض.
+- **المتبقي:** مراجعة تفصيلية لكل الـ61 function وتوثيق كل data access path، وفحص search_path/الديناميكية/الـgrants، ثم اختبارات roles/IDOR في الملف الشامل.
+
