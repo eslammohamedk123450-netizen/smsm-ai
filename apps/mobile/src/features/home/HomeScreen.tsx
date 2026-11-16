@@ -165,7 +165,7 @@ export function HomeScreen() {
             <ActivityIndicator color={colors.primary} />
             <Text style={[styles.loadingText, { color: colors.textMuted }]}>{isArabic ? "جارٍ تحميل محادثاتك…" : "Loading your conversations…"}</Text>
           </View>
-        ) : recent.length === 0 ? (
+        ) : error ? null : recent.length === 0 ? (
           <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.divider }]}>
             <View style={[styles.emptyIcon, { backgroundColor: colors.surfaceElevated }]}>
               <Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.textSecondary} />
