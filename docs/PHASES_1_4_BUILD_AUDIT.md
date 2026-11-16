@@ -132,6 +132,6 @@ The migration source and rollback-only regression are implementation artifacts c
 
 ### تحديث التحقق الآلي — 2026-11-16
 - أضيفت وظيفة HIMS regression إلى workflow `.github/workflows/verify-ai-router-bundle.yml`، وأضيفت تغييرات `develop` وملفات `_shared` إلى محفزات التشغيل.
-- التشغيل النهائي: GitHub Actions `43960751890`، commit `36ee3423e275da3c5594c8d65439e72370463e97`؛ وظيفة HIMS regressions **PASS**، واختبارات media billing وtype-check **PASS**. تحقق بناء bundle كان لا يزال قيد التنفيذ وقت كتابة هذا السطر.
+- التشغيل النهائي: GitHub Actions `43960751890`، commit `36ee3423e275da3c5594c8d65439e72370463e97`؛ وظيفة HIMS regressions **PASS**، واختبارات media billing وtype-check **PASS**، وبناء والتحقق من Edge Function bundles **PASS**.
 - سجل المحاولات السابقة: `43960322088` فشل بسبب syntax error في الاختبار، و`43960664237` فشل بسبب تهيئة npm type dependencies في Deno. أُصلح السببان وأعيد التشغيل؛ لا يُخفى سجل الفشل.
 - لا يزال سباق تفعيل كودين مختلفين لنفس المستخدم بحاجة إلى إصلاح ذري واختبار تزامن في بيئة Supabase معزولة.
