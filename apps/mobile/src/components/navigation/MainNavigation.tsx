@@ -21,7 +21,7 @@ function activeSection(pathname: string): string {
   if (pathname.startsWith("/studio") || pathname.startsWith("/image-studio") || pathname.startsWith("/video-studio")) return "studio";
   if (pathname.startsWith("/media") || pathname.startsWith("/hims")) return "library";
   if (pathname.startsWith("/settings") || pathname.startsWith("/support") || pathname.startsWith("/upgrade") || pathname.startsWith("/balance") || pathname.startsWith("/integrations")) return "account";
-  if (pathname.startsWith("/chat") || pathname.startsWith("/conversations") || pathname.startsWith("/tasks")) return "conversations";
+  if (pathname.startsWith("/chat") || pathname.startsWith("/conversations") || pathname.startsWith("/projects") || pathname.startsWith("/tasks")) return "conversations";
   return "home";
 }
 
@@ -42,7 +42,7 @@ export function MainNavigation({ children }: Props) {
   }, []);
   const wide = Platform.OS === "web" && width >= 900;
   const active = activeSection(pathname);
-  const screenOwnsSafeArea = ["/chat", "/balance", "/image-studio", "/video-studio"].some((route) => pathname.startsWith(route));
+  const screenOwnsSafeArea = ["/chat", "/projects", "/balance", "/image-studio", "/video-studio"].some((route) => pathname.startsWith(route));
 
   if (pathname.startsWith("/admin")) return <>{children}</>;
 
