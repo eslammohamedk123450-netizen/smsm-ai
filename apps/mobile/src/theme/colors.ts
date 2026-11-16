@@ -1,5 +1,5 @@
 const darkColors = {
-  primary: "#303030", primaryDark: "#454545", secondary: "#BDBDBD", primarySoft: "#FFFFFF18",
+  primary: "#737373", primaryDark: "#525252", secondary: "#BDBDBD", primarySoft: "#FFFFFF18",
   background: "#090909", surface: "#141414", surfaceElevated: "#202020",
   textPrimary: "#F5F5F5", textSecondary: "#B7B7B7", textMuted: "#858585", accent: "#F5F5F5",
   success: "#4ADE80", warning: "#FBBF24", error: "#F87171",
