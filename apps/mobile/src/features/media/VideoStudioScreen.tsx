@@ -1,9 +1,10 @@
 import { Pressable, ScrollView, View } from "react-native";
 import { useRouter } from "expo-router";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
-import { colors } from "../../theme/colors";
+import { useSulyTheme } from "../../theme/ThemeProvider";
 
 export function VideoStudioScreen() {
+  const { colors } = useSulyTheme();
   const router = useRouter();
   return <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: 18, gap: 14, maxWidth: 900, width: "100%", alignSelf: "center" }}>
     <Text style={{ color: colors.primary, textAlign: "right", fontSize: 11, fontWeight: "800" }}>SULY CREATIVE</Text>
