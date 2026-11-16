@@ -46,6 +46,14 @@ No parallel admin application or replacement data model is introduced.
    - Overview metrics distinguish administratively disabled models from enabled models with errors/restrictions.
    - Renamed the quick action to “فحص اتصال النماذج” to avoid claiming that it performs the full comprehensive test program.
    - Added shortcuts to User Friction and Storage.
+6. **HIMS resource lifecycle**
+   - Added an admin action to deactivate and reactivate existing HIMS resources without deleting their records or stored media.
+   - The action reuses the existing admin-guarded `suly_admin_upsert_feature_resource_v2` RPC, preserves the original URL/media-asset identity, and requires confirmation before changing visibility.
+   - The database RPC performs the write and records its existing audit event. No activation entitlement, activation code, media object, or student record is changed by this action.
+7. **Cross-platform implementation rule**
+   - Admin UI and behavior remain in the shared Expo/React Native application; every admin feature change must be implemented once in shared code and kept compatible with Web, Android, and iOS.
+   - Platform-specific UI adaptations are allowed only where required by navigation, input, safe-area, file-picker, clipboard, or native capability differences. Unsupported platform capabilities must be clearly disabled or explained rather than rendered as working controls.
+   - CI must continue exporting the Web app and Android/iOS JavaScript bundles. Bundle export is compatibility evidence, not device-level acceptance.
 
 ## Security review notes — not silently changed
 
@@ -66,6 +74,7 @@ These are review findings, not proof that each function is exploitable. Do not b
 - Verify nested folders, empty folders, files, search, first-100-item limit, large/unknown metadata, and Storage API errors.
 - Verify global search for Arabic/English page labels, email, UUID, and empty results.
 - Verify all admin routes are discoverable on desktop and mobile, RTL/LTR layout, keyboard behavior, and narrow widths.
+- Verify every admin action on Web, Android, and iOS where the capability exists; specifically test HIMS resource deactivate/reactivate, student visibility after the change, and safe behavior when a platform lacks a required native capability.
 - Verify model health unknown/error/healthy states and that intentionally disabled models are not reported as unhealthy.
 - Verify subscription grants for active/inactive plans, optional/past expiry, reason validation, replacement of prior active subscriptions, profile tier update, and audit-log creation; use isolated test users only.
 - Verify sensitive actions retain their existing confirmation, audit, server-side authorization, and idempotency boundaries.
