@@ -241,7 +241,7 @@ begin
       select jsonb_build_object(
         'source', p_source,
         'enabled_models', count(*) filter (where m.enabled),
-        'healthy_enabled_models', count(*) filter (where m.enabled and coalesce(h.last_status,'unknown') <> 'error' and coalesce(h.auto_restricted,false)=false),
+        'healthy_enabled_models', count(*) filter (where m.enabled and h.model_id is not null and h.last_status = 'success' and coalesce(h.auto_restricted,false)=false),
         'restricted_models', count(*) filter (where coalesce(h.auto_restricted,false)),
         'generated_at', now()
       ) into v_result
@@ -260,19 +260,16 @@ begin
     when 'admin_activity_summary' then
       select jsonb_build_object(
         'source', p_source,
-        'events_last_24h', count(*) filter (where created_at >= now() - interval '24 hours'),
-        'latest_actions', coalesce(jsonb_agg(jsonb_build_object('action', action, 'created_at', created_at) order by created_at desc)
-          filter (where recent_rank <= 5), '[]'::jsonb),
+        'events_last_24h', (select count(*) from public.admin_audit_logs where created_at >= now() - interval '24 hours'),
+        'latest_actions', coalesce((
+          select jsonb_agg(jsonb_build_object('action', recent.action, 'created_at', recent.created_at) order by recent.created_at desc)
+          from (
+            select action, created_at from public.admin_audit_logs
+            order by created_at desc limit 5
+          ) recent
+        ), '[]'::jsonb),
         'generated_at', now()
-      ) into v_result
-      from (
-        select action, created_at,
-          row_number() over (order by created_at desc) as recent_rank
-        from public.admin_audit_logs
-        where created_at >= now() - interval '24 hours'
-        order by created_at desc
-        limit 100
-      ) activity;
+      ) into v_result;
 
     else
       raise exception 'unsupported custom page data source' using errcode = '22023';
