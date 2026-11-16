@@ -3,7 +3,7 @@ import { corsHeadersForRequest } from "../_shared/cors.ts";
 import { buildAgentUsageLedgerRecord } from "./agent_usage_ledger.ts";
 import { prepareAgentMemory, saveAgentMemory } from "./agent/memory.ts";
 import { activationOutcomeMessage, parseActivationCommand, shouldReportActivationFailure } from "../_shared/activation_command.ts";
-import { activateFeatureByCode, getFeatureContext } from "../_shared/feature_flags.ts";
+import { activateFeatureByCode, checkFeatureActivationRateLimit, getFeatureContext } from "../_shared/feature_flags.ts";
 import { buildFeatureSystemContext, isFeatureResourceRequest, shouldSearchWebForMessage } from "../_shared/feature_resource_context.ts";
 import { buildSulyIdentityContext, containsHimsReference, getIdentityAnswer, INACTIVE_UNKNOWN_ANSWER, sanitizeContextText } from "../_shared/identity_context.ts";
 import { normalizeFeatureKey } from "../_shared/prompt_keys.ts";
@@ -976,24 +976,40 @@ async function handleRequest(req: Request): Promise<Response> {
 
   const activationCommand = internalBrainCall ? null : parseActivationCommand(latestUserMessage);
   if (activationCommand) {
-    const activation = await activateFeatureByCode(supabase, user.id, activationCommand.code);
-    const activationSucceeded = activation.outcome === "activated" || activation.outcome === "already_active";
-    // The success wording belongs to the feature row, so the router stays generic.
-    const text = activationOutcomeMessage(activation.outcome, activation.label, activation.activationMessage);
-    if (activationSucceeded && activation.featureKey?.toLowerCase() === "hims") {
-      himsActivated = true;
-      identityContext = buildSulyIdentityContext(true);
-      userMetadata = identityContext.userMetadata;
-      systemPrompt = identityContext.systemPrompt;
-    }
-    // An explicit `!ACTIVATE` command always answers. A message that was nothing
-    // but an unrecognised code continues as a normal chat turn, so ordinary
-    // one-word messages are never met with an activation error.
-    if (shouldReportActivationFailure(activationCommand, activation.outcome)) {
-      return respondDeterministically(text, {
-        feature: { key: activation.featureKey, outcome: activation.outcome },
-        billing: null,
-      }, `feature_activation:${activation.outcome}`, activationSucceeded ? "success" : "error");
+    const activationLimit = await checkFeatureActivationRateLimit(supabase, user.id);
+    if (!activationLimit.allowed) {
+      // Fail closed before checking the submitted code. Bare-code messages retain
+      // the existing normal-chat fallback; explicit activation commands receive
+      // a generic retry message that does not reveal whether the code is valid.
+      if (activationCommand.explicit) {
+        const throttleText = activationLimit.reason === "limited"
+          ? "محاولات التفعيل متكررة. انتظر قليلًا ثم حاول مرة أخرى."
+          : "تعذر التحقق من طلب التفعيل الآن. حاول مرة أخرى بعد قليل.";
+        return respondDeterministically(throttleText, {
+          feature: { key: null, outcome: activationLimit.reason === "limited" ? "rate_limited" : "unavailable" },
+          billing: null,
+        }, "feature_activation:throttled", "error");
+      }
+    } else {
+      const activation = await activateFeatureByCode(supabase, user.id, activationCommand.code);
+      const activationSucceeded = activation.outcome === "activated" || activation.outcome === "already_active";
+      // The success wording belongs to the feature row, so the router stays generic.
+      const text = activationOutcomeMessage(activation.outcome, activation.label, activation.activationMessage);
+      if (activationSucceeded && activation.featureKey?.toLowerCase() === "hims") {
+        himsActivated = true;
+        identityContext = buildSulyIdentityContext(true);
+        userMetadata = identityContext.userMetadata;
+        systemPrompt = identityContext.systemPrompt;
+      }
+      // An explicit `!ACTIVATE` command always answers. A message that was nothing
+      // but an unrecognised code continues as a normal chat turn, so ordinary
+      // one-word messages are never met with an activation error.
+      if (shouldReportActivationFailure(activationCommand, activation.outcome)) {
+        return respondDeterministically(text, {
+          feature: { key: activation.featureKey, outcome: activation.outcome },
+          billing: null,
+        }, `feature_activation:${activation.outcome}`, activationSucceeded ? "success" : "error");
+      }
     }
   }
 
