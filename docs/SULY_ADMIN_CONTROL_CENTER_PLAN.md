@@ -48,9 +48,9 @@ No parallel admin application or replacement data model is introduced.
    - Added shortcuts to User Friction and Storage.
    - Dashboard metrics now distinguish unavailable model-health, usage, audit, and maintenance data from legitimate zero/disabled values; maintenance controls are disabled when the current state cannot be confirmed.
 6. **HIMS resource lifecycle**
-   - Added an admin action to deactivate and reactivate existing HIMS resources without deleting their records or stored media.
-   - The action reuses the existing admin-guarded `suly_admin_upsert_feature_resource_v2` RPC, preserves the original URL/media-asset identity, and requires confirmation before changing visibility.
-   - The database RPC performs the write and records its existing audit event. No activation entitlement, activation code, media object, or student record is changed by this action.
+   - Added admin actions to edit resource metadata and to deactivate/reactivate existing HIMS resources without deleting their records or stored media.
+   - Updates reuse the existing admin-guarded `suly_admin_upsert_feature_resource_v2` RPC, preserve the original URL/media-asset identity and prior active state, and require confirmation before changing visibility.
+   - The database RPC performs each write and records its existing audit event. No activation entitlement, activation code, media object, or student record is changed by these actions.
 7. **Cross-platform implementation rule**
    - Admin UI and behavior remain in the shared Expo/React Native application; every admin feature change must be implemented once in shared code and kept compatible with Web, Android, and iOS.
    - Platform-specific UI adaptations are allowed only where required by navigation, input, safe-area, file-picker, clipboard, or native capability differences. Unsupported platform capabilities must be clearly disabled or explained rather than rendered as working controls.
@@ -59,7 +59,7 @@ No parallel admin application or replacement data model is introduced.
 ## Remaining implementation gaps — dashboard is not yet complete
 
 - **HIMS activation-code lifecycle:** the current dashboard can create and list codes, but there is no current admin RPC/UI action to revoke or deactivate an issued code. This needs a dedicated admin-guarded database function, audit event, migration, and UI control. Do not simulate revocation by editing the table from the client.
-- **HIMS resource editing:** existing resources can now be stopped/reactivated without deleting their data. A dedicated edit workflow for title/type/description and a separately reviewed deletion/retention policy remain to be completed; do not hard-delete private media as a shortcut.
+- **HIMS resource deletion/retention:** metadata editing and visibility controls are implemented. A separately reviewed deletion/retention policy remains intentionally unimplemented; do not hard-delete private media as a shortcut.
 - **Storage explorer deployment:** `admin-storage` is present in source and CI typechecked, but the hosted Edge Function has not been deployed. The page must report unavailable until the server function is deployed and verified.
 - **Provider-dependent services:** media video/audio generation, ad impression/revenue reporting, and any unconfigured provider integrations must remain explicitly unavailable or configuration-only until verified credentials and real backend support exist.
 
@@ -87,6 +87,7 @@ These are review findings, not proof that each function is exploitable. Do not b
 - Verify every admin action on Web, Android, and iOS where the capability exists; specifically test HIMS resource deactivate/reactivate, student visibility after the change, and safe behavior when a platform lacks a required native capability.
 - Verify model health unknown/error/healthy states and that intentionally disabled models are not reported as unhealthy.
 - Verify subscription grants for active/inactive plans, optional/past expiry, reason validation, replacement of prior active subscriptions, profile tier update, and audit-log creation; use isolated test users only.
+- Verify HIMS resource metadata edits preserve the same resource ID, URL/media asset, and active state; verify deactivation/reactivation changes only visibility and creates the expected audit event.
 - Verify sensitive actions retain their existing confirmation, audit, server-side authorization, and idempotency boundaries.
 - Review all Security Advisor findings separately; no production policy/grant/extension/auth setting has been changed by this dashboard work.
 - Deploy the new Edge Function only after Track B authorization and regression checks, then verify it against an isolated test account before considering production rollout.
