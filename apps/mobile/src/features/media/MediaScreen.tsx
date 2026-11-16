@@ -147,7 +147,7 @@ export function MediaScreen() {
           <Text style={styles.meta}>{job.serviceType === "video" ? (isArabic ? "فيديو" : "Video") : (isArabic ? "صورة" : "Image")} · {job.estimatedCredits.toLocaleString(isArabic ? "ar-EG" : "en-US")} Credits</Text>
         </View>
         <Text numberOfLines={3} style={styles.filename}>{job.prompt}</Text>
-        <Text style={styles.meta}>{new Date(job.createdAt).toLocaleString("ar-EG")}</Text>
+        <Text style={styles.meta}>{new Date(job.createdAt).toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text>
       </View>)}
     </View> : <Text style={styles.empty}>لا توجد مهام وسائط قيد التنفيذ مسجلة حاليًا.</Text>) : null}
     {!loading && filter !== "in_progress" && visibleAssets.length === 0 ? <Text style={styles.empty}>{assets.length === 0 ? (isArabic ? "لا يوجد ملف بعد. ابدأ برفع صورة." : "No files yet. Start by uploading an image.") : (isArabic ? "لا توجد عناصر في هذا التصنيف." : "No items in this category.")}</Text> : null}
@@ -160,10 +160,10 @@ export function MediaScreen() {
         <Text style={styles.meta}>{asset.kind === "video" ? (isArabic ? "فيديو" : "Video") : asset.kind === "image" ? (isArabic ? "صورة" : "Image") : (isArabic ? "ملف" : "File")} · {formatBytes(asset.sizeBytes)}</Text>
         {asset.width && asset.height ? <Text style={styles.meta}>{asset.width} × {asset.height}</Text> : null}
         {asset.durationSeconds ? <Text style={styles.meta}>{isArabic ? `المدة: ${asset.durationSeconds} ثانية` : `Duration: ${asset.durationSeconds} seconds`}</Text> : null}
-        {asset.createdAt ? <Text style={styles.meta}>{new Date(asset.createdAt).toLocaleString("ar-EG")}</Text> : null}
+        {asset.createdAt ? <Text style={styles.meta}>{new Date(asset.createdAt).toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text> : null}
         {typeof asset.metadata.prompt === "string" ? <Text numberOfLines={2} style={styles.promptMeta}>{asset.metadata.prompt}</Text> : null}
         {typeof asset.metadata.public_model_name === "string" ? <Text style={styles.meta}>{asset.metadata.public_model_name} · {String(asset.metadata.quality ?? "")}</Text> : null}
-        {typeof asset.metadata.charged_credits === "number" ? <Text style={styles.meta}>{asset.metadata.charged_credits.toLocaleString("ar-EG")} Credits</Text> : null}
+        {typeof asset.metadata.charged_credits === "number" ? <Text style={styles.meta}>{asset.metadata.charged_credits.toLocaleString(isArabic ? "ar-EG" : "en-US")} Credits</Text> : null}
         <View style={styles.assetActions}>
           <Pressable onPress={() => void Linking.openURL(asset.url)}><Text style={styles.link}>{isArabic ? "فتح / تنزيل" : "Open / Download"}</Text></Pressable>
           <Pressable onPress={() => void copy(asset.url)}><Text style={styles.link}>{isArabic ? "نسخ الرابط" : "Copy link"}</Text></Pressable>
@@ -178,7 +178,7 @@ export function MediaScreen() {
 const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { width: "100%", maxWidth: 1000, alignSelf: "center", padding: 16, gap: 12 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  header: { flexDirection: isArabic ? "row-reverse" : "row", justifyContent: "space-between", alignItems: "center" },
   title: { color: colors.textPrimary, fontSize: 26, fontWeight: "800", textAlign: isArabic ? "right" : "left" },
   explainer: { color: colors.textSecondary, lineHeight: 21, textAlign: isArabic ? "right" : "left" },
   search: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 10, color: colors.textPrimary, paddingHorizontal: 12, paddingVertical: 10, textAlign: isArabic ? "right" : "left" },
@@ -208,7 +208,7 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   error: { color: colors.error, textAlign: isArabic ? "right" : "left" },
   success: { color: colors.success, textAlign: isArabic ? "right" : "left" },
   empty: { color: colors.textSecondary, textAlign: "center", marginTop: 8 },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  grid: { flexDirection: isArabic ? "row-reverse" : "row", flexWrap: "wrap", gap: 12 },
   card: { width: 160, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 12, padding: 8, gap: 4 },
   thumb: { width: "100%", height: 110, borderRadius: 8, backgroundColor: colors.surfaceElevated },
   fileThumb: { alignItems: "center", justifyContent: "center" },
