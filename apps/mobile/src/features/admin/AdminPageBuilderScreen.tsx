@@ -52,6 +52,35 @@ const makeComponent = (type: ComponentType): BuilderComponent => ({
   items: [], columns: ["العمود 1", "العمود 2"], rows: [["قيمة 1", "قيمة 2"]],
 });
 
+function formatAdminSource(source: string, data: unknown, isArabic: boolean): string {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return "—";
+  const row = data as Record<string, unknown>;
+  const number = (key: string) => typeof row[key] === "number"
+    ? (row[key] as number).toLocaleString(isArabic ? "ar-EG" : "en-US")
+    : "—";
+  const lines: string[] = [];
+  if (source === "system_health_summary") {
+    lines.push((isArabic ? "النماذج المفعلة" : "Enabled models") + ": " + number("enabled_models"));
+    lines.push((isArabic ? "نماذج سليمة" : "Healthy enabled models") + ": " + number("healthy_enabled_models"));
+    lines.push((isArabic ? "نماذج مقيدة" : "Restricted models") + ": " + number("restricted_models"));
+  } else if (source === "model_catalog_summary") {
+    lines.push((isArabic ? "المزودون المفعّلون" : "Enabled providers") + ": " + number("enabled_providers"));
+    lines.push((isArabic ? "النماذج المفعلة" : "Enabled models") + ": " + number("enabled_models"));
+    lines.push((isArabic ? "النماذج المعطلة" : "Disabled models") + ": " + number("disabled_models"));
+  } else if (source === "admin_activity_summary") {
+    lines.push((isArabic ? "الأحداث خلال 24 ساعة" : "Events in the last 24 hours") + ": " + number("events_last_24h"));
+    const actions = Array.isArray(row.latest_actions) ? row.latest_actions.slice(0, 5) : [];
+    for (const item of actions) {
+      if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+      const action = (item as Record<string, unknown>).action;
+      const createdAt = (item as Record<string, unknown>).created_at;
+      const date = typeof createdAt === "string" && !Number.isNaN(Date.parse(createdAt))
+        ? new Date(createdAt).toLocaleString(isArabic ? "ar-EG" : "en-US") : "—";
+      if (typeof action === "string") lines.push("• " + action + " · " + date);
+    }
+  }
+  return lines.length ? lines.join("\n") : (isArabic ? "لا توجد بيانات متاحة." : "No data available.");
+}
 export function AdminPageBuilderScreen() {
   const router = useRouter();
   const { colors } = useSulyTheme();
@@ -143,7 +172,7 @@ export function AdminPageBuilderScreen() {
     finally { setSaving(false); }
   };
 
-  useEffect(() => {\n    if (!preview) return;\n    let active = true;\n    const sources = [...new Set(components.map((item) => item.source).filter((source) => source !== "none"))];\n    void Promise.all(sources.map(async (source) => {\n      const { data, error: rpcError } = await supabase.rpc("suly_admin_custom_page_source", { p_source: source });\n      return [source, rpcError ? t("مصدر البيانات غير متاح", "Data source unavailable") : JSON.stringify(data, null, 2)] as const;\n    })).then((entries) => { if (active) setSourceSnapshots(Object.fromEntries(entries)); });\n    return () => { active = false; };\n  }, [preview, components, isArabic]);\n\n  const renderPreviewComponent = (component: BuilderComponent) => (
+  useEffect(() => {\n    if (!preview) return;\n    let active = true;\n    const sources = [...new Set(components.map((item) => item.source).filter((source) => source !== "none"))];\n    void Promise.all(sources.map(async (source) => {\n      const { data, error: rpcError } = await supabase.rpc("suly_admin_custom_page_source", { p_source: source });\n      return [source, rpcError ? t("مصدر البيانات غير متاح", "Data source unavailable") : formatAdminSource(source, data, isArabic)] as const;\n    })).then((entries) => { if (active) setSourceSnapshots(Object.fromEntries(entries)); });\n    return () => { active = false; };\n  }, [preview, components, isArabic]);\n\n  const renderPreviewComponent = (component: BuilderComponent) => (
     <View key={component.id} style={styles.previewComponent}>
       <Text style={styles.componentTitle}>{component.title || t("مكون بدون عنوان","Untitled component")}</Text>
       {component.type === "metric" ? <Text style={styles.metricValue}>{component.value || "—"}</Text> : null}
@@ -159,12 +188,12 @@ export function AdminPageBuilderScreen() {
     <View style={styles.header}>
       <View style={styles.headerCopy}>
         <Text style={styles.heading}>{t("منشئ صفحات الإدارة","Admin page builder")}</Text>
-        <Text style={styles.subheading}>{t("إنشاء صفحات مخصصة بمكونات مسموحة، مع حفظ مصادر البيانات المعتمدة كروابط تعريفية حتى ربط adapters الحية.","Build custom pages with approved components. Data-source keys are stored as references until live adapters are connected.")}</Text>
+        <Text style={styles.subheading}>{t("إنشاء صفحات مخصصة بمكونات مسموحة ومصادر بيانات إدارية حية محددة.","Build custom pages with approved components and allowlisted live admin data sources.")}</Text>
       </View>
       <Pressable onPress={newPage} style={styles.outlineButton}><Text style={styles.outlineButtonText}>{t("صفحة جديدة","+ New page")}</Text></Pressable>
     </View>
     <View style={styles.notice}>
-      <Text style={styles.noticeText}>{t("الحماية: لا يوجد SQL أو RPC حر. الخادم يتحقق من قائمة المكونات ومفاتيح مصادر البيانات. مفاتيح المصادر محفوظة كتعريفات فقط حتى تنفيذ adapters الحية. الأقسام الأساسية مثل الأمان والمحاسبة وHIMS خارج نطاق التعديل.","Safety: no arbitrary SQL or RPC. Components and source keys are validated server-side. Source keys are metadata only until live adapters are implemented. Core security, finance and HIMS sections are outside this builder's scope.")}</Text>
+      <Text style={styles.noticeText}>{t("الحماية: لا يوجد SQL أو RPC حر. الخادم يتحقق من قائمة المكونات ومصادر البيانات الثلاثة المتصلة للقراءة فقط. الأقسام الأساسية مثل الأمان والمحاسبة وHIMS خارج نطاق التعديل.","Safety: no arbitrary SQL or RPC. Components and the three connected read-only data sources are validated server-side. Core security, finance and HIMS sections are outside this builder's scope.")}</Text>
     </View>
     {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
     {message ? <Text style={styles.success}>{message}</Text> : null}
