@@ -46,7 +46,7 @@ declare
   v_result jsonb;
   i integer;
 begin
-  select id into v_user_id from auth.users order by created_at limit 1;
+  select id into v_user_id from public.suly_profiles limit 1;
   if v_user_id is null then
     raise exception 'regression test requires at least one existing auth user';
   end if;
