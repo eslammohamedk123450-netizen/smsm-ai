@@ -136,7 +136,7 @@ export function AdminPageBuilderScreen() {
   const updateComponent = (id: string, patch: Partial<BuilderComponent>) => {
     setComponents((current) => current.map((component) => component.id === id ? { ...component, ...patch } : component));
   };
-  const save = async (status: "draft" | "published") => {
+  const save = async (status: CustomPage["status"]) => {
     setSaving(true); setError(""); setMessage("");
     try {
       const cleanKey = pageKey.trim().toLowerCase();
