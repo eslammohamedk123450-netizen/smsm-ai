@@ -3,7 +3,6 @@ import { ActivityIndicator, Pressable, ScrollView, Switch, TextInput, View } fro
 import { Link } from "expo-router";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { supabase } from "../../lib/supabase/client";
-import { colors } from "../../theme/colors";
 import { adminService } from "./admin-service";
 
 type Provider = { id: number; name: string; provider_type: string; enabled: boolean };
