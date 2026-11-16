@@ -120,7 +120,7 @@ export function ModelCapabilityEvidenceAdminCard({ models }: { models: ModelOpti
     {current ? <Text style={styles.selectedName}>{current.name} · {current.provider_name ?? "مزود"} · #{current.id} · {current.model_identifier}</Text> : null}
     <View style={styles.wrap}>{CAPABILITIES.map(([key, label]) => <Pressable key={key} onPress={() => setCapability(key)} style={[styles.chip, capability === key && styles.selected]}><Text style={styles.chipText}>{label}</Text></Pressable>)}</View>
     {capability === "text" ? <View style={styles.probeRow}>
-      <View style={styles.probeCopy}><Text style={styles.probeTitle}>اختبار النص الفعلي</Text><Text style={styles.hint}>يختبر اتصال المزود واستجابة النص فقط، ولا يثبت الرؤية أو الصوت أو الوسائط.</Text></View>
+      <View style={styles.probeCopy}><Text style={styles.probeTitle}>اختبار النص الفعلي</Text><Text style={styles.hint}>يختبر النص فقط؛ النجاح يسجل اختبار المزود. الفشل العابر لا يمسح آخر حالة إلا بعد تقييد النموذج، ولا يثبت الرؤية أو الصوت أو الوسائط.</Text></View>
       <Pressable disabled={testing || loading || !modelId} onPress={() => void runTextProbe()} style={[styles.probeButton, (testing || loading || !modelId) && styles.disabled]}><Text style={styles.probeButtonText}>{testing ? "جارٍ الاختبار…" : "اختبار النص الآن"}</Text></Pressable>
     </View> : null}
     {loading ? <ActivityIndicator color={colors.primary} /> : null}
