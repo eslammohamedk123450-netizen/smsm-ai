@@ -1299,4 +1299,11 @@ The navigation is an administrative organization layer over existing screens and
 
 **Non-negotiable:** no direct table writes that bypass guarded admin RPCs; no service-role key in client code; no deleting provider/model/ledger/audit history; no guessed exchange rate, credit value, or Coins conversion; no fabricated ad revenue, presence, profit, or test result; no changes to current production route assignments or enabled models merely to make the console look tidy.
 
-**Current Control Center status:** [>] IN PROGRESS — baseline source and schema reconnaissance is underway on branch `feat/suly-control-center-foundation-20261116`. The matrix above is an initial evidence-backed map, not a claim that every screen/RPC/RLS path has been fully audited. First deliverable is the complete route/API/schema permission matrix, followed by the shared admin shell and dashboard organization.
+**Current Control Center status:** [>] IN PROGRESS — initial source/schema mapping and first navigation/screen foundation are implemented on branch `feat/suly-control-center-foundation-20261116`. The matrix above is an initial evidence-backed map, not a claim that every screen/RPC/RLS path has been fully audited.
+
+**Initial UI slice now present on the working branch:**
+- Reorganized the existing admin shell groups around Overview & Activity, Providers & Models, Accounts & Finance, Ads & Rewards, HIMS & Content, and System & Integrations. Existing route destinations were retained; the mobile menu now respects Arabic/English group labels.
+- Added `/admin/ads` as a separate AdMob settings screen. It uses the existing admin-guarded service methods and saves only AdMob identifiers, without invoking plan updates. It explicitly does not claim ad-network revenue or settlement.
+- Added `/admin/finance` as a dedicated read-only entry to the existing company-cost ledger overview. It clearly labels this as an operational ledger overview, not a complete P&L; missing FX/credit conversions and absent subscription/ad settlement sources remain excluded.
+- No database migration, pricing edit, provider/model activation, routing assignment change, credit adjustment, HIMS entitlement change, or secret modification was performed in this UI slice.
+- Remaining next steps: run CI for the branch; complete the exhaustive route/RPC/table/RLS permission matrix; review and safely separate the legacy combined Plans + AdMob form; extend finance only after revenue/expense source reconciliation; then implement the remaining Control Center modules incrementally.
