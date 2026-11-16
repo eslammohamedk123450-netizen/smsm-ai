@@ -476,3 +476,22 @@
 - إعدادات الحساب تتضمن اختيار المظهر واللغة. لا يوجد في هذه المراجعة ما يثبت اكتمال ترجمة كل شاشة أو التحقق البصري لكل أحجام Web/Android/iOS؛ لا تُعلن المراحل مكتملة نهائيًا بناءً على وجود المزودين فقط.
 - لا تغييرات على هذه الملفات في هذه الدفعة؛ حالات التحقق البصري/اللغوي/إمكانية الوصول مؤجلة إلى ملف الاختبارات الشاملة.
 
+
+
+## مراجعة أمان إضافية وإصلاح تسجيل ملفات المكتبة — 2026-11-17
+- جرى استدعاء Security Advisor للمشروع. أظهر:
+  - 12 جدولًا عليه RLS بلا policies. تحققت من امتيازات الجداول: لا يوجد SELECT/INSERT/UPDATE/DELETE مباشر لـanon أو authenticated على هذه الجداول؛ معظمها server-only. جدول `agent_tool_execution_checkpoints` لا يمنح SELECT مباشرًا حتى لـservice_role ويُترك دون تعديل لحين فهم مسار استخدامه.
+  - تحذيرين بخصوص وجود امتدادي `vector` و`pg_net` في schema public؛ لم أنقلهما لأن ذلك تغيير بنيوي قد يؤثر على الاعتماديات.
+  - تحذيرًا واحدًا بخصوص تنفيذ `suly_get_public_conversation(uuid)` من anon. راجعت الدالة: لا تعيد إلا محادثة تحمل share_token مطابقًا، وإيقاف المشاركة يمسح الرمز؛ يظل اختبار إبطال الرابط مطلوبًا.
+  - 61 SECURITY DEFINER قابلة للتنفيذ من authenticated. راجعت تعريفات وصلاحيات الدوال ذات الصلة: `cancel_agent_task_job` تقيد العملية بـauth.uid وملكية المهمة؛ دوال الإدارة التي فُحصت تستخدم `suly_is_admin()` أو تحققًا مباشرًا من عضوية المدير؛ `suly_admin_set_provider_enabled` تفوض إلى lifecycle guard، و`suly_admin_update_provider` تتحقق من هوية المدير وحالة الحظر. هذا لا يعادل مراجعة يدوية كاملة لكل الدوال الـ61.
+  - تحذير Auth: حماية كلمات المرور المسرّبة غير مفعلة. يتطلب تغيير إعداد Auth في لوحة Supabase؛ لم أغير إعداد الإنتاج.
+- تحققنا من أن الأدوار anon/authenticated لا تملك CREATE على schema public، ما يقلل خطر search_path للدوال التي تستخدم public فقط، مع بقاء توحيد search_path ضمن التحسينات المستقبلية.
+- **إصلاح فعلي:** اكتُشف أن `suly_media_register_self_v2` في قاعدة البيانات كانت تشترط المدير حتى لملفات `general`، رغم السماح بها في media gateway. أضيفت migration `supabase/migrations/20261117014500_media_general_upload_rpc_access.sql` إلى develop:
+  - يشترط حسابًا نشطًا غير محظور.
+  - يسمح بميزة `general` للمستخدم النشط.
+  - يبقي `hims` للمدير فقط.
+  - يحافظ على ملكية object key، وربط المحادثة/الرسالة/تذكرة الدعم.
+- Migration المصدر لم تُطبق على Supabase. لم تُجرَ اختبارات رفع أو اختبارات أمان؛ الحالات في ملف الاختبارات الشاملة.
+- Remediation references: RLS no-policy: https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy ؛ extensions in public: https://supabase.com/docs/guides/database/database-linter?lint=0014_extension_in_public ؛ SECURITY DEFINER grants: https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable ؛ leaked password protection: https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection .
+- Commit: `e28ed55bb285a5d15ff711b54c5f423566798246`.
+
