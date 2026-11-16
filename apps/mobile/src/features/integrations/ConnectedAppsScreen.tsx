@@ -1,10 +1,11 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import { integrationService, type ToolkitStatus } from "./integration-service";
-import { colors } from "../../theme/colors";
+import { useSulyTheme } from "../../theme/ThemeProvider";
+import type { ThemePalette } from "../../theme/colors";
 import { useToast } from "../../components/ui/Toast";
 
 const TOOLKIT_ICONS: Record<ToolkitStatus["toolkit"], keyof typeof Ionicons.glyphMap> = {
@@ -196,7 +197,7 @@ export default function ConnectedAppsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemePalette) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: 20, paddingBottom: 40 },
   header: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", gap: 10 },
