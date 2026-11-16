@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -6,11 +6,13 @@ import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { useAuth } from "../auth/auth-provider";
 import { chatService, type Conversation } from "../chat/chat-service";
 import { useSulyTheme } from "../../theme/ThemeProvider";
+import type { ThemePalette } from "../../theme/colors";
 
 export function HomeScreen() {
   const router = useRouter();
   const { profileFullName } = useAuth();
   const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [recent, setRecent] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -88,7 +90,7 @@ export function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemePalette) => StyleSheet.create({
   screen: { flex: 1 },
   content: { width: "100%", maxWidth: 1120, alignSelf: "center", padding: 20, paddingBottom: 36, gap: 16 },
   hero: { padding: 24, borderRadius: 22, backgroundColor: "#171717", gap: 9 },
