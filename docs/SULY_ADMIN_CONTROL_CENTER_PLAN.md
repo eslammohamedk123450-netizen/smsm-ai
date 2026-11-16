@@ -34,7 +34,11 @@ No parallel admin application or replacement data model is introduced.
 3. **Navigation**
    - Added the existing User Friction dashboard to the admin navigation; its route existed but was previously undiscoverable from the menu.
    - Expanded global admin search to search the actual navigation catalogue and open matching pages; email/UUID searches route to users.
-4. **Operational accuracy**
+4. **User subscriptions**
+   - Added a user-level subscription grant workflow using the existing audited `suly_admin_grant_subscription` RPC.
+   - The UI loads active plans only, shows the existing catalog values without editing them, accepts an optional expiry date, requires an administrative reason, and confirms before replacing any prior active subscription.
+   - The database function verifies `auth.uid()` and `suly_is_admin()`, validates the active plan and expiry, replaces the previous active row, updates the user's tier, and writes an audit record. No user subscription was changed during implementation.
+5. **Operational accuracy**
    - The shell's health indicator now requires a health record for each enabled model; missing health evidence is shown as unknown instead of silently healthy.
    - Overview metrics distinguish administratively disabled models from enabled models with errors/restrictions.
    - Renamed the quick action to “فحص اتصال النماذج” to avoid claiming that it performs the full comprehensive test program.
@@ -60,6 +64,7 @@ These are review findings, not proof that each function is exploitable. Do not b
 - Verify global search for Arabic/English page labels, email, UUID, and empty results.
 - Verify all admin routes are discoverable on desktop and mobile, RTL/LTR layout, keyboard behavior, and narrow widths.
 - Verify model health unknown/error/healthy states and that intentionally disabled models are not reported as unhealthy.
+- Verify subscription grants for active/inactive plans, optional/past expiry, reason validation, replacement of prior active subscriptions, profile tier update, and audit-log creation; use isolated test users only.
 - Verify sensitive actions retain their existing confirmation, audit, server-side authorization, and idempotency boundaries.
 - Review all Security Advisor findings separately; no production policy/grant/extension/auth setting has been changed by this dashboard work.
 - Deploy the new Edge Function only after Track B authorization and regression checks, then verify it against an isolated test account before considering production rollout.
