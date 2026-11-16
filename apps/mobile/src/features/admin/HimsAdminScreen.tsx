@@ -75,7 +75,7 @@ export function HimsAdminScreen() {
       const savedCode = created?.code ?? normalized;
       setLastCreated({ code: savedCode, command: created?.command ?? commandFor(savedCode) });
       setCode("");
-      setNotice("تم حفظ الكود. يمكنك نسخه من بطاقة آخر كود أو من قائمة الأكواد في أي وقت.");
+      setNotice("تم إنشاء الكود. انسخه الآن؛ لن يُحفظ نصه ولن يمكن استرجاعه بعد مغادرة هذه الشاشة.");
       await load();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر إنشاء كود HIMS."); }
     finally { setBusy(false); }
@@ -164,14 +164,8 @@ export function HimsAdminScreen() {
       <Text style={styles.sectionTitle}>أكواد HIMS الحالية</Text>
       {!loading && codes.length === 0 ? <Text style={styles.detail}>لا يوجد كود بعد.</Text> : codes.map((item) => <View key={item.id} style={styles.row}>
         <Text style={styles.cardTitle}>{item.label || "كود HIMS"}</Text>
-        {item.code_plain
-          ? <Text selectable style={styles.commandText}>{commandFor(item.code_plain)}</Text>
-          : <Text style={styles.detail}>هذا الكود أُنشئ قبل تفعيل الحفظ، ولا يمكن استرجاع نصه. البصمة: {item.code_fingerprint}</Text>}
+        <Text style={styles.detail}>الكود الكامل لا يُخزَّن ولا يمكن استرجاعه بعد الإنشاء. البصمة: {item.code_fingerprint}</Text>
         <Text style={styles.detail}>الاستخدام: {item.used_count}/{item.max_uses ?? "∞"} · {item.is_active ? "فعال" : "معطل"}{item.last_used_at ? ` · آخر استخدام: ${item.last_used_at.slice(0, 16).replace("T", " ")}` : ""}</Text>
-        <View style={styles.inline}>
-          <Button label="نسخ الأمر" onPress={() => void copy(commandFor(item.code_plain ?? ""), "أمر التفعيل")} disabled={!item.code_plain} />
-          {item.code_plain ? <Button label="نسخ الكود" tone="ghost" onPress={() => void copy(item.code_plain ?? "", "الكود")} /> : null}
-        </View>
       </View>)}
     </View>
 
