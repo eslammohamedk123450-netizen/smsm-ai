@@ -531,7 +531,7 @@ Acceptance:
 New implementation (2026-11-16):
 - `SulyThemeProvider` now waits for the persisted appearance preference to load before mounting app screens, preventing a first-render flash in the wrong theme. While loading it shows a palette-backed neutral surface.
 - Static source audit found 11 files importing the legacy static `colors` export and 26 files with literal color values; some may be intentional brand/status colors, so they require per-screen classification rather than blind replacement.
-- CI and route-by-route light/dark/system visual checks are pending.
+- PR #129 build checks passed: Expo TypeScript, mobile auth regression, static Web export, Android JS bundle, iOS JS bundle, and Deno Agent/Edge Function checks. Route-by-route visual checks in light/dark/system remain pending.
 
 ## Phase 15 — Complete Arabic and English localization and RTL/LTR
 
@@ -557,6 +557,7 @@ New implementation (2026-11-16):
 - `LocaleProvider` now waits for the saved `ar`/`en` preference before mounting app screens, preventing a brief Arabic/RTL render when the saved preference is English/LTR (and vice versa).
 - The app root applies the locale direction to the navigation container.
 - User-facing strings remain distributed across feature screens; a full key-based translation catalog, mixed-script/model-ID review, and RTL/LTR visual/interaction tests are not complete.
+- PR #129 build checks passed: Expo TypeScript, mobile auth regression, static Web export, Android JS bundle, iOS JS bundle, and Deno Agent/Edge Function checks. Full key-based translation catalog, mixed-script and RTL/LTR visual tests remain incomplete.
 - Do not auto-translate or claim legal/policy text is approved.
 
 ## Phase 16 — Security, data integrity, and end-to-end functional testing
