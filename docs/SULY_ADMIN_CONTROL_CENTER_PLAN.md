@@ -65,6 +65,14 @@ No parallel admin application or replacement data model is introduced.
 
 These are implementation/configuration gaps, not Track B device-test deferrals. The dashboard must not be marked implementation-complete while any in-scope source-level gap remains.
 
+## Security fixes applied to the current Supabase development project
+
+- The live `suly_admin_add_provider(uuid,text,text,text,text,text)` RPC was verified to be called only by the `sync-models` Edge Function, which validates the caller JWT and `suly_is_admin()` before using its server-role client.
+- Applied and recorded migration `20261116180427_restrict_admin_provider_registration_rpc`: revoke function execution from `PUBLIC`, `anon`, and `authenticated`; grant it only to `service_role`.
+- Verified against PostgreSQL privileges after application: `anon=false`, `authenticated=false`, `service_role=true`.
+- Added a rollback-only SQL privilege regression test at `supabase/tests/admin_provider_rpc_privilege_regression.sql`.
+- This was a database permission-only change; it did not alter provider rows, credentials, routing, or pricing. The source migration is committed on `develop`; production branch and production database were not changed.
+
 ## Security review notes — not silently changed
 
 A read-only Supabase Security Advisor snapshot on 2026-11-16 reported:
