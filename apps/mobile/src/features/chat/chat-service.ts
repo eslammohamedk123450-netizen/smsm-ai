@@ -353,6 +353,8 @@ export const chatService = {
     onTaskUpdate?(task: { task: string; status: "pending" | "running" | "completed" | "failed" }): void;
   }): Promise<void> {
     const savedMessages = await this.getMessages(options.conversationId);
+    const targetUserMessage = savedMessages.find((message) => message.id === options.userMessageId && message.role === "user");
+    if (targetUserMessage && getStudioIntent(targetUserMessage.content)) return;
     const history = buildRetryHistory(savedMessages, options.userMessageId);
     await this.regenerateAssistant({
       conversationId: options.conversationId,
