@@ -55,6 +55,15 @@ No parallel admin application or replacement data model is introduced.
    - Platform-specific UI adaptations are allowed only where required by navigation, input, safe-area, file-picker, clipboard, or native capability differences. Unsupported platform capabilities must be clearly disabled or explained rather than rendered as working controls.
    - CI must continue exporting the Web app and Android/iOS JavaScript bundles. Bundle export is compatibility evidence, not device-level acceptance.
 
+## Remaining implementation gaps — dashboard is not yet complete
+
+- **HIMS activation-code lifecycle:** the current dashboard can create and list codes, but there is no current admin RPC/UI action to revoke or deactivate an issued code. This needs a dedicated admin-guarded database function, audit event, migration, and UI control. Do not simulate revocation by editing the table from the client.
+- **HIMS resource editing:** existing resources can now be stopped/reactivated without deleting their data. A dedicated edit workflow for title/type/description and a separately reviewed deletion/retention policy remain to be completed; do not hard-delete private media as a shortcut.
+- **Storage explorer deployment:** `admin-storage` is present in source and CI typechecked, but the hosted Edge Function has not been deployed. The page must report unavailable until the server function is deployed and verified.
+- **Provider-dependent services:** media video/audio generation, ad impression/revenue reporting, and any unconfigured provider integrations must remain explicitly unavailable or configuration-only until verified credentials and real backend support exist.
+
+These are implementation/configuration gaps, not Track B device-test deferrals. The dashboard must not be marked implementation-complete while any in-scope source-level gap remains.
+
 ## Security review notes — not silently changed
 
 A read-only Supabase Security Advisor snapshot on 2026-11-16 reported:
