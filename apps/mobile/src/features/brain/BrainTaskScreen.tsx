@@ -197,7 +197,7 @@ function createStyles(colors: ThemePalette) { return StyleSheet.create({
   input: { minHeight: 150, borderWidth: 1, borderColor: colors.divider, borderRadius: 9, color: colors.textPrimary, padding: 11, textAlign: "right", fontSize: 12, lineHeight: 20 },
   actions: { flexDirection: "row-reverse", gap: 8, justifyContent: "flex-start" },
   primary: { minWidth: 130, alignItems: "center", backgroundColor: colors.primary, borderRadius: 8, paddingVertical: 10, paddingHorizontal: 14 },
-  primaryText: { color: "#071018", fontWeight: "900", fontSize: 11 },
+  primaryText: { color: colors.onPrimary, fontWeight: "900", fontSize: 11 },
   secondary: { borderWidth: 1, borderColor: colors.divider, borderRadius: 8, paddingVertical: 9, paddingHorizontal: 14 },
   secondaryText: { color: colors.textPrimary, fontSize: 11, fontWeight: "700" },
   disabled: { opacity: 0.55 },
