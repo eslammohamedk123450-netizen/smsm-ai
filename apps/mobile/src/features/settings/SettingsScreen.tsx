@@ -103,7 +103,7 @@ export default function SettingsScreen() {
 
   const name = profileFullName?.trim() || "Suly";
   const avatarUrl = typeof user?.user_metadata?.avatar_url === "string" ? user.user_metadata.avatar_url : null;
-  const back = () => { if (router.canGoBack()) router.back(); else router.replace("/(protected)/chat"); };
+  const back = () => { if (router.canGoBack()) router.back(); else router.replace("/home"); };
 
   return (
     <>
