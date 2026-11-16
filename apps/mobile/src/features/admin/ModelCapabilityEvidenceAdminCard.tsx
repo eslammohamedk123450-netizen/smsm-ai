@@ -30,7 +30,7 @@ export function ModelCapabilityEvidenceAdminCard({ models }: { models: ModelOpti
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [rows, setRows] = useState<EvidenceRow[]>([]);
   const [modelId, setModelId] = useState<number | null>(models[0]?.id ?? null);
-  const [capability, setCapability] = useState<string>("chat");
+  const [capability, setCapability] = useState<string>("text");
   const [search, setSearch] = useState("");
   const [vendor, setVendor] = useState<EvidenceRow["vendor_claim_status"]>("unknown");
   const [vendorUrl, setVendorUrl] = useState("");
