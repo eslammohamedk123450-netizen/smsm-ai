@@ -141,7 +141,10 @@ export default function ChatPage() {
   const [ratingNote, setRatingNote] = useState("");
   const [ratingSaving, setRatingSaving] = useState(false);
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
-  const [selectedModelProfile, setSelectedModelProfile] = useState<string>("auto");
+  const [selectedModelProfile, setSelectedModelProfile] = useState<SulyModelProfileKey>("auto");
+  const [modelProfileOptions, setModelProfileOptions] = useState<SulyModelProfileOption[]>([]);
+  const [modelProfileLoading, setModelProfileLoading] = useState(false);
+  const [modelProfileMenuVisible, setModelProfileMenuVisible] = useState(false);
   useEffect(() => {
     let active = true;
     if (!user?.id) {
