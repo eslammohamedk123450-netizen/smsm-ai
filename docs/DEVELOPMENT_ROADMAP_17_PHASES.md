@@ -1050,3 +1050,33 @@ Updated `apps/mobile/src/features/home/HomeScreen.tsx`:
 - GitHub Actions run `43854700204` passed both jobs: Expo TypeScript, mobile authentication regression, Expo Web static export, Android/iOS JavaScript exports, and Deno Agent/scheduler regression/typecheck.
 - Added a regression in `apps/mobile/src/features/chat/chat-service.test.ts` for routed model metadata through retry. The first CI run caught a real omission: `retryAssistant` passed the callback into `regenerateAssistant`, but `regenerateAssistant` did not forward it into the stream manager. Fixed that forwarding and added a guard so the generic `agent` orchestration label is not presented as a concrete model. Follow-up PR #122 is awaiting final CI.
 - **Remaining Phase 6 verification:** test the same metadata behavior on normal send (not only retry), review Agent/tool-stream model attribution where multiple internal roles may run, authenticated HTTP end-to-end chat/task/cancel/retry/partial-billing tests, and visual browser/device checks. Do not claim those tests are complete.
+
+
+### Phase 6 continuation — routed model metadata regression merged — 2026-11-16
+
+- PR #122 merged into `release/v1` as commit `66dc7ef6d295dd4619911777626a3942383a2377`.
+- The additional regression caught and fixed a real retry-path omission: `retryAssistant` passed the model metadata callback into `regenerateAssistant`, but that method had not forwarded it to the stream manager.
+- Both normal-send and retry-stream callback paths are now covered. The generic orchestration label `agent` is deliberately not shown as a concrete model identifier.
+- GitHub Actions run `43856254766` passed: Expo TypeScript, mobile auth/chat regressions, Expo Web export, Android JS export, iOS JS export, and Deno Agent/scheduler regression and typecheck.
+- This closes the current implementation/test slice for model metadata, but Phase 6 remains IN PROGRESS until authenticated HTTP E2E, Agent task lifecycle, cancellation/retry/partial-billing checks, and visual/browser/device verification are completed.
+
+### Phase 7 — current production media audit — 2026-11-16
+
+A second read-only audit confirms the exact boundary between the price catalogue and executable Studio services:
+
+- `suly_media_model_price_versions`: 22 current price rows — 12 image, 7 video, 3 audio. All 22 are marked provider-tested based on the owner's supplied confirmation; all 22 have `suly_integration_verified=false`. Prices are EGP per image / video-second / audio-minute, with a generated selling price of provider cost × 1.40.
+- `suly_media_generation_models`: only 4 image model rows exist; all 4 are inactive. All use the OpenAI Images-compatible protocol and the same provider endpoint. No video or audio generation model rows are registered here.
+- `suly_media_generation_prices`: 0 runtime price rows. The image-generator rejects requests when the runtime price for a selected quality is missing. Its database constraint also requires positive provider cost, FX rate, credit value, valid margin, and enough credits to cover the configured gross-margin calculation before a price can be enabled.
+- `suly_media_generation_jobs`: 0 current jobs at audit time.
+- Studio presents image, video, audio, and transcription entry points, but only the image-generation backend path exists in this registry; video/audio/transcription are not end-to-end verified. No model was activated and no price was inserted as part of this audit.
+
+**Phase 7 decision:** keep all media generation unavailable until the provider EGP catalogue is reconciled with runtime USD cost, FX, credit value, quality-specific price, and settlement. Do not invent an exchange rate or credit value, and do not treat provider-tested as SULY-integration-verified.
+
+### Phase 8 — current Library audit — 2026-11-16
+
+- Existing `MediaScreen` already provides owner-scoped asset listing, search by filename/prompt, image/video/file/in-progress filters, open/download, copy link, delete, and image reuse in chat. It also lists active generation jobs.
+- The UI's manual upload controls are currently administrator-only; ordinary users' assets primarily arrive through existing chat/feature upload flows.
+- No media-folder, asset-folder membership, or media-favorite tables exist in the current production schema.
+- `global_media_assets` remains protected through the media-gateway and owner-scoped access path; no direct client write policy was added.
+- **Remaining Phase 8:** add persistent user-owned folders and favorites with cross-owner isolation, integrate folder/favorite filtering into Library, and verify file lifecycle, downloads, deletes, and Studio outputs. Do not loosen `global_media_assets` policies to implement these UI features.
+
