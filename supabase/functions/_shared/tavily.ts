@@ -10,11 +10,14 @@ export async function readTavilyApiKey(supabase: { rpc: Function }): Promise<str
   return data.trim();
 }
 
+const EXPLICIT_SEARCH_REQUEST = /\b(search|browse|news|latest|recent|today|right now|look up|research|find out)\b|ابحث|دور على|على النت|على الإنترنت|أخبار|آخر الأخبار|الأخبار|اليوم|حاليًا|الآن|مصادر متعددة|في جوجل|على جوجل/iu;
+const STUDY_INTENT = /(?:اشرح|اشرحلي|وضح|وضحلي|عرّف|عرف|ما هو|ما هي|ما معنى|معنى|معلومات عن|بحث عن|ملخص|لخص|قارن|اذكر|فسر|حلل|how does|explain|define|summarize|compare)/iu;
+const STUDY_DOMAIN = /(?:دراسة|دراسي|المنهج|المادة|مادة|محاضرة|المحاضرات|المحاسبة|محاسبة|إدارة|ادارة|قانون|اقتصاد|نظم معلومات|برمجة|بايثون|جافاسكربت|رياضيات|فيزياء|كيمياء|أحياء|تاريخ|جغرافيا|حديث نبوي|نحو|بلاغة|فقه|computer science|programming|python|javascript|accounting|business|management|law|economics|mathematics|physics|chemistry|biology|history)/iu;
+
 export function isWebSearchRequest(text: string): boolean {
-  // Explicit search verbs, news/freshness terms, or direct Arabic search
-  // requests trigger live search. Generic mentions of the internet or
-  // "معلومات عن" stay on the normal chat path.
-  return /\b(search|browse|news|latest|recent|today|right now|look up|research|find out)\b|ابحث|دور على|على النت|على الإنترنت|أخبار|آخر الأخبار|الأخبار|اليوم|حاليًا|الآن|مصادر متعددة|في جوجل|على جوجل/iu.test(text);
+  const message = text.normalize("NFKC").trim();
+  if (EXPLICIT_SEARCH_REQUEST.test(message)) return true;
+  return STUDY_INTENT.test(message) && STUDY_DOMAIN.test(message);
 }
 
 export async function runTavilySearch(apiKey: string, query: string): Promise<JsonRecord> {

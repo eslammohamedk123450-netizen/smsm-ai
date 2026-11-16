@@ -3,7 +3,8 @@ import { corsHeadersForRequest } from "../_shared/cors.ts";
 import { buildAgentUsageLedgerRecord } from "./agent_usage_ledger.ts";
 import { prepareAgentMemory, saveAgentMemory } from "./agent/memory.ts";
 import { activationOutcomeMessage, parseActivationCommand, shouldReportActivationFailure } from "../_shared/activation_command.ts";
-import { activateFeatureByCode, buildFeatureSystemContext, getFeatureContext } from "../_shared/feature_flags.ts";
+import { activateFeatureByCode, getFeatureContext } from "../_shared/feature_flags.ts";
+import { buildFeatureSystemContext, isFeatureResourceRequest } from "../_shared/feature_resource_context.ts";
 import { buildSulyIdentityContext, containsHimsReference, getIdentityAnswer, INACTIVE_UNKNOWN_ANSWER, sanitizeContextText } from "../_shared/identity_context.ts";
 import { normalizeFeatureKey } from "../_shared/prompt_keys.ts";
 import { capabilityForMime, supportsModelCapabilities, type ModelCapability } from "../_shared/model_capabilities.ts";
@@ -995,9 +996,9 @@ async function handleRequest(req: Request): Promise<Response> {
     }
   }
 
-  if (!internalBrainCall && trustedAttachments.length === 0 && !himsActivated && containsHimsReference(latestUserMessage)) {
-    return respondDeterministically(INACTIVE_UNKNOWN_ANSWER, { billing: null }, "restricted_feature_query");
-  }
+  // Study questions remain ordinary SULY conversations. Access to private course
+  // resources is still enforced server-side: getFeatureContext only returns
+  // resources for features activated by this authenticated user.
   const identityAnswer = !internalBrainCall && executionMode !== "agent" && trustedAttachments.length === 0 ? getIdentityAnswer(latestUserMessage) : null;
   if (identityAnswer) {
     return respondDeterministically(identityAnswer, { billing: null }, "identity_question");
@@ -1446,7 +1447,11 @@ async function handleRequest(req: Request): Promise<Response> {
     matchCount: 4,
     embedding: memoryState.embedding,
   });
-  const featureContext = await getFeatureContext(supabase, user.id);
+  const recentUserMessages = messages.filter((message) => message.role === "user").slice(-3).map((message) => message.content);
+  const needsFeatureResources = isFeatureResourceRequest(latestUserMessage, recentUserMessages);
+  const featureContext = himsActivated && needsFeatureResources
+    ? await getFeatureContext(supabase, user.id)
+    : { features: {} };
   const safeTaskMemories = himsActivated
     ? taskMemory.memories
     : taskMemory.memories.filter((memory) => !containsHimsReference(JSON.stringify(memory)));
@@ -1460,7 +1465,7 @@ async function handleRequest(req: Request): Promise<Response> {
         key.toLowerCase() !== "hims" && !containsHimsReference(JSON.stringify(info))
       )),
     };
-  const featureSystemContext = buildFeatureSystemContext(safeFeatureContext);
+  const featureSystemContext = needsFeatureResources ? buildFeatureSystemContext(safeFeatureContext) : null;
   const contextBlocks = [
     buildMemoryContext(safeTaskMemories),
     safeAgentMemories.length > 0

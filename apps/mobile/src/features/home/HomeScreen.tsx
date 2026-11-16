@@ -42,7 +42,6 @@ export function HomeScreen() {
     { title: "نفّذ مهمة", subtitle: "قسّم العمل ودع الوكيل ينفذه", icon: "git-branch-outline" as const, route: "/tasks" },
     { title: "افتح الاستوديو", subtitle: "صور وفيديو وخدمات الوسائط", icon: "sparkles-outline" as const, route: "/studio" },
     { title: "مكتبتك", subtitle: "ملفاتك ونتائجك المحفوظة", icon: "folder-open-outline" as const, route: "/media" },
-    { title: "محتوى الجامعة", subtitle: "محاضرات HIMS وملفاتك التعليمية", icon: "school-outline" as const, route: "/hims" },
   ];
 
   return (

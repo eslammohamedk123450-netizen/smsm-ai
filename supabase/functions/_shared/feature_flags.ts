@@ -122,26 +122,6 @@ export async function getFeatureContext(supabase: any, userId: string): Promise<
  * Builds the prompt block describing activated features and their links. It is
  * generated from data, so a new feature needs no code change here.
  */
-export function buildFeatureSystemContext(context: FeatureContext): string | null {
-  const activated = Object.entries(context.features).filter(([, info]) => info.activated);
-  if (activated.length === 0) return null;
-  const lines: string[] = [
-    "The user has activated the following features in this application.",
-    "Use their resource links and the shared tools when the user asks for that content.",
-    "Never invent files or links that are not listed here.",
-  ];
-  for (const [key, info] of activated) {
-    lines.push(`- ${info.label} (feature_key: ${key})`);
-    for (const resource of info.resources) {
-      lines.push(`  - ${resource.title}: ${resource.url}${resource.description ? ` — ${resource.description}` : ""}`);
-    }
-    if (info.resources.length === 0) {
-      lines.push("  - No resource links are registered for this feature yet.");
-    }
-  }
-  return lines.join("\n");
-}
-
 /** Activates any feature by code. The feature itself is decided by the code row. */
 export async function activateFeatureByCode(supabase: any, userId: string, code: string): Promise<ActivationResult> {
   try {
