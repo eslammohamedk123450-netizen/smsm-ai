@@ -26,6 +26,13 @@ describe("SseParser", () => {
     ]);
   });
 
+  it("does not present the Agent router label as a concrete model", () => {
+    const parser = new SseParser();
+    expect(parser.push("data: {\"chunk\":\"Working\",\"model\":\"agent\"}\n\n")).toEqual([
+      { type: "chunk", text: "Working" },
+    ]);
+  });
+
   it("converts server error payloads into explicit error events", () => {
     const parser = new SseParser();
     expect(parser.push("data: {\"error\":\"interrupted\"}\n\n")).toEqual([
