@@ -5,7 +5,7 @@ import type { ChatRequestBody } from "../../lib/network/sse-transport";
 import { summarizeContent } from "./conversation-title";
 import { buildRetryHistory } from "./chat-retry";
 import { chatStreamManager } from "./chat-stream-manager";
-import { getImageGenerationPrompt } from "./image-generation";
+import { getStudioIntent } from "./image-generation";
 import { getMediaDeliveryUrls, type MediaAsset } from "../media/media-service";
 export { titleFromMessage } from "./conversation-title";
 export { summarizeContent } from "./conversation-title";
@@ -292,36 +292,9 @@ export const chatService = {
       .eq("id", options.conversationId).eq("user_id", user.id);
     if (updateError) throw new Error("حُفظت رسالتك، لكن تعذر تحديث ترتيب المحادثة.");
 
-    const imagePrompt = options.mediaAsset ? null : getImageGenerationPrompt(content);
-    if (imagePrompt) {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData.session?.access_token;
-      if (!accessToken) throw new Error("انتهت الجلسة. سجّل الدخول مرة أخرى لبدء توليد الصورة.");
-      let response: Response;
-      try {
-        response = await fetch(`${env.edgeFunctionBaseUrl}/image-generator`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            apikey: env.supabaseAnonKey,
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-          body: JSON.stringify({ conversation_id: options.conversationId, user_message_id: String(inserted.id), request_id: String(inserted.id), prompt: imagePrompt, quality: "standard" }),
-          signal: options.signal,
-        });
-      } catch (cause) {
-        if (options.signal.aborted) throw cause;
-        throw new Error("تعذر الاتصال بخدمة توليد الصور. حاول مرة أخرى.");
-      }
-      let result: Record<string, unknown> = {};
-      try { result = await response.json() as Record<string, unknown>; } catch { /* show safe fallback below */ }
-      if (!response.ok || result.success !== true) {
-        const message = typeof result.error === "string" ? result.error : "تعذر توليد الصورة. حاول مرة أخرى.";
-        throw new Error(message);
-      }
-      return;
-    }
+    // Media requests are saved as chat messages, but execution and credit reservation happen only in Studio.
+    const studioIntent = options.mediaAsset ? null : getStudioIntent(content);
+    if (studioIntent) return;
 
     const history: ChatRequestBody["messages"] = priorMessages
       .filter((entry): entry is ChatMessage & { role: "user" | "assistant" } => entry.role === "user" || entry.role === "assistant")
