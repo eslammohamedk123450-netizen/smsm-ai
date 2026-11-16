@@ -216,7 +216,7 @@ Acceptance:
 - No keyboard overlap, safe-area obstruction, or lost navigation entry.
 - HIMS remains accessible through the ordinary chat/authorized resource flow.
 
-**Current status:** [~] The five-section navigation foundation is merged (PR #95), and the Home screen has been refreshed in the current work branch. Source review confirms five primary destinations, a mobile bottom bar, a responsive web sidebar at wide widths, native keyboard-aware bottom-bar hiding, and safe-area handling. The refreshed Home screen adds a clearer SULY welcome/primary action, four focused section shortcuts, and recent-chat loading/empty/error/retry states. Route-by-route, visual, and real-device regression testing is still required.
+**Current status:** [~] The five-section navigation foundation is merged (PR #95), and the Home screen has been refreshed in the current work branch. Source review confirms five primary destinations, a mobile bottom bar, a responsive web sidebar at wide widths, native keyboard-aware bottom-bar hiding, and safe-area handling. The refreshed Home screen adds a clearer SULY welcome/primary action, four focused section shortcuts, and recent-chat loading/empty/error/retry states. PR #117 CI passed Expo TypeScript typecheck, mobile auth regression tests, static Expo Web export, and Android/iOS JavaScript bundle exports. Route-click, visual browser, native installation, and real-device regression testing is still required.
 
 Known evidence:
 - PR #95 — five-section navigation.
@@ -505,7 +505,7 @@ Acceptance:
 - Database and wallet ledgers reconcile.
 - Any accepted residual risk is documented with owner approval.
 
-**Current status:** [>] The original set of 57 authenticated-executable SECURITY DEFINER function bodies has now been reviewed individually. After the new least-privilege migration, 56 remain executable by authenticated clients; the separate anonymous share-token endpoint remains intentional. Current classification: 42 functions contain a direct admin guard, 12 are caller/session-scoped, 1 legacy provider toggle delegates to the guarded lifecycle RPC, and 1 public-share function is scoped by its exact share token. All 56 authenticated-executable functions have fixed search_path settings. Targeted fixes and rollback-only SQL regressions passed, but real authenticated HTTP/UI flows and the full Phase 16 matrix remain open.
+**Current status:** [>] The original set of 57 authenticated-executable SECURITY DEFINER function bodies has now been reviewed individually. After the new least-privilege migration, 56 remain executable by authenticated clients; the separate anonymous share-token endpoint remains intentional. Current classification: 42 functions contain a direct admin guard, 12 are caller/session-scoped, 1 legacy provider toggle delegates to the guarded lifecycle RPC, and 1 public-share function is scoped by its exact share token. All 56 authenticated-executable functions have fixed search_path settings. Targeted fixes and rollback-only SQL regressions passed; Deno Agent/Edge Function tests and typecheck, Edge bundle verification, and media billing guardrails also passed in PR #117 CI. Real authenticated HTTP/UI flows, true multi-session activation concurrency, and the full Phase 16 matrix remain open.
 
 Known constraints:
 - Supabase Free plan may not provide every optional security feature. Record limitations and compensating controls; do not claim unavailable controls are enabled.
@@ -993,10 +993,10 @@ Updated `apps/mobile/src/features/home/HomeScreen.tsx`:
 
 #### Remaining work before reporting Phase 5 complete
 
-1. Run GitHub Actions typecheck, tests, and Expo Web export on this branch.
-2. Review the PR diff and merge only if checks pass.
+1. [x] GitHub Actions typecheck, mobile auth tests, Deno Agent tests/typecheck, Edge bundle verification, media billing guardrails, Expo Web export, and Android/iOS JavaScript exports passed on the code commit in PR #117.
+2. Review and merge PR #117 only after final diff/branch-head verification.
 3. Re-check the deployed web entry and preserve the existing five-section navigation.
-4. Run route-by-route checks for HIMS, Library, credits/plan, support/integrations, and admin access; perform actual visual/device tests when a test session is available.
+4. Run route-click checks for HIMS, Library, credits/plan, support/integrations, and admin access; perform actual visual/device tests when a test session is available.
 5. Stop after Phase 5 and report the delivered Home experience and remaining verification. Continue to Phase 6 only after that report, following the approved 17-phase order.
 
 #### Current status
@@ -1007,4 +1007,4 @@ Updated `apps/mobile/src/features/home/HomeScreen.tsx`:
 - **Admin permissions:** database identity simulation passed; real admin UI/session verification deferred to test accounts.
 - **Extension relocation:** intentionally not performed; current dependency map supports retaining the current placement.
 - **HIMS:** environment/boundary preparation only; content and student E2E testing deferred.
-- **Phase 5 Home:** implementation in progress in this branch; waiting for CI and route/device regression before marking complete.
+- **Phase 5 Home:** implementation is in PR #117; code CI passed (TypeScript, auth tests, Web static export, Android/iOS JS exports). Final merge/deployment and visual route/device regression remain.
