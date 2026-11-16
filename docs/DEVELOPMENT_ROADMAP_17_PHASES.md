@@ -331,7 +331,7 @@ Acceptance:
 - Client cannot upgrade its own plan, alter balance, or grant itself privileges.
 - Billing history reconciles with wallet/usage ledgers.
 
-**Current status:** [>] Account information architecture is being completed on top of the existing settings, wallet, and server-authoritative subscription foundations.
+**Current status:** [~] The Account information architecture and existing Plans/Subscription + Library entry points are implemented and merged (PR #125); authenticated profile mutation, payment/renewal lifecycle, and full billing verification remain open.
 
 Verified code review and current implementation (2026-11-16):
 - Existing settings screen already shows authenticated profile name/email, theme mode (system/light/dark), language (Arabic/English), server-loaded credit balance and recent ledger entries, support, conversation archive, integrations, privacy/terms notices, admin-only dashboard entry, and sign-out.
@@ -526,7 +526,7 @@ Acceptance:
 - All major routes have been visually checked in all supported modes.
 - No unreadable text, invisible controls, or mismatched surfaces.
 
-**Current status:** [>] The shared theme provider supports persisted system/light/dark selection. A hydration flash has now been addressed; hard-coded palette usage and visual route verification remain.
+**Current status:** [~] Persisted system/light/dark selection, hydration handling, and audited dynamic-palette migrations are merged (PRs #129, #130, #131). The shared UI and Balance follow the saved theme; remaining literal-color review, visual route coverage, and real-device checks remain open.
 
 **Additional Phase 14 work in progress (2026-11-16):** A focused follow-up branch now migrates the Balance screen's fixed dark-only palette to the shared `ThemePalette` tokens, and updates Toast, IconButton, BottomSheet, AttachSheet, SharedConversationPage, and ShareConversationSheet to consume `useSulyTheme()` rather than independently reading the OS color scheme. This fixes a real mismatch where a saved in-app light/dark choice could be ignored by shared surfaces. The changes are pending CI and merge; full visual/browser/device coverage and the remaining hard-coded color audit are still open.
 
@@ -554,7 +554,7 @@ Acceptance:
 - RTL/LTR screenshots and interaction tests pass.
 - Text does not overflow or reverse code, IDs, or numeric values incorrectly.
 
-**Current status:** [>] Arabic/English preference persistence and root direction support exist. Saved-language hydration has now been addressed; centralized translation coverage and full RTL/LTR review remain.
+**Current status:** [~] Arabic/English preference persistence, root direction support, and saved-language hydration are merged (PR #129). Centralized translation coverage, mixed-direction content, and full RTL/LTR visual review remain open.
 
 New implementation (2026-11-16):
 - `LocaleProvider` now waits for the saved `ar`/`en` preference before mounting app screens, preventing a brief Arabic/RTL render when the saved preference is English/LTR (and vice versa).
@@ -603,6 +603,7 @@ Known constraints:
 - Live Supabase advisor + read-only SQL recheck (2026-11-16): the 10 INFO-level RLS/no-policy tables still have RLS enabled and grant no SELECT/INSERT/UPDATE/DELETE to either `anon` or `authenticated`; the INFO findings are therefore not evidence of client access. The 9 multiple-permissive-policy warnings were inspected: overlaps are admin-read plus owner/active-read, or admin `ALL` plus a separate public/owner read policy. No policy was changed because combining them without targeted regression could alter administrator or public-plan visibility semantics.
 - Performance advisor currently reports 68 unindexed foreign keys and 53 unused indexes (INFO). These are not auto-remediated: adding/removing indexes requires query-plan and workload evidence, and unused-index observations can be misleading on a young/low-traffic project.
 - Remaining advisor owner action: enable leaked-password protection in Supabase Auth settings if available on the current plan. The `vector`/`pg_net` extension schema warnings need a dependency-reviewed migration plan; do not move extensions blindly. The 57 authenticated-executable SECURITY DEFINER warning rows still require preserving the documented per-function guard classification and regression evidence; the anonymous share-token endpoint is intentionally token-scoped.
+- Fresh SQL verification (2026-11-16): all 57 SECURITY DEFINER functions executable by `authenticated` have a function-level `search_path` setting. Exactly one of those is also executable by `anon`: `suly_get_public_conversation(uuid)`, whose current SQL body selects only the conversation matching the supplied `share_token`, returns user/assistant messages only, and is capped at 300 messages. This matches the intentionally public share-link design; the revocation regression remains the required companion test.
 
 ## Phase 17 — Expo Web, Android, iOS validation and release
 
