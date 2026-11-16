@@ -10,6 +10,7 @@ import { ToastProvider } from "../src/components/ui/Toast";
 import { colors } from "../src/theme/colors";
 import { AnimatedSplash } from "../src/components/AnimatedSplash";
 import { supabase } from "../src/lib/supabase/client";
+import { SulyThemeProvider, useSulyTheme } from "../src/theme/ThemeProvider";
 
 export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   const resetLocalSession = async () => {
@@ -35,6 +36,21 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   );
 }
 
+function AppNavigator() {
+  const { colors: palette } = useSulyTheme();
+  return (
+    <AuthProvider>
+      <ToastProvider>
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette.background } }}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="(protected)" />
+        </Stack>
+      </ToastProvider>
+    </AuthProvider>
+  );
+}
+
 export default function RootLayout() {
   const [loading, setLoading] = useState(true);
   useFonts({
@@ -46,22 +62,14 @@ export default function RootLayout() {
     void initializeAds().catch(() => undefined);
   }, []);
 
-  if (loading) {
-    return <AnimatedSplash onFinish={() => setLoading(false)} />;
-  }
+  if (loading) return <AnimatedSplash onFinish={() => setLoading(false)} />;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <AuthProvider>
-          <ToastProvider>
-            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
-              <Stack.Screen name="index" />
-              <Stack.Screen name="(auth)" />
-              <Stack.Screen name="(protected)" />
-            </Stack>
-          </ToastProvider>
-        </AuthProvider>
+        <SulyThemeProvider>
+          <AppNavigator />
+        </SulyThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
