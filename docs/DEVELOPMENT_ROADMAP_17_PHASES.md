@@ -782,3 +782,13 @@ Continue auditing the remaining authenticated SECURITY DEFINER functions in grou
 
 **Current status:** The database access restriction is implemented and its privilege regression test passed. The corresponding migration/test are in PR #110 pending source-control merge and app-level verification.
 
+#### Post-fix regression expansion — 2026-11-16
+- Re-ran `supabase/tests/provider_secret_access_regression.sql`: **PASS**.
+- Re-ran `supabase/tests/model_routing_governance_regression.sql`: **PASS**; required routes, provider-enabled eligibility, media/provider freeze, and direct route-write denial remain intact.
+- Re-ran `supabase/tests/model_price_admin_access_regression.sql`: **PASS**; non-admin access to pricing mutation RPCs remains denied.
+- Inspected the current `sync-models` Edge Function: it uses a server-side service-role client for provider reads, separately validates the caller JWT and administrator status using the caller-scoped client, and returns discovery counts/status rather than the API key.
+- Current app code references provider metadata through the guarded admin RPC; no direct mobile/web read of `ai_providers` was found in the code search.
+- These SQL regressions and code inspection do not replace a live authenticated admin UI test or full provider request smoke test.
+
+**Updated status:** Database privilege hardening and three targeted SQL regressions are complete. PR #110 remains subject to its current GitHub Actions checks before merge.
+
