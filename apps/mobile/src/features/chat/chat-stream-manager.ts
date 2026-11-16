@@ -66,6 +66,9 @@ export const chatStreamManager = {
     else externalSignal?.addEventListener("abort", abortFromCaller, { once: true });
 
     job.promise = streamChatPlatform(body, controller.signal, {
+      onModelInfo(identifier) {
+        callbacks.onModelInfo?.(identifier);
+      },
       onChunk(text) {
         job.snapshot.text += text;
         callbacks.onChunk(text);
