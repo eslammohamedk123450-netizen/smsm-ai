@@ -100,7 +100,13 @@ export function AdminUsersCommandScreen() {
         setError("اكتب تاريخ الانتهاء بصيغة YYYY-MM-DD أو اتركه فارغًا.");
         return;
       }
-      const parsed = new Date(`${subscriptionExpiresAt.trim()}T23:59:59`);
+      const dateValue = subscriptionExpiresAt.trim();
+      const calendarDate = new Date(`${dateValue}T00:00:00.000Z`);
+      const parsed = new Date(`${dateValue}T23:59:59`);
+      if (!Number.isFinite(calendarDate.getTime()) || calendarDate.toISOString().slice(0, 10) !== dateValue) {
+        setError("تاريخ الانتهاء غير صحيح.");
+        return;
+      }
       if (!Number.isFinite(parsed.getTime()) || parsed.getTime() <= Date.now()) {
         setError("تاريخ انتهاء الاشتراك يجب أن يكون في المستقبل.");
         return;
