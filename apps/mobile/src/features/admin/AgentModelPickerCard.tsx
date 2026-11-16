@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
-import { colors } from "../../theme/colors";
+import { useSulyTheme } from "../../theme/ThemeProvider";
+import type { ThemePalette } from "../../theme/colors";
 
 type ModelChoice = {
   id: number;
@@ -44,6 +45,8 @@ function supportsChat(value: ModelChoice["capabilities_json"], modelIdentifier: 
 }
 
 export function AgentModelPickerCard({ role, models, selectedModelId, busy, onSelect }: Props) {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [search, setSearch] = useState("");
   const isPlanner = role === "planner";
   const eligibleModels = useMemo(() => {
@@ -80,7 +83,7 @@ export function AgentModelPickerCard({ role, models, selectedModelId, busy, onSe
   </View>;
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemePalette) => StyleSheet.create({
   card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 12, padding: 12, gap: 10 },
   title: { color: colors.textPrimary, fontWeight: "900", fontSize: 14, textAlign: "right" },
   help: { color: colors.textMuted, fontSize: 10, textAlign: "right", lineHeight: 16 },

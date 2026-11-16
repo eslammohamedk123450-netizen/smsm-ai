@@ -5,7 +5,8 @@ import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { adminService, type AgentConfig, type PricingPlan, type PricingFeature } from "./admin-service";
 import { providerPresets, findPreset, type ProviderPreset } from "./provider-presets";
 import { confirmAdminAction } from "./admin-confirm";
-import { colors } from "../../theme/colors";
+import { useSulyTheme } from "../../theme/ThemeProvider";
+import type { ThemePalette } from "../../theme/colors";
 import { GmailModelPickerCard } from "./GmailModelPickerCard";
 import { AgentModelPickerCard } from "./AgentModelPickerCard";
 import { RouteModelChainsCard } from "./RouteModelChainsCard";
@@ -55,9 +56,11 @@ function parseModelCapabilityState(value: unknown): ModelCapabilityState {
 }
 
 function PageHeader({ title }: { title: string }) {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   return <View style={styles.header}><Link href="/admin" asChild><TouchableOpacity activeOpacity={0.7}><Text style={styles.back}>‹ لوحة المشرف</Text></TouchableOpacity></Link><Text style={styles.pageTitle}>{title}</Text></View>;
 }
-function ErrorText({ children }: { children: string | null }) { return children ? <Text accessibilityRole="alert" style={styles.error}>{children}</Text> : null; }
+function ErrorText({ children }: { children: string | null }) { const { colors } = useSulyTheme(); const styles = useMemo(() => createStyles(colors), [colors]); return children ? <Text accessibilityRole="alert" style={styles.error}>{children}</Text> : null; }
 function probeErrorLabel(code: string | null) {
   if (!code) return "تعذر الحصول على رد صالح.";
   if (code === "provider_http_401" || code === "provider_http_403" || code === "credential_unavailable") return "تحقق من المفتاح أو صلاحياته.";
@@ -69,11 +72,15 @@ function probeErrorLabel(code: string | null) {
   return `فشل الاتصال (${code}).`;
 }
 function PrimaryButton({ label, onPress, disabled = false }: { label: string; onPress(): void; disabled?: boolean }) {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   return <TouchableOpacity activeOpacity={0.7} accessibilityRole="button" disabled={disabled} onPress={onPress} style={[styles.button, disabled && styles.disabled]}><Text style={styles.buttonText}>{label}</Text></TouchableOpacity>;
 }
-function Card({ children }: { children: React.ReactNode }) { return <View style={styles.card}>{children}</View>; }
+function Card({ children }: { children: React.ReactNode }) { const { colors } = useSulyTheme(); const styles = useMemo(() => createStyles(colors), [colors]); return <View style={styles.card}>{children}</View>; }
 
 export function ProvidersAdminScreen() {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [providers, setProviders] = useState<ProviderRow[]>([]);
   const [providerModels, setProviderModels] = useState<ModelRow[]>([]);
   const [selectedType, setSelectedType] = useState("");
@@ -301,6 +308,8 @@ export function ProvidersAdminScreen() {
 }
 
 export function ModelsAdminScreen() {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { q } = useLocalSearchParams<{ q?: string }>();
   const [models, setModels] = useState<ModelRow[]>([]);
   const [search, setSearch] = useState(typeof q === "string" ? q : "");
@@ -632,6 +641,8 @@ export function ModelsAdminScreen() {
 }
 
 export function UsersAdminScreen() {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -678,6 +689,8 @@ export function UsersAdminScreen() {
 }
 
 export function CreditManagementAdminScreen() {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [pricing, setPricing] = useState<Record<string, unknown> | null>(null);
   const [transactions, setTransactions] = useState<TransactionRow[]>([]);
   const [enabled, setEnabled] = useState(false);
@@ -702,6 +715,8 @@ export function CreditManagementAdminScreen() {
 }
 
 export function PricingAdminScreen() {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [plans, setPlans] = useState<PricingPlan[]>([]);
   const [features, setFeatures] = useState<PricingFeature[]>([]);
   const [drafts, setDrafts] = useState<Record<string, { price: string; max_requests: string; daily_credits: string }>>({});
@@ -786,10 +801,14 @@ export function PricingAdminScreen() {
 }
 
 export function CircuitBreakerAdminScreen() {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}><PageHeader title="قاطع الدائرة" /><Card><Text style={styles.sectionTitle}>غير مكتمل في تطبيق Flutter الحالي</Text><Text style={styles.detail}>المكوّن الحالي في Flutter يعرض ثلاثة تنبيهات ثابتة مع أزرار بلا تنفيذ. لذلك لم تُنقل بيانات تجريبية ولم تُعرض إجراءات إعادة تفعيل أو حذف غير مدعومة هنا.</Text><Text style={styles.detail}>لرؤية صحة النماذج الفعلية واستخدام إجراء إعادة الضبط المدعوم، افتح شاشة «النماذج والتوجيه».</Text><Link href="/admin/models" asChild><Pressable><Text style={styles.link}>الانتقال إلى النماذج والتوجيه</Text></Pressable></Link></Card></ScrollView>;
 }
 
 export function AgentsAdminScreen() {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [agents, setAgents] = useState<AgentConfig[]>([]);
   const [models, setModels] = useState<ModelRow[]>([]);
   const [name, setName] = useState("");
@@ -832,13 +851,17 @@ export function AgentsAdminScreen() {
 }
 
 function NumberField({ label, value, onChange }: { label: string; value: string; onChange(value: string): void }) {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   return <View style={styles.field}><Text style={styles.label}>{label}</Text><TextInput style={styles.input} value={value} onChangeText={onChange} keyboardType="numeric" /></View>;
 }
 function Toggle({ label, value, onChange }: { label: string; value: boolean; onChange(value: boolean): void }) {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   return <View style={styles.toggle}><Text style={styles.label}>{label}</Text><Switch value={value} onValueChange={onChange} trackColor={{ true: colors.primary }} /></View>;
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemePalette) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { width: "100%", maxWidth: 1000, alignSelf: "center", padding: 20, gap: 12 },
   modelListHeader: { width: "100%", gap: 12 },

@@ -3,7 +3,8 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View }
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { adminService } from "./admin-service";
 import { supabase } from "../../lib/supabase/client";
-import { colors } from "../../theme/colors";
+import { useSulyTheme } from "../../theme/ThemeProvider";
+import type { ThemePalette } from "../../theme/colors";
 
 type Model = { id: string; name: string; provider: string; icon_url: string | null; cost_level: "cheap" | "medium" | "expensive"; is_active: boolean; legacy_ai_model_id: number | null };
 type Capability = { id: string; key: string; label: string };
@@ -16,6 +17,8 @@ const CAPABILITY_LABELS: Record<string, string> = { text: "نص", coding: "بر�
 const TIERS = ["router", "worker", "planner", "merger"] as const;
 
 export function BrainSystemAdminScreen() {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [models, setModels] = useState<Model[]>([]);
   const [operationalModels, setOperationalModels] = useState<OperationalModel[]>([]);
   const [capabilities, setCapabilities] = useState<Capability[]>([]);
@@ -184,6 +187,6 @@ export function BrainSystemAdminScreen() {
   </ScrollView>;
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemePalette) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background }, content: { padding: 14, gap: 12, maxWidth: 1100, width: "100%", alignSelf: "center" }, center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10, backgroundColor: colors.background }, header: { flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }, eyebrow: { color: colors.primary, fontSize: 9, fontWeight: "900" }, title: { color: colors.textPrimary, fontSize: 22, fontWeight: "900", textAlign: "right" }, muted: { color: colors.textMuted, fontSize: 10, textAlign: "right" }, panel: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 12, padding: 12, gap: 10 }, sectionTitle: { color: colors.textPrimary, fontWeight: "900", fontSize: 15, textAlign: "right" }, capabilityRow: { flexDirection: "row-reverse", gap: 8 }, capability: { minWidth: 62, alignItems: "center", gap: 4, borderWidth: 1, borderColor: colors.divider, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 7 }, activeCapability: { borderColor: colors.primary, backgroundColor: colors.surfaceElevated }, capabilityIcon: { color: colors.primary, fontSize: 18 }, capabilityText: { color: colors.textSecondary, fontSize: 9 }, input: { minHeight: 38, borderWidth: 1, borderColor: colors.divider, borderRadius: 8, color: colors.textPrimary, paddingHorizontal: 10, textAlign: "right", fontSize: 11 }, label: { color: colors.textSecondary, fontSize: 10, textAlign: "right" }, row: { flexDirection: "row-reverse", alignItems: "center", gap: 7, flexWrap: "wrap" }, wrap: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 7 }, chip: { borderWidth: 1, borderColor: colors.divider, borderRadius: 16, paddingVertical: 7, paddingHorizontal: 11 }, activeChip: { borderColor: colors.primary, backgroundColor: colors.surfaceElevated }, chipText: { color: colors.textSecondary, fontSize: 10 }, primary: { backgroundColor: colors.primary, borderRadius: 8, paddingVertical: 9, paddingHorizontal: 13 }, primaryText: { color: "#071018", fontWeight: "900", fontSize: 10 }, outline: { borderWidth: 1, borderColor: colors.divider, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 11 }, outlineText: { color: colors.textPrimary, fontSize: 10, fontWeight: "800" }, card: { borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 10, gap: 5 }, operationalRow: { flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center", gap: 10, borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 8 }, operationalInfo: { flex: 1, gap: 3 }, rowBetween: { flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center", gap: 10 }, cardTitle: { color: colors.textPrimary, fontWeight: "800", fontSize: 12, textAlign: "right" }, link: { color: colors.primary, fontSize: 10, fontWeight: "800" }, tierBlock: { gap: 8, borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 8 }, tierTitle: { color: colors.primary, fontSize: 12, fontWeight: "900", textAlign: "right" }, smallInput: { minWidth: 80, minHeight: 32, borderWidth: 1, borderColor: colors.divider, borderRadius: 7, paddingHorizontal: 7, color: colors.textPrimary, textAlign: "center", fontSize: 10 }, tokenInput: { minWidth: 95, minHeight: 32, borderWidth: 1, borderColor: colors.divider, borderRadius: 7, paddingHorizontal: 7, color: colors.textPrimary, textAlign: "center", fontSize: 10 }, error: { color: colors.error, fontSize: 10, textAlign: "right" }, disabled: { opacity: 0.5 },
 });

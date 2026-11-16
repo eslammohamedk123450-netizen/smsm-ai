@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
-import { colors } from "../../theme/colors";
+import { useSulyTheme } from "../../theme/ThemeProvider";
+import type { ThemePalette } from "../../theme/colors";
 import { adminService } from "./admin-service";
 
 type ModelChoice = {
@@ -47,6 +48,8 @@ function typeLabel(model: ModelChoice): string {
 }
 
 export function RouteModelChainsCard({ models }: { models: ModelChoice[] }) {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [role, setRole] = useState<Role>("chat");
   const [chains, setChains] = useState<Record<Role, number[]>>({ chat: [], planner: [], worker: [], reviewer: [], summarizer: [] });
   const [loading, setLoading] = useState(true);
@@ -110,7 +113,7 @@ export function RouteModelChainsCard({ models }: { models: ModelChoice[] }) {
   </View>;
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemePalette) => StyleSheet.create({
   card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 12, padding: 12, gap: 10 },
   heading: { flexDirection: "row-reverse", alignItems: "flex-start", gap: 9 }, headingCopy: { flex: 1, gap: 3, alignItems: "flex-end" }, title: { color: colors.textPrimary, fontWeight: "900", fontSize: 14, textAlign: "right" }, help: { color: colors.textMuted, fontSize: 10, lineHeight: 15, textAlign: "right" }, badge: { color: colors.primary, borderWidth: 1, borderColor: colors.primary, borderRadius: 14, paddingHorizontal: 9, paddingVertical: 5, fontSize: 9, fontWeight: "800" },
   roleRow: { flexDirection: "row-reverse", gap: 7 }, roleChip: { minWidth: 92, borderWidth: 1, borderColor: colors.divider, borderRadius: 9, paddingHorizontal: 9, paddingVertical: 7, alignItems: "flex-end", gap: 2 }, roleChipActive: { borderColor: colors.primary, backgroundColor: colors.surfaceElevated }, roleLabel: { color: colors.textSecondary, fontSize: 10, fontWeight: "800" }, roleLabelActive: { color: colors.primary }, roleHint: { color: colors.textMuted, fontSize: 8 },

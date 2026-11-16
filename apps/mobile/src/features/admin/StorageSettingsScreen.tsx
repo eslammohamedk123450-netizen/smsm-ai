@@ -1,9 +1,13 @@
+import { useMemo } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { Link } from "expo-router";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
-import { colors } from "../../theme/colors";
+import { useSulyTheme } from "../../theme/ThemeProvider";
+import type { ThemePalette } from "../../theme/colors";
 
 export function StorageSettingsScreen() {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     <View style={styles.header}>
       <Link href="/admin" asChild><Text style={styles.back}>‹ لوحة المشرف</Text></Link>
@@ -16,7 +20,7 @@ export function StorageSettingsScreen() {
   </ScrollView>;
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemePalette) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: 16, gap: 14, maxWidth: 780, width: "100%", alignSelf: "center" },
   header: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", gap: 10 },

@@ -2,8 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Switch, TextInput, View } from "react-native";
 import { Link } from "expo-router";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
+import { useSulyTheme } from "../../theme/ThemeProvider";
 import { supabase } from "../../lib/supabase/client";
-import { colors } from "../../theme/colors";
 import { adminService } from "./admin-service";
 
 type Provider = { id: number; name: string; provider_type: string; enabled: boolean };
@@ -27,6 +27,7 @@ const emptyPrices = (): Price[] => QUALITY_OPTIONS.map((item) => ({
 }));
 
 export function MediaGenerationModelsAdminScreen() {
+  const { colors } = useSulyTheme();
   const [providers, setProviders] = useState<Provider[]>([]);
   const [models, setModels] = useState<MediaModel[]>([]);
   const [prices, setPrices] = useState<Price[]>(emptyPrices());
