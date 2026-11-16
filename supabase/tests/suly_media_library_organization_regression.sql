@@ -38,6 +38,8 @@ begin
   if v_count<>1 then raise exception 'library owner cannot read own favorite'; end if;
 end $$;
 
+select set_config('app.library_test_asset_id', (select asset_id::text from public.suly_media_asset_folders where folder_id='00000000-0000-4000-8000-000000000001' limit 1), true);
+
 select set_config(
   'request.jwt.claim.sub',
   (select id::text from auth.users
@@ -60,8 +62,7 @@ begin
   if v_count<>0 then raise exception 'non-owner can read another user favorites'; end if;
   begin
     insert into public.suly_media_favorites(user_id,asset_id)
-    select auth.uid(), asset_id from public.suly_media_asset_folders
-    where folder_id='00000000-0000-4000-8000-000000000001';
+    values (auth.uid(), current_setting('app.library_test_asset_id')::uuid);
   exception when foreign_key_violation then
     v_rejected := true;
   end;
