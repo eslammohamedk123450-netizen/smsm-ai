@@ -463,7 +463,7 @@ Acceptance:
 - Unverified models are not routable.
 - Admin operations are atomic and audited.
 
-**Current status:** [~] Exact source-ID reconciliation is now complete for the 65 unique model/service identifiers extracted from the complete supplied file; all 65 are represented across the existing text-model registry and media price catalog. The chat selector now fails closed when the active-profile catalog cannot be loaded, disabling local fallback profiles rather than representing them as verified (commit `75952f6a7be3a5fccb4dcc75cee22d4b3eca51a4`). Remaining work is provider-account consolidation/owner confirmation, metadata completeness, and end-to-end admin workflow verification.
+**Current status:** [~] Exact source-ID reconciliation is complete for the 65 unique model/service identifiers extracted from the supplied file; all 65 are represented across the existing text-model registry and media price catalog. Historical chat-profile catalog fallback safeguards remain in the code history, but the current approved chat UX no longer exposes a model selector: the central Agent routes automatically. Remaining work is provider-account consolidation/owner confirmation, metadata completeness, and end-to-end admin workflow verification.
 
 Verified database audit (2026-11-16):
 - Source file was read in full (1,133 lines); case-insensitive extraction produced 65 unique identifiers across text, image, video, and transcription.
@@ -802,7 +802,7 @@ During Track B:
 | 4. Central chat and Agent | Normal chat, fast responses, complex planning, DAG dependencies, bounded workers, tool calls, automatic model routing, history, streaming/status, timeouts, retries, cancellation, recovery, and failure reporting. |
 | 5. Wallet, Credits, and accounting | Reservation, settlement, partial billing, cancellation, release/refund, duplicate requests, idempotency, concurrent requests, negative-balance prevention, ledger reconciliation, and no charge for work not performed. |
 | 6. Providers, models, and capability evidence | Credential secrecy, provider health, model identifiers, enabled/disabled governance, vendor/provider/SULY evidence distinctions, probe results, fallback behavior, freeze enforcement, and unsupported-capability rejection. |
-| 7. Routing, pricing, and plans | Primary/backup selection, task-role allowlists, Lite/Pro/Max/Auto behavior, price-version selection, units, margin calculations, missing FX/credit conversion blocks, plan entitlements, and server-authoritative decisions. |
+| 7. Routing, pricing, and plans | Primary/backup selection, central-Agent automatic routing across verified/entitled profiles, task-role allowlists, price-version selection, units, margin calculations, missing FX/credit conversion blocks, plan entitlements, and server-authoritative decisions. |
 | 8. Studio media workflows | Image, video, audio, and transcription flows; input validation; user confirmation; provider integration; progress/status; cancellation; usage settlement; failures; and Library persistence. Test only modalities actually implemented and configured. |
 | 9. Library and file security | Upload, list, preview, signed URL, download, rename, folder, favorite, search, delete/confirmation, retention behavior, path traversal protection, private storage, and cross-user isolation. |
 | 10. Account, subscriptions, and billing | Profile and preferences, server-derived subscription tier, plan visibility, payment/renewal lifecycle where configured, billing history, storage usage, notification settings, and reconciliation against authoritative ledgers. |
@@ -1316,11 +1316,10 @@ Updated `apps/mobile/src/features/home/HomeScreen.tsx`:
 
 
 
-### Phase 6 continuation — conversation mode selector placement — 2026-11-16
+### Historical Phase 6 UI note — prior model-selector placement (superseded by owner direction on 2026-11-16)
 
 - Re-inspected the current `release/v1` chat screen, chat service, execution-mode resolver, intent classifier, and unified-agent architecture before changing code.
-- Confirmed the Auto/Lite/Pro/Max profile selector was rendered immediately above the composer, inside the keyboard-adjacent area. This contradicted the approved requirement that model mode selection remain in the chat header/top area and not compete with the keyboard.
-- Moved the existing selector into a dedicated row directly below the conversation app bar. The profile choices are horizontally scrollable on narrow screens; existing localized labels, tier-lock checks, profile descriptions, and request payload semantics are unchanged.
+- Historical note only: at that point, the Auto/Lite/Pro/Max profile selector had been moved into the chat header. This UI decision is superseded. The current owner-approved experience removes the user-facing model selector entirely; the central Agent chooses the model automatically under server-side policy.
 - No model routes, subscription rules, credit logic, Agent orchestration, database schema, or provider settings were changed.
 - Implementation is in PR #119: https://github.com/eslammohamedk123450-netizen/smsm-ai/pull/119
 - PR #119 merged into `release/v1` as commit `c2ffc15f79ce5922d2e8b8a424b81f0a20b0d899`. GitHub Actions run `43853785434` passed mobile TypeScript, mobile auth regression, Expo Web static export, Android JS export, iOS JS export, and Deno Agent/scheduler regression + typecheck. Follow-up release workflows were queued; no visual/device test is claimed.
@@ -1724,16 +1723,16 @@ A test group passes only when all required cases pass or the owner explicitly ac
 - Verify task status, user-facing explanation, and ledger agree.
 - Verify queued cancellation is reported as cancelled-before-start, while a running cancellation is reported as a safe stop only after the worker confirms terminal cancellation; no premature success message.
 
-### Test Group 9 — Model catalog, selector, permissions, and routing
-- All four profiles (Lite/Pro/Max/Ultra) are displayed with accurate available/restricted labels.
-- Subscription plan and selected model remain distinct.
+### Test Group 9 — Model catalog, permissions, and automatic routing
+- The ordinary chat has no user-facing model-selection dropdown; the central Agent automatically routes requests using verified and entitled profiles.
+- The Admin Control Center exposes model catalog and governance controls only to authorized administrators.
 - Unauthorized model request is denied server-side even if client is modified.
 - Model version/capability/provider/cost metadata matches verified catalog.
 - Disabled/frozen/unverified providers receive no new calls.
 - Verify selected vs actual routed model is represented truthfully.
-- If the catalog RPC fails or returns malformed data, no local fallback profile is selectable or represented as server-verified; Auto remains safe and the unavailable state is explicit.
-- Switch between authenticated accounts while the catalog request is pending or failing; verify catalog verification resets and no prior-session profile state remains selectable.
-- Verify Ultra remains unavailable unless its server catalog, permission, provider, and routing metadata are all verified.
+- If model-catalog or routing metadata is unavailable or malformed, the central Agent fails closed or uses only an independently verified safe fallback; it must not invent a model identity or route.
+- Switch between authenticated accounts while catalog/routing requests are pending or failing; verify no prior-session model permissions or provenance leak into the next session.
+- Verify administrators cannot activate a model until its provider, capability, permission, and routing metadata are verified.
 
 ### Test Group 10 — Studio, media generation, and media security
 - Image/video/audio transcription workflows, validation, size/duration limits, quotas, and cost guardrails.
