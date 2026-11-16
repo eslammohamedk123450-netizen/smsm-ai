@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { supabase } from "../../lib/supabase/client";
+import { adminService } from "./admin-service";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
 
@@ -41,6 +42,7 @@ export function ModelCapabilityEvidenceAdminCard({ models }: { models: ModelOpti
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -67,6 +69,24 @@ export function ModelCapabilityEvidenceAdminCard({ models }: { models: ModelOpti
     return models.filter((m) => !q || `${m.name} ${m.model_identifier} ${m.provider_name ?? ""}`.toLocaleLowerCase().includes(q));
   }, [models, search]);
   const current = models.find((m) => m.id === modelId);
+  const runTextProbe = async () => {
+    if (!modelId || capability !== "text") return;
+    setTesting(true); setError(null); setNotice(null);
+    try {
+      const result = await adminService.testModel(modelId);
+      await load();
+      if (result.status === "success") {
+        setNotice(`نجح اختبار النص للمزود خلال ${Math.max(0, Math.floor(result.duration_ms))}ms، وتم تحديث سجل دليل المزود تلقائيًا.`);
+      } else {
+        setError(`فشل اختبار النص: ${result.error_code ?? "provider_probe_failed"}`);
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر تنفيذ اختبار النص.");
+    } finally {
+      setTesting(false);
+    }
+  };
+
   const save = async () => {
     if (!modelId) return;
     if (suly === "passed" && provider !== "passed") { setError("لا يمكن اعتماد تكامل SULY قبل نجاح اختبار المزود."); return; }
@@ -98,6 +118,10 @@ export function ModelCapabilityEvidenceAdminCard({ models }: { models: ModelOpti
     <Text style={styles.hint}>{filteredModels.length > 30 ? "اعرض أول 30 نتيجة؛ استخدم البحث لتضييق القائمة." : `${filteredModels.length} نموذج مطابق`}</Text>
     {current ? <Text style={styles.selectedName}>{current.name} · {current.provider_name ?? "مزود"} · #{current.id} · {current.model_identifier}</Text> : null}
     <View style={styles.wrap}>{CAPABILITIES.map(([key, label]) => <Pressable key={key} onPress={() => setCapability(key)} style={[styles.chip, capability === key && styles.selected]}><Text style={styles.chipText}>{label}</Text></Pressable>)}</View>
+    {capability === "text" ? <View style={styles.probeRow}>
+      <View style={styles.probeCopy}><Text style={styles.probeTitle}>اختبار النص الفعلي</Text><Text style={styles.hint}>يختبر اتصال المزود واستجابة النص فقط، ولا يثبت الرؤية أو الصوت أو الوسائط.</Text></View>
+      <Pressable disabled={testing || loading || !modelId} onPress={() => void runTextProbe()} style={[styles.probeButton, (testing || loading || !modelId) && styles.disabled]}><Text style={styles.probeButtonText}>{testing ? "جارٍ الاختبار…" : "اختبار النص الآن"}</Text></Pressable>
+    </View> : null}
     {loading ? <ActivityIndicator color={colors.primary} /> : null}
     <Text style={styles.label}>١. ما تقوله وثائق المزود</Text>
     <View style={styles.wrap}>{VENDOR.map(([value, label]) => <Pressable key={value} onPress={() => setVendor(value)} style={[styles.chip, vendor === value && styles.selected]}><Text style={styles.chipText}>{label}</Text></Pressable>)}</View>
@@ -125,5 +149,8 @@ const createStyles = (c: ThemePalette) => StyleSheet.create({
   selected: { borderColor: c.primary, backgroundColor: c.background }, chipText: { color: c.textPrimary, fontSize: 9 }, hint: { color: c.textMuted, fontSize: 8, textAlign: "right" },
   selectedName: { color: c.textPrimary, fontSize: 10, fontWeight: "800", textAlign: "right" }, label: { color: c.textSecondary, fontSize: 10, fontWeight: "800", textAlign: "right" },
   save: { backgroundColor: c.primary, borderRadius: 8, padding: 10, alignItems: "center" }, saveText: { color: c.onPrimary, fontSize: 10, fontWeight: "800" },
+  probeRow: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", gap: 8, borderWidth: 1, borderColor: c.divider, borderRadius: 8, padding: 9 },
+  probeCopy: { flex: 1, alignItems: "flex-end", gap: 3 }, probeTitle: { color: c.textPrimary, fontSize: 10, fontWeight: "800", textAlign: "right" },
+  probeButton: { backgroundColor: c.primary, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 }, probeButtonText: { color: c.onPrimary, fontSize: 9, fontWeight: "800" },
   disabled: { opacity: 0.5 }, error: { color: c.error, fontSize: 9, textAlign: "right" }, success: { color: c.success, fontSize: 9, textAlign: "right" },
 });
