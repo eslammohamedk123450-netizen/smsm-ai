@@ -1503,3 +1503,12 @@ The product owner requested a strict reduction in branch proliferation and merge
 - The existing CI run `43896682177` succeeded on `e9908464835e2fce8d78762a24ccd3700135ca9d`; it predates the changes in this checkpoint. The updated workflow now includes the new activation and theme tests. A fresh run must be inspected before marking these additions verified.
 - No database migration was applied, no production data/configuration changed, no provider/model route or price was edited, no credits were adjusted, no HIMS entitlement was granted/revoked, and no secret was changed.
 - **Stop line:** do not begin Phase 5 until the owner asks. Track B comprehensive tests remain after the 17 build phases, while these focused developer regressions are part of the build track.
+
+## Approved chat-first UX and credit-policy decisions — 2026-11-16
+
+- The product owner approved three specification decisions: subscription-plan allowance is **monthly**; purchased credits **never expire**; and the model selector displays **all four profiles (Lite, Pro, Max, Ultra)** with clear available/restricted states.
+- The detailed specification is maintained in `docs/SULY_CHAT_FIRST_UX_AND_CREDIT_POLICY.md`.
+- The intended home experience is simple, chat-first: users write naturally and the single central Agent decides whether the request is ordinary chat or requires planning/tools. Specialized media workflows remain in Studio, while the Agent may invoke them from chat when appropriate.
+- These are **approved product specifications, not verified current backend behavior**. No subscription, credit-ledger, expiry, pricing, model-routing, provider, HIMS, or production setting was changed by recording these decisions.
+- Before implementation, inspect the existing plan/grant schedule, ledger and expiry semantics, model catalog/entitlements/routing, and current UI. Preserve historical balances and enforce server-side access. The specification explicitly leaves top-up prices, reward quantities/expiry, deduction priority, extra daily limits, and exact model capabilities/prices undecided.
+
