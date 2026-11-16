@@ -6,6 +6,7 @@ on:
     paths:
       - "supabase/functions/ai-router/**"
       - "supabase/functions/composito-integration/**"
+      - "supabase/functions/model-health-check/**"
       - "supabase/functions/_shared/**"
       - ".github/workflows/deploy-supabase-ai-router.yml"
   workflow_dispatch:
@@ -39,4 +40,4 @@ jobs:
             exit 1
           fi
       - name: Deploy Agent Edge Functions
-        run: supabase functions deploy ai-router composito-integration --project-ref "$SUPABASE_PROJECT_REF"
+        run: supabase functions deploy ai-router composito-integration model-health-check --project-ref "$SUPABASE_PROJECT_REF"

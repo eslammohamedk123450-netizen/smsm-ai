@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { handleCorsPreflight, withCors } from "../_shared/cors.ts";
+import { buildTextCapabilityEvidencePatch, type ExistingTextCapabilityEvidence } from "./capability_evidence.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-suly-health-check-secret",
@@ -279,6 +280,48 @@ async function recordProbe(
   if (error) throw new Error("Could not persist health-check result.");
 }
 
+async function syncTextCapabilityEvidence(
+  serviceClient: SupabaseClient,
+  model: ModelRow,
+  provider: ProviderRow,
+  checkKey: string,
+  result: ProbeResult,
+  isRestricted: boolean,
+): Promise<void> {
+  const providerEndpoint = safeChatEndpoint(provider.base_url, provider.provider_type);
+  if (!providerEndpoint) return;
+
+  try {
+    const { data: existing, error: readError } = await serviceClient
+      .from("ai_model_capability_evidence")
+      .select("vendor_claim_status,vendor_evidence_url,suly_test_status,suly_evidence_url,suly_tested_at,notes,updated_by")
+      .eq("model_id", model.id)
+      .eq("capability_key", "text")
+      .maybeSingle();
+    if (readError) throw readError;
+
+    const patch = buildTextCapabilityEvidencePatch({
+      modelId: model.id,
+      providerEndpoint,
+      checkKey,
+      result,
+      isRestricted,
+      existing: existing as ExistingTextCapabilityEvidence | null,
+    });
+    if (!patch) return;
+
+    const { error: writeError } = await serviceClient
+      .from("ai_model_capability_evidence")
+      .upsert(patch, { onConflict: "model_id,capability_key" });
+    if (writeError) throw writeError;
+  } catch (error) {
+    console.warn(
+      "Could not synchronize text capability evidence from model probe:",
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+}
+
 async function runManualTest(serviceClient: SupabaseClient, modelId: number): Promise<Response> {
   const { data: modelData, error: modelError } = await serviceClient
     .from("ai_models")
@@ -316,14 +359,16 @@ async function runManualTest(serviceClient: SupabaseClient, modelId: number): Pr
     : { status: "error", duration_ms: 0, error_code: "credential_unavailable" } satisfies ProbeResult;
   // Recording the manual run as the current periodic slot makes a manual test
   // count as one of the day's scheduled checks instead of duplicating effort.
+  const checkKey = eligibility.skip ? `scheduled:${model.id}:manual:${crypto.randomUUID()}` : slotKeyFor(model.id, eligibility.intervalMinutes);
   await recordProbe(
     serviceClient,
     model,
     provider,
     "scheduled",
-    eligibility.skip ? `scheduled:${model.id}:manual:${crypto.randomUUID()}` : slotKeyFor(model.id, eligibility.intervalMinutes),
+    checkKey,
     result,
   );
+  await syncTextCapabilityEvidence(serviceClient, model, provider, checkKey, result, eligibility.skip || eligibility.isRestricted);
   return jsonResponse({ model_id: model.id, status: result.status, duration_ms: result.duration_ms, error_code: result.error_code });
 }
 
@@ -398,6 +443,7 @@ async function runScheduledChecks(serviceClient: SupabaseClient): Promise<Respon
       ? { status: "error", duration_ms: 0, error_code: "credential_unavailable" }
       : await probeModel(model, provider, apiKey);
     await recordProbe(serviceClient, model, provider, "scheduled", checkKey, result);
+    await syncTextCapabilityEvidence(serviceClient, model, provider, checkKey, result, eligibility.isRestricted);
     return result.status;
   });
 

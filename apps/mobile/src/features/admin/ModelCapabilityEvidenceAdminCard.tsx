@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { supabase } from "../../lib/supabase/client";
+import { adminService } from "./admin-service";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
 
@@ -41,32 +42,58 @@ export function ModelCapabilityEvidenceAdminCard({ models }: { models: ModelOpti
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const load = async () => {
+  const load = useCallback(async (selectedModelId: number | null = modelId) => {
+    if (!selectedModelId) { setRows([]); setLoading(false); return; }
     setLoading(true); setError(null);
     try {
-      const { data, error: rpcError } = await supabase.rpc("suly_admin_list_model_capability_evidence", { p_model_id: null });
+      const { data, error: rpcError } = await supabase.rpc("suly_admin_list_model_capability_evidence", { p_model_id: selectedModelId });
       if (rpcError) throw rpcError;
       setRows((data ?? []) as EvidenceRow[]);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر تحميل أدلة القدرات."); }
     finally { setLoading(false); }
-  };
-  useEffect(() => { void load(); }, []);
+  }, [modelId]);
+  useEffect(() => {
+    if (models.length > 0 && (!modelId || !models.some((model) => model.id === modelId))) {
+      setModelId(models[0].id);
+    }
+  }, [models, modelId]);
+  useEffect(() => { void load(modelId); }, [load, modelId]);
   useEffect(() => {
     const row = rows.find((item) => item.model_id === modelId && item.capability_key === capability);
     setVendor(row?.vendor_claim_status ?? "unknown"); setVendorUrl(row?.vendor_evidence_url ?? "");
     setProvider(row?.provider_test_status ?? "not_tested"); setProviderUrl(row?.provider_evidence_url ?? "");
     setSuly(row?.suly_test_status ?? "not_tested"); setSulyUrl(row?.suly_evidence_url ?? "");
-    setNotes(row?.notes ?? ""); setError(null); setNotice(null);
+    setNotes(row?.notes ?? ""); setError(null);
   }, [rows, modelId, capability]);
+  useEffect(() => { setNotice(null); }, [modelId, capability]);
 
   const filteredModels = useMemo(() => {
     const q = search.trim().toLocaleLowerCase();
     return models.filter((m) => !q || `${m.name} ${m.model_identifier} ${m.provider_name ?? ""}`.toLocaleLowerCase().includes(q));
   }, [models, search]);
   const current = models.find((m) => m.id === modelId);
+  const runTextProbe = async () => {
+    if (!modelId || capability !== "text") return;
+    setTesting(true); setError(null); setNotice(null);
+    try {
+      const result = await adminService.testModel(modelId);
+      await load(modelId);
+      if (result.status === "success") {
+        setNotice(`نجح اختبار النص للمزود خلال ${Math.max(0, Math.floor(result.duration_ms))}ms، وتم تحديث سجل دليل المزود تلقائيًا.`);
+      } else {
+        setError(`فشل اختبار النص: ${result.error_code ?? "provider_probe_failed"}`);
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر تنفيذ اختبار النص.");
+    } finally {
+      setTesting(false);
+    }
+  };
+
   const save = async () => {
     if (!modelId) return;
     if (suly === "passed" && provider !== "passed") { setError("لا يمكن اعتماد تكامل SULY قبل نجاح اختبار المزود."); return; }
@@ -92,12 +119,16 @@ export function ModelCapabilityEvidenceAdminCard({ models }: { models: ModelOpti
   };
 
   return <View style={styles.card}>
-    <View style={styles.header}><View style={styles.copy}><Text style={styles.title}>توثيق قدرات النماذج</Text><Text style={styles.sub}>3 مستويات منفصلة: توثيق المزود، اختبار المزود، واختبار تكامل SULY. الحالة المجهولة لا تعني أن القدرة مدعومة.</Text></View><Pressable onPress={() => void load()}><Text style={styles.action}>تحديث</Text></Pressable></View>
+    <View style={styles.header}><View style={styles.copy}><Text style={styles.title}>توثيق قدرات النماذج</Text><Text style={styles.sub}>3 مستويات منفصلة: توثيق المزود، اختبار المزود، واختبار تكامل SULY. الحالة المجهولة لا تعني أن القدرة مدعومة.</Text></View><Pressable onPress={() => void load(modelId)}><Text style={styles.action}>تحديث</Text></Pressable></View>
     <TextInput value={search} onChangeText={setSearch} placeholder="ابحث عن نموذج بالاسم أو المعرّف" placeholderTextColor={colors.textMuted} style={styles.input} />
     <View style={styles.wrap}>{filteredModels.slice(0, 30).map((m) => <Pressable key={m.id} onPress={() => setModelId(m.id)} style={[styles.chip, modelId === m.id && styles.selected]}><Text style={styles.chipText}>{m.name} · {m.provider_name ?? "مزود"} · #{m.id}</Text></Pressable>)}</View>
     <Text style={styles.hint}>{filteredModels.length > 30 ? "اعرض أول 30 نتيجة؛ استخدم البحث لتضييق القائمة." : `${filteredModels.length} نموذج مطابق`}</Text>
     {current ? <Text style={styles.selectedName}>{current.name} · {current.provider_name ?? "مزود"} · #{current.id} · {current.model_identifier}</Text> : null}
     <View style={styles.wrap}>{CAPABILITIES.map(([key, label]) => <Pressable key={key} onPress={() => setCapability(key)} style={[styles.chip, capability === key && styles.selected]}><Text style={styles.chipText}>{label}</Text></Pressable>)}</View>
+    {capability === "text" ? <View style={styles.probeRow}>
+      <View style={styles.probeCopy}><Text style={styles.probeTitle}>اختبار النص الفعلي</Text><Text style={styles.hint}>يختبر النص فقط؛ النجاح يسجل اختبار المزود. الفشل العابر لا يمسح آخر حالة إلا بعد تقييد النموذج، ولا يثبت الرؤية أو الصوت أو الوسائط.</Text></View>
+      <Pressable disabled={testing || loading || !modelId} onPress={() => void runTextProbe()} style={[styles.probeButton, (testing || loading || !modelId) && styles.disabled]}><Text style={styles.probeButtonText}>{testing ? "جارٍ الاختبار…" : "اختبار النص الآن"}</Text></Pressable>
+    </View> : null}
     {loading ? <ActivityIndicator color={colors.primary} /> : null}
     <Text style={styles.label}>١. ما تقوله وثائق المزود</Text>
     <View style={styles.wrap}>{VENDOR.map(([value, label]) => <Pressable key={value} onPress={() => setVendor(value)} style={[styles.chip, vendor === value && styles.selected]}><Text style={styles.chipText}>{label}</Text></Pressable>)}</View>
@@ -125,5 +156,8 @@ const createStyles = (c: ThemePalette) => StyleSheet.create({
   selected: { borderColor: c.primary, backgroundColor: c.background }, chipText: { color: c.textPrimary, fontSize: 9 }, hint: { color: c.textMuted, fontSize: 8, textAlign: "right" },
   selectedName: { color: c.textPrimary, fontSize: 10, fontWeight: "800", textAlign: "right" }, label: { color: c.textSecondary, fontSize: 10, fontWeight: "800", textAlign: "right" },
   save: { backgroundColor: c.primary, borderRadius: 8, padding: 10, alignItems: "center" }, saveText: { color: c.onPrimary, fontSize: 10, fontWeight: "800" },
+  probeRow: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", gap: 8, borderWidth: 1, borderColor: c.divider, borderRadius: 8, padding: 9 },
+  probeCopy: { flex: 1, alignItems: "flex-end", gap: 3 }, probeTitle: { color: c.textPrimary, fontSize: 10, fontWeight: "800", textAlign: "right" },
+  probeButton: { backgroundColor: c.primary, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 }, probeButtonText: { color: c.onPrimary, fontSize: 9, fontWeight: "800" },
   disabled: { opacity: 0.5 }, error: { color: c.error, fontSize: 9, textAlign: "right" }, success: { color: c.success, fontSize: 9, textAlign: "right" },
 });
