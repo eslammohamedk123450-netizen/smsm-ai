@@ -279,7 +279,7 @@ Acceptance:
 - No generation can bypass server-side credit checks.
 - Failures release unused holds; partial work is charged only according to measured/verified usage.
 
-**Current status:** [~] Studio UI foundation and moving image creation out of chat have been merged. A fresh read-only production DB inspection on 2026-11-16 found 4 media-generation model rows, 0 active; 0 rows in `suly_media_generation_prices`; 22 current rows in `suly_media_model_price_versions`; and 0 generation jobs. Therefore image generation remains unavailable because the runtime price table is empty and models are inactive, despite the separate 22-row price catalog. Do not enable models or populate runtime prices until a verified, audited mapping from catalog version/unit/EGP cost to provider USD cost, FX rate, and credit conversion is established. Video UI remains an explicit not-ready placeholder; audio and transcription have no end-to-end generation paths verified.
+**Current status:** [~] Studio UI foundation and moving image creation out of chat have been merged. A fresh read-only production DB inspection on 2026-11-16 found 4 media-generation model rows, 0 active; 0 rows in `suly_media_generation_prices`; 22 current rows in `suly_media_model_price_versions`; and 0 generation jobs. Therefore image generation remains unavailable because the runtime price table is empty and models are inactive, despite the separate 22-row price catalog. Do not enable models or populate runtime prices until a verified, audited mapping from catalog version/unit/EGP cost to provider USD cost, FX rate, and credit conversion is established. Video UI remains an explicit not-ready placeholder; audio and transcription have no end-to-end generation paths verified. The Image Studio UI now also blocks submission when the verified price is missing or zero (commit `3e90f3d7d4dd43491f27d894e8eaaa842f74c2b0`); this is a client guard only and does not activate a model or replace server-side billing enforcement.
 
 Known evidence:
 - PR #104 — move media creation from chat into Studio.
@@ -306,7 +306,7 @@ Acceptance:
 - Upload/download/preview/delete/favorites/folders/search pass tests.
 - All media/task outputs are traceable to their originating job and usage record where applicable.
 
-**Current status:** [~] Core organization features are implemented and merged; full visual/device and authenticated user-journey verification remains.
+**Current status:** [~] Core organization features are implemented and merged; full visual/device and authenticated user-journey verification remains. The Library now has a dedicated audio MIME filter and audio-specific labels without changing the persisted `image`/`video`/`raw` kind contract (commit `7f18b1aa27a57eb269f42b90118c08a907edd96`).
 
 Verified implementation evidence (2026-11-16):
 - PR #124 merged into `release/v1` as commit `c077526ae8033d3a04db0fc336e1d81b4f922065`.
@@ -386,7 +386,7 @@ Acceptance:
 - Unverified models are not routable.
 - Admin operations are atomic and audited.
 
-**Current status:** [~] Exact source-ID reconciliation is now complete for the 65 unique model/service identifiers extracted from the complete supplied file; all 65 are represented across the existing text-model registry and media price catalog. Remaining work is provider-account consolidation/owner confirmation, metadata completeness, and end-to-end admin workflow verification.
+**Current status:** [~] Exact source-ID reconciliation is now complete for the 65 unique model/service identifiers extracted from the complete supplied file; all 65 are represented across the existing text-model registry and media price catalog. The chat selector now fails closed when the active-profile catalog cannot be loaded, disabling local fallback profiles rather than representing them as verified (commit `75952f6a7be3a5fccb4dcc75cee22d4b3eca51a4`). Remaining work is provider-account consolidation/owner confirmation, metadata completeness, and end-to-end admin workflow verification.
 
 Verified database audit (2026-11-16):
 - Source file was read in full (1,133 lines); case-insensitive extraction produced 65 unique identifiers across text, image, video, and transcription.
