@@ -30,7 +30,7 @@ on:
       - "supabase/config.toml"
       - ".github/workflows/verify-agent-queue.yml"
   push:
-    branches: [release/v1, 'feat/**']
+    branches: [release/v1, develop, 'feat/**']
     paths:
       - "apps/mobile/**"
       - "supabase/functions/ai-router/**"
@@ -85,7 +85,7 @@ jobs:
       - name: Typecheck mobile application
         run: npm run typecheck
       - name: Run mobile authentication regression tests
-        run: npm test -- --runInBand src/features/auth/auth-service.test.ts src/features/auth/auth-callback.test.ts src/features/auth/auth-redirect.test.ts src/features/chat/chat-service.test.ts src/features/chat/image-generation.test.ts
+        run: npm test -- --runInBand src/features/auth/auth-service.test.ts src/features/auth/auth-callback.test.ts src/features/auth/auth-redirect.test.ts src/features/chat/chat-service.test.ts src/features/chat/image-generation.test.ts src/features/projects/project-service.test.ts
       - name: Export static Expo web app
         env:
           EXPO_PUBLIC_WEB_BASE_URL: /smsm-ai
