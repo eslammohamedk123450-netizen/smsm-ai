@@ -92,7 +92,7 @@ These are intentionally bounded product capabilities or Track B acceptance items
 
 ## HIMS activation-code lifecycle update
 
-- Added admin disable/reactivate controls to the HIMS code list and optional code-expiry entry (validated as a real future calendar date before calling the existing RPC).
+- Added admin disable/reactivate controls to the HIMS code list and optional code-expiry entry (validated as a real future calendar date before calling the existing RPC). The date parser is isolated in a shared helper with unit coverage for blank, valid, malformed, impossible, and expired dates.
 - Status changes call the existing `suly_admin_set_activation_code_active` RPC, which verifies `auth.uid()` and `suly_is_admin()`, updates only `is_active`, and writes an `admin_audit_logs` event.
 - The client prevents reactivation when the code has expired or reached its use limit. Code plaintext is never reloaded or displayed; only the fingerprint and usage metadata are shown.
 - Added unit coverage for the admin guard and RPC arguments. No new database migration was required for this feature.
