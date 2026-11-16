@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { supabase } from "../../lib/supabase/client";
@@ -46,16 +46,22 @@ export function ModelCapabilityEvidenceAdminCard({ models }: { models: ModelOpti
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const load = async () => {
+  const load = useCallback(async (selectedModelId: number | null = modelId) => {
+    if (!selectedModelId) { setRows([]); setLoading(false); return; }
     setLoading(true); setError(null);
     try {
-      const { data, error: rpcError } = await supabase.rpc("suly_admin_list_model_capability_evidence", { p_model_id: null });
+      const { data, error: rpcError } = await supabase.rpc("suly_admin_list_model_capability_evidence", { p_model_id: selectedModelId });
       if (rpcError) throw rpcError;
       setRows((data ?? []) as EvidenceRow[]);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر تحميل أدلة القدرات."); }
     finally { setLoading(false); }
-  };
-  useEffect(() => { void load(); }, []);
+  }, [modelId]);
+  useEffect(() => {
+    if (models.length > 0 && (!modelId || !models.some((model) => model.id === modelId))) {
+      setModelId(models[0].id);
+    }
+  }, [models, modelId]);
+  useEffect(() => { void load(modelId); }, [load, modelId]);
   useEffect(() => {
     const row = rows.find((item) => item.model_id === modelId && item.capability_key === capability);
     setVendor(row?.vendor_claim_status ?? "unknown"); setVendorUrl(row?.vendor_evidence_url ?? "");
@@ -75,7 +81,7 @@ export function ModelCapabilityEvidenceAdminCard({ models }: { models: ModelOpti
     setTesting(true); setError(null); setNotice(null);
     try {
       const result = await adminService.testModel(modelId);
-      await load();
+      await load(modelId);
       if (result.status === "success") {
         setNotice(`نجح اختبار النص للمزود خلال ${Math.max(0, Math.floor(result.duration_ms))}ms، وتم تحديث سجل دليل المزود تلقائيًا.`);
       } else {
@@ -113,7 +119,7 @@ export function ModelCapabilityEvidenceAdminCard({ models }: { models: ModelOpti
   };
 
   return <View style={styles.card}>
-    <View style={styles.header}><View style={styles.copy}><Text style={styles.title}>توثيق قدرات النماذج</Text><Text style={styles.sub}>3 مستويات منفصلة: توثيق المزود، اختبار المزود، واختبار تكامل SULY. الحالة المجهولة لا تعني أن القدرة مدعومة.</Text></View><Pressable onPress={() => void load()}><Text style={styles.action}>تحديث</Text></Pressable></View>
+    <View style={styles.header}><View style={styles.copy}><Text style={styles.title}>توثيق قدرات النماذج</Text><Text style={styles.sub}>3 مستويات منفصلة: توثيق المزود، اختبار المزود، واختبار تكامل SULY. الحالة المجهولة لا تعني أن القدرة مدعومة.</Text></View><Pressable onPress={() => void load(modelId)}><Text style={styles.action}>تحديث</Text></Pressable></View>
     <TextInput value={search} onChangeText={setSearch} placeholder="ابحث عن نموذج بالاسم أو المعرّف" placeholderTextColor={colors.textMuted} style={styles.input} />
     <View style={styles.wrap}>{filteredModels.slice(0, 30).map((m) => <Pressable key={m.id} onPress={() => setModelId(m.id)} style={[styles.chip, modelId === m.id && styles.selected]}><Text style={styles.chipText}>{m.name} · {m.provider_name ?? "مزود"} · #{m.id}</Text></Pressable>)}</View>
     <Text style={styles.hint}>{filteredModels.length > 30 ? "اعرض أول 30 نتيجة؛ استخدم البحث لتضييق القائمة." : `${filteredModels.length} نموذج مطابق`}</Text>
