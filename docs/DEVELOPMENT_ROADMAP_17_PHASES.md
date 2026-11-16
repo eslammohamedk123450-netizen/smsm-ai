@@ -501,7 +501,7 @@ New verified implementation (2026-11-16):
 - Updated `MediaGenerationModelsAdminScreen` to save through `adminService.saveImageGenerationModel` instead of a sequence of direct client writes.
 - Rollback-only SQL regression passed: non-admin call denied; direct client writes denied; admin RPC creates model + all four price rows atomically; audit event present; activation with missing credit/FX rejected. Test rollback left zero fixture rows.
 - Live privilege check: authenticated INSERT/UPDATE on both runtime tables is false; guarded RPC execute is true.
-- Full Expo/Deno CI for this new branch is pending; do not merge until it passes.
+- PR #127 merged into `release/v1` as `ae2bebf26c4825ee8a5766e477e85f3929934787` after Expo TypeScript/auth/Web/Android/iOS exports, Deno typecheck/tests, Edge bundle verification, and media billing guardrails all passed.
 - Studio generation remains disabled; this admin hardening does not activate image/video/audio services or invent credit conversion.
 
 Remaining:
@@ -588,11 +588,13 @@ Acceptance:
 - Database and wallet ledgers reconcile.
 - Any accepted residual risk is documented with owner approval.
 
-**Current status:** [>] The original set of 57 authenticated-executable SECURITY DEFINER function bodies has now been reviewed individually. After the new least-privilege migration, 56 remain executable by authenticated clients; the separate anonymous share-token endpoint remains intentional. Current classification: 42 functions contain a direct admin guard, 12 are caller/session-scoped, 1 legacy provider toggle delegates to the guarded lifecycle RPC, and 1 public-share function is scoped by its exact share token. All 56 authenticated-executable functions have fixed search_path settings. Targeted fixes and rollback-only SQL regressions passed; Deno Agent/Edge Function tests and typecheck, Edge bundle verification, and media billing guardrails also passed in PR #117 CI. Real authenticated HTTP/UI flows, true multi-session activation concurrency, and the full Phase 16 matrix remain open.
+**Current status:** [>] The original set of 57 authenticated-executable SECURITY DEFINER function bodies has now been reviewed individually. After the new least-privilege migration, 56 of the original functions remain executable by authenticated clients; the separate anonymous share-token endpoint remains intentional. The new `suly_admin_save_image_generation_model` RPC adds one more authenticated-executable function, bringing the current total to 57. Current classification: 43 functions contain a direct admin guard, 12 are caller/session-scoped, 1 legacy provider toggle delegates to the guarded lifecycle RPC, and 1 public-share function is scoped by its exact share token. All 57 authenticated-executable functions have fixed search_path settings. Targeted fixes and rollback-only SQL regressions passed; Deno Agent/Edge Function tests and typecheck, Edge bundle verification, and media billing guardrails also passed in PR #117 CI. Real authenticated HTTP/UI flows, true multi-session activation concurrency, and the full Phase 16 matrix remain open.
 
 Known constraints:
 - Supabase Free plan may not provide every optional security feature. Record limitations and compensating controls; do not claim unavailable controls are enabled.
 - A previous advisor review surfaced warnings that require triage by actual function grants/body and RLS, not by warning label alone.
+- Latest Security Advisor review (2026-11-16): 10 RLS-enabled/no-policy tables were flagged at INFO level; direct privilege inspection confirmed none grants table privileges to `anon`, `authenticated`, or `PUBLIC`, so they are not client-readable/writable through those roles. Two extension-in-public warnings (`vector`, `pg_net`) remain for separate migration planning.
+- The intentional anonymous `suly_get_public_conversation(share_token)` endpoint remains scoped to the exact token and revocation regression. The new image-model admin RPC is executable by authenticated role only, explicitly checks `suly_is_admin()`, denies anon/PUBLIC execution, and passed a rollback-only non-admin denial + admin success/audit + no-credit-FX activation rejection test.
 
 ## Phase 17 — Expo Web, Android, iOS validation and release
 
