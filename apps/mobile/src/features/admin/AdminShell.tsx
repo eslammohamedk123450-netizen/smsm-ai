@@ -148,7 +148,7 @@ export function AdminShell() {
     </View> : null}
     <View style={styles.main}>
       <View style={styles.topbar}>
-        <Pressable accessibilityRole="button" accessibilityLabel="الانتقال إلى التطبيق" onPress={() => router.replace("/(protected)/chat")} style={styles.appLink}><Text style={styles.appLinkIcon}>⌂</Text><Text style={styles.appLinkText}>التطبيق</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="الانتقال إلى التطبيق" onPress={() => router.replace("/home")} style={styles.appLink}><Text style={styles.appLinkIcon}>⌂</Text><Text style={styles.appLinkText}>التطبيق</Text></Pressable>
         <View style={styles.searchBox}><Text style={styles.searchGlyph}>⌕</Text><TextInput value={query} onChangeText={setQuery} onSubmitEditing={submitSearch} returnKeyType="search" style={styles.searchInput} placeholder="بحث: مستخدم، نموذج، UUID…" placeholderTextColor={colors.textMuted} autoCapitalize="none" /><Pressable accessibilityRole="button" onPress={submitSearch}><Text style={styles.searchAction}>بحث</Text></Pressable></View>
         <View style={styles.topActions}>
           <View style={styles.healthPill}><View style={[styles.healthDot, systemOk === false && styles.healthDotBad, systemOk === null && styles.healthDotUnknown]} /><Text style={styles.healthText}>{systemOk === null ? "الحالة غير متاحة" : systemOk ? "النظام سليم" : "يحتاج مراجعة"}</Text></View>
