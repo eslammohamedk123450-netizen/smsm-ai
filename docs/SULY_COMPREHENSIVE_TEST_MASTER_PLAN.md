@@ -77,6 +77,8 @@ A test group passes only when all required cases pass or the owner explicitly ac
 - Follow-ups such as “send it” resolve only with valid recent resource context.
 - Test real lecture delivery only after owner provides/approves actual content source.
 
+- Provider onboarding privilege regression: confirm `suly_admin_add_provider` is not executable by `anon` or `authenticated`, remains executable by `service_role`, and that `sync-models` rejects a non-admin caller before invoking the RPC.
+
 ### Test Group 6 — Chat, streaming, history, and attachments
 - Normal text chat, SSE chunk order, completion, timeout, reconnect, retry, duplicate submission, and error handling.
 - Conversation creation, history, rename, pin/archive/delete semantics where supported.
