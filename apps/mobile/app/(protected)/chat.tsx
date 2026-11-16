@@ -27,6 +27,16 @@ import { integrationService, type ToolkitStatus } from "../../src/features/integ
 import { randomUUID } from "expo-crypto";
 import { useNavigationMenu, usePlusMenu } from "../../src/components/navigation/MainNavigation";
 
+type SulyModelProfileKey = "auto" | "lite" | "pro" | "max";
+type SulyModelProfileOption = {
+  profile_key: Exclude<SulyModelProfileKey, "auto">;
+  display_name: string;
+  tagline: string;
+  minimum_subscription_tier: string;
+  is_active: boolean;
+};
+const SUBSCRIPTION_TIER_RANK: Record<string, number> = { free: 0, lite: 1, pro: 2, max: 3 };
+
 const STREAMING_ID = "local-streaming-assistant";
 const TASK_SUGGESTIONS = getRotatingSuggestions(Date.now(), 4);
 const TASK_SUGGESTIONS_EN = [
@@ -132,6 +142,51 @@ export default function ChatPage() {
   const [ratingSaving, setRatingSaving] = useState(false);
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const selectedModelProfile = "auto" as const;
+  useEffect(() => {
+    let active = true;
+    if (!user?.id) {
+      setModelProfileOptions([]);
+      setModelProfileLoading(false);
+      setSelectedModelProfile("auto");
+      return () => { active = false; };
+    }
+    setModelProfileLoading(true);
+    void (async () => {
+      try {
+        const [{ data: tier, error: tierError }, { data: profiles, error: profilesError }] = await Promise.all([
+          supabase.rpc("suly_effective_subscription_tier", { p_user_id: user.id }),
+          supabase.from("suly_model_profiles")
+            .select("profile_key,display_name,tagline,minimum_subscription_tier,is_active")
+            .eq("is_active", true)
+            .order("sort_order", { ascending: true }),
+        ]);
+        if (tierError || profilesError || typeof tier !== "string") throw new Error("profile catalog unavailable");
+        const currentRank = SUBSCRIPTION_TIER_RANK[tier] ?? 0;
+        const eligible = ((profiles ?? []) as SulyModelProfileOption[]).filter((profile) => {
+          const minimumRank = SUBSCRIPTION_TIER_RANK[profile.minimum_subscription_tier];
+          return profile.is_active === true && Number.isFinite(minimumRank) && currentRank >= minimumRank;
+        });
+        if (!active) return;
+        setModelProfileOptions(eligible);
+        setSelectedModelProfile((current) => current !== "auto" && !eligible.some((item) => item.profile_key === current) ? "auto" : current);
+      } catch {
+        if (active) {
+          setModelProfileOptions([]);
+          setSelectedModelProfile("auto");
+        }
+      } finally {
+        if (active) setModelProfileLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, [user?.id]);
+
+  const selectedProfileLabel = selectedModelProfile === "auto"
+    ? (isArabic ? "SULY 2.0 Auto" : "SULY 2.0 Auto")
+    : modelProfileOptions.find((item) => item.profile_key === selectedModelProfile)?.display_name
+      ? `SULY 2.0 ${selectedModelProfile.toUpperCase()}`
+      : "SULY 2.0 Auto";
+
   const openNavigationDrawer = useNavigationMenu();
   const openPlusMenu = usePlusMenu();
   const suggestions = isArabic ? TASK_SUGGESTIONS : TASK_SUGGESTIONS_EN;
@@ -688,9 +743,16 @@ export default function ChatPage() {
           <Pressable onPress={openNavigationDrawer} style={styles.headerButton} accessibilityRole="button" accessibilityLabel={isArabic ? "فتح قائمة التنقل" : "Open navigation menu"}>
             <Ionicons name="menu-outline" size={22} color={colors.textPrimary} />
           </Pressable>
-          <View style={styles.brandCenter}>
-            <Text style={styles.brandTitle}>SULY</Text>
-          </View>
+          <Pressable
+            onPress={() => setModelProfileMenuVisible((visible) => !visible)}
+            style={styles.modelPickerTrigger}
+            accessibilityRole="button"
+            accessibilityLabel={isArabic ? "اختر نموذج SULY" : "Choose SULY model"}
+            accessibilityState={{ expanded: modelProfileMenuVisible }}
+          >
+            <Text numberOfLines={1} style={styles.brandTitle}>{selectedProfileLabel}</Text>
+            <Ionicons name={modelProfileMenuVisible ? "chevron-up" : "chevron-down"} size={16} color={colors.textSecondary} />
+          </Pressable>
           <View style={styles.headerActions}>
             <TouchableOpacity onPress={openPlusMenu} style={styles.headerButton} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={isArabic ? "إضافة ملف أو أداة" : "Add file or tool"}>
               <Ionicons name="add" size={23} color={colors.textPrimary} />
@@ -709,6 +771,47 @@ export default function ChatPage() {
             </TouchableOpacity>
           </View>
         </View>
+        {modelProfileMenuVisible ? (
+          <View style={styles.modelPickerMenu}>
+            <Text style={styles.modelPickerHeading}>{isArabic ? "اختر نموذج SULY" : "Choose a SULY model"}</Text>
+            <Pressable
+              onPress={() => { setSelectedModelProfile("auto"); setModelProfileMenuVisible(false); }}
+              style={[styles.modelPickerOption, selectedModelProfile === "auto" && styles.modelPickerOptionSelected]}
+              accessibilityRole="button"
+            >
+              <View style={styles.modelPickerCopy}>
+                <Text style={styles.modelPickerName}>SULY 2.0 Auto</Text>
+                <Text style={styles.modelPickerDescription}>{isArabic ? "يختار الوكيل المركزي المستوى المؤهل الأنسب للمهمة." : "The central Agent selects the best eligible profile for the task."}</Text>
+              </View>
+              {selectedModelProfile === "auto" ? <Ionicons name="checkmark-circle" size={19} color={colors.primary} /> : null}
+            </Pressable>
+            {modelProfileOptions.map((profile) => (
+              <Pressable
+                key={profile.profile_key}
+                onPress={() => { setSelectedModelProfile(profile.profile_key); setModelProfileMenuVisible(false); }}
+                style={[styles.modelPickerOption, selectedModelProfile === profile.profile_key && styles.modelPickerOptionSelected]}
+                accessibilityRole="button"
+              >
+                <View style={styles.modelPickerCopy}>
+                  <Text style={styles.modelPickerName}>SULY 2.0 {profile.profile_key.toUpperCase()}</Text>
+                  <Text style={styles.modelPickerDescription}>{profile.tagline || profile.display_name}</Text>
+                </View>
+                {selectedModelProfile === profile.profile_key ? <Ionicons name="checkmark-circle" size={19} color={colors.primary} /> : null}
+              </Pressable>
+            ))}
+            {!modelProfileOptions.some((profile) => profile.profile_key === "max") ? (
+              <View style={[styles.modelPickerOption, styles.modelPickerOptionDisabled]}>
+                <View style={styles.modelPickerCopy}>
+                  <Text style={styles.modelPickerName}>SULY 2.0 X</Text>
+                  <Text style={styles.modelPickerDescription}>{isArabic ? "غير متاح حتى اكتمال التحقق والاعتماد." : "Unavailable until verification and approval are complete."}</Text>
+                </View>
+                <Ionicons name="lock-closed-outline" size={17} color={colors.textMuted} />
+              </View>
+            ) : null}
+            {modelProfileLoading ? <Text style={styles.modelPickerHint}>{isArabic ? "جارٍ تحميل المستويات المسموح بها…" : "Loading eligible profiles…"}</Text> : null}
+            {!modelProfileLoading && modelProfileOptions.length === 0 ? <Text style={styles.modelPickerHint}>{isArabic ? "تعذر تحميل مستويات الحساب؛ الوضع التلقائي متاح." : "Could not load account profiles; Auto remains available."}</Text> : null}
+          </View>
+        ) : null}
         {error ? <Pressable onPress={() => setError(null)} style={styles.errorBox}><Text style={styles.errorText}>{error}  ×</Text></Pressable> : null}
         {retryFailure ? <View style={styles.retryWarning} accessibilityRole="alert"><Text style={styles.retryWarningText}>{isArabic ? "حُفظت رسالتك، لكن تعذّر إكمال الرد." : "Your message was saved, but the response could not be completed."}</Text><Pressable onPress={() => void retryResponse()} disabled={isSending} accessibilityRole="button" accessibilityLabel={isArabic ? "إعادة محاولة الرد" : "Retry response"} style={styles.retryButton}><Text style={styles.retryButtonText}>{isSending ? (isArabic ? "جارٍ إعادة المحاولة…" : "Retrying…") : (isArabic ? "إعادة المحاولة" : "Retry")}</Text></Pressable></View> : null}
         {isLoading ? <View style={styles.loading}><ActivityIndicator color={colors.primary} /><Text style={styles.loadingText}>{isArabic ? "جارٍ تحميل المحادثة…" : "Loading conversation…"}</Text></View> : messages.length === 0 ? (
@@ -807,6 +910,16 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   navigationMenu: { gap: 7, paddingBottom: 8 },
   navigationMenuItem: { minHeight: 48, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 11, paddingHorizontal: 12, borderRadius: 11, backgroundColor: colors.surfaceElevated },
   navigationMenuLabel: { flex: 1, color: colors.textPrimary, fontSize: 13, fontWeight: "700", textAlign: isArabic ? "right" : "left" },
+  modelPickerTrigger: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 42, paddingHorizontal: 6 },
+  modelPickerMenu: { marginHorizontal: 12, marginTop: 8, marginBottom: 4, padding: 10, borderRadius: 14, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface, gap: 6, maxWidth: 520, width: "100%", alignSelf: "center", zIndex: 10 },
+  modelPickerHeading: { color: colors.textPrimary, fontSize: 13, fontWeight: "800", textAlign: isArabic ? "right" : "left", paddingHorizontal: 8, paddingVertical: 4 },
+  modelPickerOption: { minHeight: 54, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "space-between", gap: 10, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10, backgroundColor: colors.surfaceElevated },
+  modelPickerOptionSelected: { borderWidth: 1, borderColor: colors.primary },
+  modelPickerOptionDisabled: { opacity: 0.55 },
+  modelPickerCopy: { flex: 1, gap: 3 },
+  modelPickerName: { color: colors.textPrimary, fontSize: 13, fontWeight: "800", textAlign: isArabic ? "right" : "left" },
+  modelPickerDescription: { color: colors.textSecondary, fontSize: 11, lineHeight: 16, textAlign: isArabic ? "right" : "left" },
+  modelPickerHint: { color: colors.textMuted, fontSize: 11, textAlign: isArabic ? "right" : "left", paddingHorizontal: 8, paddingVertical: 4 },
   brandCenter: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 8 },
   brandTitle: { color: colors.textPrimary, fontSize: 20, fontWeight: "700", letterSpacing: -0.5 },
   creditPill: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 5, backgroundColor: colors.surfaceElevated, borderColor: colors.divider, borderWidth: 1, borderRadius: 9999, paddingHorizontal: 10, paddingVertical: 5 },
