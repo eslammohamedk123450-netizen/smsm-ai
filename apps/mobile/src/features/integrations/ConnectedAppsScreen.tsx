@@ -141,10 +141,10 @@ export default function ConnectedAppsScreen() {
             <View style={styles.copy}>
               <Text style={styles.name}>{status.label}</Text>
               <Text style={styles.state}>{status.connected ? (isArabic ? "الحساب متصل ونشط" : "Account connected and active") : status.disabled ? (isArabic ? "الحساب مرتبط لكنه معطّل" : "Account connected but disabled") : status.accountExists ? (isArabic ? "الحساب مرتبط لكنه غير نشط" : "Account connected but inactive") : (isArabic ? "الحساب غير مرتبط" : "Account not connected")}</Text>
-              {status.updatedAt ? <Text style={styles.updated}>آخر تحديث: {new Date(status.updatedAt).toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text> : null}
+              {status.updatedAt ? <Text style={styles.updated}>{isArabic ? "آخر تحديث: " : "Updated: "}{new Date(status.updatedAt).toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text> : null}
             </View>
             {status.connected ? (
-              <TouchableOpacity activeOpacity={0.7} style={styles.disconnectButton} disabled={connecting !== null} onPress={() => disconnect(status)} accessibilityRole="button" accessibilityLabel={`قطع اتصال ${status.label}`}>
+              <TouchableOpacity activeOpacity={0.7} style={styles.disconnectButton} disabled={connecting !== null} onPress={() => disconnect(status)} accessibilityRole="button" accessibilityLabel={isArabic ? `قطع اتصال ${status.label}` : `Disconnect ${status.label}`}>
                 {connecting === status.toolkit ? <ActivityIndicator size="small" color={colors.error} /> : <Text style={styles.disconnectText}>{isArabic ? "قطع الاتصال" : "Disconnect"}</Text>}
               </TouchableOpacity>
             ) : (
@@ -154,7 +154,7 @@ export default function ConnectedAppsScreen() {
                 disabled={connecting !== null}
                 onPress={() => void connect(status.toolkit)}
                 accessibilityRole="button"
-                accessibilityLabel={`ربط ${status.label}`}
+                accessibilityLabel={isArabic ? `ربط ${status.label}` : `Connect ${status.label}`}
               >
                 {connecting === status.toolkit ? <ActivityIndicator size="small" color={colors.background} /> : <Text style={styles.connectText}>{isArabic ? "ربط" : "Connect"}</Text>}
               </TouchableOpacity>
