@@ -511,7 +511,12 @@ Acceptance:
 - All major routes have been visually checked in all supported modes.
 - No unreadable text, invisible controls, or mismatched surfaces.
 
-**Current status:** [~] Theme foundation and multiple screen updates are merged. Full route-by-route visual verification remains.
+**Current status:** [>] The shared theme provider supports persisted system/light/dark selection. A hydration flash has now been addressed; hard-coded palette usage and visual route verification remain.
+
+New implementation (2026-11-16):
+- `SulyThemeProvider` now waits for the persisted appearance preference to load before mounting app screens, preventing a first-render flash in the wrong theme. While loading it shows a palette-backed neutral surface.
+- Static source audit found 11 files importing the legacy static `colors` export and 26 files with literal color values; some may be intentional brand/status colors, so they require per-screen classification rather than blind replacement.
+- CI and route-by-route light/dark/system visual checks are pending.
 
 ## Phase 15 — Complete Arabic and English localization and RTL/LTR
 
@@ -531,7 +536,13 @@ Acceptance:
 - RTL/LTR screenshots and interaction tests pass.
 - Text does not overflow or reverse code, IDs, or numeric values incorrectly.
 
-**Current status:** [~] Localization foundations exist, but full application/admin coverage and RTL/LTR verification are not complete.
+**Current status:** [>] Arabic/English preference persistence and root direction support exist. Saved-language hydration has now been addressed; centralized translation coverage and full RTL/LTR review remain.
+
+New implementation (2026-11-16):
+- `LocaleProvider` now waits for the saved `ar`/`en` preference before mounting app screens, preventing a brief Arabic/RTL render when the saved preference is English/LTR (and vice versa).
+- The app root applies the locale direction to the navigation container.
+- User-facing strings remain distributed across feature screens; a full key-based translation catalog, mixed-script/model-ID review, and RTL/LTR visual/interaction tests are not complete.
+- Do not auto-translate or claim legal/policy text is approved.
 
 ## Phase 16 — Security, data integrity, and end-to-end functional testing
 
@@ -590,7 +601,15 @@ Acceptance:
 - Production secrets are stored only in appropriate secret managers.
 - Final release report lists tested commit, artifacts, test results, known limitations, and rollback procedure.
 
-**Current status:** [~] Web build/deploy succeeded on the latest reviewed release workflow. Expo OTA publish failed because `EXPO_TOKEN` was unavailable in GitHub Actions. Android/iOS end-to-end device validation remains outstanding.
+**Current status:** [~] Latest release deployment and all three platform JS exports have fresh passing evidence; OTA publish and physical-device end-to-end validation remain open.
+
+Verified since the prior review:
+- PR #125 merged as `965e6fc8809adb13af72a536755bf70609a7dd16`.
+- Expo CI passed TypeScript, mobile auth regression, static Web export, Android JS bundle, and iOS JS bundle.
+- GitHub Pages deploy for release commit `f6b3d381b4aa6f8542fb84c4b4fac10da6b679ff` succeeded (workflow run `43860465051`).
+- Expo OTA publish failed again because `EXPO_TOKEN` is unavailable (workflow run `43860465175`).
+- JS bundle export is not the same as building/installing native APK/IPA or testing on real devices.
+- New theme/locale hydration fixes are pending CI; no visual browser/device test is claimed.
 
 ---
 
