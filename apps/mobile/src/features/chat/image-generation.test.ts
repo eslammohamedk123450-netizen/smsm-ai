@@ -31,8 +31,10 @@ describe("getStudioIntent", () => {
 
   it("routes explicit video and audio creation to Studio", () => {
     expect(getStudioIntent("عايز فيديو عن تاريخ مصر")).toBe("video");
+    expect(getStudioIntent("عايز تعمل فيديو عن تاريخ مصر")).toBe("video");
     expect(getStudioIntent("Create a video about space")).toBe("video");
     expect(getStudioIntent("اعمل تعليق صوتي للنص ده")).toBe("audio");
+    expect(getStudioIntent("عايز تعمل تعليق صوتي للنص ده")).toBe("audio");
     expect(getStudioIntent("Generate a voiceover for this text")).toBe("audio");
   });
 
