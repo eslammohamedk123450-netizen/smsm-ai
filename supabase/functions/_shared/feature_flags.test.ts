@@ -21,6 +21,7 @@ Deno.test("study explanations are not mistaken for lecture-file requests", () =>
   if (isFeatureResourceRequest("اشرحلي محاضرة المحاسبة")) throw new Error("study explanation should stay in normal chat/search");
   if (isFeatureResourceRequest("ملخص المحاضرة")) throw new Error("a summary request is not necessarily a file request");
   if (!isFeatureResourceRequest("ابعتلي محاضرة المحاسبة")) throw new Error("explicit lecture delivery request was missed");
+  if (!isFeatureResourceRequest("افتح المحاضرة")) throw new Error("explicit lecture opening request was missed");
   if (!isFeatureResourceRequest("عايز ملخص المحاضرة")) throw new Error("explicit summary-file request was missed");
 });
 
