@@ -1384,3 +1384,14 @@ The product owner requested a strict reduction in branch proliferation and merge
 - Current CI run for the latest code at the time of this note: `43896360850` — pending/in progress. Do not treat the Projects integration as CI-verified until Expo TypeScript, auth/project tests, Web/Android/iOS exports, Deno tests, and Deno typecheck complete successfully.
 - No production deployment, provider routing, credit/price, HIMS, or user entitlement changes were made.
 - Remaining Projects work: display conversations within each project and support safe reassignment of existing conversations; review project deletion semantics and user-facing confirmation before adding any destructive action; verify project create/list/archive/chat-link flows with authenticated test accounts. The existing PR #83 must only be closed after the integrated code passes CI and its complete patch is reconciled; do not delete its source branch before then.
+
+
+### Projects security follow-up — least-privilege grants — 2026-11-16
+
+- A deeper ACL inspection found that the live `suly_projects` table had broader direct privileges for `authenticated` than the migration's intended CRUD scope: TRUNCATE, REFERENCES, TRIGGER, and MAINTAIN were also granted.
+- Corrected the live table ACL with `REVOKE ALL PRIVILEGES ... FROM authenticated` followed by only SELECT, INSERT, UPDATE, DELETE. Read-only recheck now shows exactly those four authenticated privileges and no anon grants.
+- Updated the source migration to revoke authenticated's prior/default privileges before granting the four required DML permissions. This is important because GRANTing CRUD alone does not remove pre-existing excess ACL privileges.
+- Re-read all four RLS policies: SELECT/DELETE use owner-only `auth.uid()`; INSERT uses owner-only WITH CHECK; UPDATE uses owner-only USING and WITH CHECK. The composite project/user foreign key remains present.
+- Re-ran the rollback-only two-user isolation test after the ACL correction. Cross-user SELECT, UPDATE, and cross-tenant conversation linking checks completed without exceptions; a separate query confirmed zero rollback fixture rows remained.
+- The migration version `20261115220000` is not present in `supabase_migrations.schema_migrations`, although the live schema objects exist. Do not automatically re-apply or mark migration history as reconciled until the actual deployment/migration workflow is reviewed.
+- CI run `43896360850` was still running its mobile regression suite at the time of this note; run `43896682177` was queued for the updated migration source. Record final results only after inspecting both runs.
