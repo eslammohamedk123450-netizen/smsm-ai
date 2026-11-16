@@ -721,15 +721,15 @@ export default function ChatPage() {
           <View style={styles.headerActions}>
             {creditBalance !== null ? (
               <TouchableOpacity onPress={() => router.push("/(protected)/balance")} style={styles.creditPill} accessibilityRole="button" accessibilityLabel={isArabic ? "رصيد Suly" : "SULY credits"}>
-                <Ionicons name="diamond-outline" size={14} color="#FACC15" />
+                <Ionicons name="diamond-outline" size={14} color={colors.warning} />
                 <Text style={styles.creditPillText}>{creditBalance.toLocaleString("en-US")}</Text>
               </TouchableOpacity>
             ) : null}
             <TouchableOpacity onPress={() => { setUsageVisible(true); void loadTaskUsage(); }} style={styles.headerButton} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={isArabic ? "إحصائيات استخدام المهمة" : "Task usage statistics"}>
-              <Ionicons name="analytics-outline" size={20} color="#94A3B8" />
+              <Ionicons name="analytics-outline" size={20} color={colors.textMuted} />
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setShareVisible(true)} style={styles.headerButton} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={isArabic ? "مشاركة المحادثة" : "Share conversation"}>
-              <Ionicons name="share-social-outline" size={18} color="#94A3B8" />
+              <Ionicons name="share-social-outline" size={18} color={colors.textMuted} />
             </TouchableOpacity>
           </View>
         </View>
@@ -857,9 +857,9 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   headerSpacer: { width: 42, height: 42 },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 6 },
   brandCenter: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 8 },
-  brandTitle: { color: "#F5F5F5", fontSize: 20, fontWeight: "700", letterSpacing: -0.5 },
-  creditPill: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 5, backgroundColor: "#1F1F1F", borderColor: "#262626", borderWidth: 1, borderRadius: 9999, paddingHorizontal: 10, paddingVertical: 5 },
-  creditPillText: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
+  brandTitle: { color: colors.textPrimary, fontSize: 20, fontWeight: "700", letterSpacing: -0.5 },
+  creditPill: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 5, backgroundColor: colors.surfaceElevated, borderColor: colors.divider, borderWidth: 1, borderRadius: 9999, paddingHorizontal: 10, paddingVertical: 5 },
+  creditPillText: { color: colors.textPrimary, fontSize: 12, fontWeight: "700" },
   headerIcon: { color: colors.textPrimary, fontSize: 25 },
   adminShortcut: { minWidth: 42, height: 36, paddingHorizontal: 7, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceElevated },
   adminShortcutText: { color: colors.primary, fontSize: 11, fontWeight: "700" },
@@ -879,17 +879,17 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   scrollToBottomButton: { position: "absolute", right: 24, bottom: 12, width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.divider, elevation: 5, zIndex: 2 },
   messageContent: { flexGrow: 1, paddingVertical: 12 },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 18, paddingVertical: 14, gap: 14 },
-  emptyTitle: { color: "#FFFFFF", fontSize: 22, fontWeight: "700", textAlign: "center" },
+  emptyTitle: { color: colors.textPrimary, fontSize: 22, fontWeight: "700", textAlign: "center" },
   chooseTaskTitle: { width: "100%", flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 8 },
-  chooseTaskText: { color: "#F5F5F5", fontSize: 16, fontWeight: "700", textAlign: isArabic ? "right" : "left" },
+  chooseTaskText: { color: colors.textPrimary, fontSize: 16, fontWeight: "700", textAlign: isArabic ? "right" : "left" },
   taskGrid: { width: "100%", flexDirection: isArabic ? "row-reverse" : "row", flexWrap: "wrap", justifyContent: "center", gap: 10 },
   taskCard: { width: "48%", minHeight: 92, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 9, paddingHorizontal: 11, paddingVertical: 12, borderRadius: 16, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
-  taskIconCircle: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(14, 165, 233, 0.12)" },
+  taskIconCircle: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colors.primarySoft },
   taskCardText: { flex: 1, color: colors.textPrimary, textAlign: isArabic ? "right" : "left", fontSize: 12, lineHeight: 18 },
   taskHint: { color: colors.textMuted, textAlign: "center", fontSize: 11, lineHeight: 17 },
   starsRow: { flexDirection: "row", alignItems: "center", gap: 2 },
   star: { color: colors.textMuted, fontSize: 25 },
-  starSelected: { color: "#FBBF24" },
+  starSelected: { color: colors.warning },
   ratingSheet: { gap: 14 },
   ratingPrompt: { color: colors.textSecondary, textAlign: isArabic ? "right" : "left" },
   ratingInput: { minHeight: 90, borderWidth: 1, borderColor: colors.inputBorder, borderRadius: 10, backgroundColor: colors.inputBackground, color: colors.textPrimary, padding: 12, textAlign: isArabic ? "right" : "left" },
