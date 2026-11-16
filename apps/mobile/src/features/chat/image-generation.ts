@@ -13,3 +13,23 @@ export function getImageGenerationPrompt(message: string): string | null {
   }
   return null;
 }
+
+export type StudioIntent = "image" | "video" | "audio" | "transcription";
+
+const VIDEO_WORD = /(?:فيديو|الفيديو|video|videos|clip|clips)/iu;
+const AUDIO_WORD = /(?:صوت|الصوت|تعليق\\s+صوتي|موسيقى|audio|voiceover|voice\\s+over|sound|music)/iu;
+const RECORDING_WORD = /(?:تسجيل|التسجيل|تسجيلات|recording|recordings)/iu;
+const WANT_VIDEO = /^(?:عايز|عاوزه|عاوز|أريد|اريد|محتاج|محتاجة|احتاج|i\\s+want|i\\s+need)\\s+(?:(?:to\\s+)?(?:generate|create|make|produce)\\s+)?(?:فيديو|الفيديو|video|clip)(?=\\s|$)/iu;
+const WANT_AUDIO = /^(?:عايز|عاوزه|عاوز|أريد|اريد|محتاج|محتاجة|احتاج|i\\s+want|i\\s+need)\\s+(?:(?:to\\s+)?(?:generate|create|make|produce)\\s+)?(?:صوت|تعليق\\s+صوتي|موسيقى|audio|voiceover|music)(?=\\s|$)/iu;
+const TRANSCRIPTION_ACTION = /(?:فرّغ|فرغ|تفريغ|حوّل|حول|اكتب\\s+النص|transcribe|transcription|speech\\s+to\\s+text)/iu;
+
+/** Detect explicit media-creation or transcription requests that must be confirmed in Studio. */
+export function getStudioIntent(message: string): StudioIntent | null {
+  const prompt = message.normalize("NFKC").trim();
+  if (!prompt || prompt.length > 16000) return null;
+  if (getImageGenerationPrompt(prompt)) return "image";
+  if (VIDEO_WORD.test(prompt) && (GENERATION_VERB.test(prompt) || WANT_VIDEO.test(prompt))) return "video";
+  if (AUDIO_WORD.test(prompt) && (GENERATION_VERB.test(prompt) || WANT_AUDIO.test(prompt))) return "audio";
+  if (TRANSCRIPTION_ACTION.test(prompt) && (AUDIO_WORD.test(prompt) || RECORDING_WORD.test(prompt))) return "transcription";
+  return null;
+}
