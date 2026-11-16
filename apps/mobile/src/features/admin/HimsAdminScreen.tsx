@@ -242,10 +242,10 @@ export function HimsAdminScreen() {
           </View>
         </View>
         <View style={styles.inline}>
-          <Pressable accessibilityRole="button" disabled={resourceBusyId === item.id || busy} onPress={() => beginEditResource(item)} style={styles.resourceEditAction}>
+          <Pressable accessibilityRole="button" disabled={resourceBusyId === item.id || busy || editingResource !== null} onPress={() => beginEditResource(item)} style={styles.resourceEditAction}>
             <Text style={styles.resourceActionText}>تعديل البيانات</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" disabled={resourceBusyId === item.id || busy} onPress={() => void toggleResourceActive(item)} style={[styles.resourceAction, !item.is_active && styles.resourceActionActive, resourceBusyId === item.id && styles.disabled]}>
+          <Pressable accessibilityRole="button" disabled={resourceBusyId === item.id || busy || editingResource !== null} onPress={() => void toggleResourceActive(item)} style={[styles.resourceAction, !item.is_active && styles.resourceActionActive, resourceBusyId === item.id && styles.disabled]}>
             <Text style={styles.resourceActionText}>{resourceBusyId === item.id ? "جارٍ التحديث…" : item.is_active ? "إيقاف المورد" : "إعادة تفعيل المورد"}</Text>
           </Pressable>
         </View>
