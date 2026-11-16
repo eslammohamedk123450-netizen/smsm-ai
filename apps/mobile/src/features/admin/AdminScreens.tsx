@@ -56,9 +56,11 @@ function parseModelCapabilityState(value: unknown): ModelCapabilityState {
 }
 
 function PageHeader({ title }: { title: string }) {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   return <View style={styles.header}><Link href="/admin" asChild><TouchableOpacity activeOpacity={0.7}><Text style={styles.back}>‹ لوحة المشرف</Text></TouchableOpacity></Link><Text style={styles.pageTitle}>{title}</Text></View>;
 }
-function ErrorText({ children }: { children: string | null }) { return children ? <Text accessibilityRole="alert" style={styles.error}>{children}</Text> : null; }
+function ErrorText({ children }: { children: string | null }) { const { colors } = useSulyTheme(); const styles = useMemo(() => createStyles(colors), [colors]); return children ? <Text accessibilityRole="alert" style={styles.error}>{children}</Text> : null; }
 function probeErrorLabel(code: string | null) {
   if (!code) return "تعذر الحصول على رد صالح.";
   if (code === "provider_http_401" || code === "provider_http_403" || code === "credential_unavailable") return "تحقق من المفتاح أو صلاحياته.";
@@ -70,9 +72,11 @@ function probeErrorLabel(code: string | null) {
   return `فشل الاتصال (${code}).`;
 }
 function PrimaryButton({ label, onPress, disabled = false }: { label: string; onPress(): void; disabled?: boolean }) {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   return <TouchableOpacity activeOpacity={0.7} accessibilityRole="button" disabled={disabled} onPress={onPress} style={[styles.button, disabled && styles.disabled]}><Text style={styles.buttonText}>{label}</Text></TouchableOpacity>;
 }
-function Card({ children }: { children: React.ReactNode }) { return <View style={styles.card}>{children}</View>; }
+function Card({ children }: { children: React.ReactNode }) { const { colors } = useSulyTheme(); const styles = useMemo(() => createStyles(colors), [colors]); return <View style={styles.card}>{children}</View>; }
 
 export function ProvidersAdminScreen() {
   const { colors } = useSulyTheme();
@@ -847,9 +851,13 @@ export function AgentsAdminScreen() {
 }
 
 function NumberField({ label, value, onChange }: { label: string; value: string; onChange(value: string): void }) {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   return <View style={styles.field}><Text style={styles.label}>{label}</Text><TextInput style={styles.input} value={value} onChangeText={onChange} keyboardType="numeric" /></View>;
 }
 function Toggle({ label, value, onChange }: { label: string; value: boolean; onChange(value: boolean): void }) {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   return <View style={styles.toggle}><Text style={styles.label}>{label}</Text><Switch value={value} onValueChange={onChange} trackColor={{ true: colors.primary }} /></View>;
 }
 
