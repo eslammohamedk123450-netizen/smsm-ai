@@ -39,6 +39,7 @@ No parallel admin application or replacement data model is introduced.
    - Added a user-level subscription grant workflow using the existing audited `suly_admin_grant_subscription` RPC.
    - The UI loads active plans only, shows the existing catalog values without editing them, accepts an optional expiry date, requires an administrative reason, and confirms before replacing any prior active subscription.
    - The database function verifies `auth.uid()` and `suly_is_admin()`, validates the active plan and expiry, replaces the previous active row, updates the user's tier, and writes an audit record. No user subscription was changed during implementation.
+   - Admin-originated support replies now perform a client-side admin check before insertion; the database RLS policy independently enforces `suly_is_admin()` for `is_admin_reply=true`.
 5. **Operational accuracy**
    - The shell's health indicator now requires a health record for each enabled model; missing health evidence is shown as unknown instead of silently healthy.
    - Overview metrics distinguish administratively disabled models from enabled models with errors/restrictions.
