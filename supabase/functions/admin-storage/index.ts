@@ -25,13 +25,14 @@ async function main(req: Request): Promise<Response> {
   if (!supabaseUrl || !anonKey || !serviceRoleKey) return json(req, { error: "Server configuration is incomplete" }, 500);
 
   const authorization = req.headers.get("Authorization") ?? "";
-  if (!/^Bearer\s+\S+$/i.test(authorization)) return json(req, { error: "Authentication required" }, 401);
+  const userJwt = authorization.replace(/^Bearer\s+/i, "").trim();
+  if (!userJwt || /\s/.test(userJwt)) return json(req, { error: "Authentication required" }, 401);
 
   const userClient = createClient(supabaseUrl, anonKey, {
-    global: { headers: { Authorization: authorization } },
+    global: { headers: { Authorization: `Bearer ${userJwt}` } },
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const { data: authData, error: authError } = await userClient.auth.getUser();
+  const { data: authData, error: authError } = await userClient.auth.getUser(userJwt);
   if (authError || !authData.user) return json(req, { error: "Invalid or expired session" }, 401);
 
   const { data: isAdmin, error: adminError } = await userClient.rpc("suly_is_admin");
