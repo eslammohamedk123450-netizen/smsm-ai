@@ -25,19 +25,24 @@ export function StorageSettingsScreen() {
   const [segments, setSegments] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [loadingBuckets, setLoadingBuckets] = useState(true);
+  const [bucketsAvailable, setBucketsAvailable] = useState(false);
+  const [objectsAvailable, setObjectsAvailable] = useState(false);
   const [loadingObjects, setLoadingObjects] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadBuckets = useCallback(async () => {
     setLoadingBuckets(true);
+    setBucketsAvailable(false);
     setError(null);
     try {
       const rows = await adminService.getStorageBuckets();
       setBuckets(rows);
+      setBucketsAvailable(true);
       setSelectedBucket((current) => current && rows.some((row) => row.id === current) ? current : rows[0]?.id ?? null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "تعذر تحميل مساحات التخزين. تحقق من صلاحيات Storage.");
       setBuckets([]);
+      setBucketsAvailable(false);
       setSelectedBucket(null);
     } finally {
       setLoadingBuckets(false);
@@ -46,12 +51,15 @@ export function StorageSettingsScreen() {
 
   const loadObjects = useCallback(async (bucketId: string, nextSegments: string[]) => {
     setLoadingObjects(true);
+    setObjectsAvailable(false);
     setError(null);
     try {
       const rows = await adminService.listStorageObjects(bucketId, nextSegments.join("/"));
       setObjects(rows);
+      setObjectsAvailable(true);
     } catch (cause) {
       setObjects([]);
+      setObjectsAvailable(false);
       setError(cause instanceof Error ? cause.message : "تعذر عرض الملفات. قد لا تسمح سياسات Storage باستعراض هذا المسار.");
     } finally {
       setLoadingObjects(false);
@@ -61,7 +69,7 @@ export function StorageSettingsScreen() {
   useEffect(() => { void loadBuckets(); }, [loadBuckets]);
   useEffect(() => {
     if (selectedBucket) void loadObjects(selectedBucket, segments);
-    else setObjects([]);
+    else { setObjects([]); setObjectsAvailable(false); }
   }, [selectedBucket, segments, loadObjects]);
 
   const bucket = buckets.find((item) => item.id === selectedBucket) ?? null;
@@ -89,10 +97,10 @@ export function StorageSettingsScreen() {
     {loadingBuckets ? <ActivityIndicator color={colors.primary} style={styles.loader} /> : null}
 
     <View style={styles.summaryRow}>
-      <View style={styles.summaryCard}><Text style={styles.summaryLabel}>مساحات التخزين</Text><Text style={styles.summaryValue}>{buckets.length}</Text></View>
-      <View style={styles.summaryCard}><Text style={styles.summaryLabel}>ملفات ظاهرة في المسار</Text><Text style={styles.summaryValue}>{fileCount}</Text></View>
-      <View style={styles.summaryCard}><Text style={styles.summaryLabel}>مجلدات ظاهرة</Text><Text style={styles.summaryValue}>{folderCount}</Text></View>
-      <View style={styles.summaryCard}><Text style={styles.summaryLabel}>حجم الملفات الظاهرة</Text><Text style={styles.summaryValue}>{formatBytes(totalKnownBytes)}</Text></View>
+      <View style={styles.summaryCard}><Text style={styles.summaryLabel}>مساحات التخزين</Text><Text style={styles.summaryValue}>{bucketsAvailable ? buckets.length : "—"}</Text></View>
+      <View style={styles.summaryCard}><Text style={styles.summaryLabel}>ملفات ظاهرة في المسار</Text><Text style={styles.summaryValue}>{objectsAvailable ? fileCount : "—"}</Text></View>
+      <View style={styles.summaryCard}><Text style={styles.summaryLabel}>مجلدات ظاهرة</Text><Text style={styles.summaryValue}>{objectsAvailable ? folderCount : "—"}</Text></View>
+      <View style={styles.summaryCard}><Text style={styles.summaryLabel}>حجم الملفات الظاهرة</Text><Text style={styles.summaryValue}>{objectsAvailable ? formatBytes(totalKnownBytes) : "—"}</Text></View>
     </View>
 
     <View style={styles.panel}>
