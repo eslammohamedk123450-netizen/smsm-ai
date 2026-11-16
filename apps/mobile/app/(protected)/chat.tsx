@@ -762,11 +762,8 @@ export default function ChatPage() {
         {retryFailure ? <View style={styles.retryWarning} accessibilityRole="alert"><Text style={styles.retryWarningText}>{isArabic ? "حُفظت رسالتك، لكن تعذّر إكمال الرد." : "Your message was saved, but the response could not be completed."}</Text><Pressable onPress={() => void retryResponse()} disabled={isSending} accessibilityRole="button" accessibilityLabel={isArabic ? "إعادة محاولة الرد" : "Retry response"} style={styles.retryButton}><Text style={styles.retryButtonText}>{isSending ? (isArabic ? "جارٍ إعادة المحاولة…" : "Retrying…") : (isArabic ? "إعادة المحاولة" : "Retry")}</Text></Pressable></View> : null}
         {isLoading ? <View style={styles.loading}><ActivityIndicator color={colors.primary} /><Text style={styles.loadingText}>{isArabic ? "جارٍ تحميل المحادثة…" : "Loading conversation…"}</Text></View> : messages.length === 0 ? (
           <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>{isArabic ? "دع Suly يعمل من أجلك" : "Let SULY work for you"}</Text>
-            <View style={styles.chooseTaskTitle} accessibilityRole="text">
-              <Ionicons name="sparkles-outline" size={18} color={colors.primary} />
-              <Text style={styles.chooseTaskText}>{isArabic ? "ابدأ من هنا" : "Start here"}</Text>
-            </View>
+            <Text style={styles.emptyTitle}>{isArabic ? "أهلًا بك في SULY" : "What can I help with?"}</Text>
+            <Text style={styles.emptySubtitle}>{isArabic ? "اكتب ما تحتاجه بطريقتك العادية، والوكيل سيتولى اختيار طريقة المساعدة المناسبة." : "Describe what you need in your own words. The central Agent will decide how best to help."}</Text>
             <View style={styles.taskGrid}>
               {suggestions.map((suggestion) => (
                 <Pressable
@@ -776,12 +773,11 @@ export default function ChatPage() {
                   accessibilityRole="button"
                   accessibilityLabel={isArabic ? `استخدام اقتراح: ${suggestion.text}` : `Use suggestion: ${suggestion.text}`}
                 >
-                  <View style={styles.taskIconCircle}><Ionicons name={suggestion.icon} size={19} color={colors.primary} /></View>
-                  <Text numberOfLines={2} style={styles.taskCardText}>{suggestion.text}</Text>
+                  <Ionicons name={suggestion.icon} size={15} color={colors.primary} />
+                  <Text numberOfLines={1} style={styles.taskCardText}>{suggestion.text}</Text>
                 </Pressable>
               ))}
             </View>
-            <Text style={styles.taskHint}>{isArabic ? "اختر مثالًا لكتابته في الرسالة، أو اكتب طلبك بنفسك" : "Choose an example or write your own request."}</Text>
           </View>
         ) : (
           <View style={styles.messageListContainer}>
@@ -957,13 +953,14 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   scrollToBottomButton: { position: "absolute", right: 24, bottom: 12, width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.divider, elevation: 5, zIndex: 2 },
   messageContent: { flexGrow: 1, paddingVertical: 12 },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 18, paddingVertical: 14, gap: 14 },
-  emptyTitle: { color: colors.textPrimary, fontSize: 22, fontWeight: "700", textAlign: "center" },
+  emptyTitle: { color: colors.textPrimary, fontSize: 23, fontWeight: "800", textAlign: "center" },
+  emptySubtitle: { color: colors.textSecondary, fontSize: 13, lineHeight: 21, textAlign: "center", maxWidth: 420 },
   chooseTaskTitle: { width: "100%", flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 8 },
   chooseTaskText: { color: colors.textPrimary, fontSize: 16, fontWeight: "700", textAlign: isArabic ? "right" : "left" },
-  taskGrid: { width: "100%", flexDirection: isArabic ? "row-reverse" : "row", flexWrap: "wrap", justifyContent: "center", gap: 10 },
-  taskCard: { width: "48%", minHeight: 92, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 9, paddingHorizontal: 11, paddingVertical: 12, borderRadius: 16, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
-  taskIconCircle: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colors.primarySoft },
-  taskCardText: { flex: 1, color: colors.textPrimary, textAlign: isArabic ? "right" : "left", fontSize: 12, lineHeight: 18 },
+  taskGrid: { width: "100%", flexDirection: isArabic ? "row-reverse" : "row", flexWrap: "wrap", justifyContent: "center", gap: 8, marginTop: 6 },
+  taskCard: { minHeight: 38, maxWidth: "100%", flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 7, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
+  taskIconCircle: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.primarySoft },
+  taskCardText: { color: colors.textSecondary, textAlign: isArabic ? "right" : "left", fontSize: 11, lineHeight: 16 },
   taskHint: { color: colors.textMuted, textAlign: "center", fontSize: 11, lineHeight: 17 },
   starsRow: { flexDirection: "row", alignItems: "center", gap: 2 },
   star: { color: colors.textMuted, fontSize: 25 },
