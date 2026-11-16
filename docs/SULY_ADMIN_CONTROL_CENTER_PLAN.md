@@ -74,8 +74,8 @@ These are implementation/configuration gaps, not Track B device-test deferrals. 
 
 ## Admin Storage deployment
 
-- Deployed `admin-storage` to the current Supabase development project as Edge Function version 2.
-- The deployed entrypoint and shared CORS dependency were retrieved and compared with the `develop` source. Version 2 explicitly extracts and passes the Bearer JWT to `auth.getUser(userJwt)`; it does not rely on the global Authorization header as an Auth session.
+- Deployed `admin-storage` to the current Supabase development project as Edge Function version 3.
+- The deployed entrypoint and shared CORS dependency were retrieved and compared with the `develop` source. Version 2 explicitly passed the Bearer JWT to `auth.getUser(userJwt)`. Version 3 isolates Bearer-token parsing in `admin-storage/auth.ts`, adds Deno regression tests for valid/malformed headers, and passes the extracted JWT explicitly to `auth.getUser(userJwt)`.
 - The function is intentionally configured with platform JWT verification disabled because it performs its own Bearer-token validation, verifies the caller via Auth, and checks `suly_is_admin()` before using the server-only service-role client.
 - The function is read-only: it lists bucket metadata and objects, returns sanitized metadata, and does not upload, delete, change policies, or expose public URLs.
 - Real browser/device invocation, invalid-token denial, non-admin denial, and bucket/object inventory acceptance remain Track B; deployment alone is not an E2E pass.
