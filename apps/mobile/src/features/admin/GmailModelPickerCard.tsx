@@ -99,6 +99,6 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
   optionText: { color: colors.textSecondary, fontSize: 10 },
   optionTextSelected: { color: colors.primary, fontWeight: "800" },
   save: { alignItems: "center", justifyContent: "center", backgroundColor: colors.primary, borderRadius: 8, paddingVertical: 10 },
-  saveText: { color: "#071018", fontWeight: "900", fontSize: 11 },
+  saveText: { color: colors.onPrimary, fontWeight: "900", fontSize: 11 },
   disabled: { opacity: 0.5 },
 });
