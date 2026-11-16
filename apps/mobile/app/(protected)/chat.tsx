@@ -313,7 +313,7 @@ export default function ChatPage() {
   const sendText = async (content: string, attachment?: ChatAttachment, writeApproval?: ConnectorWriteApproval) => {
     await runOnce(lock, async () => {
       if (!user || (!content.trim() && !attachment)) return;
-      const studioIntent = !attachment ? getStudioIntent(content) : null;
+      const studioIntent = getStudioIntent(content);
       const optimisticMessageId = `optimistic-${Date.now()}`;
       optimisticMessageIdRef.current = optimisticMessageId;
       setMessages((current) => [...current, {
