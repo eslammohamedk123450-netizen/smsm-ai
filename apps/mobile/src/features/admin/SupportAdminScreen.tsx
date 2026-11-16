@@ -42,12 +42,14 @@ export function SupportAdminScreen() {
   useEffect(() => { void load(); }, [load]);
 
   const open = async (ticket: SupportTicket) => {
+    const requestId = ++detailRequest.current;
     setSelected(ticket); setBusy(true); setError(null); setReplies([]); setAttachments([]);
     try {
       const [nextReplies, nextAttachments] = await Promise.all([supportService.listReplies(ticket.id), supportService.attachments(ticket.id)]);
+      if (requestId !== detailRequest.current) return;
       setReplies(nextReplies); setAttachments(nextAttachments);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر تحميل تفاصيل الطلب."); }
-    finally { setBusy(false); }
+    } catch (cause) { if (requestId === detailRequest.current) setError(cause instanceof Error ? cause.message : "تعذر تحميل تفاصيل الطلب."); }
+    finally { if (requestId === detailRequest.current) setBusy(false); }
   };
   const updateStatus = async (status: TicketStatus) => {
     if (!selected || busy) return;
@@ -81,8 +83,13 @@ export function SupportAdminScreen() {
       <Text style={styles.description} numberOfLines={2}>{ticket.description}</Text>
       <Text style={styles.meta}>المستخدم {ticket.user_id.slice(0, 8)}… · أولوية {ticket.priority} · {new Date(ticket.updated_at).toLocaleString("ar-EG")}</Text>
     </Pressable>)}
+    {ticketsAvailable && totalTickets > pageSize ? <View style={styles.pagination}>
+      <Pressable accessibilityRole="button" disabled={loading || page <= 0} onPress={() => setPage((value) => Math.max(0, value - 1))} style={[styles.pageButton, (loading || page <= 0) && styles.disabled]}><Text style={styles.pageText}>السابق</Text></Pressable>
+      <Text style={styles.pageInfo}>صفحة {page + 1} من {Math.max(1, Math.ceil(totalTickets / pageSize))} · {totalTickets.toLocaleString("ar-EG")} طلب</Text>
+      <Pressable accessibilityRole="button" disabled={loading || (page + 1) * pageSize >= totalTickets} onPress={() => setPage((value) => Math.min(Math.ceil(totalTickets / pageSize) - 1, value + 1))} style={[styles.pageButton, (loading || (page + 1) * pageSize >= totalTickets) && styles.disabled]}><Text style={styles.pageText}>التالي</Text></Pressable>
+    </View> : null}
     {selected ? <View style={styles.detailCard}>
-      <View style={styles.ticketTop}><Pressable onPress={() => setSelected(null)}><Text style={styles.link}>إغلاق التفاصيل</Text></Pressable><Text style={styles.detailTitle}>{selected.subject}</Text></View>
+      <View style={styles.ticketTop}><Pressable onPress={() => { detailRequest.current += 1; setSelected(null); setBusy(false); }}><Text style={styles.link}>إغلاق التفاصيل</Text></Pressable><Text style={styles.detailTitle}>{selected.subject}</Text></View>
       <Text style={styles.description}>{selected.description}</Text>
       <Text style={styles.meta}>الحالة: {statusLabel[selected.status] ?? selected.status} · التصنيف: {selected.category} · المستخدم: {selected.user_id}</Text>
       <View style={styles.statuses}>{statuses.map((status) => <Pressable key={status} disabled={busy} style={[styles.statusButton, selected.status === status && styles.statusSelected, busy && styles.disabled]} onPress={() => void updateStatus(status)}><Text style={[styles.statusText, selected.status === status && styles.statusTextSelected]}>{statusLabel[status]}</Text></Pressable>)}</View>
