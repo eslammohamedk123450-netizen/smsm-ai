@@ -362,7 +362,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
           onSelectionChange={(event) => setSelection(event.nativeEvent.selection)}
           editable={!disabled && !isStreaming}
           placeholder={isArabic ? "اسأل Suly" : "Ask SULY"}
-          placeholderTextColor="#A1A1AA"
+          placeholderTextColor={colors.textMuted}
           style={[styles.input, { height: inputHeight }]}
           multiline
           scrollEnabled={inputHeight >= MAX_INPUT_HEIGHT}
@@ -409,7 +409,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
       <Modal visible={previewVisible} transparent animationType="fade" onRequestClose={() => setPreviewVisible(false)}>
         <Pressable style={styles.previewOverlay} onPress={() => setPreviewVisible(false)} accessibilityRole="button" accessibilityLabel={isArabic ? "إغلاق معاينة الصورة" : "Close image preview"}>
           <Pressable style={styles.previewClose} onPress={() => setPreviewVisible(false)} accessibilityRole="button" accessibilityLabel={isArabic ? "إغلاق" : "Close"}>
-            <Ionicons name="close" size={24} color={colors.onPrimary} />
+            <Ionicons name="close" size={24} color={colors.textPrimary} />
           </Pressable>
           {attachmentPreviewUri ? <Image source={{ uri: attachmentPreviewUri }} style={styles.previewImage} resizeMode="contain" /> : null}
         </Pressable>
@@ -474,7 +474,7 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   },
   leftControls: { flexDirection: "row", alignItems: "center", gap: 4 },
   micButton: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 18 },
-  recordingPulse: { position: "absolute", top: 4, right: 4, width: 6, height: 6, borderRadius: 3, backgroundColor: "#F87171" },
+  recordingPulse: { position: "absolute", top: 4, right: 4, width: 6, height: 6, borderRadius: 3, backgroundColor: colors.error },
   blueButton: {
     width: 38,
     height: 38,
@@ -485,7 +485,7 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   },
   blueButtonIdle: { backgroundColor: colors.primary, opacity: 0.9 },
   webSendButton: { width: "auto", minWidth: 72, paddingHorizontal: 12, flexDirection: "row", gap: 5, borderRadius: 20 },
-  webSendLabel: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
+  webSendLabel: { color: colors.onPrimary, fontSize: 12, fontWeight: "700" },
   attachmentChip: {
     alignSelf: "flex-start",
     flexDirection: "row",
@@ -502,10 +502,10 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   imageAttachmentPreview: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 10, maxWidth: "100%", marginBottom: 8, padding: 6, borderRadius: 14, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
   attachmentThumbnail: { width: 66, height: 66, borderRadius: 9, backgroundColor: colors.surfaceElevated },
   attachmentInfo: { flex: 1, minWidth: 0 },
-  attachmentHint: { color: "#A1A1AA", fontSize: 11, marginTop: 4 },
+  attachmentHint: { color: colors.textMuted, fontSize: 11, marginTop: 4 },
   removeAttachmentButton: { width: 30, height: 30, alignItems: "center", justifyContent: "center", borderRadius: 15, backgroundColor: colors.surfaceElevated },
   attachmentText: { color: colors.textPrimary, fontSize: 12 },
-  removeAttachment: { color: "#A1A1AA", fontSize: 18 },
+  removeAttachment: { color: colors.textMuted, fontSize: 18 },
   previewOverlay: { flex: 1, backgroundColor: colors.modalOverlay, justifyContent: "center", alignItems: "center" },
   previewImage: { width: "100%", height: "85%" },
   previewClose: { position: "absolute", top: 44, right: 20, zIndex: 1, width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 21, backgroundColor: colors.surfaceElevated },
