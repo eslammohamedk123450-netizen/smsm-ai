@@ -21,7 +21,7 @@ const AUDIO_WORD = /(?:صوت|الصوت|تعليق\s+صوتي|موسيقى|audi
 const RECORDING_WORD = /(?:تسجيل|التسجيل|تسجيلات|recording|recordings)/iu;
 const WANT_VIDEO = /^(?:عايز|عاوزه|عاوز|أريد|اريد|محتاج|محتاجة|احتاج|i\s+want|i\s+need)\s+(?:(?:to\s+)?(?:generate|create|make|produce)\s+)?(?:فيديو|الفيديو|video|clip)(?=\s|$)/iu;
 const WANT_AUDIO = /^(?:عايز|عاوزه|عاوز|أريد|اريد|محتاج|محتاجة|احتاج|i\s+want|i\s+need)\s+(?:(?:to\s+)?(?:generate|create|make|produce)\s+)?(?:صوت|تعليق\s+صوتي|موسيقى|audio|voiceover|music)(?=\s|$)/iu;
-const TRANSCRIPTION_ACTION = /(?:فرّغ|فرغ|تفريغ|حوّل|حول|اكتب\s+النص|transcribe|transcription|speech\s+to\s+text)/iu;
+const TRANSCRIPTION_ACTION = /(?:فرّغ|فرغ|تفريغ|حوّل|حول|اكتب\s+النص|transcribe)/iu;
 
 /** Detect explicit media-creation or transcription requests that must be confirmed in Studio. */
 export function getStudioIntent(message: string): StudioIntent | null {
