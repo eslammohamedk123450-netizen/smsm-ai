@@ -331,7 +331,7 @@ Acceptance:
 - Client cannot upgrade its own plan, alter balance, or grant itself privileges.
 - Billing history reconciles with wallet/usage ledgers.
 
-**Current status:** [>] Account information architecture is being completed on top of the existing settings, wallet, and server-authoritative subscription foundations.
+**Current status:** [~] The Account information architecture and existing Plans/Subscription + Library entry points are implemented and merged (PR #125); authenticated profile mutation, payment/renewal lifecycle, and full billing verification remain open.
 
 Verified code review and current implementation (2026-11-16):
 - Existing settings screen already shows authenticated profile name/email, theme mode (system/light/dark), language (Arabic/English), server-loaded credit balance and recent ledger entries, support, conversation archive, integrations, privacy/terms notices, admin-only dashboard entry, and sign-out.
@@ -526,15 +526,16 @@ Acceptance:
 - All major routes have been visually checked in all supported modes.
 - No unreadable text, invisible controls, or mismatched surfaces.
 
-**Current status:** [>] The shared theme provider supports persisted system/light/dark selection. A hydration flash has now been addressed; hard-coded palette usage and visual route verification remain.
+**Current status:** [~] Persisted system/light/dark selection, hydration handling, and audited dynamic-palette migrations are merged (PRs #129, #130, #131). The shared UI and Balance follow the saved theme; remaining literal-color review, visual route coverage, and real-device checks remain open.
 
-**Additional Phase 14 work in progress (2026-11-16):** A focused follow-up branch now migrates the Balance screen's fixed dark-only palette to the shared `ThemePalette` tokens, and updates Toast, IconButton, BottomSheet, AttachSheet, SharedConversationPage, and ShareConversationSheet to consume `useSulyTheme()` rather than independently reading the OS color scheme. This fixes a real mismatch where a saved in-app light/dark choice could be ignored by shared surfaces. The changes are pending CI and merge; full visual/browser/device coverage and the remaining hard-coded color audit are still open.
+**Additional Phase 14 work merged (2026-11-16):** PR #131 merged as `ac861a1b6844cf3b7ca081b8fe34d65408c1ebc0`. It migrates the Balance screen to the shared `ThemePalette` and updates Toast, IconButton, BottomSheet, AttachSheet, SharedConversationPage, and ShareConversationSheet to consume `useSulyTheme()` rather than independently reading the OS color scheme. PR #131 passed Expo TypeScript, auth regression tests, static Web export, Android JS bundle, iOS JS bundle, and Deno Agent/Edge checks. A further focused pass for Support, Image Studio loading state, and Admin alert surfaces is open in PR #132; visual/browser/device coverage and the remaining hard-coded color audit are still open.
 
 New implementation (2026-11-16):
 - `SulyThemeProvider` now waits for the persisted appearance preference to load before mounting app screens, preventing a first-render flash in the wrong theme. While loading it shows a palette-backed neutral surface.
 - Migrated all 11 audited legacy static `colors` imports to the active theme hook or system-aware palette (including auth screens/layouts, chat, balance, admin users, and Brain task UI). The remaining source scan finds 26 files with literal color values; some are intentional brand/status/code colors, while others need per-screen classification and replacement. No blind global replacement was applied.
 - PR #129 build checks passed: Expo TypeScript, mobile auth regression, static Web export, Android JS bundle, iOS JS bundle, and Deno Agent/Edge Function checks. Route-by-route visual checks in light/dark/system remain pending.
-- PR #130 dynamic-palette migration passed Expo TypeScript, mobile auth regression, static Web export, Android JS bundle, iOS JS bundle, and Deno Agent/Edge Function checks. It is ready to merge; visual route checks remain pending.
+- PR #130 dynamic-palette migration passed Expo TypeScript, mobile auth regression, static Web export, Android JS bundle, iOS JS bundle, and Deno Agent/Edge Function checks, and merged as `ec4d586162dfb464dcae18b5a4a19bd6ebf78487`.
+- PR #131 extended dynamic palette coverage to shared surfaces and the Balance screen, passed all Expo/Deno CI checks including Web/Android/iOS exports, and merged as `ac861a1b6844cf3b7ca081b8fe34d65408c1ebc0`. PR #132 is the next small presentation-only pass for Support, Image Studio loading, and Admin alert surfaces; it is awaiting CI.
 
 ## Phase 15 — Complete Arabic and English localization and RTL/LTR
 
@@ -554,7 +555,7 @@ Acceptance:
 - RTL/LTR screenshots and interaction tests pass.
 - Text does not overflow or reverse code, IDs, or numeric values incorrectly.
 
-**Current status:** [>] Arabic/English preference persistence and root direction support exist. Saved-language hydration has now been addressed; centralized translation coverage and full RTL/LTR review remain.
+**Current status:** [~] Arabic/English preference persistence, root direction support, and saved-language hydration are merged (PR #129). Centralized translation coverage, mixed-direction content, and full RTL/LTR visual review remain open.
 
 New implementation (2026-11-16):
 - `LocaleProvider` now waits for the saved `ar`/`en` preference before mounting app screens, preventing a brief Arabic/RTL render when the saved preference is English/LTR (and vice versa).
@@ -603,6 +604,7 @@ Known constraints:
 - Live Supabase advisor + read-only SQL recheck (2026-11-16): the 10 INFO-level RLS/no-policy tables still have RLS enabled and grant no SELECT/INSERT/UPDATE/DELETE to either `anon` or `authenticated`; the INFO findings are therefore not evidence of client access. The 9 multiple-permissive-policy warnings were inspected: overlaps are admin-read plus owner/active-read, or admin `ALL` plus a separate public/owner read policy. No policy was changed because combining them without targeted regression could alter administrator or public-plan visibility semantics.
 - Performance advisor currently reports 68 unindexed foreign keys and 53 unused indexes (INFO). These are not auto-remediated: adding/removing indexes requires query-plan and workload evidence, and unused-index observations can be misleading on a young/low-traffic project.
 - Remaining advisor owner action: enable leaked-password protection in Supabase Auth settings if available on the current plan. The `vector`/`pg_net` extension schema warnings need a dependency-reviewed migration plan; do not move extensions blindly. The 57 authenticated-executable SECURITY DEFINER warning rows still require preserving the documented per-function guard classification and regression evidence; the anonymous share-token endpoint is intentionally token-scoped.
+- Fresh SQL verification (2026-11-16): all 57 SECURITY DEFINER functions executable by `authenticated` have a function-level `search_path` setting. Exactly one of those is also executable by `anon`: `suly_get_public_conversation(uuid)`, whose current SQL body selects only the conversation matching the supplied `share_token`, returns user/assistant messages only, and is capped at 300 messages. This matches the intentionally public share-link design; the revocation regression remains the required companion test.
 
 ## Phase 17 — Expo Web, Android, iOS validation and release
 
@@ -631,8 +633,9 @@ Acceptance:
 Verified since the prior review:
 - PR #125 merged as `965e6fc8809adb13af72a536755bf70609a7dd16`.
 - Expo CI passed TypeScript, mobile auth regression, static Web export, Android JS bundle, and iOS JS bundle.
-- GitHub Pages deploy for release commit `ae2bebf26c4825ee8a5766e477e85f3929934787` succeeded (workflow run `43861728685`).
-- Expo OTA publish failed again because `EXPO_TOKEN` is unavailable (workflow run `43861728829`).
+- GitHub Pages deploy for release commit `ac861a1b6844cf3b7ca081b8fe34d65408c1ebc0` succeeded (workflow run `43866014691`); the web deployment URL remains `https://eslammohamedk123450-netizen.github.io/smsm-ai/`.
+- The PR #131 CI run passed all three JS platform exports (Web/Android/iOS), TypeScript, auth regression, and Deno checks (run `43865425383`). Post-merge release verification for `ac861a1b6844cf3b7ca081b8fe34d65408c1ebc0` also passed every TypeScript/auth/Web/Android/iOS/Deno step (run `43866014685`).
+- Expo OTA publish failed because `EXPO_TOKEN` is unavailable (workflow run `43866014716`).
 - JS bundle export is not the same as building/installing native APK/IPA or testing on real devices.
 - New theme/locale hydration fixes are pending CI; no visual browser/device test is claimed.
 
@@ -662,7 +665,7 @@ Additional known checks from the latest reviewed release commit:
 - Edge Function deployment artifact verification: **passed**.
 - Web build and deployment jobs: **passed**.
 - Agent Deno typecheck: **passed**.
-- Expo TypeScript check: was still in progress at the time of the last status query.
+- Latest PR #131 Expo TypeScript, auth regression, Web/Android/iOS exports, and Deno checks: **passed** (run `43865425383`). The separate post-merge release verification was still in progress at the latest check.
 - OTA publish: **failed** because `EXPO_TOKEN` was not configured/available.
 - Do not infer all app functions are live merely because these checks passed.
 
