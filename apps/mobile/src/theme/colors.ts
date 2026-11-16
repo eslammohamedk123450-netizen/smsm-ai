@@ -10,7 +10,8 @@ const darkColors = {
 } as const;
 
 const lightColors = {
-  primary: "#171717", onPrimary: "#FFFFFF", // Accessible foreground for primary surfaces. primaryDark: "#000000", secondary: "#525252", primarySoft: "#1717170D",
+  primary: "#171717", onPrimary: "#FFFFFF", /* Accessible foreground for primary surfaces. */
+  primaryDark: "#000000", secondary: "#525252", primarySoft: "#1717170D",
   background: "#F7F7F7", surface: "#FFFFFF", surfaceElevated: "#F0F0F0",
   textPrimary: "#111111", textSecondary: "#525252", textMuted: "#737373", accent: "#111111",
   success: "#15803D", warning: "#A16207", error: "#B91C1C",
