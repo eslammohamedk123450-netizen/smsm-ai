@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useMemo, useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
-import { colors } from "../../theme/colors";
+import { useSulyTheme } from "../../theme/ThemeProvider";
+import type { ThemePalette } from "../../theme/colors";
 import { supportService } from "../support/support-service";
 
 type FrictionRow = { event_day: string; event_kind: string; feature_key: string; screen_key: string; event_count: number; user_count: number; latest_at: string };
@@ -10,6 +11,8 @@ const eventLabels: Record<string, string> = { screen_open: "فتح شاشة", ta
 const screenLabels: Record<string, string> = { chat: "المحادثة", media: "الوسائط", support: "الدعم", settings: "الإعدادات", hims: "HIMS", other: "أخرى" };
 
 export function FrictionDashboardScreen() {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [friction, setFriction] = useState<FrictionRow[]>([]);
   const [feedback, setFeedback] = useState<FeedbackRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,4 +46,4 @@ export function FrictionDashboardScreen() {
     </View>
   </ScrollView>;
 }
-const styles = StyleSheet.create({ screen: { flex: 1, backgroundColor: colors.background }, content: { width: "100%", maxWidth: 1000, alignSelf: "center", padding: 16, gap: 14 }, header: { flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center" }, title: { color: colors.textPrimary, fontSize: 23, fontWeight: "800" }, link: { color: colors.primary, fontWeight: "700" }, subtitle: { color: colors.textSecondary, textAlign: "right", lineHeight: 20 }, error: { color: colors.error, textAlign: "right" }, grid: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 10 }, card: { flex: 1, minWidth: 110, padding: 15, borderRadius: 12, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface, alignItems: "flex-end", gap: 3 }, number: { color: colors.primary, fontSize: 24, fontWeight: "800" }, label: { color: colors.textSecondary, fontSize: 12 }, section: { padding: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface, gap: 9 }, sectionTitle: { color: colors.textPrimary, textAlign: "right", fontSize: 17, fontWeight: "700" }, empty: { color: colors.textMuted, textAlign: "right" }, row: { borderTopWidth: 1, borderColor: colors.divider, paddingTop: 9, gap: 4 }, rowTop: { flexDirection: "row", justifyContent: "space-between", gap: 8 }, rowTitle: { color: colors.textPrimary, fontWeight: "700", textAlign: "right" }, value: { color: colors.primary, fontWeight: "700" }, meta: { color: colors.textMuted, fontSize: 11, textAlign: "right" } });
+const createStyles = (colors: ThemePalette) => StyleSheet.create({ screen: { flex: 1, backgroundColor: colors.background }, content: { width: "100%", maxWidth: 1000, alignSelf: "center", padding: 16, gap: 14 }, header: { flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center" }, title: { color: colors.textPrimary, fontSize: 23, fontWeight: "800" }, link: { color: colors.primary, fontWeight: "700" }, subtitle: { color: colors.textSecondary, textAlign: "right", lineHeight: 20 }, error: { color: colors.error, textAlign: "right" }, grid: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 10 }, card: { flex: 1, minWidth: 110, padding: 15, borderRadius: 12, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface, alignItems: "flex-end", gap: 3 }, number: { color: colors.primary, fontSize: 24, fontWeight: "800" }, label: { color: colors.textSecondary, fontSize: 12 }, section: { padding: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface, gap: 9 }, sectionTitle: { color: colors.textPrimary, textAlign: "right", fontSize: 17, fontWeight: "700" }, empty: { color: colors.textMuted, textAlign: "right" }, row: { borderTopWidth: 1, borderColor: colors.divider, paddingTop: 9, gap: 4 }, rowTop: { flexDirection: "row", justifyContent: "space-between", gap: 8 }, rowTitle: { color: colors.textPrimary, fontWeight: "700", textAlign: "right" }, value: { color: colors.primary, fontWeight: "700" }, meta: { color: colors.textMuted, fontSize: 11, textAlign: "right" } });
