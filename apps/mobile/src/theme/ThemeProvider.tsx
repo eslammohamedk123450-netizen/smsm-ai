@@ -24,7 +24,7 @@ export function SulyThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!ready) return;
-    if (typeof Appearance?.setColorScheme === "function") Appearance.setColorScheme(mode === "system" ? null : mode);
+    if (typeof Appearance?.setColorScheme === "function") Appearance.setColorScheme(mode === "system" ? "unspecified" : mode);
     void AsyncStorage.setItem(STORAGE_KEY, mode).catch(() => undefined);
   }, [mode, ready]);
 
