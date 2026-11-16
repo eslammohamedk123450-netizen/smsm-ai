@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { getCloudinaryConfig, type CloudinaryConfig } from "../_shared/cloudinary_config.ts";
 import { handleCorsPreflight, withCors } from "../_shared/cors.ts";
+import { canUploadUnboundMediaFeature } from "./upload_access.ts";
 
 const corsOrigin = Deno.env.get("WEB_CORS_ORIGIN")?.trim();
 const corsHeaders = {
@@ -70,7 +71,7 @@ async function verifyUploadContext(ctx: AuthContext, feature: FeatureKey, conver
     if (!ticketId) return "يجب ربط مرفق الدعم بتذكرة.";
     const { data, error } = await ctx.service.from("suly_support_tickets").select("id,status").eq("id", ticketId).eq("user_id", ctx.userId).maybeSingle();
     if (error || !data || data.status === "closed") return "لا يمكن إرفاق ملف بهذه التذكرة.";
-  } else if (!ctx.isAdmin) return "يتطلب هذا الإجراء صلاحية مشرف.";
+  } else if (!canUploadUnboundMediaFeature(feature, ctx.isAdmin)) return "يتطلب هذا الإجراء صلاحية مشرف.";
   return null;
 }
 
