@@ -26,8 +26,8 @@ begin
   if v_admin is null or not public.suly_is_admin() then
     raise exception 'administrator privileges required' using errcode = '42501';
   end if;
-  if v_feature = '' or v_code = '' or length(v_code) < 6 or length(v_code) > 120 then
-    raise exception 'invalid activation code request' using errcode = '22023';
+  if v_feature = '' or v_code = '' or length(v_code) < 12 or length(v_code) > 120 then
+    raise exception 'activation code must be at least 12 characters' using errcode = '22023';
   end if;
   if not exists (select 1 from public.suly_feature_flags where feature_key = v_feature) then
     raise exception 'unknown feature key' using errcode = '22023';
