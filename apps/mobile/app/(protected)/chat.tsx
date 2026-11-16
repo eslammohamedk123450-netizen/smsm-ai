@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, TouchableOpacity, View, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
+import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, TouchableOpacity, View, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { PremiumText as Text } from "../../src/components/ui/PremiumText";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -709,7 +709,7 @@ export default function ChatPage() {
   );
 
   const shareTitle = messages.find((message) => message.role === "user")?.content.slice(0, 48) || (isArabic ? "محادثة Suly" : "SULY conversation");
-  const selectedModelLabel = selectedModelProfile === "auto" ? "SULY Auto" : localizedModelProfiles.find((profile) => profile.profile_key === selectedModelProfile)?.display_name ?? "SULY Lite";
+  const selectedModelLabel = selectedModelProfile === "auto" ? (isArabic ? "SULY تلقائي" : "SULY Auto") : localizedModelProfiles.find((profile) => profile.profile_key === selectedModelProfile)?.display_name ?? "SULY Lite";
   const shareText = messages.map((message) => `${message.role === "user" ? (isArabic ? "أنت" : "You") : "Suly"}:\n${message.content}`).join("\n\n");
 
   return (
