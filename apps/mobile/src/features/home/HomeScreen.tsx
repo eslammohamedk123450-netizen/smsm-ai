@@ -26,7 +26,7 @@ export function HomeScreen() {
     try { setRecent(await chatService.listConversations(6)); }
     catch (cause) { setError(cause instanceof Error ? cause.message : (isArabic ? "تعذر تحميل المحادثات الأخيرة." : "Could not load recent chats.")); }
     finally { setLoading(false); }
-  }, []);
+  }, [isArabic]);
   useEffect(() => { void load(); }, [load]);
 
   const newConversation = async () => {
@@ -96,26 +96,26 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   content: { width: "100%", maxWidth: 1120, alignSelf: "center", padding: 20, paddingBottom: 36, gap: 16 },
   hero: { padding: 24, borderRadius: 22, backgroundColor: "#171717", gap: 9 },
   eyebrow: { fontSize: 10, fontWeight: "800", letterSpacing: 1.1, textAlign: isArabic ? "right" : "left" },
-  title: { fontSize: 27, fontWeight: "900", textAlign: "right" },
-  subtitle: { fontSize: 15, textAlign: "right" },
+  title: { fontSize: 27, fontWeight: "900", textAlign: isArabic ? "right" : "left" },
+  subtitle: { fontSize: 15, textAlign: isArabic ? "right" : "left" },
   primaryButton: { alignSelf: isArabic ? "flex-end" : "flex-start", minHeight: 46, borderRadius: 12, paddingHorizontal: 18, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 8 },
   primaryButtonText: { color: "#FFFFFF", fontWeight: "800" },
   disabled: { opacity: 0.55 },
-  error: { textAlign: "right" },
-  sectionTitle: { fontSize: 17, fontWeight: "800", textAlign: "right" },
-  actionGrid: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 10 },
+  error: { textAlign: isArabic ? "right" : "left" },
+  sectionTitle: { fontSize: 17, fontWeight: "800", textAlign: isArabic ? "right" : "left" },
+  actionGrid: { flexDirection: isArabic ? "row-reverse" : "row", flexWrap: "wrap", gap: 10 },
   actionCard: { flexBasis: 180, flexGrow: 1, minHeight: 130, borderWidth: 1, borderRadius: 16, padding: 14, gap: 6 },
   actionIcon: { width: 38, height: 38, borderRadius: 11, alignItems: "center", justifyContent: "center", marginBottom: 3 },
-  actionTitle: { fontSize: 14, fontWeight: "800", textAlign: "right" },
-  actionSubtitle: { fontSize: 11, lineHeight: 17, textAlign: "right" },
-  recentHeader: { flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center" },
+  actionTitle: { fontSize: 14, fontWeight: "800", textAlign: isArabic ? "right" : "left" },
+  actionSubtitle: { fontSize: 11, lineHeight: 17, textAlign: isArabic ? "right" : "left" },
+  recentHeader: { flexDirection: isArabic ? "row-reverse" : "row", justifyContent: "space-between", alignItems: "center" },
   link: { fontSize: 12, fontWeight: "700" },
   emptyCard: { borderWidth: 1, borderRadius: 14, padding: 18 },
-  emptyText: { textAlign: "right" },
-  conversation: { minHeight: 58, borderWidth: 1, borderRadius: 13, paddingHorizontal: 13, flexDirection: "row-reverse", alignItems: "center", gap: 10 },
+  emptyText: { textAlign: isArabic ? "right" : "left" },
+  conversation: { minHeight: 58, borderWidth: 1, borderRadius: 13, paddingHorizontal: 13, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 10 },
   conversationCopy: { flex: 1, gap: 3 },
-  conversationTitle: { fontSize: 13, fontWeight: "700", textAlign: "right" },
-  conversationDate: { fontSize: 10, textAlign: "right" },
-  refresh: { flexDirection: "row-reverse", justifyContent: "center", alignItems: "center", gap: 6, paddingVertical: 8 },
+  conversationTitle: { fontSize: 13, fontWeight: "700", textAlign: isArabic ? "right" : "left" },
+  conversationDate: { fontSize: 10, textAlign: isArabic ? "right" : "left" },
+  refresh: { flexDirection: isArabic ? "row-reverse" : "row", justifyContent: "center", alignItems: "center", gap: 6, paddingVertical: 8 },
   refreshText: { fontSize: 11 },
 });
