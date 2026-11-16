@@ -141,6 +141,7 @@ export default function ChatPage() {
   const [ratingNote, setRatingNote] = useState("");
   const [ratingSaving, setRatingSaving] = useState(false);
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
+  // The selected profile is screen-local; the server revalidates subscription eligibility on every request.
   const [selectedModelProfile, setSelectedModelProfile] = useState<SulyModelProfileKey>("auto");
   const [modelProfileOptions, setModelProfileOptions] = useState<SulyModelProfileOption[]>([]);
   const [modelProfileLoading, setModelProfileLoading] = useState(false);
