@@ -272,7 +272,7 @@ Acceptance:
 - No generation can bypass server-side credit checks.
 - Failures release unused holds; partial work is charged only according to measured/verified usage.
 
-**Current status:** [~] Studio UI foundation and moving image creation out of chat have been merged. Media billing safety checks pass, but full image/video/audio provider integration and conversion/pricing are not verified. Media models observed in the database were inactive; do not enable them until checks pass.
+**Current status:** [~] Studio UI foundation and moving image creation out of chat have been merged. A fresh read-only production DB inspection on 2026-11-16 found 4 media-generation model rows, 0 active; 0 rows in `suly_media_generation_prices`; 22 current rows in `suly_media_model_price_versions`; and 0 generation jobs. Therefore image generation remains unavailable because the runtime price table is empty and models are inactive, despite the separate 22-row price catalog. Do not enable models or populate runtime prices until a verified, audited mapping from catalog version/unit/EGP cost to provider USD cost, FX rate, and credit conversion is established. Video UI remains an explicit not-ready placeholder; audio and transcription have no end-to-end generation paths verified.
 
 Known evidence:
 - PR #104 — move media creation from chat into Studio.
@@ -1019,6 +1019,7 @@ Updated `apps/mobile/src/features/home/HomeScreen.tsx`:
 - Moved the existing selector into a dedicated row directly below the conversation app bar. The profile choices are horizontally scrollable on narrow screens; existing localized labels, tier-lock checks, profile descriptions, and request payload semantics are unchanged.
 - No model routes, subscription rules, credit logic, Agent orchestration, database schema, or provider settings were changed.
 - Implementation is in PR #119: https://github.com/eslammohamedk123450-netizen/smsm-ai/pull/119
+- PR #119 merged into `release/v1` as commit `c2ffc15f79ce5922d2e8b8a424b81f0a20b0d899`. GitHub Actions run `43853785434` passed mobile TypeScript, mobile auth regression, Expo Web static export, Android JS export, iOS JS export, and Deno Agent/scheduler regression + typecheck. Follow-up release workflows were queued; no visual/device test is claimed.
 - Branch: `feat/phase6-conversation-header-mode-20261116`; initial commit: `cb342edac36933b945b9938e4d43846faf9ff398`.
 - GitHub Actions run `43853785434` was in progress at the time of this record. Do not mark this change verified/merged until Expo typecheck, mobile regression tests, Web/Android/iOS exports, and Deno Agent tests/typecheck pass.
 - Visual browser/device confirmation remains unavailable and is not claimed.
