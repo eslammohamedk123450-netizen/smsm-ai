@@ -700,3 +700,47 @@ For every work session, report:
 #### Next concrete action
 Continue the function-by-function security review, beginning with the anonymous public-share function and high-impact administrative state-changing RPCs. Make no production permission or schema changes until the relevant caller flow and regression coverage are understood.
 
+### Session continuation: Public sharing and model-routing state transitions
+
+**Scope:** Read-only verification of public conversation sharing, route-assignment RPCs, provider lifecycle controls, and relevant current admin UI call sites. No database or application changes were made.
+
+#### Additional verified findings
+
+1. **Public conversation sharing — intended path confirmed by schema and function inspection.**
+   - The share-token column is UUID and has a UNIQUE index/constraint.
+   - The owner-only `suly_set_conversation_sharing(uuid,boolean)` RPC requires an authenticated user and updates only a conversation whose `user_id = auth.uid()`.
+   - Enabling sharing creates a token with `gen_random_uuid()`; disabling sharing sets the token to NULL, revoking the public link.
+   - Anonymous direct SELECT on `suly_conversations` and `suly_messages` is blocked by the RLS policies, which are scoped to the authenticated role and the owning user (plus the separate admin conversation-read policy).
+   - The only anonymous SECURITY DEFINER RPC, `suly_get_public_conversation(uuid)`, reads by exact share token and returns the title plus at most 300 user/assistant messages.
+   - **Assessment:** The anonymous function is consistent with the explicit public-share feature, not evidence of a general anonymous conversation read. Preserve it. Remaining test: exercise enable → public fetch → revoke → public fetch returns no conversation using two authenticated test accounts and an anonymous request.
+
+2. **Model routing administration — current route RPC reviewed.**
+   - `suly_admin_save_route_models(text,integer[])` is executable by authenticated users but first requires `suly_is_admin()`.
+   - The latest database definition requires one primary and allows at most one backup; it validates enabled model/provider, `free_race` routing group, health restriction state, task-role compatibility, and chat capability/media-model exclusions before replacing a role's assignments in the function transaction.
+   - Direct INSERT/UPDATE/DELETE grants on `ai_route_model_assignments` are revoked from `public`, `anon`, and `authenticated`; authenticated SELECT remains available for the admin UI.
+   - The current admin UI saves role assignments through the guarded RPC.
+   - **Assessment:** No anonymous or ordinary-user route mutation path was found in the inspected database grants/RPC. Continue testing admin/non-admin RPC behavior and the model-capability edge cases before marking routing security complete.
+
+3. **Provider lifecycle — correct UI path confirmed, legacy alternative remains.**
+   - The current admin screen calls `suly_admin_set_provider_lifecycle` when toggling a provider.
+   - Disabling through that lifecycle RPC disables the provider, route assignments, subscription-profile assignments, media-generation model activation, and clears legacy direct model overrides.
+   - The older `suly_admin_set_provider_enabled` RPC remains executable by authenticated users but is also guarded by `suly_is_admin()`. Its implementation only toggles provider/model enabled flags and does not perform the full lifecycle freeze.
+   - The current admin-service file still contains a helper for the older RPC, but the inspected current provider-toggle UI uses the lifecycle RPC.
+   - **Assessment:** This is an admin-only legacy state-transition inconsistency, not an anonymous privilege escalation. Do not revoke or remove it until all call sites and older-client compatibility are checked. Recommended follow-up: remove the unused helper and revoke the legacy RPC's authenticated EXECUTE grant only after confirming no supported client depends on it.
+
+4. **Model health reset — explicit admin action.**
+   - `suly_admin_reset_model_health(integer)` requires admin authorization, clears the health restriction counters, and sets the model's `enabled` flag to true.
+   - The current admin UI presents a confirmation explicitly stating that the action re-enables the model.
+   - It does not itself re-enable disabled route-assignment rows; provider enabled status is still checked by routing.
+   - **Assessment:** This is a documented privileged administrative action, not a user-facing bypass. Test that a disabled provider remains frozen after health reset and that reset does not restore route/profile assignments disabled by provider lifecycle.
+
+#### Updated security status
+- No confirmed anonymous table-read or ordinary-user administrative RPC bypass was identified in the inspected paths.
+- The public-share anonymous RPC is intentional and guarded by a unique owner-generated UUID token; keep it pending end-to-end revocation tests.
+- The 10 RLS/no-policy tables remain server-only by effective client grants.
+- One legacy provider-toggle RPC is an admin-only lifecycle inconsistency and needs compatibility review.
+- The full review of all 57 authenticated-executable SECURITY DEFINER functions is **not complete**. Do not mark Phase 16 complete.
+
+#### Next concrete action
+Continue auditing the remaining authenticated SECURITY DEFINER functions in groups, checking exact row ownership, privilege boundaries, returned columns, dynamic SQL, and mutation scope. In parallel, inspect Edge Function service-role access to the ten server-only tables. Only after the relevant paths are mapped should targeted regression tests and any least-privilege migration be prepared.
+
