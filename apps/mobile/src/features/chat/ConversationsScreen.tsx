@@ -35,7 +35,7 @@ export function ConversationsScreen() {
 
   const filtered = useMemo(() => {
     const value = query.trim().toLocaleLowerCase(isArabic ? "ar" : "en");
-    return value ? items.filter((item) => item.title.toLocaleLowerCase("ar").includes(value)) : items;
+    return value ? items.filter((item) => item.title.toLocaleLowerCase(isArabic ? "ar" : "en").includes(value)) : items;
   }, [items, query, isArabic]);
 
   const create = async () => {
@@ -132,7 +132,7 @@ export function ConversationsScreen() {
       <BottomSheet visible={Boolean(deleteTarget)} title={isArabic ? "حذف المحادثة؟" : "Delete chat?"} onClose={() => setDeleteTarget(null)}>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{isArabic ? "سيتم حذف المحادثة ورسائلها نهائيًا. لا يمكن التراجع عن هذا الإجراء." : "This will permanently delete the chat and its messages. This action cannot be undone."}</Text>
         <View style={styles.sheetButtons}>
-          <Pressable onPress={() => setDeleteTarget(null)} style={styles.sheetAction}><Text style={styles.sheetActionText}>إلغاء</Text></Pressable>
+          <Pressable onPress={() => setDeleteTarget(null)} style={styles.sheetAction}><Text style={styles.sheetActionText}>{isArabic ? "إلغاء" : "Cancel"}</Text></Pressable>
           <Pressable onPress={() => void deleteSelected()} style={[styles.sheetAction, styles.dangerAction]}><Text style={styles.dangerText}>{isArabic ? "حذف نهائي" : "Delete permanently"}</Text></Pressable>
         </View>
       </BottomSheet>
