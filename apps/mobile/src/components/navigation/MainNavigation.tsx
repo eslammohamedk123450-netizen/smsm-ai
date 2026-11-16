@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { usePathname, useRouter } from "expo-router";
 import { Keyboard, Pressable, StyleSheet, View, useWindowDimensions, Platform } from "react-native";
 import { useEffect, useState } from "react";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { PremiumText as Text } from "../ui/PremiumText";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 
@@ -38,6 +38,7 @@ export function MainNavigation({ children }: Props) {
   }, []);
   const wide = Platform.OS === "web" && width >= 900;
   const active = activeSection(pathname);
+  const screenOwnsSafeArea = ["/chat", "/balance", "/image-studio", "/video-studio"].some((route) => pathname.startsWith(route));
 
   if (pathname.startsWith("/admin")) return <>{children}</>;
 
@@ -69,7 +70,7 @@ export function MainNavigation({ children }: Props) {
           <View style={[styles.sidebarFooter, { borderColor: colors.divider }]}><Text style={[styles.footerText, { color: colors.textMuted }]}>More Than AI. Your Intelligent Partner.</Text></View>
         </View>
       ) : null}
-      <View style={styles.content}>{children}</View>
+      <SafeAreaView style={styles.content} edges={screenOwnsSafeArea ? [] : ["top"]}>{children}</SafeAreaView>
       {!wide && !keyboardVisible ? (
         <View style={[styles.bottomBar, { backgroundColor: colors.surface, borderColor: colors.divider, paddingBottom: Math.max(insets.bottom, 6) }]}>
           {ITEMS.map((item) => renderItem(item, true))}
