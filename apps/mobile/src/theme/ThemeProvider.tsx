@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Appearance, useColorScheme } from "react-native";
+import { Appearance, View, useColorScheme } from "react-native";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { getThemeColors, type ThemePalette } from "./colors";
 
@@ -32,7 +32,11 @@ export function SulyThemeProvider({ children }: { children: ReactNode }) {
   const effectiveMode = mode === "system" ? (systemMode === "dark" ? "dark" : "light") : mode;
   const palette = useMemo(() => getThemeColors(effectiveMode), [effectiveMode]);
   const value = useMemo(() => ({ mode, effectiveMode, colors: palette, setMode }), [mode, effectiveMode, palette, setMode]);
-  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+  return (
+    <ThemeContext.Provider value={value}>
+      {ready ? children : <View style={{ flex: 1, backgroundColor: palette.background }} />}
+    </ThemeContext.Provider>
+  );
 }
 
 export function useSulyTheme(): ThemeContextValue {
