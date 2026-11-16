@@ -184,6 +184,45 @@ export const adminService = {
     return data ?? [];
   },
 
+  async saveImageGenerationModel(input: {
+    modelId: string | null;
+    providerId: number;
+    displayName: string;
+    modelIdentifier: string;
+    endpointUrl: string;
+    allowedTiers: string[];
+    isActive: boolean;
+    isDefault: boolean;
+    prices: Array<{
+      quality: string;
+      price_credits: number;
+      estimated_provider_cost_usd: number;
+      target_margin: number;
+      credit_value_egp: number;
+      usd_to_egp: number;
+      resolution: string;
+      enabled: boolean;
+    }>;
+  }) {
+    await requireAdmin();
+    const { data, error } = await supabase.rpc("suly_admin_save_image_generation_model", {
+      p_model_id: input.modelId,
+      p_provider_id: input.providerId,
+      p_display_name: input.displayName,
+      p_model_identifier: input.modelIdentifier,
+      p_endpoint_url: input.endpointUrl,
+      p_allowed_tiers: input.allowedTiers,
+      p_is_active: input.isActive,
+      p_is_default: input.isDefault,
+      p_prices: input.prices,
+    });
+    if (error) throw error;
+    if (!data || typeof data !== "object" || data.success !== true || typeof data.model_id !== "string") {
+      throw new Error("لم تؤكد قاعدة البيانات حفظ نموذج الصور وأسعاره.");
+    }
+    return data as { success: true; model_id: string; service_type: "image"; is_active: boolean; is_default: boolean; supported_qualities: string[] };
+  },
+
   async createProvider(input: ProviderInput) {
     await requireAdmin();
     const { data, error } = await supabase.functions.invoke("sync-models", {
