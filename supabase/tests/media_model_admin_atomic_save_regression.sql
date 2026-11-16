@@ -11,7 +11,7 @@ select set_config(
 );
 select set_config(
   'suly_test_admin_id',
-  (select user_id::text from public.suly_admins order by created_at limit 1),
+  (select user_id::text from public.suly_admins order by user_id limit 1),
   true
 );
 
