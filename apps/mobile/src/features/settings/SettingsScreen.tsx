@@ -224,10 +224,10 @@ export default function SettingsScreen() {
         <Text style={styles.email}>{isArabic ? `المظهر الحالي: ${effectiveMode === "dark" ? "داكن" : "فاتح"}` : `Current appearance: ${effectiveMode}`}</Text>
 
         <Text style={styles.sectionTitle}>{isArabic ? "ذاكرة التخزين" : "Memory storage"}</Text>
-        <View style={styles.cardRow}>
-          <Text style={styles.rowText}>{isArabic ? "ذاكرة SULY" : "SULY memory"}</Text>
-          <Text style={styles.email}>{isArabic ? "إدارة الذاكرة غير متاحة بعد؛ لا يتم حذف أو تعديل أي ذاكرة من هذه الشاشة." : "Memory controls are not available yet; this screen does not delete or change stored memories."}</Text>
-        </View>
+        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/memory")} accessibilityRole="button">
+          <Text style={styles.rowText}>{isArabic ? "عرض ذاكرة SULY" : "View SULY memory"}</Text>
+          <Text style={styles.chevron}>‹</Text>
+        </TouchableOpacity>
 
         <Text style={styles.sectionTitle}>{isArabic ? "التخزين والمكتبة" : "Storage & Library"}</Text>
         <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/media")} accessibilityRole="button">
