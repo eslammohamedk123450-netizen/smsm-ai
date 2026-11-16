@@ -1,9 +1,10 @@
 import { Slot, usePathname, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { supabase } from "../../lib/supabase/client";
-import { colors } from "../../theme/colors";
+import { useSulyTheme } from "../../theme/ThemeProvider";
+import type { ThemePalette } from "../../theme/colors";
 
 type NavItem = { path: string; label: string; icon: string };
 type NavGroup = { key: string; label: string; hint: string; items: readonly NavItem[] };
@@ -66,6 +67,8 @@ const WIDE_BREAKPOINT = 900;
 const DEFAULT_OPEN_GROUPS = ["operations", "intelligence"];
 
 export function AdminShell() {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { width } = useWindowDimensions();
   const wide = width >= WIDE_BREAKPOINT;
   const pathname = usePathname();
@@ -173,7 +176,7 @@ export function AdminShell() {
   </View>;
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemePalette) => StyleSheet.create({
   root: { flex: 1, flexDirection: "row-reverse", backgroundColor: colors.background },
   rail: { width: 244, borderLeftWidth: 1, borderLeftColor: colors.divider, backgroundColor: colors.surface, paddingVertical: 20, paddingHorizontal: 13 },
   brand: { flexDirection: "row-reverse", alignItems: "center", gap: 10, paddingHorizontal: 8, paddingBottom: 22 },
