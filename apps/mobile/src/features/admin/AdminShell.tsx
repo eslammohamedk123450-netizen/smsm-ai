@@ -110,7 +110,7 @@ export function AdminShell() {
       if (!active || error || !Array.isArray(data)) return;
       setCustomPages(data.filter((page: any) => page?.status === "published" && typeof page.page_key === "string" && typeof page.title === "string")
         .slice(0, 30).map((page: any) => ({ page_key: page.page_key, title: page.title })));
-    }).catch(() => { if (active) setCustomPages([]); });
+    }, () => { if (active) setCustomPages([]); });
     return () => { active = false; };
   }, []);
 
