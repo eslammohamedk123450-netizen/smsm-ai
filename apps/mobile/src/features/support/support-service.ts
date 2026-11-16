@@ -37,6 +37,7 @@ export const supportService = {
     return (data ?? []) as SupportReply[];
   },
   async reply(ticketId: string, body: string, isAdmin = false): Promise<void> {
+    if (isAdmin) await requireAdmin();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("سجّل الدخول مجددًا.");
     const { error } = await supabase.from("suly_support_replies").insert({ ticket_id: ticketId, sender_id: user.id, is_admin_reply: isAdmin, body: body.trim() });
