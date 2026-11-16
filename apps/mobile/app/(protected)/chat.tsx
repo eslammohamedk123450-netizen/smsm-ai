@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, TouchableOpacity, View, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
+import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, TouchableOpacity, View, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { PremiumText as Text } from "../../src/components/ui/PremiumText";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -136,6 +136,7 @@ export default function ChatPage() {
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const [selectedModelProfile, setSelectedModelProfile] = useState<"auto" | "lite" | "pro" | "max">("auto");
   const [modelMenuVisible, setModelMenuVisible] = useState(false);
+  const [navigationMenuVisible, setNavigationMenuVisible] = useState(false);
   const [actualModelUsed, setActualModelUsed] = useState<string | null>(null);
   const [subscriptionTier, setSubscriptionTier] = useState("free");
   const [modelProfiles, setModelProfiles] = useState(DEFAULT_SULY_PROFILES);
@@ -716,7 +717,7 @@ export default function ChatPage() {
     <SafeAreaView style={styles.safe} edges={["top", "left", "right", "bottom"]}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : Platform.OS === "android" ? "height" : undefined} keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}>
         <View style={styles.appBar}>
-          <Pressable onPress={() => router.push("/conversations")} style={styles.headerButton} accessibilityRole="button" accessibilityLabel={isArabic ? "فتح المحادثات" : "Open conversations"}>
+          <Pressable onPress={() => setNavigationMenuVisible(true)} style={styles.headerButton} accessibilityRole="button" accessibilityLabel={isArabic ? "فتح قائمة التنقل" : "Open navigation menu"}>
             <Ionicons name="menu-outline" size={22} color={colors.textPrimary} />
           </Pressable>
           <Pressable onPress={() => setModelMenuVisible(true)} style={styles.modelSelector} accessibilityRole="button" accessibilityLabel={isArabic ? "اختيار نموذج SULY" : "Choose SULY model"}>
@@ -795,6 +796,28 @@ export default function ChatPage() {
         <ChatComposer ref={composerRef} onSend={handleSend} disabled={isSending || Boolean(connectorApproval)} isStreaming={isSending} onCancel={() => abortRef.current?.abort()} creditBalance={creditBalance} onOpenRecharge={() => router.push("/(protected)/balance")} />
       </KeyboardAvoidingView>
       <ShareConversationSheet visible={shareVisible} conversationId={conversationId} title={shareTitle} plainText={shareText} onClose={closeShareSheet} />
+      <BottomSheet visible={navigationMenuVisible} title={isArabic ? "قائمة SULY" : "SULY menu"} onClose={() => setNavigationMenuVisible(false)}>
+        <ScrollView style={styles.navigationMenuScroll} contentContainerStyle={styles.navigationMenu}>
+          {[
+            { labelAr: "محادثة جديدة", labelEn: "New chat", href: "/chat", icon: "add-circle-outline" as const },
+            { labelAr: "المحادثات والبحث", labelEn: "Conversations & search", href: "/conversations", icon: "chatbubbles-outline" as const },
+            { labelAr: "المشروعات", labelEn: "Projects", href: "/projects", icon: "folder-outline" as const },
+            { labelAr: "المهام", labelEn: "Tasks", href: "/tasks", icon: "git-branch-outline" as const },
+            { labelAr: "الاستوديو", labelEn: "Studio", href: "/studio", icon: "sparkles-outline" as const },
+            { labelAr: "المكتبة", labelEn: "Library", href: "/media", icon: "albums-outline" as const },
+            { labelAr: "الرصيد", labelEn: "Credits", href: "/balance", icon: "wallet-outline" as const },
+            { labelAr: "الباقات والاشتراك", labelEn: "Plans & subscription", href: "/upgrade", icon: "card-outline" as const },
+            { labelAr: "التكاملات", labelEn: "Integrations", href: "/integrations", icon: "git-network-outline" as const },
+            { labelAr: "الإعدادات والدعم", labelEn: "Settings & support", href: "/settings", icon: "settings-outline" as const },
+          ].map((item) => (
+            <Pressable key={item.href} onPress={() => { setNavigationMenuVisible(false); router.push(item.href as never); }} style={styles.navigationMenuItem} accessibilityRole="button">
+              <Ionicons name={item.icon} size={19} color={colors.textSecondary} />
+              <Text style={styles.navigationMenuLabel}>{isArabic ? item.labelAr : item.labelEn}</Text>
+              <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={16} color={colors.textMuted} />
+            </Pressable>
+          ))}
+        </ScrollView>
+      </BottomSheet>
       <BottomSheet visible={modelMenuVisible} title={isArabic ? "اختيار نموذج SULY" : "Choose a SULY model"} onClose={() => setModelMenuVisible(false)}>
         <View style={styles.modelMenu}>
           <Pressable onPress={() => { setSelectedModelProfile("auto"); setModelMenuVisible(false); }} style={[styles.modelOption, selectedModelProfile === "auto" && styles.modelOptionSelected]}>
@@ -892,6 +915,10 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   modelOptionDescription: { color: colors.textSecondary, fontSize: 11, lineHeight: 17, textAlign: isArabic ? "right" : "left" },
   modelRestricted: { color: colors.textMuted, fontSize: 10, fontWeight: "700" },
   actualModelNote: { color: colors.textMuted, fontSize: 10, lineHeight: 16, textAlign: isArabic ? "right" : "left", paddingHorizontal: 3 },
+  navigationMenuScroll: { maxHeight: 560 },
+  navigationMenu: { gap: 7, paddingBottom: 8 },
+  navigationMenuItem: { minHeight: 48, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 11, paddingHorizontal: 12, borderRadius: 11, backgroundColor: colors.surfaceElevated },
+  navigationMenuLabel: { flex: 1, color: colors.textPrimary, fontSize: 13, fontWeight: "700", textAlign: isArabic ? "right" : "left" },
   brandCenter: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 8 },
   brandTitle: { color: colors.textPrimary, fontSize: 20, fontWeight: "700", letterSpacing: -0.5 },
   creditPill: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 5, backgroundColor: colors.surfaceElevated, borderColor: colors.divider, borderWidth: 1, borderRadius: 9999, paddingHorizontal: 10, paddingVertical: 5 },
