@@ -538,6 +538,48 @@ export const adminService = {
     return results;
   },
 
+  async getUsersPage(page = 0, pageSize = 50, search = "", filter: "all" | "active" | "banned" = "all") {
+    await requireAdmin();
+    const safePage = Number.isSafeInteger(page) ? Math.max(0, page) : 0;
+    const safePageSize = Number.isSafeInteger(pageSize) ? Math.min(100, Math.max(1, pageSize)) : 50;
+    const queryText = search.trim().slice(0, 100).replace(/[,%()\\*]/g, " ").trim();
+    let query = supabase.from("suly_profiles")
+      .select("id,email,full_name,subscription_tier,is_banned,created_at", { count: "exact" })
+      .order("created_at", { ascending: false })
+      .range(safePage * safePageSize, (safePage + 1) * safePageSize - 1);
+    if (filter === "active") query = query.eq("is_banned", false);
+    if (filter === "banned") query = query.eq("is_banned", true);
+    if (queryText) {
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(queryText)) {
+        query = query.eq("id", queryText);
+      } else {
+        query = query.or(`email.ilike.%${queryText}%,full_name.ilike.%${queryText}%`);
+      }
+    }
+    const { data: profiles, error, count } = await query;
+    if (error) throw error;
+    const ids = (profiles ?? []).map((profile) => profile.id);
+    const { data: accounts, error: accountsError } = ids.length
+      ? await supabase.from("suly_credit_accounts").select("user_id,balance,reserved_balance").in("user_id", ids)
+      : { data: [], error: null };
+    if (accountsError) throw accountsError;
+    const accountByUser = new Map<string, { balance: number; reserved_balance: number }>();
+    for (const row of accounts ?? []) accountByUser.set(String(row.user_id), {
+      balance: Number(row.balance ?? 0),
+      reserved_balance: Number(row.reserved_balance ?? 0),
+    });
+    return {
+      users: (profiles ?? []).map((profile) => ({
+        ...profile,
+        balance: accountByUser.get(String(profile.id))?.balance ?? 0,
+        reserved_balance: accountByUser.get(String(profile.id))?.reserved_balance ?? 0,
+      })),
+      total: count ?? 0,
+      page: safePage,
+      page_size: safePageSize,
+    };
+  },
+
   async getUsers() {
     await requireAdmin();
     const [profiles, accounts] = await Promise.all([
