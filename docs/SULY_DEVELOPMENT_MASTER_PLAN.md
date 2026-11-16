@@ -129,7 +129,7 @@ Acceptance:
 - Show Lite, Pro, Max, Ultra with verified metadata and clear available/restricted status.
 - Separate subscription plan from selected model; enforce all permissions and routing server-side.
 - Do not activate unverified models or invent version/capability/price metadata.
-- Current implementation: the chat selector loads active profiles from the server catalog; when that lookup fails, locally defined defaults are disabled and labeled as unverified. Lite/Pro/Max are the currently known server profiles; Ultra remains visible but unavailable until catalog and routing metadata are verified. Admin model governance already provides search, filters, role/capability controls, enable/disable, and model health/probe operations. No model was activated or provider routing/pricing changed in this work.
+- Current implementation: the chat selector loads active profiles from the server catalog; when that lookup fails, locally defined defaults are disabled and labeled as unverified. Catalog verification is reset during account changes so stale state from a previous session cannot keep those defaults selectable (commit `c215b84b4744189f5f3389da93c1bf1dabf7bab2`). Lite/Pro/Max are the currently known server profiles; Ultra remains visible but unavailable until catalog and routing metadata are verified. Admin model governance already provides search, filters, role/capability controls, enable/disable, and model health/probe operations. No model was activated or provider routing/pricing changed in this work.
 - **Implementation status: IMPLEMENTED — REVIEW REQUIRED.** Verify catalog completeness, Ultra readiness, entitlement edge cases, and admin role boundaries in Track B.
 - Acceptance: UI labels match server catalog and authorization tests.
 
