@@ -150,7 +150,7 @@ export function AdminPageBuilderScreen() {
       {component.content ? <Text style={styles.bodyText}>{component.content}</Text> : null}
       {component.type === "status" ? <Text style={styles.statusText}>{component.label || t("غير محدد","Unspecified")}</Text> : null}
       {component.type === "list" ? component.items.map((item, index) => <Text key={index} style={styles.bodyText}>• {item}</Text>) : null}
-      {component.type === "table" ? <Text style={styles.hint}>{t("معاينة جدول ثابت — الأعمدة والصفوف محفوظة في الإصدار.","Static table preview — columns and rows are stored in this version.")}</Text> : null}
+      {component.type === "table" ? <View style={styles.previewTable}><Text style={styles.bodyText}>{(component.columns ?? []).join("  |  ")}</Text>{(component.rows ?? []).map((row, index) => <Text key={index} style={styles.bodyText}>{row.join("  |  ")}</Text>)}</View> : null}
       {component.source !== "none" ? <Text style={styles.sourceTag}>{t("بيانات المصدر: ","Source data: ")}{sourceSnapshots[component.source] ?? t("جارٍ التحميل…","Loading…")}</Text> : null}
     </View>
   );
@@ -203,7 +203,7 @@ export function AdminPageBuilderScreen() {
           {component.type === "status" ? <TextInput value={component.label} onChangeText={(value) => updateComponent(component.id, { label: value })} style={styles.input} placeholder={t("وصف الحالة","Status label")} placeholderTextColor={colors.textMuted} /> : null}
           {component.type === "text" || component.type === "notice" ? <TextInput value={component.content} onChangeText={(value) => updateComponent(component.id, { content: value })} style={[styles.input, styles.multiline]} multiline placeholder={t("المحتوى","Content")} placeholderTextColor={colors.textMuted} /> : null}
           {component.type === "list" ? <TextInput value={component.items.join("\n")} onChangeText={(value) => updateComponent(component.id, { items: value.split("\n").map((item) => item.trim()).filter(Boolean).slice(0,20) })} style={[styles.input, styles.multiline]} multiline placeholder={t("عنصر واحد في كل سطر","One item per line")} placeholderTextColor={colors.textMuted} /> : null}
-          {component.type === "table" ? <TextInput value={component.rows.map((row) => row.join(" | ")).join("\n")} onChangeText={(value) => updateComponent(component.id, { columns: ["Column 1", "Column 2"], rows: value.split("\n").slice(0,20).map((line) => line.split("|").slice(0,8).map((cell) => cell.trim())) })} style={[styles.input, styles.multiline]} multiline placeholder={t("صف واحد في كل سطر، افصل الخلايا بعلامة |","One row per line; separate cells with |")} placeholderTextColor={colors.textMuted} /> : null}
+          {component.type === "table" ? <><TextInput value={component.columns.join(" | ")} onChangeText={(value) => updateComponent(component.id, { columns: value.split("|").slice(0,8).map((cell) => cell.trim()) })} style={styles.input} placeholder={t("عناوين الأعمدة وافصل بينها |","Column headings separated by |")} placeholderTextColor={colors.textMuted} /><TextInput value={component.rows.map((row) => row.join(" | ")).join("\n")} onChangeText={(value) => updateComponent(component.id, { rows: value.split("\n").slice(0,20).map((line) => line.split("|").slice(0,8).map((cell) => cell.trim())) })} style={[styles.input, styles.multiline]} multiline placeholder={t("صف واحد في كل سطر، افصل الخلايا بعلامة |","One row per line; separate cells with |")} placeholderTextColor={colors.textMuted} /></> : null}
           <Text style={styles.label}>{t("مصدر البيانات","Data source")}</Text>
           <View style={styles.typeButtons}>{SOURCES.map((source) => <Pressable key={source.value} onPress={() => updateComponent(component.id, { source: source.value })} style={[styles.chip, component.source === source.value && styles.chipActive]}><Text style={styles.chipText}>{isArabic ? source.ar : source.en}</Text></Pressable>)}</View>
         </View>)}
@@ -260,7 +260,7 @@ function createStyles(colors: ThemePalette, isArabic: boolean) {
     outlineButton: { borderWidth: 1, borderColor: colors.primary, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 9 },
     outlineButtonText: { color: colors.primary, fontSize: 11, fontWeight: "800" },
     disabled: { opacity: 0.5 },
-    previewComponent: { borderWidth: 1, borderColor: colors.divider, borderRadius: 9, padding: 12, gap: 7, backgroundColor: colors.background },
+    previewTable: { borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 7, gap: 5 },\n    previewComponent: { borderWidth: 1, borderColor: colors.divider, borderRadius: 9, padding: 12, gap: 7, backgroundColor: colors.background },
     metricValue: { color: colors.primary, fontSize: 26, fontWeight: "900" },
     bodyText: { color: colors.textSecondary, fontSize: 12, lineHeight: 19 },
     statusText: { color: colors.success, fontSize: 12, fontWeight: "700" },
