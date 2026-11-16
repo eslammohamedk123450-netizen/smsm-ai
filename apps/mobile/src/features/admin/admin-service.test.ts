@@ -74,6 +74,55 @@ describe("adminService tests", () => {
     expect(fromSpy).not.toHaveBeenCalledWith("ai_models");
   });
 
+  test("setHimsResourceActive requires admin and preserves the existing resource identity", async () => {
+    (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "admin-1" } }, error: null });
+    (supabase.rpc as jest.Mock).mockImplementation((rpcName: string) => {
+      if (rpcName === "suly_is_admin") return Promise.resolve({ data: true, error: null });
+      return Promise.resolve({ data: { success: true, id: "resource-1", feature_key: "hims", media_asset_id: "asset-1" }, error: null });
+    });
+
+    await expect(adminService.setHimsResourceActive({
+      id: "resource-1",
+      feature_key: "hims",
+      title: "محاضرة",
+      url: "https://signed.example/file",
+      media_asset_id: "asset-1",
+      kind: "video",
+      description: "وصف",
+      is_active: true,
+      created_at: "2026-11-16T00:00:00.000Z",
+    }, false)).resolves.toMatchObject({ success: true, id: "resource-1" });
+
+    expect(supabase.rpc).toHaveBeenNthCalledWith(2, "suly_admin_upsert_feature_resource_v2", {
+      p_feature_key: "hims",
+      p_title: "محاضرة",
+      p_url: null,
+      p_kind: "video",
+      p_description: "وصف",
+      p_is_active: false,
+      p_media_asset_id: "asset-1",
+    });
+  });
+
+  test("setHimsResourceActive rejects non-admin sessions before the resource write", async () => {
+    (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "user-1" } }, error: null });
+    (supabase.rpc as jest.Mock).mockResolvedValue({ data: false, error: null });
+
+    await expect(adminService.setHimsResourceActive({
+      id: "resource-1",
+      feature_key: "hims",
+      title: "محاضرة",
+      url: "https://example.com/file",
+      media_asset_id: null,
+      kind: "file",
+      description: null,
+      is_active: true,
+      created_at: "2026-11-16T00:00:00.000Z",
+    }, false)).rejects.toThrow("يتطلب هذا الإجراء صلاحية مشرف موثقة.");
+
+    expect(supabase.rpc).toHaveBeenCalledTimes(1);
+  });
+
   test("updateAgentModels requires admin and saves the two independent model selections", async () => {
     (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "admin-1" } }, error: null });
     (supabase.rpc as jest.Mock).mockImplementation((rpcName: string) => {
