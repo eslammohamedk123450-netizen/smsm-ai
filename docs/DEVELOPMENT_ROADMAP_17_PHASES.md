@@ -1080,3 +1080,16 @@ A second read-only audit confirms the exact boundary between the price catalogue
 - `global_media_assets` remains protected through the media-gateway and owner-scoped access path; no direct client write policy was added.
 - **Remaining Phase 8:** add persistent user-owned folders and favorites with cross-owner isolation, integrate folder/favorite filtering into Library, and verify file lifecycle, downloads, deletes, and Studio outputs. Do not loosen `global_media_assets` policies to implement these UI features.
 
+
+
+### Phase 8 implementation — persistent Library organization — 2026-11-16
+
+- Applied Supabase migration `20261116112239_suly_media_library_organization` to the connected project.
+- Added `suly_media_folders`, `suly_media_asset_folders`, and `suly_media_favorites`.
+- All three tables have RLS enabled and authenticated owner-only policies. Anonymous access is revoked. Authenticated users have only the DML needed for their own records; service_role retains server access.
+- Added composite foreign keys from (asset_id,user_id) to `global_media_assets` and (folder_id,user_id) to `suly_media_folders`. These enforce that a folder and its asset always belong to the same owner, even if a client forges a user_id.
+- Folder names are trimmed, limited to 80 characters, and unique case-insensitively per owner. Each asset may belong to at most one folder. Deleting a folder cascades only its membership rows; it does not delete assets. Favorites are independent owner-scoped markers.
+- Executed rollback-only regression `supabase/tests/suly_media_library_organization_regression.sql`: owner can create/read own folder, membership, and favorite; second user sees none of them; cross-owner favorite association is rejected by the composite FK. Transaction rolled back and a separate post-test query confirmed zero fixtures remain.
+- Client service and Library UI implementation (folder create/rename/delete, folder filtering, move/remove asset, favorites filtering/toggle) is in the current Phase 8 branch and awaits CI/review.
+- Existing `global_media_assets` direct client write restrictions and media-gateway flows were not loosened.
+
