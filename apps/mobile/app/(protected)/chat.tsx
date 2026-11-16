@@ -138,7 +138,7 @@ export default function ChatPage() {
   const [subscriptionTier, setSubscriptionTier] = useState("free");
   const [modelProfiles, setModelProfiles] = useState(DEFAULT_SULY_PROFILES);
   const suggestions = isArabic ? TASK_SUGGESTIONS : TASK_SUGGESTIONS_EN;
-  const localizedModelProfiles = useMemo(() => localizedModelProfiles.map((profile) => {
+  const localizedModelProfiles = useMemo(() => modelProfiles.map((profile) => {
     if (isArabic) return profile;
     const copy = {
       lite: { tagline: "For quick everyday tasks", description: "For chats, questions, writing, and lightweight daily requests." },
