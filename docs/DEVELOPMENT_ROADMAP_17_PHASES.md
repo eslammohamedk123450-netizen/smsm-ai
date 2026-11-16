@@ -249,7 +249,7 @@ Acceptance:
 - Model permissions and provider freeze rules are enforced on every new call.
 - Normal greetings and simple questions remain fast and natural.
 
-**Current status:** [~] Significant agent runtime and model-governance work is already merged. Full authenticated HTTP E2E, latency measurements, and complete chat UI verification remain.
+**Current status:** [>] IN PROGRESS on `develop`. Significant agent runtime and model-governance work is already present. The chat header now includes a navigation menu and compact model selector dropdown; the selector displays Auto, the three verified server profiles (Lite/Pro/Max) with plan restrictions, and a disabled SULY Ultra visibility row because no Ultra profile/routing metadata exists in the live catalog. The old horizontal selector row above the composer has been removed. Remaining implementation includes completing the minimal chat-first presentation and reconciling task progress/cancel/retry/partial-billing UX. Full authenticated HTTP E2E, latency, visual browser, and device verification are assigned to Track B.
 
 Known evidence:
 - PR #85 and earlier runtime work established strict model-role allowlists, guarded routing, provider freeze behavior, safe fallbacks, and regression checks.
@@ -1506,7 +1506,7 @@ The product owner requested a strict reduction in branch proliferation and merge
 - **Phase 4 — Shared design system:** existing semantic light/dark tokens, system theme persistence, Cairo typography, and reusable UI primitives were reviewed. Added contrast/token regression tests for primary text, secondary text, muted text, and primary controls. The test identified light-theme muted text below the 4.5:1 AA contrast target; adjusted that semantic token from #737373 to #707070. Full screen-by-screen visual/accessibility and device verification is explicitly deferred to Track B; this does not block completion of the Phase 4 design-system implementation.
 - The existing CI run `43896682177` succeeded on `e9908464835e2fce8d78762a24ccd3700135ca9d`; it predates the changes in this checkpoint. The updated workflow now includes the new activation and theme tests. A fresh run and the full runtime/device verification are recorded in Track B; they do not block the implementation milestone.
 - No database migration was applied, no production data/configuration changed, no provider/model route or price was edited, no credits were adjusted, no HIMS entitlement was granted/revoked, and no secret was changed.
-- **Stop line:** Phases 1–4 implementation scope is complete and reported. All remaining end-to-end, live-user, security-adversarial, visual/accessibility, cross-platform, SQL migration execution, and full-CI verification are Track B cases. Phase 5 navigation implementation is present on `develop`; continue sequentially with Phase 6. Track B remains a separate comprehensive campaign after all 17 build phases.
+- **Stop line:** Phases 1–4 implementation scope is complete and reported. All remaining end-to-end, live-user, security-adversarial, visual/accessibility, cross-platform, SQL migration execution, and full-CI verification are Track B cases. Phase 5 navigation implementation is present on `develop`; Phase 6 is now in progress. Track B remains a separate comprehensive campaign after all 17 build phases.
 
 ## Approved chat-first UX and credit-policy decisions — 2026-11-16
 
@@ -1516,3 +1516,18 @@ The product owner requested a strict reduction in branch proliferation and merge
 - These are **approved product specifications, not verified current backend behavior**. No subscription, credit-ledger, expiry, pricing, model-routing, provider, HIMS, or production setting was changed by recording these decisions.
 - Before implementation, inspect the existing plan/grant schedule, ledger and expiry semantics, model catalog/entitlements/routing, and current UI. Preserve historical balances and enforce server-side access. The specification explicitly leaves top-up prices, reward quantities/expiry, deduction priority, extra daily limits, and exact model capabilities/prices undecided.
 
+
+
+### Phase 6 implementation continuation — chat header and navigation menu — 2026-11-16
+
+- Working branch: `develop`; no production branch or deployment was touched.
+- Updated `apps/mobile/app/(protected)/chat.tsx`:
+  - Moved model selection out of the horizontal row above the composer and into a compact header dropdown.
+  - Added a compact navigation menu with direct links to New chat, Conversations/Search, Projects, Tasks, Studio, Library, Credits, Plans, Integrations, and Settings.
+  - New chat creates a new conversation record before navigating, avoiding accidental reuse of the current conversation.
+  - The model selector lists Auto and the three verified active server profiles (Lite, Pro, Max); plan-restricted profiles remain visible but disabled.
+  - Added SULY Ultra as a visible, disabled “Not available yet” entry. A read-only query of `suly_model_profiles` confirmed the live catalog currently contains only Lite, Pro, and Max. No Ultra model, plan, provider route, capability, or version was fabricated or activated.
+  - The displayed actual model remains sourced from server-confirmed response metadata and is kept distinct from the selected profile.
+- No model routing, subscription/credit rules, provider settings, prices, database schema, or HIMS behavior were changed.
+- Comprehensive visual, responsive, keyboard, navigation-click, authenticated E2E, task lifecycle, and model-entitlement tests are assigned to Track B; no current-head CI/device pass is claimed.
+- Current Phase 6 status: **IN PROGRESS**. Next implementation slice: refine the minimal chat-first surface and ensure plan/progress/result/cancel/retry states remain discoverable without adding competing mode selectors.
