@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export type AppLanguage = "ar" | "en";
@@ -14,18 +14,20 @@ const AppLocaleContext = createContext<AppLocaleContextValue | null>(null);
 
 export function LocaleProvider({ children }: { children: ReactNode }) {
   const [language, setLanguageState] = useState<AppLanguage>("ar");
+  const userChangedLanguage = useRef(false);
 
   useEffect(() => {
     let active = true;
     void AsyncStorage.getItem("suly:language")
       .then((value) => {
-        if (active && (value === "ar" || value === "en")) setLanguageState(value);
+        if (active && !userChangedLanguage.current && (value === "ar" || value === "en")) setLanguageState(value);
       })
       .catch(() => undefined);
     return () => { active = false; };
   }, []);
 
   const setLanguage = useCallback(async (next: AppLanguage) => {
+    userChangedLanguage.current = true;
     setLanguageState(next);
     try { await AsyncStorage.setItem("suly:language", next); } catch { /* Keep the in-memory choice for this session. */ }
   }, []);
