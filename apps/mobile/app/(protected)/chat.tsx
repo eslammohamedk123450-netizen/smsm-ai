@@ -251,7 +251,7 @@ export default function ChatPage() {
       setMessages(saved);
       try { const feedback = await chatService.getMessageFeedback(saved.map((message) => message.id)); if (active) setFeedbackByMessage(feedback); } catch { /* feedback is optional to rendering */ }
     }).catch((cause) => {
-      if (active) setError(cause instanceof Error ? cause.message : "تعذر تحميل المحادثة.");
+      if (active) setError(cause instanceof Error ? cause.message : isArabic ? "تعذر تحميل المحادثة." : "Could not load conversation.");
     }).finally(() => {
       if (active) setIsLoading(false);
     });
@@ -320,7 +320,7 @@ export default function ChatPage() {
         id: optimisticMessageId,
         conversationId: conversationId ?? "pending",
         role: "user",
-        content: content.trim() || (attachment?.kind === "image" ? "حلّل الصورة المرفقة من فضلك." : "اقرأ المرفق وأجب عنه من فضلك."),
+        content: content.trim() || (attachment?.kind === "image" ? isArabic ? "حلّل الصورة المرفقة من فضلك." : "Please analyze the attached image." : isArabic ? "اقرأ المرفق وأجب عنه من فضلك." : "Please read the attachment and respond."),
         createdAt: new Date().toISOString(),
         modelId: null,
         status: "sent",
@@ -328,7 +328,7 @@ export default function ChatPage() {
       setError(null);
       setRetryFailure(null);
       setIsSending(true);
-      setActiveTaskLabel(imageGeneration ? "جاري توليد الصورة…" : "جارٍ الرد على رسالتك…");
+      setActiveTaskLabel(imageGeneration ? isArabic ? "جاري توليد الصورة…" : "Generating image…" : isArabic ? "جارٍ الرد على رسالتك…" : "Responding to your message…");
       void logFrictionEvent({ eventKind: "task_start", screenKey: "chat", featureKey: "chat", stepKey: "send_message", conversationId });
       const controller = new AbortController();
       abortRef.current = controller;
@@ -389,9 +389,9 @@ export default function ChatPage() {
             });
           },
           onTaskUpdate(task) {
-            if (task.status === "running") setActiveTaskLabel(`جاري ${task.task}…`);
-            else if (task.status === "completed") setActiveTaskLabel(`تم ${task.task}`);
-            else if (task.status === "failed") setActiveTaskLabel(`تعذر ${task.task}`);
+            if (task.status === "running") setActiveTaskLabel(isArabic ? `جاري ${task.task}…` : `${task.task}…`);
+            else if (task.status === "completed") setActiveTaskLabel(isArabic ? `تم ${task.task}` : `${task.task} completed`);
+            else if (task.status === "failed") setActiveTaskLabel(isArabic ? `تعذر ${task.task}` : `${task.task} failed`);
           },
         });
         streamCompleted = true;
@@ -422,7 +422,7 @@ export default function ChatPage() {
         } else if (savedUserMessage && savedUserMessageId && id && !streamCompleted && !writeApproval) {
           if (imageGeneration && imagePlaceholderId) {
             setMessages((current) => current.map((item) => item.id === imagePlaceholderId ? { ...item, status: "error", generationState: "failed" } : item));
-            setError(cause instanceof Error ? cause.message : "تعذر توليد الصورة. أرسل الطلب مجددًا للمحاولة.");
+            setError(cause instanceof Error ? cause.message : isArabic ? "تعذر توليد الصورة. أرسل الطلب مجددًا للمحاولة." : "Could not generate the image. Send the request again to retry.");
             void logFrictionEvent({ eventKind: "action_failed", screenKey: "chat", featureKey: "chat", stepKey: "image_generation", errorCode: "image_generation_failed", conversationId: id });
           } else {
             setMessages((current) => current.filter((item) => item.id !== STREAMING_ID));
@@ -449,7 +449,7 @@ export default function ChatPage() {
             await reloadMessages(id);
             return;
           } catch {
-            setError("يتأخر النموذج قليلًا، وسنترك لك زر إعادة المحاولة بدل إبقائك منتظرًا.");
+            setError(isArabic ? "يتأخر النموذج قليلًا، وسنترك لك زر إعادة المحاولة بدل إبقائك منتظرًا." : "The model is taking longer than expected. You can retry instead of waiting.");
             setRetryFailure({ conversationId: id, userMessageId: savedUserMessageId });
             void logFrictionEvent({ eventKind: "action_failed", screenKey: "chat", featureKey: "chat", stepKey: "send_failed_after_retry", errorCode: "send_failed", conversationId: id });
           }
@@ -457,7 +457,7 @@ export default function ChatPage() {
           if (imageGeneration && streamCompleted && id) {
             void reloadMessages(id).catch(() => undefined);
           }
-          setError(cause instanceof Error ? cause.message : "تعذر إرسال الرسالة. تحقق من الاتصال وحاول مجددًا.");
+          setError(cause instanceof Error ? cause.message : isArabic ? "تعذر إرسال الرسالة. تحقق من الاتصال وحاول مجددًا." : "Could not send the message. Check your connection and try again.");
           void logFrictionEvent({ eventKind: "action_failed", screenKey: "chat", featureKey: "chat", stepKey: "send_message", errorCode: "send_failed", conversationId });
         }
       } finally {
@@ -477,7 +477,7 @@ export default function ChatPage() {
       setError(null);
       setRetryFailure(null);
       setIsSending(true);
-      setActiveTaskLabel("جاري إعادة تنفيذ المهمة…");
+      setActiveTaskLabel(isArabic ? "جاري إعادة تنفيذ المهمة…" : "Retrying task…");
       const controller = new AbortController();
       abortRef.current = controller;
       streamedTextRef.current = "";
@@ -495,8 +495,8 @@ export default function ChatPage() {
             });
           },
           onTaskUpdate(task) {
-            if (task.status === "running") setActiveTaskLabel(`جاري ${task.task}…`);
-            else if (task.status === "completed") setActiveTaskLabel(`تم ${task.task}`);
+            if (task.status === "running") setActiveTaskLabel(isArabic ? `جاري ${task.task}…` : `${task.task}…`);
+            else if (task.status === "completed") setActiveTaskLabel(isArabic ? `تم ${task.task}` : `${task.task} completed`);
           },
         });
         streamCompleted = true;
@@ -523,7 +523,7 @@ export default function ChatPage() {
           setRetryFailure(failed);
           void logFrictionEvent({ eventKind: "action_failed", screenKey: "chat", featureKey: "chat", stepKey: "send_message", errorCode: "retry_failed", conversationId: failed.conversationId });
         } else {
-          setError(cause instanceof Error ? cause.message : "تعذر تحميل الرد. أعد تحميل المحادثة.");
+          setError(cause instanceof Error ? cause.message : isArabic ? "تعذر تحميل الرد. أعد تحميل المحادثة." : "Could not load the response. Reload the conversation.");
         }
       } finally {
         if (abortRef.current === controller) abortRef.current = null;
@@ -544,7 +544,7 @@ export default function ChatPage() {
     if (!approval) return;
     setConnectorApproval(null);
     setIsSending(true);
-    setActiveTaskLabel(approval.connected ? "جارٍ تجهيز الإجراء الموافق عليه…" : "جارٍ الاتصال بالتطبيق…");
+    setActiveTaskLabel(approval.connected ? isArabic ? "جارٍ تجهيز الإجراء الموافق عليه…" : "Preparing the approved action…" : isArabic ? "جارٍ الاتصال بالتطبيق…" : "Connecting to the app…");
     let keepApprovalOpen = false;
     try {
       if (!approval.connected) {
@@ -552,7 +552,7 @@ export default function ChatPage() {
         if (!returned) return;
         const verified = await integrationService.preflight(approval.content);
         if (!verified.required || !verified.connected) {
-          show("لم يتم تأكيد الاتصال، لذلك لم يبدأ الطلب.", "error");
+          show(isArabic ? "لم يتم تأكيد الاتصال، لذلك لم يبدأ الطلب." : "The connection was not confirmed, so the request did not start.", "error");
           return;
         }
         if (approval.intent === "write") {
@@ -563,7 +563,7 @@ export default function ChatPage() {
       }
       await sendText(approval.content, undefined, approval.writeApproval ?? undefined);
     } catch (cause) {
-      show(cause instanceof Error ? cause.message : "تعذّر إكمال الاتصال، ولم يبدأ الطلب.", "error");
+      show(cause instanceof Error ? cause.message : isArabic ? "تعذّر إكمال الاتصال، ولم يبدأ الطلب." : "Could not complete the connection. The request did not start.", "error");
     } finally {
       if (!keepApprovalOpen) preflightLock.current = false;
       setIsSending(false);
@@ -581,14 +581,14 @@ export default function ChatPage() {
     if (preflightLock.current) return;
     preflightLock.current = true;
     setIsSending(true);
-    setActiveTaskLabel("جارٍ فحص اتصال التطبيق المطلوب…");
+    setActiveTaskLabel(isArabic ? "جارٍ فحص اتصال التطبيق المطلوب…" : "Checking the requested app connection…");
     void integrationService.preflight(text).then((result) => {
       if (!result.required) {
-        throw new Error("تعذّر التحقق من موصل الطلب، ولم يبدأ التنفيذ.");
+        throw new Error(isArabic ? "تعذّر التحقق من موصل الطلب، ولم يبدأ التنفيذ." : "Could not verify the requested connector. Execution did not start.");
       }
       const toolkit = result.toolkit ?? requested.toolkit;
       const intent = result.intent ?? requested.intent;
-      if (toolkit !== requested.toolkit) throw new Error("تعذّر التحقق من التطبيق المطلوب، ولم يبدأ التنفيذ.");
+      if (toolkit !== requested.toolkit) throw new Error(isArabic ? "تعذّر التحقق من التطبيق المطلوب، ولم يبدأ التنفيذ." : "Could not verify the requested app. Execution did not start.");
       if (result.connected && intent === "read") {
         preflightLock.current = false;
         setIsSending(false);
@@ -609,7 +609,7 @@ export default function ChatPage() {
       setActiveTaskLabel(null);
     }).catch((cause) => {
       preflightLock.current = false;
-      show(cause instanceof Error ? cause.message : "تعذّر فحص الاتصال، ولم يبدأ الطلب.", "error");
+      show(cause instanceof Error ? cause.message : isArabic ? "تعذّر فحص الاتصال، ولم يبدأ الطلب." : "Could not check the connection. The request did not start.", "error");
       setIsSending(false);
       setActiveTaskLabel(null);
     });
@@ -625,21 +625,21 @@ export default function ChatPage() {
     try { await chatService.setMessageFeedback(messageId, value); }
     catch (cause) {
       setFeedbackByMessage((current) => { const next = { ...current }; if (previous) next[messageId] = previous; else delete next[messageId]; return next; });
-      show(cause instanceof Error ? cause.message : "تعذّر حفظ التقييم. حاول مرة أخرى.", "error");
+      show(cause instanceof Error ? cause.message : isArabic ? "تعذّر حفظ التقييم. حاول مرة أخرى." : "Could not save the rating. Try again.", "error");
     }
   };
 
   const editMessageAndRegenerate = async (messageId: string, content: string) => {
     if (!conversationId || isSending) return;
     const userIndex = messages.findIndex((message) => message.id === messageId && message.role === "user");
-    if (userIndex < 0) throw new Error("تعذر العثور على الرسالة المطلوب تعديلها.");
+    if (userIndex < 0) throw new Error(isArabic ? "تعذر العثور على الرسالة المطلوب تعديلها." : "Could not find the message to edit.");
     const updatedUser = await chatService.updateUserMessage(messageId, content);
     const history = messages.slice(0, userIndex + 1).map((message) => message.id === messageId ? updatedUser : message);
     setMessages((current) => current.map((message) => message.id === messageId ? updatedUser : message));
     setResponseIndexByUser((current) => { const next = { ...current }; delete next[messageId]; return next; });
     setError(null);
     setIsSending(true);
-    setActiveTaskLabel("جارٍ إعادة الرد على الرسالة المعدلة…");
+    setActiveTaskLabel(isArabic ? "جارٍ إعادة الرد على الرسالة المعدلة…" : "Regenerating the edited message response…");
     const controller = new AbortController();
     abortRef.current = controller;
     streamedTextRef.current = "";
@@ -660,7 +660,7 @@ export default function ChatPage() {
       await reloadMessages(conversationId);
     } catch (cause) {
       setMessages((current) => current.filter((item) => item.id !== STREAMING_ID));
-      throw cause instanceof Error ? cause : new Error("تعذرت إعادة توليد الرد بعد التعديل.");
+      throw cause instanceof Error ? cause : new Error(isArabic ? "تعذرت إعادة توليد الرد بعد التعديل." : "Could not regenerate the response after editing.");
     } finally {
       abortRef.current = null;
       void refreshCreditBalance();
@@ -676,7 +676,7 @@ export default function ChatPage() {
     let userIndex = answerIndex - 1;
     while (userIndex >= 0 && messages[userIndex].role !== "user") userIndex -= 1;
     if (userIndex < 0) {
-      show("تعذّر العثور على رسالة المستخدم المرتبطة بهذا الرد.", "error");
+      show(isArabic ? "تعذّر العثور على رسالة المستخدم المرتبطة بهذا الرد." : "Could not find the user message associated with this response.", "error");
       return;
     }
     const history = messages.slice(0, userIndex + 1);
@@ -700,7 +700,7 @@ export default function ChatPage() {
       await reloadMessages(conversationId);
     } catch (cause) {
       setMessages((current) => current.filter((item) => item.id !== STREAMING_ID));
-      setError(cause instanceof Error ? cause.message : "تعذرت إعادة توليد الرد.");
+      setError(cause instanceof Error ? cause.message : isArabic ? "تعذرت إعادة توليد الرد." : "Could not regenerate the response.");
     } finally {
       abortRef.current = null;
       void refreshCreditBalance();
