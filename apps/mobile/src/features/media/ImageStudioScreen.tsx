@@ -214,7 +214,7 @@ export function ImageStudioScreen() {
       <Text style={{ color: colors.textMuted, textAlign: "right", fontSize: 10, lineHeight: 17 }}>قد يسمح النظام ببدء المهمة ضمن حد الرصيد السالب الذي يحدده المشرف. سيتم التحقق من الحد الفعلي عند تأكيد الطلب.</Text>
     </View>
 
-    {generating ? <Animated.View style={{ backgroundColor: "#17150D", borderColor: "#D4AF37", borderWidth: 1, borderRadius: 16, padding: 24, alignItems: "center", gap: 12, transform: [{ scale: breathingScale }] }}>
+    {generating ? <Animated.View style={{ backgroundColor: colors.surface, borderColor: colors.primary, borderWidth: 1, borderRadius: 16, padding: 24, alignItems: "center", gap: 12, transform: [{ scale: breathingScale }] }}>
       <ActivityIndicator size="large" color={colors.primary} />
       <Text style={{ color: colors.primary, fontSize: 17, fontWeight: "900" }}>جاري التوليد</Text>
       <Text style={{ color: colors.textSecondary, textAlign: "center", fontSize: 11 }}>نموذج SULY يعمل على إنشاء صورتك. اترك المهمة تكمل.</Text>
