@@ -95,7 +95,7 @@ A test group passes only when all required cases pass or the owner explicitly ac
 - Verify central Agent remains the single decision-maker; worker roles do not become independent assistants.
 - From an existing chat, open Tasks and confirm the conversation ID is carried into the task workspace; after completion, confirm the objective and final response appear exactly once in the same conversation with a traceable task ID.
 - Open Tasks without an existing conversation; confirm a conversation is created for the completed task exchange and the app returns to it.
-- Simulate app termination immediately after enqueue, then reopen the task workspace; verify the same user-scoped pending task ID/job ID/conversation ID is recovered and no second task or credit reservation is created.
+- Simulate app termination before enqueue returns, then reopen the task workspace; verify the pre-saved task ID resolves to the existing job (or retries the same idempotency key), with no second task or credit reservation. Also terminate after job ID persistence and verify normal resume.
 - Simulate failure after only the user message is persisted; retry sync and verify the missing assistant result is inserted exactly once using its stable role-specific request ID.
 - Retry after both messages are persisted but before local recovery state is cleared; verify no duplicate user or assistant message is created.
 - Verify the authenticated client cannot insert assistant messages directly; the brain-router sync path must verify task owner, completed status, objective/result match, and conversation owner before server-side persistence.
