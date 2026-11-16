@@ -29,7 +29,7 @@ export default function SharedConversationPage() {
     return () => { active = false; };
   }, [token]);
   return (
-    <SafeAreaView style={[styles.screen, { backgroundColor: palette.onPrimary }]}>
+    <SafeAreaView style={[styles.screen, { backgroundColor: palette.background }]}>
       <View style={[styles.header, { borderBottomColor: palette.divider }]}>
         <Text style={[styles.brand, { color: palette.primary }]}>Suly Agent AI</Text>
         <Text style={[styles.heading, { color: palette.textPrimary }]}>{conversation?.title ?? "محادثة مشتركة"}</Text>
