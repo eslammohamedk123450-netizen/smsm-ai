@@ -222,12 +222,74 @@ begin
 end;
 $$;
 
+
+create or replace function public.suly_admin_custom_page_source(p_source text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = pg_catalog, public, auth
+as $
+declare
+  v_result jsonb;
+begin
+  if not public.suly_is_admin() then
+    raise exception 'administrator privileges required' using errcode = '42501';
+  end if;
+
+  case p_source
+    when 'system_health_summary' then
+      select jsonb_build_object(
+        'source', p_source,
+        'enabled_models', count(*) filter (where m.enabled),
+        'healthy_enabled_models', count(*) filter (where m.enabled and coalesce(h.last_status,'unknown') <> 'error' and coalesce(h.auto_restricted,false)=false),
+        'restricted_models', count(*) filter (where coalesce(h.auto_restricted,false)),
+        'generated_at', now()
+      ) into v_result
+      from public.ai_models m
+      left join public.ai_model_health h on h.model_id=m.id;
+
+    when 'model_catalog_summary' then
+      select jsonb_build_object(
+        'source', p_source,
+        'enabled_providers', (select count(*) from public.ai_providers where enabled),
+        'enabled_models', (select count(*) from public.ai_models where enabled),
+        'disabled_models', (select count(*) from public.ai_models where not enabled),
+        'generated_at', now()
+      ) into v_result;
+
+    when 'admin_activity_summary' then
+      select jsonb_build_object(
+        'source', p_source,
+        'events_last_24h', count(*) filter (where created_at >= now() - interval '24 hours'),
+        'latest_actions', coalesce(jsonb_agg(jsonb_build_object('action', action, 'created_at', created_at) order by created_at desc)
+          filter (where recent_rank <= 5), '[]'::jsonb),
+        'generated_at', now()
+      ) into v_result
+      from (
+        select action, created_at,
+          row_number() over (order by created_at desc) as recent_rank
+        from public.admin_audit_logs
+        where created_at >= now() - interval '24 hours'
+        order by created_at desc
+        limit 100
+      ) activity;
+
+    else
+      raise exception 'unsupported custom page data source' using errcode = '22023';
+  end case;
+
+  return coalesce(v_result, '{}'::jsonb);
+end;
+$;
+
 revoke all on function public.suly_admin_validate_custom_page_config(jsonb) from public, anon, authenticated;
 revoke all on function public.suly_admin_list_custom_pages() from public, anon, authenticated;
+revoke all on function public.suly_admin_custom_page_source(text) from public, anon, authenticated;
 revoke all on function public.suly_admin_save_custom_page(text,text,jsonb,text,text,uuid) from public, anon, authenticated;
 revoke all on function public.suly_admin_list_custom_page_versions(uuid) from public, anon, authenticated;
 revoke all on function public.suly_admin_restore_custom_page_version(uuid,integer) from public, anon, authenticated;
 grant execute on function public.suly_admin_list_custom_pages() to authenticated;
+grant execute on function public.suly_admin_custom_page_source(text) to authenticated;
 grant execute on function public.suly_admin_save_custom_page(text,text,jsonb,text,text,uuid) to authenticated;
 grant execute on function public.suly_admin_list_custom_page_versions(uuid) to authenticated;
 grant execute on function public.suly_admin_restore_custom_page_version(uuid,integer) to authenticated;
