@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Switch, TextInput, View } from "react-native";
 import { Link } from "expo-router";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
+import { useSulyTheme } from "../../theme/ThemeProvider";
 import { supabase } from "../../lib/supabase/client";
 import { adminService } from "./admin-service";
 
