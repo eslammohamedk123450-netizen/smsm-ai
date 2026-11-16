@@ -1,13 +1,19 @@
 -- Rollback-only owner-isolation regression for Library folders and favorites.
 -- Uses an existing asset and two auth identities, but leaves no persistent rows.
 begin;
-set local role authenticated;
-
 select set_config(
   'request.jwt.claim.sub',
   (select user_id::text from public.global_media_assets order by created_at limit 1),
   true
 );
+select set_config(
+  'app.library_test_other_user_id',
+  (select id::text from auth.users
+   where id <> (select user_id from public.global_media_assets order by created_at limit 1)
+   order by created_at limit 1),
+  true
+);
+set local role authenticated;
 
 insert into public.suly_media_folders(id,user_id,name)
 select '00000000-0000-4000-8000-000000000001', user_id, '__library_rls_regression__'
@@ -40,13 +46,7 @@ end $$;
 
 select set_config('app.library_test_asset_id', (select asset_id::text from public.suly_media_asset_folders where folder_id='00000000-0000-4000-8000-000000000001' limit 1), true);
 
-select set_config(
-  'request.jwt.claim.sub',
-  (select id::text from auth.users
-   where id <> (select user_id from public.suly_media_folders where id='00000000-0000-4000-8000-000000000001')
-   order by created_at limit 1),
-  true
-);
+select set_config('request.jwt.claim.sub', current_setting('app.library_test_other_user_id'), true);
 
 do $$
 declare v_count integer; v_rejected boolean := false;
