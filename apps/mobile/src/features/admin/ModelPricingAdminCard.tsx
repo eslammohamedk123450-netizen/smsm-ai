@@ -42,6 +42,7 @@ export function ModelPricingAdminCard() {
       return nextRows;
     } catch {
       setError("تعذر تحميل أسعار النماذج. تحقق من صلاحية الأدمن وتطبيق ترحيل الأسعار.");
+      return null;
     } finally {
       setLoading(false);
     }
