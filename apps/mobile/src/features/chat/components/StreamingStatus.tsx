@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { PremiumText as Text } from "../../../components/ui/PremiumText";
 import { useSulyTheme } from "../../../theme/ThemeProvider";
+import { useAppLocale } from "../../../theme/LocaleProvider";
 import type { ThemePalette } from "../../../theme/colors";
 
 export interface StreamingStatusProps {
@@ -12,6 +13,7 @@ export interface StreamingStatusProps {
 
 export function StreamingStatus({ isStreaming, onCancel, taskLabel }: StreamingStatusProps) {
   const { colors } = useSulyTheme();
+  const { isArabic } = useAppLocale();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const dots = useRef([
     new Animated.Value(0.35),
@@ -48,7 +50,7 @@ export function StreamingStatus({ isStreaming, onCancel, taskLabel }: StreamingS
     <View
       style={styles.row}
       accessibilityRole="progressbar"
-      accessibilityLabel={taskLabel || "Suly يكتب ردًا"}
+      accessibilityLabel={taskLabel || (isArabic ? "Suly يكتب ردًا" : "SULY is responding")}
     >
       <View style={styles.bubble}>
         <View style={styles.header}>
@@ -57,7 +59,7 @@ export function StreamingStatus({ isStreaming, onCancel, taskLabel }: StreamingS
           </View>
           <Text style={styles.brand}>Suly</Text>
         </View>
-        <View style={styles.dots} accessibilityLabel="جاري كتابة الرد">
+        <View style={styles.dots} accessibilityLabel={isArabic ? "جاري كتابة الرد" : "Writing a response"}>
           {dots.map((opacity, index) => (
             <Animated.View key={index} style={[styles.dot, { opacity }]} />
           ))}
@@ -67,10 +69,10 @@ export function StreamingStatus({ isStreaming, onCancel, taskLabel }: StreamingS
         <Pressable
           onPress={onCancel}
           accessibilityRole="button"
-          accessibilityLabel="إيقاف الرد"
+          accessibilityLabel={isArabic ? "إيقاف الرد" : "Stop response"}
           style={styles.stop}
         >
-          <Text style={styles.stopText}>إيقاف</Text>
+          <Text style={styles.stopText}>{isArabic ? "إيقاف" : "Stop"}</Text>
         </Pressable>
       ) : null}
     </View>
