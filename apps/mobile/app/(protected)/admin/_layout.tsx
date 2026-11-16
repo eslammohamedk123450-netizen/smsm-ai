@@ -35,7 +35,7 @@ export default function AdminLayout() {
   if (status === "misconfigured") return <Redirect href="/" />;
   if (status === "loading" || adminState === "checking") return <View style={styles.center}><ActivityIndicator color={colors.primary} /><Text style={styles.text}>جارٍ التحقق من صلاحية المشرف…</Text></View>;
   if (!user) return <Redirect href="/login" />;
-  if (adminState === "denied") return <Redirect href="/chat" />;
+  if (adminState === "denied") return <Redirect href="/home" />;
   if (adminState === "error") return <View style={styles.center}><Text style={styles.error}>تعذر التحقق من صلاحية المشرف. لم تُفتح أدوات الإدارة.</Text></View>;
   return <AdminShell />;
 }
