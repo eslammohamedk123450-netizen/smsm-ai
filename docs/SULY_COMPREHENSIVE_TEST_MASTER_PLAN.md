@@ -408,3 +408,12 @@ RLS/grants للأدوار؛ RPC وSECURITY DEFINER وsearch_path؛ CORS/JWT/rate
 - `T03-010`: ترتيب مركز الحساب يطابق الترتيب المعتمد: الرصيد/الباقة، المهارات، الموصلات، اللغة، المظهر، ذاكرة التخزين، المكتبة، التقييم، الدعم، الإصدار، وتسجيل الخروج؛ مع استمرار عمل الأرشيف والسياسات ومدخل الإدارة.
 - `T03-011`: رابط تفاصيل الرصيد يفتح `/(protected)/balance`، وتظل بيانات الرصيد وسجل المعاملات مأخوذة من ledger الحقيقي فقط.
 - جميع الحالات أعلاه: **NOT RUN**. Commit التغيير: `38d5d3628c3a95f7ec11380d93afa858bee24870`.
+
+
+### حالات قبول إضافية لمراجعة SECURITY DEFINER وEdge Functions — 2026-11-17
+- `T16-020`: `admin-storage` يرفض غياب Bearer token أو token غير صالح أو مستخدمًا غير مدير، ويسمح فقط لمدير نشط؛ لا يُعتبر CORS حاجز مصادقة.
+- `T16-021`: `suly_feature_flags` يظل read-only لـauthenticated، ولا يستطيع العميل تعديل `profile_column` أو `activated_at_column` أو إدخال أعمدة ديناميكية؛ فحص `suly_admin_grant_feature` و`suly_my_feature_status` لا يسمح بنص SQL من العميل.
+- `T16-022`: جميع دوال SECURITY DEFINER الـ66 القابلة لـauthenticated لها search_path مضبوط، مع مراجعة تفصيلية للحراس؛ wrapper `suly_admin_set_provider_enabled` لا يتجاوز lifecycle guard.
+- `T16-023`: دالة anon الوحيدة `suly_get_public_conversation` لا تعيد إلا بيانات المشاركة المطابقة للرمز النشط، وتفشل بعد إلغاء المشاركة وإبطال الرمز.
+- `T16-024`: كل جدول من الجداول الـ14 ذات RLS بلا policy لا يملك grants مباشرة لـanon/authenticated؛ يبقى server-only حتى اعتماد سياسة وصول محددة.
+- جميع الحالات: **NOT RUN**. فحص catalog وgrants قراءة فقط، وليس بديلًا عن اختبارات الأدوار وIDOR.
