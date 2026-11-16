@@ -425,3 +425,13 @@ RLS/grants للأدوار؛ RPC وSECURITY DEFINER وsearch_path؛ CORS/JWT/rate
 - `T15-042`: يعرض `admin_activity_summary` عدد الأحداث خلال 24 ساعة وآخر خمسة أحداث فقط دون تفاصيل حساسة.
 - `T15-043`: فشل RPC أو مصدر غير معروف لا يكسر الصفحة ولا يعرض JSON خامًا أو بيانات مصدر آخر.
 - جميع الحالات: **NOT RUN**. Commits: `a4321af01044214b12b538315ce8cb6bcc7f1e3f`, `80ae56491d05c013164b1bae96f18bdc979b780c`.
+
+
+### تحقق نشر وظائف Supabase — 2026-11-17
+- `T17-015`: بعد نشر `brain-router` v13، يتم التحقق من resume بالـstable task ID وsync_chat مع owner checks وعدم تكرار رسائل المحادثة.
+- `T17-016`: `agent-task-worker` v6 يرفض CORS origins غير المعتمدة ويحافظ على JWT verification، ويكمل settlement فقط بعد الحالة النهائية.
+- `T17-017`: `image-generator` v10 يقبل مهمة Studio بلا conversation_id مع بقاء reservation/settlement exact وعدم تغيير السعر.
+- `T17-018`: `composito-integration` v9 يحافظ على JWT verification وstrict CORS وعمليات الموصلات المسموحة فقط.
+- `T17-019`: `agent-task-scheduler` v5 و`admin-storage` v3 و`model-health-check` v7 ترفض أي scheduler/admin request غير مصادق عليه.
+- `T17-020`: `upload-media` المتقاعد يرد 410، والعميل يستخدم `media-gateway` v14 فقط.
+- جميع الحالات: **NOT RUN**. تأكيد ACTIVE/version/files عبر metadata لا يساوي اختبار endpoint.
