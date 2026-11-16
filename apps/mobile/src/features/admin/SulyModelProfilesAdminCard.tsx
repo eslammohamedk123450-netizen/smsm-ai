@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, Switch, TextInput, View } fro
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { supabase } from "../../lib/supabase/client";
 import { adminService } from "./admin-service";
-import { colors } from "../../theme/colors";
+import { useSulyTheme } from "../../theme/ThemeProvider";
 
 type Profile = {
   profile_key: "lite" | "pro" | "max";
@@ -39,6 +39,7 @@ function rolesForModel(model: Model): string[] {
 }
 
 export function SulyModelProfilesAdminCard() {
+  const { colors } = useSulyTheme();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [models, setModels] = useState<Model[]>([]);
   const [mappings, setMappings] = useState<Mapping[]>([]);
