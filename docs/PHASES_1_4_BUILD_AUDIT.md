@@ -106,8 +106,9 @@ The migration has not been applied to the hosted project, and the regression SQL
 ### Phase 4 — design system
 - Existing theme provider supports system/light/dark and persisted preference; shared tokens and reusable `SulyButton`, `SulyCard`, and `SulyScreen` primitives exist.
 - Muted text tokens were updated to dark `#888888` and light `#6B6B6B`.
+- Chat header credit pill, chat empty state, task prompt text, task icon surface, chat usage/share icons, selected rating stars, Home brand mark, and HIMS download icon now use shared semantic palette tokens rather than fixed light/dark colors.
 - Automated contrast coverage now checks primary/secondary/muted text against background, surface, elevated surface, card, and input backgrounds, plus primary button foreground/background.
-- The test file is included in the existing GitHub Actions Jest command, but no run for the latest commit has yet been verified.
+- The test file is included in the existing GitHub Actions Jest command. GitHub combined status and PR-triggered workflow lookup returned no checks/runs for the current development commits, so the updated test is committed but not reported as executed.
 - Full visual browser and Android/iOS device review remains unperformed.
 
 ### Current first-four-phase gate
