@@ -1,6 +1,8 @@
-import { useRef, useState, useMemo } from "react";
+import { useRef, useState, useMemo, useEffect } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { supabase } from "../../lib/supabase/client";
 import { chatService } from "../chat/chat-service";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { useToast } from "../../components/ui/Toast";
@@ -8,6 +10,9 @@ import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
 import { cancelBrainTask, runBrainTask, wakeBrainWorker, type BrainTaskResult } from "./brain-service";
 import { getTaskProgress, type TaskSnapshot } from "./task-service";
+
+const PENDING_TASK_STORAGE_PREFIX = "@suly/brain-task-pending:";
+type PendingBrainTask = { task_id: string; job_id: string; objective: string; conversation_id: string; user_id: string };
 
 const TASK_TEMPLATES = [
   { title: "تحليل ملف أو بيانات", prompt: "حلّل البيانات التالية واستخرج أهم المؤشرات والمشكلات والتوصيات العملية: " },
@@ -30,6 +35,89 @@ export function BrainTaskScreen() {
   const [cancelRequested, setCancelRequested] = useState(false);
   const cancellationRequested = useRef<string | null>(null);
   const cancelledBeforeStart = useRef(false);
+  const monitoringTask = useRef(false);
+  const mounted = useRef(true);
+  const [pendingTask, setPendingTask] = useState<PendingBrainTask | null>(null);
+
+  const monitorAcceptedTask = async (accepted: { task_id: string; job_id: string }, taskObjective: string, targetConversationId: string, userId: string) => {
+    if (monitoringTask.current) return;
+    monitoringTask.current = true;
+    setBusy(true);
+    setError(null);
+    try {
+      for (let attempt = 0; attempt < 180; attempt += 1) {
+        const latest = await getTaskProgress(accepted.task_id, accepted.job_id);
+        if (!mounted.current) return;
+        if (latest) setProgress(latest);
+        if (latest?.status === "cancelled") {
+          await AsyncStorage.removeItem(`${PENDING_TASK_STORAGE_PREFIX}${userId}`);
+          setPendingTask(null);
+          if (cancellationRequested.current === accepted.job_id) {
+            show(cancelledBeforeStart.current ? "تم إلغاء المهمة قبل بدء التنفيذ." : "تم إيقاف المهمة بأمان بعد الخطوة الجارية.", "success");
+            return;
+          }
+          throw new Error(latest.errorMessage || "تم إلغاء المهمة.");
+        }
+        if (latest?.status === "completed" && latest.result && typeof latest.result.response === "string") {
+          const completedResult: BrainTaskResult = {
+            task_id: accepted.task_id,
+            complexity: latest.result.complexity === "complex" ? "complex" : "easy",
+            capabilities: Array.isArray(latest.result.capabilities) ? latest.result.capabilities.filter((item): item is string => typeof item === "string") : [],
+            estimated_steps: Number(latest.result.estimated_steps ?? latest.estimatedSteps ?? 1),
+            steps_completed: Number(latest.result.steps_completed ?? 0),
+            response: String(latest.result.response),
+            route: "brain-router",
+          };
+          setResult(completedResult);
+          const savedConversationId = await chatService.appendTaskExchange({
+            conversationId: targetConversationId,
+            objective: taskObjective,
+            response: completedResult.response,
+            taskId: completedResult.task_id,
+          });
+          await AsyncStorage.removeItem(`${PENDING_TASK_STORAGE_PREFIX}${userId}`);
+          setPendingTask(null);
+          if (!mounted.current) return;
+          show("اكتملت المهمة وحُفظت نتيجتها في المحادثة.", "success");
+          router.replace({ pathname: "/chat", params: { conversationId: savedConversationId } });
+          return;
+        }
+        if (latest?.status === "queued" && attempt > 0 && attempt % 8 === 0) wakeBrainWorker();
+        if (latest?.status === "failed") {
+          await AsyncStorage.removeItem(`${PENDING_TASK_STORAGE_PREFIX}${userId}`);
+          setPendingTask(null);
+          throw new Error(latest.errorMessage || "تعذر إكمال المهمة.");
+        }
+        await new Promise((resolve) => setTimeout(resolve, 2500));
+      }
+      throw new Error("المهمة ما زالت قيد التنفيذ. يمكنك استئناف متابعتها لاحقًا؛ لم يتم حذف بيانات الاستعادة.");
+    } catch (cause) {
+      if (mounted.current) setError(cause instanceof Error ? cause.message : "تعذر تنفيذ المهمة.");
+    } finally {
+      monitoringTask.current = false;
+      if (mounted.current) setBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    mounted.current = true;
+    let active = true;
+    void (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || !active) return;
+      const key = `${PENDING_TASK_STORAGE_PREFIX}${user.id}`;
+      const raw = await AsyncStorage.getItem(key);
+      if (!raw || !active) return;
+      try {
+        const saved = JSON.parse(raw) as PendingBrainTask;
+        if (saved.user_id !== user.id || !saved.task_id || !saved.job_id || !saved.objective || !saved.conversation_id) return;
+        setObjective(saved.objective);
+        setPendingTask(saved);
+        void monitorAcceptedTask({ task_id: saved.task_id, job_id: saved.job_id }, saved.objective, saved.conversation_id, user.id);
+      } catch { await AsyncStorage.removeItem(key); }
+    })().catch(() => undefined);
+    return () => { active = false; mounted.current = false; };
+  }, []);
 
   const requestTaskCancellation = async (jobId: string) => {
     try {
@@ -68,54 +156,23 @@ export function BrainTaskScreen() {
     cancellationRequested.current = null;
     cancelledBeforeStart.current = false;
     try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) throw new Error("انتهت الجلسة. سجّل الدخول مجددًا.");
+      const targetConversationId = linkedConversationId
+        ?? (await chatService.createConversation(value.slice(0, 48))).id;
       const accepted = await runBrainTask(value);
-      let latest: TaskSnapshot | null = null;
-      for (let attempt = 0; attempt < 180; attempt += 1) {
-        latest = await getTaskProgress(accepted.task_id, accepted.job_id);
-        if (latest) setProgress(latest);
-        if (latest?.status === "cancelled") {
-          if (cancellationRequested.current === accepted.job_id) {
-            show(cancelledBeforeStart.current ? "تم إلغاء المهمة قبل بدء التنفيذ." : "تم إيقاف المهمة بأمان بعد الخطوة الجارية.", "success");
-            return;
-          }
-          throw new Error(latest.errorMessage || "تم إلغاء المهمة.");
-        }
-        if (latest?.status === "completed" && latest.result && typeof latest.result.response === "string") {
-          const completedResult: BrainTaskResult = {
-            task_id: accepted.task_id,
-            complexity: latest.result.complexity === "complex" ? "complex" : "easy",
-            capabilities: Array.isArray(latest.result.capabilities) ? latest.result.capabilities.filter((item): item is string => typeof item === "string") : [],
-            estimated_steps: Number(latest.result.estimated_steps ?? latest.estimatedSteps ?? 1),
-            steps_completed: Number(latest.result.steps_completed ?? 0),
-            response: String(latest.result.response),
-            route: "brain-router",
-          };
-          setResult(completedResult);
-          try {
-            const savedConversationId = await chatService.appendTaskExchange({
-              conversationId: linkedConversationId,
-              objective: value,
-              response: completedResult.response,
-              taskId: completedResult.task_id,
-            });
-            show("اكتملت المهمة وحُفظت نتيجتها في المحادثة.", "success");
-            router.replace({ pathname: "/chat", params: { conversationId: savedConversationId } });
-          } catch (saveError) {
-            setError(saveError instanceof Error ? saveError.message : "اكتملت المهمة لكن تعذر ربط نتيجتها بالمحادثة.");
-            show("اكتملت المهمة، لكن تعذر حفظ النتيجة في المحادثة.", "error");
-          }
-          return;
-        }
-        if (latest?.status === "queued" && attempt > 0 && attempt % 8 === 0) wakeBrainWorker();
-        if (latest?.status === "failed") {
-          throw new Error(latest.errorMessage || "تعذر إكمال المهمة.");
-        }
-        await new Promise((resolve) => setTimeout(resolve, 2500));
-      }
-      throw new Error("المهمة ما زالت قيد التنفيذ. يمكنك العودة لاحقًا لمتابعة حالتها.");
+      const pending: PendingBrainTask = {
+        task_id: accepted.task_id,
+        job_id: accepted.job_id,
+        objective: value,
+        conversation_id: targetConversationId,
+        user_id: user.id,
+      };
+      await AsyncStorage.setItem(`${PENDING_TASK_STORAGE_PREFIX}${user.id}`, JSON.stringify(pending));
+      setPendingTask(pending);
+      void monitorAcceptedTask(accepted, value, targetConversationId, user.id);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "تعذر تنفيذ المهمة.");
-    } finally {
       setBusy(false);
     }
   };
@@ -164,6 +221,14 @@ export function BrainTaskScreen() {
         {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
       </View>
 
+      {pendingTask && !busy ? (
+        <View style={styles.panel}>
+          <Text style={styles.meta}>هناك مهمة محفوظة لم تنتهِ متابعتها. يمكنك استئنافها دون إنشاء مهمة جديدة أو حجز جديد.</Text>
+          <Pressable onPress={() => void monitorAcceptedTask({ task_id: pendingTask.task_id, job_id: pendingTask.job_id }, pendingTask.objective, pendingTask.conversation_id, pendingTask.user_id)} style={styles.primary} accessibilityRole="button">
+            <Text style={styles.primaryText}>استئناف متابعة المهمة</Text>
+          </Pressable>
+        </View>
+      ) : null}
       {result ? (
         <View style={styles.panel}>
           <View style={styles.resultHeader}>
