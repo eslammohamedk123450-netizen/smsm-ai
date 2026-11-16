@@ -152,7 +152,7 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
   brandName: { fontSize: 16, fontWeight: "900", letterSpacing: 1.5 },
   content: { flex: 1, minWidth: 0, minHeight: 0 },
   modalRoot: { flex: 1, justifyContent: "flex-start" },
-  scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "#00000088" },
+  scrim: { ...StyleSheet.absoluteFill, backgroundColor: "#00000088" },
   drawer: { width: "84%", maxWidth: 340, height: "100%", borderRightWidth: 1, borderLeftWidth: 1, paddingHorizontal: 15, paddingTop: 12, paddingBottom: 14 },
   drawerHeader: { alignItems: "center", gap: 10, paddingHorizontal: 4, paddingBottom: 24 },
   brandMark: { width: 40, height: 40, borderRadius: 13, alignItems: "center", justifyContent: "center" },
