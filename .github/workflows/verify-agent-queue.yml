@@ -92,7 +92,7 @@ jobs:
       - name: Typecheck mobile application
         run: npm run typecheck
       - name: Run mobile authentication regression tests
-        run: npm test -- --runInBand src/features/auth/auth-service.test.ts src/features/auth/auth-callback.test.ts src/features/auth/auth-redirect.test.ts src/features/chat/chat-service.test.ts src/features/chat/image-generation.test.ts src/features/projects/project-service.test.ts src/theme/colors.test.ts src/features/admin/admin-service.test.ts src/features/admin/hims-admin-validation.test.ts
+        run: npm test -- --runInBand src/features/auth/auth-service.test.ts src/features/auth/auth-callback.test.ts src/features/auth/auth-redirect.test.ts src/features/chat/chat-service.test.ts src/features/chat/image-generation.test.ts src/features/projects/project-service.test.ts src/features/brain/task-service.test.ts src/theme/colors.test.ts src/features/admin/admin-service.test.ts src/features/admin/hims-admin-validation.test.ts
       - name: Export static Expo web app
         env:
           EXPO_PUBLIC_WEB_BASE_URL: /smsm-ai
@@ -126,26 +126,26 @@ jobs:
           deno-version: v2.x
       - name: Run Agent and scheduler regression tests
         run: |
-          deno test supabase/functions/ai-router/agent/orchestrator.test.ts
-          deno test supabase/functions/ai-router/resilience.test.ts
-          deno test supabase/functions/ai-router/agent/agent_profiles.test.ts
-          deno test supabase/functions/ai-router/agent/model_eligibility.test.ts
-          deno test supabase/functions/ai-router/agent/model_routing_test.ts
-          deno test supabase/functions/model-health-check/capability_evidence_test.ts
-          deno test supabase/functions/ai-router/agent/agent_budget_policy.test.ts
-          deno test supabase/functions/ai-router/agent/suly_profile_routing.test.ts
-          deno test supabase/functions/ai-router/execution_mode.test.ts
-          deno test supabase/functions/_shared/ai_request_idempotency_test.ts
-          deno test supabase/functions/_shared/intent_classifier_test.ts
-          deno test supabase/functions/_shared/tavily.test.ts
-          deno test supabase/functions/agent-task-scheduler/index.test.ts
-          deno test supabase/functions/_shared/brain_task_payload.test.ts
-          deno test supabase/functions/_shared/cors.test.ts
-          deno test supabase/functions/admin-storage/auth.test.ts
-          deno test supabase/functions/_shared/feature_flags.test.ts
-          deno test supabase/functions/_shared/activation_command.test.ts
-          deno test supabase/functions/brain-router/central_agent_result.test.ts
-          deno test supabase/functions/brain-router/route_policy.test.ts
+          deno test --node-modules-dir=auto supabase/functions/ai-router/agent/orchestrator.test.ts
+          deno test --node-modules-dir=auto supabase/functions/ai-router/resilience.test.ts
+          deno test --node-modules-dir=auto supabase/functions/ai-router/agent/agent_profiles.test.ts
+          deno test --node-modules-dir=auto supabase/functions/ai-router/agent/model_eligibility.test.ts
+          deno test --node-modules-dir=auto supabase/functions/ai-router/agent/model_routing_test.ts
+          deno test --node-modules-dir=auto supabase/functions/model-health-check/capability_evidence_test.ts
+          deno test --node-modules-dir=auto supabase/functions/ai-router/agent/agent_budget_policy.test.ts
+          deno test --node-modules-dir=auto supabase/functions/ai-router/agent/suly_profile_routing.test.ts
+          deno test --node-modules-dir=auto supabase/functions/ai-router/execution_mode.test.ts
+          deno test --node-modules-dir=auto supabase/functions/_shared/ai_request_idempotency_test.ts
+          deno test --node-modules-dir=auto supabase/functions/_shared/intent_classifier_test.ts
+          deno test --node-modules-dir=auto supabase/functions/_shared/tavily.test.ts
+          deno test --node-modules-dir=auto supabase/functions/agent-task-scheduler/index.test.ts
+          deno test --node-modules-dir=auto supabase/functions/_shared/brain_task_payload.test.ts
+          deno test --node-modules-dir=auto supabase/functions/_shared/cors.test.ts
+          deno test --node-modules-dir=auto supabase/functions/admin-storage/auth.test.ts
+          deno test --node-modules-dir=auto supabase/functions/_shared/feature_flags.test.ts
+          deno test --node-modules-dir=auto supabase/functions/_shared/activation_command.test.ts
+          deno test --node-modules-dir=auto supabase/functions/brain-router/central_agent_result.test.ts
+          deno test --node-modules-dir=auto supabase/functions/brain-router/route_policy.test.ts
       - name: Typecheck Agent, Brain, and scheduler runtime
         run: |
           deno check --node-modules-dir=auto \
