@@ -13,7 +13,7 @@ import { formatBytes, pickMedia, uploadMediaFile, type MediaAsset, type PickKind
 function Field({ label, value, onChange, placeholder, keyboardType = "default", editable = true }: { label: string; value: string; onChange(value: string): void; placeholder: string; keyboardType?: "default" | "numeric" | "url"; editable?: boolean }) {
   const { colors } = useSulyTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  return <View><Text style={styles.label}>{label}</Text><TextInput style={styles.input} value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor={colors.textMuted} keyboardType={keyboardType} autoCapitalize="none" editable={editable} /></View>;
+  return <View><Text style={styles.label}>{label}</Text><TextInput accessibilityLabel={label} style={styles.input} value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor={colors.textMuted} keyboardType={keyboardType} autoCapitalize="none" editable={editable} /></View>;
 }
 function Button({ label, onPress, disabled = false, tone = "primary" }: { label: string; onPress(): void; disabled?: boolean; tone?: "primary" | "ghost" }) {
   const { colors } = useSulyTheme();
