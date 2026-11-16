@@ -528,13 +528,14 @@ Acceptance:
 
 **Current status:** [~] Persisted system/light/dark selection, hydration handling, and audited dynamic-palette migrations are merged (PRs #129, #130, #131). The shared UI and Balance follow the saved theme; remaining literal-color review, visual route coverage, and real-device checks remain open.
 
-**Additional Phase 14 work in progress (2026-11-16):** A focused follow-up branch now migrates the Balance screen's fixed dark-only palette to the shared `ThemePalette` tokens, and updates Toast, IconButton, BottomSheet, AttachSheet, SharedConversationPage, and ShareConversationSheet to consume `useSulyTheme()` rather than independently reading the OS color scheme. This fixes a real mismatch where a saved in-app light/dark choice could be ignored by shared surfaces. The changes are pending CI and merge; full visual/browser/device coverage and the remaining hard-coded color audit are still open.
+**Additional Phase 14 work merged (2026-11-16):** PR #131 merged as `ac861a1b6844cf3b7ca081b8fe34d65408c1ebc0`. It migrates the Balance screen to the shared `ThemePalette` and updates Toast, IconButton, BottomSheet, AttachSheet, SharedConversationPage, and ShareConversationSheet to consume `useSulyTheme()` rather than independently reading the OS color scheme. PR #131 passed Expo TypeScript, auth regression tests, static Web export, Android JS bundle, iOS JS bundle, and Deno Agent/Edge checks. A further focused pass for Support, Image Studio loading state, and Admin alert surfaces is open in PR #132; visual/browser/device coverage and the remaining hard-coded color audit are still open.
 
 New implementation (2026-11-16):
 - `SulyThemeProvider` now waits for the persisted appearance preference to load before mounting app screens, preventing a first-render flash in the wrong theme. While loading it shows a palette-backed neutral surface.
 - Migrated all 11 audited legacy static `colors` imports to the active theme hook or system-aware palette (including auth screens/layouts, chat, balance, admin users, and Brain task UI). The remaining source scan finds 26 files with literal color values; some are intentional brand/status/code colors, while others need per-screen classification and replacement. No blind global replacement was applied.
 - PR #129 build checks passed: Expo TypeScript, mobile auth regression, static Web export, Android JS bundle, iOS JS bundle, and Deno Agent/Edge Function checks. Route-by-route visual checks in light/dark/system remain pending.
-- PR #130 dynamic-palette migration passed Expo TypeScript, mobile auth regression, static Web export, Android JS bundle, iOS JS bundle, and Deno Agent/Edge Function checks. It is ready to merge; visual route checks remain pending.
+- PR #130 dynamic-palette migration passed Expo TypeScript, mobile auth regression, static Web export, Android JS bundle, iOS JS bundle, and Deno Agent/Edge Function checks, and merged as `ec4d586162dfb464dcae18b5a4a19bd6ebf78487`.
+- PR #131 extended dynamic palette coverage to shared surfaces and the Balance screen, passed all Expo/Deno CI checks including Web/Android/iOS exports, and merged as `ac861a1b6844cf3b7ca081b8fe34d65408c1ebc0`. PR #132 is the next small presentation-only pass for Support, Image Studio loading, and Admin alert surfaces; it is awaiting CI.
 
 ## Phase 15 — Complete Arabic and English localization and RTL/LTR
 
@@ -632,8 +633,9 @@ Acceptance:
 Verified since the prior review:
 - PR #125 merged as `965e6fc8809adb13af72a536755bf70609a7dd16`.
 - Expo CI passed TypeScript, mobile auth regression, static Web export, Android JS bundle, and iOS JS bundle.
-- GitHub Pages deploy for release commit `ae2bebf26c4825ee8a5766e477e85f3929934787` succeeded (workflow run `43861728685`).
-- Expo OTA publish failed again because `EXPO_TOKEN` is unavailable (workflow run `43861728829`).
+- GitHub Pages deploy for release commit `ac861a1b6844cf3b7ca081b8fe34d65408c1ebc0` succeeded (workflow run `43866014691`); the web deployment URL remains `https://eslammohamedk123450-netizen.github.io/smsm-ai/`.
+- The PR #131 CI run passed all three JS platform exports (Web/Android/iOS), TypeScript, auth regression, and Deno checks (run `43865425383`). The corresponding post-merge release verification was still running at the latest check; do not treat it as complete until its final status is green.
+- Expo OTA publish failed because `EXPO_TOKEN` is unavailable (workflow run `43866014716`).
 - JS bundle export is not the same as building/installing native APK/IPA or testing on real devices.
 - New theme/locale hydration fixes are pending CI; no visual browser/device test is claimed.
 
@@ -663,7 +665,7 @@ Additional known checks from the latest reviewed release commit:
 - Edge Function deployment artifact verification: **passed**.
 - Web build and deployment jobs: **passed**.
 - Agent Deno typecheck: **passed**.
-- Expo TypeScript check: was still in progress at the time of the last status query.
+- Latest PR #131 Expo TypeScript, auth regression, Web/Android/iOS exports, and Deno checks: **passed** (run `43865425383`). The separate post-merge release verification was still in progress at the latest check.
 - OTA publish: **failed** because `EXPO_TOKEN` was not configured/available.
 - Do not infer all app functions are live merely because these checks passed.
 
