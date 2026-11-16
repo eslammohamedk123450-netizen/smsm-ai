@@ -297,7 +297,7 @@ export default function ChatPage() {
       }]);
       setError(null);
       setRetryFailure(null);
-      setActualModelUsed(null);
+      
       setIsSending(true);
       setActiveTaskLabel(studioIntent ? isArabic ? "تجهيز بطاقة الاستوديو…" : "Preparing Studio card…" : isArabic ? "جارٍ الرد على رسالتك…" : "Responding to your message…");
       void logFrictionEvent({ eventKind: "task_start", screenKey: "chat", featureKey: "chat", stepKey: "send_message", conversationId });
@@ -423,7 +423,7 @@ export default function ChatPage() {
     await runOnce(lock, async () => {
       setError(null);
       setRetryFailure(null);
-      setActualModelUsed(null);
+      
       setIsSending(true);
       setActiveTaskLabel(isArabic ? "جاري إعادة تنفيذ المهمة…" : "Retrying task…");
       const controller = new AbortController();
@@ -434,7 +434,7 @@ export default function ChatPage() {
         await chatService.retryAssistant({
           ...failed,
           signal: controller.signal,
-          onModelInfo(identifier) { setActualModelUsed(identifier); },
+          
           onChunk(text) {
             streamedTextRef.current += text;
             setMessages((current) => {
@@ -803,8 +803,6 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   headerButton: { width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 21 },
   headerSpacer: { width: 42, height: 42 },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 6 },
-  actualModelInline: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 5 },
-  actualModelInlineText: { color: colors.textMuted, fontSize: 11, lineHeight: 16 },
   navigationMenuScroll: { maxHeight: 560 },
   navigationMenu: { gap: 7, paddingBottom: 8 },
   navigationMenuItem: { minHeight: 48, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 11, paddingHorizontal: 12, borderRadius: 11, backgroundColor: colors.surfaceElevated },
