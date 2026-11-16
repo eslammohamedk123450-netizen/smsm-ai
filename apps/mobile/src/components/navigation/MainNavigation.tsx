@@ -10,9 +10,14 @@ import type { ThemePalette } from "../../theme/colors";
 
 type Props = { children: React.ReactNode };
 const NavigationMenuContext = createContext<(() => void) | null>(null);
+const PlusMenuContext = createContext<(() => void) | null>(null);
 
 export function useNavigationMenu() {
   return useContext(NavigationMenuContext) ?? (() => undefined);
+}
+
+export function usePlusMenu() {
+  return useContext(PlusMenuContext) ?? (() => undefined);
 }
 
 const ITEMS = [
@@ -59,6 +64,7 @@ export function MainNavigation({ children }: Props) {
 
   return (
     <NavigationMenuContext.Provider value={openDrawer}>
+      <PlusMenuContext.Provider value={() => setPlusVisible(true)}>
       <View style={[styles.root, { backgroundColor: colors.background }]}>
         {!isChat ? (
           <SafeAreaView edges={["top"]} style={[styles.topSafe, { backgroundColor: colors.background }]}>
@@ -132,6 +138,7 @@ export function MainNavigation({ children }: Props) {
           </View>
         </Modal>
       </View>
+      </PlusMenuContext.Provider>
     </NavigationMenuContext.Provider>
   );
 }
