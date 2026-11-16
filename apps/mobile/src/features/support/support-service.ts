@@ -56,12 +56,19 @@ export const supportService = {
     })));
   },
   async adminListTickets(): Promise<SupportTicket[]> {
+    const result = await this.adminListTicketsPage(0, 200);
+    return result.tickets;
+  },
+  async adminListTicketsPage(page = 0, pageSize = 50): Promise<{ tickets: SupportTicket[]; total: number; page: number; pageSize: number }> {
     await requireAdmin();
-    const { data, error } = await supabase.from("suly_support_tickets")
-      .select("id,user_id,subject,category,description,status,priority,created_at,updated_at,resolved_at")
-      .order("updated_at", { ascending: false }).limit(200);
+    const safePage = Number.isSafeInteger(page) ? Math.min(100_000, Math.max(0, page)) : 0;
+    const safePageSize = Number.isSafeInteger(pageSize) ? Math.min(100, Math.max(1, pageSize)) : 50;
+    const { data, error, count } = await supabase.from("suly_support_tickets")
+      .select("id,user_id,subject,category,description,status,priority,created_at,updated_at,resolved_at", { count: "exact" })
+      .order("updated_at", { ascending: false })
+      .range(safePage * safePageSize, (safePage + 1) * safePageSize - 1);
     if (error) throw new Error("تعذر تحميل صندوق الدعم.");
-    return (data ?? []) as SupportTicket[];
+    return { tickets: (data ?? []) as SupportTicket[], total: count ?? 0, page: safePage, pageSize: safePageSize };
   },
   async updateTicket(ticketId: string, status: TicketStatus, priority?: SupportTicket["priority"]): Promise<void> {
     await requireAdmin();
