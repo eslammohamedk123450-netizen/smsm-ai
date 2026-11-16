@@ -29,6 +29,14 @@ Phases 1–4 implementation scope has been completed and reported; Phase 5 navig
 - Current approved visual foundation is clean, calm, premium black/white with light and dark themes. Do not reintroduce the former gold palette without a new owner decision.
 - Work on `develop`; do not modify `release/v1`, production data, secrets, or production deployment without explicit authorization.
 
+## 2A. Cross-platform delivery invariant
+
+- Every new screen, control, workflow, and behavior must be implemented in the shared Expo/React Native codebase so Web, Android, and iOS receive the same feature from the same development commit.
+- Do not create a web-only or Android-only implementation when a shared implementation is viable. Add platform-specific adapters only for genuine differences such as navigation, keyboard/safe areas, file selection, clipboard, permissions, or native capabilities.
+- A platform that cannot support a capability must show a clear disabled/not-supported state; never leave a decorative or nonfunctional control.
+- CI must typecheck the shared application and export Web, Android, and iOS bundles for every relevant change. A bundle export is not a substitute for physical-device/browser acceptance; platform-specific E2E remains in Track B.
+- Keep feature behavior and backend contracts identical across platforms. Do not maintain separate copies of business logic per platform.
+
 ## 3. Phase status rules
 
 Use the roadmap's evidence-based statuses:
