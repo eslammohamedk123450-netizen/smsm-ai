@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { randomUUID } from "expo-crypto";
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import * as Clipboard from "expo-clipboard";
@@ -13,10 +14,8 @@ function Button({ label, onPress, disabled = false, tone = "primary" }: { label:
   return <Pressable accessibilityRole="button" onPress={onPress} disabled={disabled} style={[tone === "primary" ? styles.button : styles.ghostButton, disabled && styles.disabled]}><Text style={tone === "primary" ? styles.buttonText : styles.ghostButtonText}>{label}</Text></Pressable>;
 }
 function generateCode() {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let value = "HIMS-";
-  for (let i = 0; i < 10; i += 1) value += alphabet[Math.floor(Math.random() * alphabet.length)];
-  return value;
+  // Expo Crypto's UUID source is cryptographically secure; never use Math.random for bearer codes.
+  return `HIMS-${randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase()}`;
 }
 function commandFor(code: string) {
   return `!ACTIVATE_${code}`;
@@ -67,7 +66,7 @@ export function HimsAdminScreen() {
   const createCode = async () => {
     const normalized = code.trim().toUpperCase();
     const uses = maxUses.trim() ? Number(maxUses) : null;
-    if (normalized.length < 6) { setError("اكتب كودًا من 6 أحرف على الأقل أو اضغط توليد كود."); return; }
+    if (normalized.length < 12) { setError("اكتب كودًا من 12 حرفًا على الأقل أو اضغط توليد كود."); return; }
     if (uses !== null && (!Number.isInteger(uses) || uses < 1)) { setError("عدد الاستخدامات يجب أن يكون رقمًا صحيحًا موجبًا."); return; }
     setBusy(true); setError(null); setNotice(null);
     try {
@@ -75,7 +74,7 @@ export function HimsAdminScreen() {
       const savedCode = created?.code ?? normalized;
       setLastCreated({ code: savedCode, command: created?.command ?? commandFor(savedCode) });
       setCode("");
-      setNotice("تم حفظ الكود. يمكنك نسخه من بطاقة آخر كود أو من قائمة الأكواد في أي وقت.");
+      setNotice("تم إنشاء الكود. انسخه الآن؛ لن يُحفظ نصه ولن يمكن استرجاعه بعد مغادرة هذه الشاشة.");
       await load();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر إنشاء كود HIMS."); }
     finally { setBusy(false); }
@@ -164,14 +163,8 @@ export function HimsAdminScreen() {
       <Text style={styles.sectionTitle}>أكواد HIMS الحالية</Text>
       {!loading && codes.length === 0 ? <Text style={styles.detail}>لا يوجد كود بعد.</Text> : codes.map((item) => <View key={item.id} style={styles.row}>
         <Text style={styles.cardTitle}>{item.label || "كود HIMS"}</Text>
-        {item.code_plain
-          ? <Text selectable style={styles.commandText}>{commandFor(item.code_plain)}</Text>
-          : <Text style={styles.detail}>هذا الكود أُنشئ قبل تفعيل الحفظ، ولا يمكن استرجاع نصه. البصمة: {item.code_fingerprint}</Text>}
+        <Text style={styles.detail}>الكود الكامل لا يُخزَّن ولا يمكن استرجاعه بعد الإنشاء. البصمة: {item.code_fingerprint}</Text>
         <Text style={styles.detail}>الاستخدام: {item.used_count}/{item.max_uses ?? "∞"} · {item.is_active ? "فعال" : "معطل"}{item.last_used_at ? ` · آخر استخدام: ${item.last_used_at.slice(0, 16).replace("T", " ")}` : ""}</Text>
-        <View style={styles.inline}>
-          <Button label="نسخ الأمر" onPress={() => void copy(commandFor(item.code_plain ?? ""), "أمر التفعيل")} disabled={!item.code_plain} />
-          {item.code_plain ? <Button label="نسخ الكود" tone="ghost" onPress={() => void copy(item.code_plain ?? "", "الكود")} /> : null}
-        </View>
       </View>)}
     </View>
 
