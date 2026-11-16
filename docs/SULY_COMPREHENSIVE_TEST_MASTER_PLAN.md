@@ -369,3 +369,12 @@ RLS/grants للأدوار؛ RPC وSECURITY DEFINER وsearch_path؛ CORS/JWT/rate
 - `T15-035`: مصدر admin_activity_summary يعرض آخر خمسة أحداث صحيحة، ويحسب 24 ساعة كاملة، ويخفي أي حقول غير لازمة.
 - جميع الحالات: **NOT RUN**.
 
+
+
+### فحص SECURITY DEFINER — حالات القبول الإضافية
+- `T16-016`: مراجعة الدوال الـ61 القابلة للتنفيذ من authenticated/anon، وتوثيق guard الفعلي لكل واحدة بدل الاعتماد على string scan.
+- `T16-017`: تأكيد أن `suly_admin_set_provider_enabled` لا يمكنه تجاوز `suly_admin_set_provider_lifecycle` أو استدعاء التحديث دون صلاحية مدير.
+- `T16-018`: التحقق من أن `suly_get_public_conversation` يعرض المحتوى المقصود فقط للرمز الصحيح، ولا يعرض محادثة بعد إلغاء المشاركة.
+- `T16-019`: تأكيد أن `suly_admin_update_provider` يرفض p_user_id مختلفًا عن auth.uid، ويرفض المدير المحظور أو غير المسجل في suly_admins.
+- جميع الحالات: **NOT RUN**؛ لا تغييرات على صلاحيات قاعدة الإنتاج.
+
