@@ -843,6 +843,7 @@ async function handleRequest(req: Request): Promise<Response> {
   // Internal Brain jobs use the same intent classifier as every other request;
   // forcing them to simple_task would disable the central Agent's compound plan.
   const mind = classifyIntent(latestUserMessage);
+  const shouldSearchWeb = isWebSearchRequest(latestUserMessage) && !isFeatureResourceRequest(latestUserMessage);
   executionMode = resolveExecutionMode({
     requestedMode: body.execution_mode === "chat" || body.execution_mode === "agent" || body.execution_mode === "auto"
       ? body.execution_mode
@@ -850,10 +851,10 @@ async function handleRequest(req: Request): Promise<Response> {
     intent: mind.intent,
     hasConnectorRequest: Boolean(requestedConnector || requestedMultiReadToolkits),
     hasAttachments: trustedAttachments.length > 0,
-    requiresLiveSearch: isWebSearchRequest(latestUserMessage),
+    requiresLiveSearch: shouldSearchWeb,
     internalBrainCall,
   });
-  const profileIntent = mind.intent === "complex_task" || isWebSearchRequest(latestUserMessage)
+  const profileIntent = mind.intent === "complex_task" || shouldSearchWeb
     || Boolean(requestedConnector || requestedMultiReadToolkits || internalBrainCall)
     ? "complex_task"
     : mind.intent;
