@@ -12,6 +12,8 @@ const streamMock = streamChatPlatform as jest.Mock;
 
 describe("chatService.retryAssistant", () => {
   beforeEach(() => {
+    streamMock.mockClear();
+    fromMock.mockClear();
     (supabase.auth.getSession as unknown as jest.Mock).mockResolvedValue({ data: { session: null }, error: null });
     (supabase.auth.getUser as unknown as jest.Mock).mockResolvedValue({ data: { user: { id: "user-1" } }, error: null });
     (supabase.functions.invoke as unknown as jest.Mock).mockResolvedValue({ data: { assets: [] }, error: null });
