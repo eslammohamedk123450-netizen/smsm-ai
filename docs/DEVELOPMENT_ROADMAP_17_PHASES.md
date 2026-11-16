@@ -883,3 +883,5 @@ Continue auditing the remaining authenticated SECURITY DEFINER functions in grou
 - public.suly_feature_flags after PR #114: authenticated retains SELECT only (RLS restricts it to active flags); all client DML grants are revoked. service_role retains required administration access.
 - public.ai_providers after PR #110: authenticated and anon have no table privileges; service_role retains access. The admin UI continues through the guarded metadata RPC, which excludes credential fields.
 - These checks support the intended rule: students read eligible resources through the central chat/RPC path, while activation records, raw provider credentials, and feature registry mutations remain server-controlled.
+
+- HIMS resource access regression executed against Supabase: **PASS** — a temporary active HIMS resource was invisible to an active but unactivated test profile, then visible after the profile's HIMS activation flag was enabled within the test transaction. The transaction was rolled back; the temporary resource was confirmed absent afterward and the profile was unchanged.
