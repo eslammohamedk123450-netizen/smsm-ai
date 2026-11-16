@@ -10,6 +10,7 @@ import { BottomSheet } from "../../components/ui/BottomSheet";
 import { useToast } from "../../components/ui/Toast";
 import { chatService, type Conversation } from "../chat/chat-service";
 import { useSulyTheme, type ThemeMode } from "../../theme/ThemeProvider";
+import { supabase } from "../../lib/supabase/client";
 
 type Language = "ar" | "en";
 
@@ -35,6 +36,7 @@ export default function SettingsScreen() {
     void AsyncStorage.getItem("suly:language").then((value) => {
       if (value === "en" || value === "ar") setLanguage(value);
     });
+    void supabase.rpc("suly_is_admin").then(({ data }) => setIsAdmin(data === true)).catch(() => setIsAdmin(false));
   }, []);
 
   const loadCredits = useCallback(async () => {
@@ -149,6 +151,12 @@ export default function SettingsScreen() {
         <Text style={styles.sectionTitle}>{isArabic ? "المحادثات" : "Conversations"}</Text>
         <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => void openArchive()} accessibilityRole="button"><Text style={styles.rowText}>{isArabic ? "الأرشيف" : "Archive"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
 
+        {isAdmin ? <>
+          <Text style={styles.sectionTitle}>{isArabic ? "إدارة النظام" : "Administration"}</Text>
+          <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/admin")} accessibilityRole="button">
+            <Text style={styles.rowText}>{isArabic ? "لوحة التحكم الإدارية" : "Admin dashboard"}</Text><Text style={styles.chevron}>‹</Text>
+          </TouchableOpacity>
+        </> : null}
         <Text style={styles.sectionTitle}>{isArabic ? "التكاملات" : "Integrations"}</Text>
         <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/integrations")} accessibilityRole="button"><Text style={styles.rowText}>{isArabic ? "التطبيقات المرتبطة" : "Connected apps"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
 
