@@ -153,7 +153,7 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
   lockedCard: { backgroundColor: colors.surface, borderColor: colors.divider, borderWidth: 1, borderRadius: 18, padding: 22, alignItems: "center", gap: 12 },
   cardTitle: { color: colors.textPrimary, fontSize: 17, fontWeight: "800", textAlign: "center" },
   primaryButton: { backgroundColor: colors.primary, borderRadius: 12, paddingHorizontal: 20, paddingVertical: 12, marginTop: 4 },
-  primaryButtonText: { color: "#FFFFFF", fontWeight: "800" },
+  primaryButtonText: { color: colors.onPrimary, fontWeight: "800" },
   summaryCard: { flexDirection: "row-reverse", alignItems: "center", gap: 12, backgroundColor: colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: colors.divider },
   summaryIcon: { width: 44, height: 44, borderRadius: 13, backgroundColor: colors.surfaceElevated, alignItems: "center", justifyContent: "center" },
   summaryCopy: { flex: 1, gap: 3 },
@@ -172,5 +172,5 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
   resourceTitle: { color: colors.textPrimary, fontWeight: "800", fontSize: 15, textAlign: "right" },
   description: { color: colors.textSecondary, fontSize: 13, lineHeight: 21, textAlign: "right" },
   openButton: { flexDirection: "row-reverse", alignSelf: "flex-end", alignItems: "center", gap: 7, backgroundColor: colors.primary, borderRadius: 10, paddingHorizontal: 13, paddingVertical: 9, marginTop: 3 },
-  openButtonText: { color: "#FFFFFF", fontSize: 12, fontWeight: "800" },
+  openButtonText: { color: colors.onPrimary, fontSize: 12, fontWeight: "800" },
 });
