@@ -13,7 +13,7 @@ export function StudioScreen() {
   const { isArabic } = useAppLocale();
   const styles = useMemo(() => createStyles(colors, isArabic), [colors, isArabic]);
   const services = [
-    { key: "image", title: isArabic ? "توليد الصور" : "Image generation", description: isArabic ? "كتالوج النماذج والأسعار جاهز، لكن التفعيل ينتظر ربط التكلفة بالرصيد واختبار المسار." : "The model catalog and prices are ready; activation awaits credit pricing and integration tests.", icon: "image-outline" as const, route: "/image-studio", ready: false },
+    { key: "image", title: isArabic ? "توليد الصور" : "Image generation", description: isArabic ? "كتالوج النماذج والأسعار جاهز، لكن التفعيل ينتظر ربط التكلفة بالرصيد واختبار المسار." : "The model catalog and prices are ready; activation awaits credit pricing and integration tests.", icon: "image-outline" as const, route: "/image-studio", ready: true },
     { key: "video", title: isArabic ? "توليد الفيديو" : "Video generation", description: isArabic ? "نماذج الفيديو وأسعارها مسجلة؛ مسار التوليد داخل SULY لم يُتحقق منه بعد." : "Video models and prices are cataloged; the SULY generation path is not verified yet.", icon: "videocam-outline" as const, route: "/video-studio", ready: false },
     { key: "audio", title: isArabic ? "توليد الصوت" : "Audio generation", description: isArabic ? "أنشئ تعليقًا صوتيًا ومقاطع صوتية." : "Create voiceovers and audio clips.", icon: "musical-notes-outline" as const, route: "", ready: false },
     { key: "transcription", title: isArabic ? "تفريغ الصوت" : "Transcription", description: isArabic ? "حوّل التسجيلات إلى نص قابل للبحث." : "Turn recordings into searchable text.", icon: "document-text-outline" as const, route: "", ready: false },
