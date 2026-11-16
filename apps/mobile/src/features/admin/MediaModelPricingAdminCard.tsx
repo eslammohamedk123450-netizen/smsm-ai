@@ -34,12 +34,13 @@ export function MediaModelPricingAdminCard() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const load = async () => {
+  const load = async (): Promise<MediaPriceRow[] | null> => {
     setLoading(true);
     setError(null);
     try {
       const result = await adminService.getMediaModelPriceVersions() as MediaPriceRow[];
       setRows(result);
+      return result;
     } catch {
       setError("تعذر تحميل أسعار خدمات الوسائط.");
     } finally {
@@ -82,7 +83,12 @@ export function MediaModelPricingAdminCard() {
         expectedVersion: selected.price_version,
       });
       setNotice("تم حفظ إصدار جديد، مع الاحتفاظ بسجل الأسعار السابق.");
-      await load();
+      const updatedRows = await load();
+      const updated = updatedRows?.find((row) => row.id === selected.id);
+      if (updated) {
+        setSelectedId(updated.id);
+        setCost(String(updated.provider_cost_egp_per_unit));
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "تعذر حفظ السعر.");
     } finally {
