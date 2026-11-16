@@ -1,3 +1,16 @@
+# SULY — سجل موحد قديم للمراحل والاختبارات (مرجع تاريخي)
+
+> **تنبيه — تم فصل المرجع التنفيذي اعتبارًا من 2026-11-16.**
+> المرجعان الوحيدان المعتمدان الآن:
+> - البناء والتطوير: [SULY_DEVELOPMENT_MASTER_PLAN.md](SULY_DEVELOPMENT_MASTER_PLAN.md)
+> - الاختبارات الشاملة: [SULY_COMPREHENSIVE_TEST_MASTER_PLAN.md](SULY_COMPREHENSIVE_TEST_MASTER_PLAN.md)
+>
+> هذا الملف محفوظ كسجل تاريخي للأدلة والملاحظات السابقة فقط. لا تتبع أي قرار قديم فيه إذا تعارض مع المرجعين الجديدين أو أحدث قرارات مالك المنتج. خصوصًا: هوية Midnight Gold، والشريط السفلي، والتوجيه الآلي دون اختيار المستخدم للنموذج، وأسماء/مستويات الباقات والنماذج القديمة. تم استبدالها بقرارات التصميم الأحدث.
+>
+> لا تضف تحديثات تنفيذية جديدة هنا. حدّث حالة البناء في ملف البناء، وحالات القبول في ملف الاختبارات. احتفظ بهذا الملف لتتبع التاريخ والأدلة السابقة.
+
+---
+
 # SULY — Unified 17-Phase Build & 17-Group Test Master Plan
 
 > **Purpose:** This is the canonical project-development handover document. Every developer, agent, or contributor must read it before changing the product. It records the product intent, approved decisions, phase scope, current evidence-based status, outstanding work, blockers, and verification requirements.
