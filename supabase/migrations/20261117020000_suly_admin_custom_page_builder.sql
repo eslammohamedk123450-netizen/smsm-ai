@@ -277,7 +277,7 @@ begin
 
   return coalesce(v_result, '{}'::jsonb);
 end;
-$;
+$$;
 
 revoke all on function public.suly_admin_validate_custom_page_config(jsonb) from public, anon, authenticated;
 revoke all on function public.suly_admin_list_custom_pages() from public, anon, authenticated;
