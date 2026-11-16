@@ -221,8 +221,8 @@ Never change the implementation status to complete based on documentation alone;
 
 - Both master-plan files are now committed on `develop`.
 - Phase 1: **DONE — VERIFIED at source-audit level**. Inventory and critical-flow matrix: `docs/PHASES_1_4_BUILD_AUDIT.md`.
-- Phase 2: **IMPLEMENTED — REVIEW REQUIRED**. Read-only hosted checks confirmed HIMS table isolation, RLS, RPC grants, fixed search paths, and server-side admin checks. Duplicate activation-code hash reactivation was found. Guard migration and rollback-only regression test are committed, but not applied/executed; do not call Phase 2 complete yet.
-- Phase 3: **IMPLEMENTED — OWNER-BLOCKED for live acceptance**. Code-level intent/resource tests exist; actual student activation and lecture delivery need owner-approved test accounts and real course content.
-- Phase 4: **IMPLEMENTED — REVIEW REQUIRED**. Theme tokens/primitives exist; muted text contrast was improved, core chat/Home/HIMS surfaces were migrated to semantic tokens, and expanded Jest checks were committed. Current-commit CI and complete screen/browser/device accessibility checks are pending.
-- **Stop gate:** Phase 5 is not started. The first four phases remain open until the listed verification gaps are closed.
+- Phase 2: **IMPLEMENTATION COMPLETE — TRACK B VERIFICATION DEFERRED**. HIMS table isolation, RLS, RPC grants, fixed search paths, and server-side admin checks were reviewed. The duplicate activation-code collision guard migration and rollback-only regression SQL are committed to `develop`; isolated migration execution, rollback, and adversarial verification are Track B cases.
+- Phase 3: **IMPLEMENTATION COMPLETE — TRACK B ACCEPTANCE DEFERRED**. Central-chat intent/resource paths and source-level regressions are present; real student activation and lecture delivery are Track B cases using safe test accounts and approved content.
+- Phase 4: **IMPLEMENTATION COMPLETE — TRACK B VISUAL/DEVICE VERIFICATION DEFERRED**. Shared theme tokens, core chat/Home/HIMS semantic palette integration, and expanded contrast regression source are committed. Current-commit CI and full browser/device/accessibility checks are Track B cases.
+- **Stop gate:** Phase 5 has not started. Phases 1–4 are treated as implementation milestones; deferred comprehensive tests do not hold them open. Report the implementation milestone before starting Phase 5.
 - No hosted database migration, production deployment, secret change, model/provider routing change, billing change, credit adjustment, or HIMS entitlement mutation was performed.
