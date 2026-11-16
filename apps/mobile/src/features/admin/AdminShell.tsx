@@ -20,6 +20,7 @@ const NAV_GROUPS: readonly NavGroup[] = [
       { path: "/admin/conversations", label: "المحادثات", labelEn: "Conversations", icon: "▤" },
       { path: "/admin/audit", label: "سجل النشاط", labelEn: "Activity & audit", icon: "≡" },
       { path: "/admin/support", label: "الدعم", labelEn: "Support", icon: "?" },
+      { path: "/admin/friction", label: "مشاكل وتجربة المستخدم", labelEn: "User friction", icon: "◇" },
     ],
   },
   {
@@ -86,6 +87,7 @@ export function AdminShell() {
   const pathname = usePathname();
   const router = useRouter();
   const [query, setQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const [systemOk, setSystemOk] = useState<boolean | null>(null);
   const [checking, setChecking] = useState(false);
   const [adminName, setAdminName] = useState("A");
@@ -103,9 +105,18 @@ export function AdminShell() {
   const refreshHealth = async () => {
     setChecking(true);
     try {
-      const { data, error } = await supabase.from("ai_model_health").select("model_id,last_status,auto_restricted").limit(500);
-      if (error) throw error;
-      setSystemOk((data ?? []).every((row) => row.last_status !== "error" && row.auto_restricted !== true));
+      const [modelsResult, healthResult] = await Promise.all([
+        supabase.from("ai_models").select("id,enabled").eq("enabled", true).limit(500),
+        supabase.from("ai_model_health").select("model_id,last_status,auto_restricted").limit(1000),
+      ]);
+      if (modelsResult.error || healthResult.error) throw modelsResult.error ?? healthResult.error;
+      const activeModels = modelsResult.data ?? [];
+      const healthById = new Map((healthResult.data ?? []).map((row) => [Number(row.model_id), row]));
+      if (!activeModels.length || activeModels.some((model) => !healthById.has(Number(model.id)))) setSystemOk(null);
+      else setSystemOk(activeModels.every((model) => {
+        const health = healthById.get(Number(model.id));
+        return health?.last_status !== "error" && health?.auto_restricted !== true;
+      }));
     } catch { setSystemOk(null); }
     finally { setChecking(false); }
   };
@@ -134,11 +145,31 @@ export function AdminShell() {
 
   const activeItem = NAV_GROUPS.flatMap((group) => group.items).find((item) => isActive(item.path));
 
+  const searchResults = useMemo(() => {
+    const value = query.trim().toLocaleLowerCase();
+    if (!value) return [];
+    return NAV_GROUPS.flatMap((group) => group.items.map((item) => ({ ...item, groupLabel: isArabic ? group.label : group.labelEn })))
+      .filter((item) => `${item.label} ${item.labelEn} ${item.path} ${item.groupLabel}`.toLocaleLowerCase().includes(value))
+      .slice(0, 6);
+  }, [query, isArabic]);
+
+  const openSearchResult = (path: string) => {
+    const value = query.trim();
+    if (!value) return;
+    setSearchOpen(false);
+    router.push({ pathname: path as never, params: { q: value } } as never);
+  };
+
   const submitSearch = () => {
     const value = query.trim();
     if (!value) return;
-    const destination = value.includes("@") || /^[0-9a-f-]{30,}$/i.test(value) ? "/admin/users" : "/admin/models";
-    router.push({ pathname: destination, params: { q: value } });
+    if (value.includes("@") || /^[0-9a-f-]{30,}$/i.test(value)) {
+      setSearchOpen(false);
+      router.push({ pathname: "/admin/users", params: { q: value } });
+      return;
+    }
+    if (searchResults.length) openSearchResult(searchResults[0].path);
+    else setSearchOpen(true);
   };
   const refreshPage = () => { void refreshHealth(); router.replace(pathname as never); };
 
@@ -164,13 +195,20 @@ export function AdminShell() {
     <View style={styles.main}>
       <View style={styles.topbar}>
         <Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "الانتقال إلى التطبيق" : "Go to app"} onPress={() => router.replace("/home")} style={styles.appLink}><Text style={styles.appLinkIcon}>⌂</Text><Text style={styles.appLinkText}>{isArabic ? "التطبيق" : "App"}</Text></Pressable>
-        <View style={styles.searchBox}><Text style={styles.searchGlyph}>⌕</Text><TextInput value={query} onChangeText={setQuery} onSubmitEditing={submitSearch} returnKeyType="search" style={styles.searchInput} placeholder={isArabic ? "بحث: مستخدم، نموذج، UUID…" : "Search: user, model, UUID…"} placeholderTextColor={colors.textMuted} autoCapitalize="none" /><Pressable accessibilityRole="button" onPress={submitSearch}><Text style={styles.searchAction}>{isArabic ? "بحث" : "Search"}</Text></Pressable></View>
+        <View style={styles.searchBox}><Text style={styles.searchGlyph}>⌕</Text><TextInput value={query} onChangeText={(value) => { setQuery(value); setSearchOpen(true); }} onFocus={() => setSearchOpen(true)} onSubmitEditing={submitSearch} returnKeyType="search" style={styles.searchInput} placeholder={isArabic ? "بحث: مستخدم، نموذج، UUID…" : "Search: user, model, UUID…"} placeholderTextColor={colors.textMuted} autoCapitalize="none" /><Pressable accessibilityRole="button" onPress={submitSearch}><Text style={styles.searchAction}>{isArabic ? "بحث" : "Search"}</Text></Pressable></View>
         <View style={styles.topActions}>
           <View style={styles.healthPill}><View style={[styles.healthDot, systemOk === false && styles.healthDotBad, systemOk === null && styles.healthDotUnknown]} /><Text style={styles.healthText}>{systemOk === null ? (isArabic ? "الحالة غير متاحة" : "Status unavailable") : systemOk ? (isArabic ? "النظام سليم" : "System healthy") : (isArabic ? "يحتاج مراجعة" : "Needs review")}</Text></View>
           <Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "تحديث الصفحة" : "Refresh page"} onPress={refreshPage} style={styles.refreshButton}><Text style={styles.refreshGlyph}>{checking ? "…" : "↻"}</Text></Pressable>
           <View style={styles.adminAvatar}><Text style={styles.avatarText}>{adminName}</Text></View>
         </View>
       </View>
+      {searchOpen && query.trim() ? <View style={styles.searchResults}>
+        {searchResults.length ? searchResults.map((item) => <Pressable key={item.path} accessibilityRole="button" onPress={() => openSearchResult(item.path)} style={styles.searchResult}>
+          <Text style={styles.searchResultGroup}>{item.groupLabel}</Text>
+          <Text style={styles.searchResultText}>{isArabic ? item.label : item.labelEn}</Text>
+          <Text style={styles.searchResultPath}>{item.path}</Text>
+        </Pressable>) : <View style={styles.searchEmpty}><Text style={styles.searchEmptyText}>{isArabic ? "لا توجد صفحة مطابقة. جرّب اسم قسم مثل المستخدمين أو النماذج أو المالية." : "No matching admin page. Try users, models or finance."}</Text></View>}
+      </View> : null}
       {!wide ? <>
         <View style={styles.mobileTitleRow}>
           <View style={styles.mobileTitleCopy}><Text style={styles.mobileTitle}>{isArabic ? "مركز تحكم الأدمن" : "Admin control center"}</Text><Text style={styles.mobileSubtitle}>{(isArabic ? activeItem?.label : activeItem?.labelEn) ?? (isArabic ? "نظرة عامة" : "Overview")}</Text></View>
@@ -201,5 +239,12 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   main: { flex: 1, minWidth: 0 }, topbar: { minHeight: 62, borderBottomWidth: 1, borderBottomColor: colors.divider, backgroundColor: colors.surface, paddingHorizontal: 18, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "space-between", gap: 14 },
   appLink: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 5, borderWidth: 1, borderColor: colors.primary, borderRadius: 9, paddingHorizontal: 10, paddingVertical: 7 }, appLinkIcon: { color: colors.primary, fontSize: 15 }, appLinkText: { color: colors.primary, fontSize: 12, fontWeight: "800" },
   searchBox: { flex: 1, maxWidth: 560, height: 38, borderRadius: 9, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.background, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", paddingHorizontal: 10, gap: 8 }, searchGlyph: { color: colors.textMuted, fontSize: 20 }, searchInput: { flex: 1, minWidth: 0, color: colors.textPrimary, textAlign: isArabic ? "right" : "left", fontSize: 12, paddingVertical: 0 }, searchAction: { color: colors.primary, fontSize: 11, fontWeight: "700" }, topActions: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 10 }, healthPill: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 6, borderRadius: 20, borderWidth: 1, borderColor: colors.divider, paddingHorizontal: 9, paddingVertical: 6 }, healthDot: { width: 7, height: 7, borderRadius: 5, backgroundColor: colors.success }, healthDotBad: { backgroundColor: colors.error }, healthDotUnknown: { backgroundColor: colors.textMuted }, healthText: { color: colors.textSecondary, fontSize: 10 }, refreshButton: { width: 34, height: 34, borderRadius: 9, borderWidth: 1, borderColor: colors.divider, alignItems: "center", justifyContent: "center" }, refreshGlyph: { color: colors.textPrimary, fontSize: 18 }, adminAvatar: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.divider, alignItems: "center", justifyContent: "center" }, avatarText: { color: colors.primary, fontSize: 12, fontWeight: "800" },
+  searchResults: { position: "relative", zIndex: 20, borderBottomWidth: 1, borderBottomColor: colors.divider, backgroundColor: colors.surface, paddingHorizontal: 18, paddingVertical: 7, gap: 5 },
+  searchResult: { minHeight: 42, borderRadius: 8, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.divider, paddingHorizontal: 10, paddingVertical: 6, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 10 },
+  searchResultGroup: { color: colors.textMuted, fontSize: 9 },
+  searchResultText: { color: colors.textPrimary, fontSize: 11, fontWeight: "800", flex: 1, textAlign: isArabic ? "right" : "left" },
+  searchResultPath: { color: colors.textMuted, fontSize: 8 },
+  searchEmpty: { padding: 10 },
+  searchEmptyText: { color: colors.textMuted, fontSize: 10, textAlign: isArabic ? "right" : "left" },
   page: { flex: 1, minHeight: 0 }, mobileTitleRow: { paddingHorizontal: 14, paddingTop: 10, paddingBottom: 8, flexDirection: isArabic ? "row-reverse" : "row", justifyContent: "space-between", alignItems: "center", gap: 10, borderBottomWidth: 1, borderBottomColor: colors.divider, backgroundColor: colors.surface }, mobileTitleCopy: { flex: 1, alignItems: "flex-end", gap: 2 }, mobileTitle: { color: colors.textPrimary, fontSize: 14, fontWeight: "800", textAlign: isArabic ? "right" : "left" }, mobileSubtitle: { color: colors.textMuted, fontSize: 10, textAlign: isArabic ? "right" : "left" }, mobileTitleActions: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 7 }, menuButton: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 5, borderWidth: 1, borderColor: colors.primary, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 7 }, menuButtonText: { color: colors.primary, fontSize: 15, fontWeight: "900" }, menuButtonLabel: { color: colors.primary, fontSize: 10, fontWeight: "800" }, modalBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.58)" }, mobileMenuCard: { maxHeight: "86%", borderTopLeftRadius: 18, borderTopRightRadius: 18, backgroundColor: colors.surface, paddingTop: 16, paddingHorizontal: 14, paddingBottom: 24 }, mobileMenuHeader: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.divider }, mobileMenuTitle: { color: colors.textPrimary, fontSize: 17, fontWeight: "900", textAlign: isArabic ? "right" : "left" }, mobileMenuHint: { color: colors.textMuted, fontSize: 10, textAlign: isArabic ? "right" : "left", marginTop: 3 }, modalCloseText: { color: colors.textSecondary, fontSize: 30, lineHeight: 30 }, mobileMenuContent: { paddingVertical: 12, gap: 16 }, mobileGroup: { gap: 5 }, mobileGroupLabel: { color: colors.primary, fontSize: 12, fontWeight: "900", textAlign: isArabic ? "right" : "left" }, mobileGroupHint: { color: colors.textMuted, fontSize: 9, textAlign: isArabic ? "right" : "left", marginBottom: 3 }, mobileMenuItem: { minHeight: 46, borderRadius: 10, paddingHorizontal: 12, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 10, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.divider }, mobileMenuItemActive: { borderColor: colors.primary, backgroundColor: colors.surfaceElevated }, mobileMenuIcon: { minWidth: 22, color: colors.textMuted, fontSize: 15, textAlign: "center" }, mobileMenuText: { flex: 1, color: colors.textSecondary, fontSize: 12, textAlign: isArabic ? "right" : "left" }, mobileMenuTextActive: { color: colors.primary, fontWeight: "800" }, mobileMenuArrow: { color: colors.textMuted, fontSize: 18 },
 });
