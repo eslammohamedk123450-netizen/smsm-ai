@@ -135,3 +135,11 @@ The migration source and rollback-only regression are implementation artifacts c
 - التشغيل النهائي: GitHub Actions `43960751890`، commit `36ee3423e275da3c5594c8d65439e72370463e97`؛ وظيفة HIMS regressions **PASS**، واختبارات media billing وtype-check **PASS**، وبناء والتحقق من Edge Function bundles **PASS**.
 - سجل المحاولات السابقة: `43960322088` فشل بسبب syntax error في الاختبار، و`43960664237` فشل بسبب تهيئة npm type dependencies في Deno. أُصلح السببان وأعيد التشغيل؛ لا يُخفى سجل الفشل.
 - لا يزال سباق تفعيل كودين مختلفين لنفس المستخدم بحاجة إلى إصلاح ذري واختبار تزامن في بيئة Supabase معزولة.
+
+
+### Phase 4 — shared monochrome palette implementation — 2026-11-16
+- Updated shared Light/Dark semantic tokens to neutral grayscale while preserving token names and component contracts.
+- Updated web document shell colors and project creation default color; user-customized project colors and database records were not changed.
+- Added grayscale assertions to existing contrast tests and a CI job for Jest + Expo TypeScript.
+- GitHub Actions run `43961210070` **SUCCESS** on `6678011330c4f0083321d3486f0c460126627940`; theme/project test job and TypeScript check passed.
+- Remaining: screen-by-screen visual QA, native-device QA, accessibility review beyond shared text contrast, and review of any legacy per-record project colors. No DB migration/data update was made.
