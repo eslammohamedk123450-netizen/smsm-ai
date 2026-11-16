@@ -84,7 +84,7 @@ export function AdminPageBuilderScreen() {
         if (current) {
           setTitle(current.title);
           setPageKey(current.page_key);
-          setComponents(current.config?.components ?? []);
+          setComponents((current.config?.components ?? []).map((component, index) => ({ ...component, id: component.id ?? `saved-${index}` })));
         }
       }
     } catch (e) {
@@ -95,7 +95,7 @@ export function AdminPageBuilderScreen() {
 
   const selectPage = async (page: CustomPage) => {
     setSelectedId(page.id); setPageKey(page.page_key); setTitle(page.title);
-    setComponents(page.config?.components ?? []); setPreview(false); setMessage("");
+    setComponents((page.config?.components ?? []).map((component, index) => ({ ...component, id: component.id ?? `saved-${index}` }))); setPreview(false); setMessage("");
     const { data, error: rpcError } = await supabase.rpc("suly_admin_list_custom_page_versions", { p_page_id: page.id });
     if (rpcError) { setError(rpcError.message); setVersions([]); }
     else setVersions(Array.isArray(data) ? data as PageVersion[] : []);
