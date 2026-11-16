@@ -63,3 +63,19 @@ export async function cancelBrainTask(jobId: string): Promise<BrainTaskCancellat
   if (status === "running" && cancelRequested) return { status: "running", cancelRequested: true };
   throw new Error("لم يتم تأكيد طلب إيقاف المهمة.");
 }
+
+/** Recover the existing queue job for a task id persisted before enqueue. */
+export async function resumeBrainTask(taskId: string, objective: string): Promise<BrainTaskAccepted> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(taskId)) {
+    throw new Error("معرّف المهمة غير صالح.");
+  }
+  const { data, error } = await supabase.functions.invoke("brain-router", {
+    body: { objective, task_id: taskId, mode: "resume" },
+  });
+  if (error) throw new Error(error.message || "تعذر استعادة المهمة المحفوظة.");
+  if (!data || data.task_id !== taskId || typeof data.job_id !== "string"
+    || !["queued", "running", "completed", "failed", "cancelled"].includes(String(data.status))) {
+    throw new Error(String(data?.error ?? "تعذر العثور على المهمة المحفوظة."));
+  }
+  return data as BrainTaskAccepted;
+}
