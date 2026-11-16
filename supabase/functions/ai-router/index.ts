@@ -843,7 +843,7 @@ async function handleRequest(req: Request): Promise<Response> {
   // Internal Brain jobs use the same intent classifier as every other request;
   // forcing them to simple_task would disable the central Agent's compound plan.
   const mind = classifyIntent(latestUserMessage);
-  const shouldSearchWeb = isWebSearchRequest(latestUserMessage) && !isFeatureResourceRequest(latestUserMessage);
+  const shouldSearchWeb = shouldSearchWebForMessage(latestUserMessage, isWebSearchRequest);
   executionMode = resolveExecutionMode({
     requestedMode: body.execution_mode === "chat" || body.execution_mode === "agent" || body.execution_mode === "auto"
       ? body.execution_mode
