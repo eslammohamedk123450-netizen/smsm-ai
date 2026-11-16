@@ -1,6 +1,7 @@
 import { useRef, useState, useMemo } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { chatService } from "../chat/chat-service";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { useToast } from "../../components/ui/Toast";
 import { useSulyTheme } from "../../theme/ThemeProvider";
@@ -18,6 +19,8 @@ export function BrainTaskScreen() {
   const { colors } = useSulyTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
+  const params = useLocalSearchParams<{ conversationId?: string | string[] }>();
+  const linkedConversationId = Array.isArray(params.conversationId) ? params.conversationId[0] : params.conversationId;
   const { show } = useToast();
   const [objective, setObjective] = useState("");
   const [result, setResult] = useState<BrainTaskResult | null>(null);
@@ -78,7 +81,7 @@ export function BrainTaskScreen() {
           throw new Error(latest.errorMessage || "تم إلغاء المهمة.");
         }
         if (latest?.status === "completed" && latest.result && typeof latest.result.response === "string") {
-          setResult({
+          const completedResult: BrainTaskResult = {
             task_id: accepted.task_id,
             complexity: latest.result.complexity === "complex" ? "complex" : "easy",
             capabilities: Array.isArray(latest.result.capabilities) ? latest.result.capabilities.filter((item): item is string => typeof item === "string") : [],
@@ -86,8 +89,21 @@ export function BrainTaskScreen() {
             steps_completed: Number(latest.result.steps_completed ?? 0),
             response: String(latest.result.response),
             route: "brain-router",
-          });
-          show("اكتمل تنفيذ المهمة.", "success");
+          };
+          setResult(completedResult);
+          try {
+            const savedConversationId = await chatService.appendTaskExchange({
+              conversationId: linkedConversationId,
+              objective: value,
+              response: completedResult.response,
+              taskId: completedResult.task_id,
+            });
+            show("اكتملت المهمة وحُفظت نتيجتها في المحادثة.", "success");
+            router.replace({ pathname: "/chat", params: { conversationId: savedConversationId } });
+          } catch (saveError) {
+            setError(saveError instanceof Error ? saveError.message : "اكتملت المهمة لكن تعذر ربط نتيجتها بالمحادثة.");
+            show("اكتملت المهمة، لكن تعذر حفظ النتيجة في المحادثة.", "error");
+          }
           return;
         }
         if (latest?.status === "queued" && attempt > 0 && attempt % 8 === 0) wakeBrainWorker();
