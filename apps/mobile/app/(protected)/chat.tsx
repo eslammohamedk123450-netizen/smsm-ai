@@ -757,6 +757,14 @@ export default function ChatPage() {
             </TouchableOpacity>
           </View>
         </View>
+        {actualModelUsed ? (
+          <View style={styles.actualModelInline} accessibilityRole="text">
+            <Ionicons name="checkmark-circle-outline" size={13} color={colors.textMuted} />
+            <Text style={styles.actualModelInlineText}>
+              {isArabic ? "النموذج المستخدم في آخر رد (بتأكيد الخادم): " + actualModelUsed : "Last response model (server-confirmed): " + actualModelUsed}
+            </Text>
+          </View>
+        ) : null}
 
         {error ? <Pressable onPress={() => setError(null)} style={styles.errorBox}><Text style={styles.errorText}>{error}  ×</Text></Pressable> : null}
         {retryFailure ? <View style={styles.retryWarning} accessibilityRole="alert"><Text style={styles.retryWarningText}>{isArabic ? "حُفظت رسالتك، لكن تعذّر إكمال الرد." : "Your message was saved, but the response could not be completed."}</Text><Pressable onPress={() => void retryResponse()} disabled={isSending} accessibilityRole="button" accessibilityLabel={isArabic ? "إعادة محاولة الرد" : "Retry response"} style={styles.retryButton}><Text style={styles.retryButtonText}>{isSending ? (isArabic ? "جارٍ إعادة المحاولة…" : "Retrying…") : (isArabic ? "إعادة المحاولة" : "Retry")}</Text></Pressable></View> : null}
@@ -927,6 +935,8 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   modelOptionDescription: { color: colors.textSecondary, fontSize: 11, lineHeight: 17, textAlign: isArabic ? "right" : "left" },
   modelRestricted: { color: colors.textMuted, fontSize: 10, fontWeight: "700" },
   actualModelNote: { color: colors.textMuted, fontSize: 10, lineHeight: 16, textAlign: isArabic ? "right" : "left", paddingHorizontal: 3 },
+  actualModelInline: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 5 },
+  actualModelInlineText: { color: colors.textMuted, fontSize: 11, lineHeight: 16 },
   navigationMenuScroll: { maxHeight: 560 },
   navigationMenu: { gap: 7, paddingBottom: 8 },
   navigationMenuItem: { minHeight: 48, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 11, paddingHorizontal: 12, borderRadius: 11, backgroundColor: colors.surfaceElevated },
