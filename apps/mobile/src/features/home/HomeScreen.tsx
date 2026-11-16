@@ -47,7 +47,7 @@ export function HomeScreen() {
 
   return (
     <ScrollView style={[styles.screen, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
-      <View style={styles.hero}>
+      <View style={[styles.hero, { backgroundColor: colors.surfaceElevated, borderColor: colors.divider, borderWidth: 1 }]}>
         <Text style={[styles.eyebrow, { color: colors.textMuted }]}>SULY · YOUR INTELLIGENT PARTNER</Text>
         <Text style={[styles.title, { color: colors.textPrimary }]}>أهلًا {profileFullName?.trim() || "بك"}</Text>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>إيه اللي تحب تنجزه النهارده؟</Text>
