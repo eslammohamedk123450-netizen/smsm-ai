@@ -15,7 +15,7 @@ export function normalizeProjectInput(input: ProjectInput): {
 } {
   const name = input.name.trim();
   const description = input.description?.trim() || null;
-  const color = input.color?.trim() || "#D4AF37";
+  const color = input.color?.trim() || "#737373";
   const iconKey = input.iconKey?.trim() || "folder";
   if (!name || name.length > 100) throw new Error("اسم المشروع يجب أن يكون بين حرف واحد و100 حرف.");
   if (description && description.length > 2000) throw new Error("وصف المشروع طويل جدًا.");
