@@ -109,6 +109,7 @@ A test group passes only when all required cases pass or the owner explicitly ac
 - Disabled/frozen/unverified providers receive no new calls.
 - Verify selected vs actual routed model is represented truthfully.
 - If the catalog RPC fails or returns malformed data, no local fallback profile is selectable or represented as server-verified; Auto remains safe and the unavailable state is explicit.
+- Switch between authenticated accounts while the catalog request is pending or failing; verify catalog verification resets and no prior-session profile state remains selectable.
 - Verify Ultra remains unavailable unless its server catalog, permission, provider, and routing metadata are all verified.
 
 ### Test Group 10 — Studio, media generation, and media security
