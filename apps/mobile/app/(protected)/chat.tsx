@@ -440,6 +440,7 @@ export default function ChatPage() {
             await chatService.retryAssistant({
               conversationId: id,
               userMessageId: savedUserMessageId,
+              modelProfileKey: selectedModelProfile,
               signal: controller.signal,
               onChunk(text) {
                 streamedTextRef.current += text;
@@ -488,6 +489,7 @@ export default function ChatPage() {
       try {
         await chatService.retryAssistant({
           ...failed,
+          modelProfileKey: selectedModelProfile,
           signal: controller.signal,
           
           onChunk(text) {
@@ -651,6 +653,7 @@ export default function ChatPage() {
       await chatService.regenerateAssistant({
         conversationId,
         history,
+        modelProfileKey: selectedModelProfile,
         signal: controller.signal,
         onChunk(text) {
           streamedTextRef.current += text;
@@ -799,7 +802,7 @@ export default function ChatPage() {
                 {selectedModelProfile === profile.profile_key ? <Ionicons name="checkmark-circle" size={19} color={colors.primary} /> : null}
               </Pressable>
             ))}
-            {!modelProfileOptions.some((profile) => profile.profile_key === "max") ? (
+            {(
               <View style={[styles.modelPickerOption, styles.modelPickerOptionDisabled]}>
                 <View style={styles.modelPickerCopy}>
                   <Text style={styles.modelPickerName}>SULY 2.0 X</Text>
@@ -807,7 +810,7 @@ export default function ChatPage() {
                 </View>
                 <Ionicons name="lock-closed-outline" size={17} color={colors.textMuted} />
               </View>
-            ) : null}
+            )}
             {modelProfileLoading ? <Text style={styles.modelPickerHint}>{isArabic ? "جارٍ تحميل المستويات المسموح بها…" : "Loading eligible profiles…"}</Text> : null}
             {!modelProfileLoading && modelProfileOptions.length === 0 ? <Text style={styles.modelPickerHint}>{isArabic ? "تعذر تحميل مستويات الحساب؛ الوضع التلقائي متاح." : "Could not load account profiles; Auto remains available."}</Text> : null}
           </View>
