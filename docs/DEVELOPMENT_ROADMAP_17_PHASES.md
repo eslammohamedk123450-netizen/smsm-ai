@@ -905,7 +905,7 @@ Continue auditing the remaining authenticated SECURITY DEFINER functions in grou
 
 #### Security fixes applied to the connected Supabase project
 
-Migration: `harden_profile_writes_and_model_health_reset` (source file `supabase/migrations/20261116110000_harden_profile_writes_and_model_health_reset.sql`).
+Migration: `harden_profile_writes_and_model_health_reset`, database version `20261116104027` (source file `supabase/migrations/20261116104027_harden_profile_writes_and_model_health_reset.sql`).
 
 1. **Profile entitlement write isolation**
    - Revoked client INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER privileges on `public.suly_profiles` from PUBLIC, anon, and authenticated.
