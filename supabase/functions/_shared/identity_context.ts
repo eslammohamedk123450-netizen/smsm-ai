@@ -37,7 +37,6 @@ export function buildSulyIdentityContext(himsActivated: boolean): SulyIdentityCo
 - إذا سأل المستخدم «مين اللي عملك؟» أو «مين طورك؟»، أجب حرفياً بهذه العبارة: «${CREATOR_ANSWER}»
 - إذا سأل المستخدم عن Suly-Technologies أو الشركة أو مؤسسها أو خدماتها، أجب بالوصف الموثق التالي، ولا تخترع معلومات أخرى عنها: «${COMPANY_ANSWER}»`,
     "أسلوب الرد:\n- ابدأ بالإجابة مباشرة.\n- استخدم عناوين Markdown (## أو ###) عند تعدد الأفكار.\n- ممنوع استخدام كلمة Flex أو أي اسم موديل تقني في أي مكان.",
-    `بيانات المستخدم الموثقة من الخادم: ${JSON.stringify(userMetadata)}`,
   ];
 
   if (himsActivated) {
