@@ -38,6 +38,7 @@ export function HimsAdminScreen() {
   const [code, setCode] = useState("");
   const [codeLabel, setCodeLabel] = useState("دفعة HIMS");
   const [maxUses, setMaxUses] = useState("1");
+  const [codeExpiresAt, setCodeExpiresAt] = useState("");
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
   const [mediaAssetId, setMediaAssetId] = useState<string | null>(null);
@@ -59,7 +60,7 @@ export function HimsAdminScreen() {
     try {
       const [loadedCodes, loadedResources] = await Promise.all([adminService.getHimsActivationCodes(), adminService.getHimsResources()]);
       setCodes(loadedCodes); setResources(loadedResources);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر تحميل بيانات HIMS."); }
+    } catch (cause) { setCodes([]); setResources([]); setError(cause instanceof Error ? cause.message : "تعذر تحميل بيانات HIMS."); }
     finally { setLoading(false); }
   };
   useEffect(() => { void load(); }, []);
@@ -78,13 +79,23 @@ export function HimsAdminScreen() {
     const normalized = code.trim().toUpperCase();
     const uses = maxUses.trim() ? Number(maxUses) : null;
     if (normalized.length < 12) { setError("اكتب كودًا من 12 حرفًا على الأقل أو اضغط توليد كود."); return; }
-    if (uses !== null && (!Number.isInteger(uses) || uses < 1)) { setError("عدد الاستخدامات يجب أن يكون رقمًا صحيحًا موجبًا."); return; }
+    if (uses !== null && (!Number.isSafeInteger(uses) || uses < 1)) { setError("عدد الاستخدامات يجب أن يكون رقمًا صحيحًا موجبًا."); return; }
+    let expiresAt: string | null = null;
+    if (codeExpiresAt.trim()) {
+      const dateValue = codeExpiresAt.trim();
+      if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(dateValue)) { setError("اكتب تاريخ الانتهاء بصيغة YYYY-MM-DD أو اتركه فارغًا."); return; }
+      const calendarDate = new Date(`${dateValue}T00:00:00.000Z`);
+      const endOfDay = new Date(`${dateValue}T23:59:59`);
+      if (!Number.isFinite(calendarDate.getTime()) || calendarDate.toISOString().slice(0, 10) !== dateValue) { setError("تاريخ انتهاء الكود غير صحيح."); return; }
+      if (!Number.isFinite(endOfDay.getTime()) || endOfDay.getTime() <= Date.now()) { setError("تاريخ انتهاء الكود يجب أن يكون في المستقبل."); return; }
+      expiresAt = endOfDay.toISOString();
+    }
     setBusy(true); setError(null); setNotice(null);
     try {
-      const created = await adminService.createHimsActivationCode({ code: normalized, label: codeLabel, maxUses: uses, expiresAt: null });
+      const created = await adminService.createHimsActivationCode({ code: normalized, label: codeLabel, maxUses: uses, expiresAt });
       const savedCode = created?.code ?? normalized;
       setLastCreated({ code: savedCode, command: created?.command ?? commandFor(savedCode) });
-      setCode("");
+      setCode(""); setCodeExpiresAt("");
       setNotice("تم إنشاء الكود. انسخه الآن؛ لن يُحفظ نصه ولن يمكن استرجاعه بعد مغادرة هذه الشاشة.");
       await load();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر إنشاء كود HIMS."); }
@@ -220,7 +231,7 @@ export function HimsAdminScreen() {
       <Text style={styles.detail}>أرسل هذا الأمر في المحادثة كما هو. يعمل أيضًا لو أرسل المستخدم الكود وحده بدون البادئة.</Text>
     </View> : null}
 
-    <View style={styles.card}><Text style={styles.sectionTitle}>إنشاء كود تفعيل</Text><Field label="الكود" value={code} onChange={setCode} placeholder="HIMS-2026-ABC" /><View style={styles.inline}><Button label="توليد كود" tone="ghost" onPress={() => setCode(generateCode())} /><View style={styles.flex}><Field label="عدد الاستخدامات" value={maxUses} onChange={setMaxUses} placeholder="1" keyboardType="numeric" /></View></View><Field label="وصف الكود" value={codeLabel} onChange={setCodeLabel} placeholder="دفعة HIMS" /><Button label={busy ? "جارٍ الإنشاء…" : "إنشاء الكود"} onPress={() => void createCode()} disabled={busy} /></View>
+    <View style={styles.card}><Text style={styles.sectionTitle}>إنشاء كود تفعيل</Text><Field label="الكود" value={code} onChange={setCode} placeholder="HIMS-2026-ABC" /><View style={styles.inline}><Button label="توليد كود" tone="ghost" onPress={() => setCode(generateCode())} /><View style={styles.flex}><Field label="عدد الاستخدامات" value={maxUses} onChange={setMaxUses} placeholder="1" keyboardType="numeric" /></View></View><Field label="وصف الكود" value={codeLabel} onChange={setCodeLabel} placeholder="دفعة HIMS" /><Field label="تاريخ الانتهاء (اختياري · YYYY-MM-DD)" value={codeExpiresAt} onChange={setCodeExpiresAt} placeholder="2026-12-31" /><Button label={busy ? "جارٍ الإنشاء…" : "إنشاء الكود"} onPress={() => void createCode()} disabled={busy} /></View>
 
     <View style={styles.card}>
       <Text style={styles.sectionTitle}>{editingResource ? "تعديل مورد HIMS" : "إضافة محاضرة أو ملف"}</Text>
