@@ -103,7 +103,7 @@ Deno.test("unactivated feature context never fetches or returns private resource
   let directTableRead = false;
   const context = await getFeatureContext({
     rpc: async () => ({
-      data: { features: { hims: { label: "HIMS", activated: false, resources: [{ title: "private", url: "https://example.test/private.pdf" }] } },
+      data: { features: { hims: { label: "HIMS", activated: false, resources: [{ title: "private", url: "https://example.test/private.pdf" }] } } },
       error: null,
     }),
     from: () => {
