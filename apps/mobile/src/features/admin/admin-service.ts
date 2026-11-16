@@ -723,6 +723,52 @@ export const adminService = {
     const { error } = await supabase.from("system_settings").upsert(toUpdate, { onConflict: "key" });
     if (error) throw error;
   },
+  async getStorageBuckets(): Promise<Array<{
+    id: string; name: string; public: boolean; file_size_limit: number | null;
+    allowed_mime_types: string[] | null; created_at: string | null; updated_at: string | null;
+  }>> {
+    await requireAdmin();
+    const { data, error } = await supabase.storage.listBuckets();
+    if (error) throw error;
+    return (data ?? []).map((bucket) => ({
+      id: bucket.id,
+      name: bucket.name,
+      public: bucket.public,
+      file_size_limit: bucket.file_size_limit ?? null,
+      allowed_mime_types: bucket.allowed_mime_types ?? null,
+      created_at: bucket.created_at ?? null,
+      updated_at: bucket.updated_at ?? null,
+    }));
+  },
+  async listStorageObjects(bucketId: string, path = ""): Promise<Array<{
+    name: string; id: string | null; updated_at: string | null; created_at: string | null;
+    metadata: { size?: number; mimetype?: string; eTag?: string; cacheControl?: string } | null;
+  }>> {
+    await requireAdmin();
+    const safeBucketId = bucketId.trim();
+    if (!safeBucketId || safeBucketId.length > 100) throw new Error("معرّف مساحة التخزين غير صالح.");
+    const safePath = path.split("/").filter(Boolean).join("/");
+    if (safePath.length > 1024) throw new Error("مسار التخزين طويل جدًا.");
+    const { data, error } = await supabase.storage.from(safeBucketId).list(safePath, {
+      limit: 100,
+      offset: 0,
+      sortBy: { column: "name", order: "asc" },
+    });
+    if (error) throw error;
+    return (data ?? []).map((item) => ({
+      name: item.name,
+      id: item.id ?? null,
+      updated_at: item.updated_at ?? null,
+      created_at: item.created_at ?? null,
+      metadata: item.metadata ? {
+        size: typeof item.metadata.size === "number" ? item.metadata.size : undefined,
+        mimetype: typeof item.metadata.mimetype === "string" ? item.metadata.mimetype : undefined,
+        eTag: typeof item.metadata.eTag === "string" ? item.metadata.eTag : undefined,
+        cacheControl: typeof item.metadata.cacheControl === "string" ? item.metadata.cacheControl : undefined,
+      } : null,
+    }));
+  },
+
   async getAgentTaskOverview(): Promise<AgentTaskQueueOverview> {
     await requireAdmin();
     const { data, error } = await supabase.rpc("suly_admin_agent_task_overview");
