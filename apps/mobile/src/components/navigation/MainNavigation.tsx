@@ -1,10 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { usePathname, useRouter } from "expo-router";
 import { Keyboard, Pressable, StyleSheet, View, useWindowDimensions, Platform } from "react-native";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { PremiumText as Text } from "../ui/PremiumText";
 import { useSulyTheme } from "../../theme/ThemeProvider";
+import type { ThemePalette } from "../../theme/colors";
 
 type Props = { children: React.ReactNode };
 const ITEMS = [
@@ -29,6 +30,7 @@ export function MainNavigation({ children }: Props) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   useEffect(() => {
     if (Platform.OS === "web") return;
@@ -80,7 +82,7 @@ export function MainNavigation({ children }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemePalette) => StyleSheet.create({
   root: { flex: 1, minWidth: 0, flexDirection: "column" },
   wideRoot: { flexDirection: "row-reverse" },
   sidebar: { width: 238, borderLeftWidth: 1, paddingHorizontal: 14, paddingTop: 22, paddingBottom: 14 },
