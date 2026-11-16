@@ -13,7 +13,7 @@ This is the single authoritative plan for building, organizing, integrating, sec
 
 Track A may run focused developer checks and regression tests continuously. Track B is the formal, end-to-end comprehensive test campaign and starts only after all 17 development phases are implemented and integrated. Passing a build or a subset of tests never proves the whole product ready.
 
-Phases 1–4 implementation scope has been completed and reported. Their comprehensive runtime, live-user, browser/device, adversarial-security, and full-CI verification is carried into Track B. Continue Track A sequentially from Phase 5; do not block implementation progress solely on Track B tests.
+Phases 1–4 implementation scope has been completed and reported; Phase 5 navigation implementation is recorded complete. Phase 6 is the current in-progress phase, followed sequentially by Phases 7–9. Their comprehensive runtime, live-user, browser/device, adversarial-security, and full-CI verification is carried into Track B; do not block implementation progress solely on Track B tests.
 
 ## 2. Product invariants — must survive every phase
 
@@ -122,7 +122,7 @@ Acceptance:
 - Show task plan/progress/results, cancellation, retry, partial billing, and truthful model/tool provenance.
 - Preserve streaming, attachments, history, projects, task runtime, DAG, bounded workers, leases, idempotency, and HIMS.
 - Current `develop` implementation update: chat header now has a compact navigation menu and model selector dropdown; the menu links to new chat, conversations/search, projects, tasks, Studio, Library, credits, plans, integrations, and settings. The selector lists Auto and the three verified server profiles (Lite/Pro/Max), with plan-restricted entries disabled, and displays SULY Ultra as unavailable until a verified catalog/routing profile exists. The previous selector row above the composer was removed to keep the conversation area uncluttered. The actual server-confirmed model remains distinct from the selected profile. Authenticated app entry and successful password/OTP/Google/callback flows now land directly in `/chat`; Home remains available as a secondary destination. The empty chat state is simplified to a short welcome, a clear instruction to write naturally, and compact example prompts rather than large task cards. Support and Settings are separate menu destinations. The streaming indicator shows the current localized task/status label and Stop action. The actual model identifier is now displayed inline in chat only after server confirmation (commit `58014c050cabd5840a31afc6c6191b432bb51638`). Retry now clears stale provenance and listens for the actual-model event again; if the model catalog request fails, profile options are disabled and labeled unavailable rather than treating local defaults as verified (commit `75952f6a7be3a5fccb4dcc75cee22d4b3eca51a4`). The task-usage sheet now distinguishes reserved credits from actually charged credits, and the durable Brain task screen reports queued cancellation separately from a confirmed safe stop after the running step (commits `b9e49daaa295ca72aa852b651eb4689e3a7a2a70` and `9deeb09e7a893002b63590bd6d724ed0c02322dd`).
-- **Implementation status: IN PROGRESS.** Remaining Track A work includes full chat-first layout refinement and preserving/clarifying task progress, cancellation, retry, partial billing, and model/tool provenance. Comprehensive E2E, visual, browser/device, and accounting tests are Track B.
+- **Implementation status: IN PROGRESS.** The model provenance/retry, queued-versus-running cancellation messaging, and reserved-versus-charged usage display have been implemented. Remaining Track A work is to reconcile the durable task plan/progress/result lifecycle with the ordinary chat presentation and ensure task outputs remain traceable through the conversation. Comprehensive E2E, visual, browser/device, and accounting tests are Track B.
 
 ### Phase 7 — Model catalog, selector, and server-side entitlements
 **Goal:** Present all approved model profiles accurately.
@@ -210,7 +210,7 @@ Acceptance:
 7. Update both plans and the canonical 17-phase roadmap with source/change evidence and deferred test IDs.
 8. Phase 1–4 implementation completion has been reported; their comprehensive checks remain in Track B.
 9. Phase 5 navigation implementation is present on `develop` and recorded complete; preserve it.
-10. Continue Phase 6 on `develop`: finish the chat-first header/menu/model selector and central Agent presentation, then report Phase 6 implementation status before Phase 7. Keep all comprehensive tests in Track B.
+10. Phase 6 remains IN PROGRESS after the chat retry/model-provenance, safe cancellation, and usage-visibility updates. Continue its remaining task-result/conversation integration, then proceed sequentially through Phases 7–9. Keep all comprehensive tests in Track B.
 
 ## 6. Required execution log
 
