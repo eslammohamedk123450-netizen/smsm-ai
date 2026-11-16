@@ -20,6 +20,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { mode, effectiveMode, setMode } = useSulyTheme();
   const [language, setLanguage] = useState<Language>("ar");
+  const [isAdmin, setIsAdmin] = useState(false);
   const [balance, setBalance] = useState<number | null>(null);
   const [transactions, setTransactions] = useState<CreditEntry[]>([]);
   const [loadingCredits, setLoadingCredits] = useState(true);
@@ -36,7 +37,10 @@ export default function SettingsScreen() {
     void AsyncStorage.getItem("suly:language").then((value) => {
       if (value === "en" || value === "ar") setLanguage(value);
     });
-    void supabase.rpc("suly_is_admin").then(({ data }) => setIsAdmin(data === true)).catch(() => setIsAdmin(false));
+    void (async () => {
+      try { const { data, error } = await supabase.rpc("suly_is_admin"); setIsAdmin(!error && data === true); }
+      catch { setIsAdmin(false); }
+    })();
   }, []);
 
   const loadCredits = useCallback(async () => {
