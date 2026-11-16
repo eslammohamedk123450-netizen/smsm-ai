@@ -1,7 +1,7 @@
 # SULY — خطة الاختبارات الشاملة
 **SULY Comprehensive Test Master Plan**
 
-- الإصدار: 2.1 | آخر تدقيق للخطة: 2026-11-17
+- الإصدار: 2.2 | آخر تدقيق للخطة: 2026-11-17
 - يبدأ التنفيذ الرسمي بعد اكتمال مراحل البناء الـ17 وتكاملها.
 - مرجع البناء: SULY_DEVELOPMENT_MASTER_PLAN.md
 
@@ -9,8 +9,9 @@
 
 هذا الملف لحملة القبول والاختبارات الشاملة. لا نوقف البناء لاختبار يدوي طويل أو تسجيل دخول حقيقي أو تجربة جهاز/متصفح تحتاج تدخلًا أو بيانات من المالك؛ نسجلها هنا ونكمل البناء.
 
-### فحوص قصيرة داخل كل مرحلة بناء
-TypeScript/Deno typecheck، lint/format/diff checks، unit/component tests السريعة، SQL regression داخل rollback-only transaction في بيئة التطوير، Expo exports/build checks، وفحوص المصدر/الأمان الثابتة. هذه تمنع الانحدار ولا تغلق مجموعات القبول الشامل.
+### فحوص التطوير المؤجلة إلى هذا الملف
+بتوجيه صريح من المالك بتاريخ 2026-11-17، لا تُشغّل الآن أي اختبارات أو فحوص تنفيذية أثناء استكمال البناء، بما فيها TypeScript/Deno typecheck وlint/format/diff checks وunit/component tests وSQL regression وExpo export/build checks والفحوص الثابتة. تُسجل جميع الحالات هنا وتظل NOT RUN إلى أن يبدأ المالك حملة الاختبارات الشاملة. نتائج CI التاريخية تظل مرتبطة بالـcommit والـrun المسجلين ولا تمثل فحصًا جديدًا للـHEAD الحالي.
+
 
 ### اختبارات مؤجلة لهذا الملف
 تسجيل دخول حقيقي، HIMS بحساب طالب/مدير، تزامن عدة مستخدمين، صلاحيات مدير وغير مدير، OAuth وعمليات موصل فعلية، اختبار متصفح بصري، أجهزة Android/iOS، تحميل وتعافٍ وإطلاق/تراجع، أو أي اختبار يحتاج تدخل المالك أو سرًا أو قرارًا تجاريًا.
@@ -435,3 +436,12 @@ RLS/grants للأدوار؛ RPC وSECURITY DEFINER وsearch_path؛ CORS/JWT/rate
 - `T17-019`: `agent-task-scheduler` v5 و`admin-storage` v3 و`model-health-check` v7 ترفض أي scheduler/admin request غير مصادق عليه.
 - `T17-020`: `upload-media` المتقاعد يرد 410، والعميل يستخدم `media-gateway` v14 فقط.
 - جميع الحالات: **NOT RUN**. تأكيد ACTIVE/version/files عبر metadata لا يساوي اختبار endpoint.
+
+
+### اختبارات مراجعة Supabase Advisors — 2026-11-17
+- `T16-025`: إعادة فحص الـ73 foreign key غير المفهرسة وتحديد الأولوية من EXPLAIN/الاستعلامات الفعلية قبل أي index migration.
+- `T16-026`: فحص الـ50 unused indexes مع usage window مناسب واعتماد صريح قبل حذف أي index.
+- `T16-027`: مراجعة 9 مجموعات multiple permissive policies وإثبات أن دمج السياسات يحافظ على نفس roles/commands/USING/WITH CHECK.
+- `T16-028`: وضع خطة آمنة لنقل `vector` و`pg_net` من public والتحقق من كل dependencies قبل التنفيذ.
+- `T16-029`: مراجعة أثر تفعيل leaked-password protection على التسجيل وتغيير كلمات المرور قبل تعديل Auth settings.
+- جميع الحالات: **NOT RUN / REVIEW REQUIRED**؛ لم يتم تغيير الفهارس أو السياسات أو extensions أو إعدادات Auth.
