@@ -14,8 +14,13 @@ type EvidenceRow = {
   notes: string | null;
 };
 const CAPABILITIES = [
-  ["chat", "المحادثة النصية"], ["vision", "فهم الصور"], ["pdf", "قراءة PDF"], ["word", "قراءة Word"],
-  ["video", "فهم الفيديو"], ["gmail", "Gmail"], ["google_drive", "Google Drive"], ["github", "GitHub"],
+  ["text", "إدخال النص"], ["vision", "فهم الصور"], ["pdf_input", "إدخال PDF"], ["file_input", "إدخال الملفات"],
+  ["video_input", "إدخال الفيديو"], ["audio_input", "إدخال الصوت"], ["audio_output", "إخراج الصوت"],
+  ["image_generation", "توليد الصور"], ["video_generation", "توليد الفيديو"], ["transcription", "تفريغ الصوت"],
+  ["function_calling", "استدعاء الدوال"], ["structured_output", "مخرجات منظمة"], ["streaming", "البث التدريجي"],
+  ["web_search", "أداة بحث الويب"], ["file_search", "أداة البحث بالملفات"], ["computer_use", "استخدام الكمبيوتر"],
+  ["code_interpreter", "تنفيذ/تحليل الكود"], ["mcp_tools", "أدوات MCP"],
+  ["gmail", "تكامل أداة Gmail"], ["google_drive", "تكامل أداة Drive"], ["github", "تكامل أداة GitHub"],
 ] as const;
 const VENDOR = [["unknown", "غير معروف"], ["supported", "مدعوم رسميًا"], ["unsupported", "غير مدعوم"]] as const;
 const TEST = [["not_tested", "لم يُختبر"], ["passed", "نجح"], ["failed", "فشل"]] as const;
