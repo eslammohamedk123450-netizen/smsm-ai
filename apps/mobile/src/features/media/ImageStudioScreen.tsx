@@ -71,7 +71,8 @@ export function ImageStudioScreen() {
   const selectedPrice = selectedModel?.prices.find((price) => price.quality === effectiveQuality) ?? null;
   const estimatedCredits = Number(selectedPrice?.price_credits ?? 0);
   const remainingAfterReserve = balance === null ? null : balance - estimatedCredits;
-  const canGenerate = Boolean(selectedModel && selectedPrice && prompt.trim() && !generating && balance !== null);
+  // A missing/zero price is not a free offer: keep generation unavailable until the server publishes a verified positive credit price.
+  const canGenerate = Boolean(selectedModel && selectedPrice && estimatedCredits > 0 && prompt.trim() && !generating && balance !== null);
 
   const waitForGenerationJob = async (jobId: string) => {
     for (let attempt = 0; attempt < 60; attempt += 1) {
@@ -89,7 +90,7 @@ export function ImageStudioScreen() {
   };
 
   const generate = async () => {
-    if (!selectedModel || !selectedPrice || !prompt.trim()) return;
+    if (!canGenerate || !selectedModel || !selectedPrice || !prompt.trim()) return;
     setGenerating(true); setError(null); setNotice(null); setResult(null);
     const requestId = randomUUID();
     try {
