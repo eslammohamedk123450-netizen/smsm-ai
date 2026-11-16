@@ -96,7 +96,7 @@ export function AdminUsersCommandScreen() {
     }
     let expiresAt: string | null = null;
     if (subscriptionExpiresAt.trim()) {
-      if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(subscriptionExpiresAt.trim())) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(subscriptionExpiresAt.trim())) {
         setError("اكتب تاريخ الانتهاء بصيغة YYYY-MM-DD أو اتركه فارغًا.");
         return;
       }
