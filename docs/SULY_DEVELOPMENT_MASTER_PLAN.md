@@ -129,6 +129,8 @@ Acceptance:
 - Show Lite, Pro, Max, Ultra with verified metadata and clear available/restricted status.
 - Separate subscription plan from selected model; enforce all permissions and routing server-side.
 - Do not activate unverified models or invent version/capability/price metadata.
+- Current implementation: the chat selector loads active profiles from the server catalog; when that lookup fails, locally defined defaults are disabled and labeled as unverified. Lite/Pro/Max are the currently known server profiles; Ultra remains visible but unavailable until catalog and routing metadata are verified. Admin model governance already provides search, filters, role/capability controls, enable/disable, and model health/probe operations. No model was activated or provider routing/pricing changed in this work.
+- **Implementation status: IMPLEMENTED — REVIEW REQUIRED.** Verify catalog completeness, Ultra readiness, entitlement edge cases, and admin role boundaries in Track B.
 - Acceptance: UI labels match server catalog and authorization tests.
 
 ### Phase 8 — Studio and media workflows
@@ -136,12 +138,16 @@ Acceptance:
 - Keep Studio specialized; allow the central Agent to invoke media tools from chat and return results to conversation/Library.
 - Preserve provider freeze, cost guardrails, private delivery, content validation, and ownership.
 - Acceptance: upload/generation/delivery failures, permissions, cost controls, and result linking are verified.
+- Current implementation: image Studio is connected to the server model/price RPC and generation Edge Function. The client now refuses to enable or submit generation when the verified credit price is missing or zero (commit `3e90f3d7d4dd43491f27d894e8eaaa842f74c2b0`). Video remains a clear not-ready placeholder; audio generation/transcription do not yet have complete verified execution paths. Existing production evidence says no active media-generation models and no runtime media price rows at the last audit; no activation or pricing changes were made.
+- **Implementation status: PARTIAL — BLOCKED BY VERIFIED PROVIDER/PRICE CONFIGURATION.** Keep unsupported services unavailable; do not invent rates, enable models, or create a pretend generation flow.
 
 ### Phase 9 — Library, files, and generated artifacts
 **Goal:** Give users a secure, searchable home for owned resources.
 - Preserve existing media ownership and delivery mechanisms; add organization/search/preview/download only where supported.
 - Verify signed URLs, expiry, ownership, quotas, deletion/retention semantics, and cross-user isolation.
 - Acceptance: file lifecycle and access-control tests pass.
+- Current implementation: owner-scoped folders, favorites, asset-folder associations, upload/list/download/delete, generation-job status, and search/filter UI already exist. Added a dedicated audio filter and audio labels based on MIME type without changing the stored media-kind contract (commit `7f18b1aa27a57eb269f42b90118c08a907edd96c`).
+- **Implementation status: IMPLEMENTED — REVIEW REQUIRED.** Search/pagination limits, signed URL lifecycle, delete/retention rules, and real cross-user access remain Track B verification items.
 
 ### Phase 10 — Projects and conversation organization
 **Goal:** Make project workspaces reliable and tenant-isolated.
