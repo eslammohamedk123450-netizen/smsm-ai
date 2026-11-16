@@ -620,3 +620,39 @@
 - تم تصحيح النصوص التي كانت تقول إن adapters غير موصولة؛ المصادر الثلاثة موصولة فعلًا عبر RPCs read-only allowlisted.
 - لا تزال المكونات المتاحة ستة فقط (text/notice/metric/status/list/table). مكونات chart/form/filter العامة غير مضافة؛ لا ننفذ form يكتب في النظام قبل اعتماد action allowlist ونموذج صلاحياته. هذه نقطة متبقية وليست مكتملة.
 - لم تُشغّل اختبارات أو فحوص لهذه الدفعة؛ حالات القبول مضافة في ملف الاختبارات الشاملة.
+
+
+## سجل نشر وظائف Supabase ومطابقة المصدر — 2026-11-17
+تمت مطابقة الملفات الحالية على `develop` مع نسخ الوظائف المنشورة، ونُشرت الوظائف المتأخرة بعد مراجعة التغييرات. جميع الوظائف أدناه ACTIVE وقت آخر قراءة:
+
+| الوظيفة | الإصدار | verify_jwt | الحالة/ملاحظة |
+|---|---:|---|---|
+| `ai-router` | 54 | false | مطابق لآخر تحديث routing/evidence؛ يتحقق يدويًا من Bearer token أو internal Brain key |
+| `sync-models` | 15 | true | آخر مصدر منشور مطابق لتحديث catalog |
+| `media-gateway` | 14 | true | مصدر الرفع العام وCORS الحالي |
+| `model-health-check` | 7 | false | تحقق يدوي من Bearer + `suly_is_admin()` أو scheduler secret |
+| `upload-media` | 8 | true | endpoint متقاعد يرد 410؛ التطبيق يستخدم media-gateway |
+| `brain-router` | 13 | false | نُشر آخر مصدر: resume بالـtask ID، sync_chat بملكية المحادثة، strict CORS؛ Bearer/internal worker auth |
+| `image-generator` | 10 | true | نُشر آخر مصدر: reservation يقبل conversation_id=null لمسار Studio المستقل، strict CORS |
+| `composito-integration` | 9 | true | نُشر آخر مصدر وComposio helper مع strict CORS |
+| `agent-task-worker` | 6 | true | نُشر آخر مصدر مع strict CORS وexact usage settlement |
+| `agent-task-scheduler` | 5 | false | مطابق للمصدر الحالي؛ يتحقق من scheduler token قبل service-role queue |
+| `admin-storage` | 3 | false | يتحقق يدويًا من Bearer token ثم admin guard قبل service-role operations |
+
+### وظائف جرى نشر تحديثها في هذه الدفعة
+- `brain-router`: v12 → v13.
+- `agent-task-worker`: v5 → v6.
+- `image-generator`: v9 → v10.
+- `composito-integration`: v8 → v9.
+- تم الحفاظ على إعدادات `verify_jwt` السابقة لكل وظيفة، ولم تُضف أسرار جديدة.
+- لم نُعد نشر `agent-task-scheduler` لأنه مطابق بالفعل للمصدر الحالي.
+- `upload-media` متقاعد ويرد 410، ولم يُعد نشره؛ لا توجد مراجع تشغيلية له في التطبيق الحالي.
+
+### HIMS / Chat / Agent status reconciliation
+- مسار `/(protected)/hims` يعيد التوجيه إلى `/(protected)/chat`؛ HIMS ليس مساحة مستقلة.
+- `ai-router` v54 يستخدم service-role client بعد التحقق من المستخدم عبر `auth.getUser(userJwt)`; internal Brain calls تتطلب service-role header مع `brain_system`.
+- Catalog grants تؤكد أن `suly_activate_feature` و`suly_check_feature_activation_rate_limit` و`suly_feature_status` متاحة لـservice_role فقط، وغير متاحة لـanon/authenticated.
+- قفل التفعيل على قاعدة البيانات يمنع سباق استهلاك كودين لنفس الميزة أو تجاوز max uses؛ لكن إثبات ذلك تشغيليًا ينتظر اختبارات التزامن.
+- `brain-router` v13 يعيد task job بالـstable task ID، ويكتب النتيجة إلى محادثة مالكها فقط بعد التحقق من ملكية task والمحادثة ومطابقة response.
+- `agent-task-worker` v6 و`agent-task-scheduler` v5 يستخدمان settlement بعد الحالة النهائية وسجل usage؛ الإلغاء أثناء التشغيل يطلب التوقف عند safe boundary، ويظل unknown provider usage معلّقًا للتسوية المتأخرة.
+- كل ما سبق دليل source/deployment/catalog فقط. لا توجد اختبارات مستخدمين أو قبول أو تزامن نُفذت في هذه الدفعة.
