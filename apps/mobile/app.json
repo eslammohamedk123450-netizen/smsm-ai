@@ -5,7 +5,7 @@
     "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/suly-icon.png",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
