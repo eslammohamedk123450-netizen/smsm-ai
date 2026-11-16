@@ -61,7 +61,7 @@ async function main(req: Request): Promise<Response> {
       .eq("job_type", "brain_task")
       .maybeSingle();
     if (jobError) return json({ error: "Could not recover the queued task" }, 503);
-    if (!job) return json({ error: "task_not_found" }, 404);
+    if (!job) return json({ error: "task_not_found", task_id: taskId, status: "not_found" });
     const payload = asRecord(job.payload);
     if (cleanText(payload.objective) !== objective) return json({ error: "task_id_conflict" }, 409);
     return json({ task_id: taskId, job_id: job.id, status: job.status, queued: true, route: "brain-router" });
