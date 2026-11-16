@@ -1,4 +1,4 @@
-import { isFeatureResourceRequest, buildFeatureSystemContext, type FeatureContext } from "./feature_flags.ts";
+import { isFeatureResourceRequest, buildFeatureSystemContext, type FeatureContext } from "./feature_resource_context.ts";
 
 Deno.test("ordinary greetings do not request private feature resources", () => {
   for (const message of ["هلا", "إزيك", "صباح الخير", "تمام", "شكراً"]) {
