@@ -170,7 +170,7 @@ A test group passes only when all required cases pass or the owner explicitly ac
 ## 5. Entry criteria
 
 Track B may begin only when:
-1. All 17 Track A phases are integrated on the intended release candidate.
+1. All 17 Track A phases are integrated on the intended release candidate. Phase-level implementation is not held open merely because its comprehensive tests are pending; the deferred test inventory is carried forward into this campaign.
 2. Development roadmap and build plan show evidence for all required acceptance criteria.
 3. Migrations and environment configuration are reconciled; no unreviewed destructive change remains.
 4. Test environments, safe test users, required content, and provider stubs/credentials are available without sharing secrets in chat.
@@ -207,5 +207,6 @@ For each test case record:
 
 - Track B remains **NOT STARTED** by design; it must wait until Track A Phase 17 integration is complete.
 - Routine focused regression tests continue under Track A.
-- Current first-four-phase gaps that Track B must later verify include HIMS duplicate-code collision/replay, real student activation and protected lecture delivery, ordinary-chat behavior, full design accessibility, and actual browser/device journeys.
+- The first-four implementation verification inventory assigned to Track B includes: HIMS migration application in an isolated environment, duplicate-code collision/replay and rollback; real student activation and protected lecture delivery; ordinary-chat boundaries; current-commit CI; full design accessibility; and actual browser/device journeys.
+- These deferred tests are not implementation blockers. Any defect they expose must be fixed on Track A/develop and then retested in Track B.
 - No test is marked PASS unless it has a verified run/result. The new HIMS collision SQL regression is committed but not executed. The expanded theme Jest test and core chat/Home/HIMS semantic palette changes are committed but await a current-commit CI run.
