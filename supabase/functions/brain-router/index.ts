@@ -98,8 +98,8 @@ async function main(req: Request): Promise<Response> {
         .select("id,conversation_id,user_id,role,content")
         .eq("request_id", requestId)
         .maybeSingle();
-      return !verifyError && Boolean(saved)
-        && saved.user_id === userId
+      if (verifyError || !saved) return false;
+      return saved.user_id === userId
         && saved.conversation_id === conversationId
         && saved.role === role
         && saved.content === content;
