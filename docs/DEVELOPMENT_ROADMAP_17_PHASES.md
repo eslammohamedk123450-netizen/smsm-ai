@@ -338,6 +338,10 @@ Verified code review and current implementation (2026-11-16):
 - Existing upgrade screen loads active plans/features and obtains the current tier from `suly_effective_subscription_tier`; it does not let the client grant a tier. Paid upgrade actions are explicitly not yet available.
 - Added direct Account navigation to the existing Plans & Subscription screen and the existing Library screen; no duplicate billing or storage subsystem was introduced. PR: phase 9 account information architecture (pending checks).
 - Existing privacy/terms sheet explicitly states that official policy text/links are not configured. This remains an owner/legal-input blocker before public launch; no policy wording has been invented.
+- Read-only Supabase audit (2026-11-16): 7 profile rows; 2 credit accounts; 174 holds (171 settled, 3 expired); 353 credit transactions (174 reserve, 171 settle, 3 expire, 4 admin_adjust, 1 daily_grant). No rows exist in either `suly_user_subscriptions` or legacy `user_subscriptions` at audit time.
+- Credit ledger structural checks: zero holds missing a reserve event; zero settled holds missing a settle event; zero expired holds missing an expire event; zero settled holds missing `settled_at`. The 3 expired holds have `settled_at` as expected by the existing stale-hold release function.
+- Credit-account snapshot check: no negative account balances and no mismatch between accounts and each user's latest ledger snapshot. One account has no ledger rows and has zero balance/reserved balance.
+- `suly_credit_pricing` has no configured `credit_value_egp` or `usd_to_egp`; do not enable paid media or invent conversion settings. This is also a Phase 12 owner-input blocker.
 
 Remaining Phase 9 work:
 - Audit profile editing and identity synchronization against the hardened profile-write RPC; add only supported fields and preserve auth identity ownership.
