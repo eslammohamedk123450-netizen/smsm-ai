@@ -502,3 +502,15 @@
 - آخر commit لملف migration: `61ee9d0b52f9094dce4009efe1c41db22dffb1e4`.
 - لا تزال migration غير مطبقة على قاعدة البيانات.
 
+
+
+## مراجعة المرحلة 17 — تجهيز Expo Web/Android/iOS — 2026-11-17
+- راجعت `apps/mobile/package.json`, `app.json`, `eas.json`، وملفي `deploy-pages.yml` و`verify-agent-queue.yml`.
+- إعدادات البناء الحالية: Expo SDK 58 / React Native 0.88.1؛ web export static؛ Android package `com.suly.agentai` وversionCode=10؛ EAS preview ينتج APK وproduction ينتج AAB.
+- تم تعديل `userInterfaceStyle` من `dark` إلى `automatic` حتى لا يتعارض إعداد Expo الثابت مع وضع System الذي يدعمه ThemeProvider. Commit: `3c629e6406ce07fed8d2ccac7f63720ec0d9a207`.
+- متغيرات `EXPO_PUBLIC_SUPABASE_URL` و`EXPO_PUBLIC_SUPABASE_ANON_KEY` و`EXPO_PUBLIC_EDGE_FUNCTION_BASE_URL` ظاهرة في تطبيق العميل عمدًا؛ المفتاح يبدأ بـ`sb_publishable_` وهو مفتاح نشر عام وليس service-role secret. يجب أن تعتمد الحماية على RLS وRPC guards، ولا يوضع أي مفتاح سري داخل التطبيق.
+- GitHub Pages workflow يبني الإنتاج من `release/v1` والمعاينة من `develop`، ولا يسمح لـpush على develop وحده بتشغيل بناء/نشر الإنتاج. تشغيل النشر اليدوي يتطلب `deploy_production=true`.
+- **مانع iOS:** لا يوجد `ios.bundleIdentifier` في `app.json`. لم أخترع معرفًا عالميًا قد يكون مسجلًا لمالك آخر؛ يلزم اعتماد bundle identifier قبل iOS build/store release.
+- لم أشغّل export أو APK/AAB/EAS build، ولم أنشر Pages أو أغيّر `release/v1`. التحقق الفعلي من web/Android/iOS والأجهزة يبقى في ملف الاختبارات الشاملة.
+- الحالة: إعداد Android وWeb موجود بالمصدر؛ iOS release configuration غير مكتمل بسبب bundle identifier، والقبول الفعلي غير متحقق.
+
