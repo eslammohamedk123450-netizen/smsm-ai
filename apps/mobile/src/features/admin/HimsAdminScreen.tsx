@@ -196,7 +196,7 @@ export function HimsAdminScreen() {
       {editingResource ? <Text style={styles.detail}>تعديل بيانات المورد الحالي مع الحفاظ على مصدره وحالة تفعيله. لإضافة مصدر مختلف، ألغِ التعديل وأنشئ موردًا جديدًا.</Text> : null}
       <Text style={styles.detail}>ارفع صورة أو فيديو أو مستندًا مباشرة، أو الصق رابطًا خارجيًا.</Text>
       <View style={styles.inline}>
-        <Button label={uploading === "image" ? "جارٍ رفع الصورة…" : "رفع صورة"} tone="ghost" onPress={() => void uploadForHims("image")} disabled={uploading !== null || busy} />
+        <Button label={uploading === "image" ? "جارٍ رفع الصورة…" : "رفع صورة"} tone="ghost" onPress={() => void uploadForHims("image")} disabled={editingResource !== null || uploading !== null || busy} />
         <Button label={uploading === "video" ? "جارٍ رفع الفيديو…" : "رفع فيديو"} tone="ghost" onPress={() => void uploadForHims("video")} disabled={uploading !== null || busy} />
         <Button label={uploading === "document" ? "جارٍ رفع الملف…" : "رفع ملف"} tone="ghost" onPress={() => void uploadForHims("document")} disabled={uploading !== null || busy} />
       </View>
