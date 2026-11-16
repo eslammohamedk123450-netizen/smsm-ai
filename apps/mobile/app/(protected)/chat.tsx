@@ -3,8 +3,7 @@ import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable,
 import { PremiumText as Text } from "../../src/components/ui/PremiumText";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { DrawerActions } from "@react-navigation/native";
-import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter, type ErrorBoundaryProps } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter, type ErrorBoundaryProps } from "expo-router";
 import { useAuth } from "../../src/features/auth/auth-provider";
 import { chatService, type ChatMessage } from "../../src/features/chat/chat-service";
 import { getRotatingSuggestions } from "../../src/features/chat/suggestions";
@@ -98,7 +97,6 @@ export default function ChatPage() {
   const { user } = useAuth();
   const { show } = useToast();
   const router = useRouter();
-  const navigation = useNavigation();
   const params = useLocalSearchParams<{ conversationId?: string | string[] }>();
   const routeConversationId = Array.isArray(params.conversationId) ? params.conversationId[0] : params.conversationId;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -710,8 +708,8 @@ export default function ChatPage() {
     <SafeAreaView style={styles.safe} edges={["top", "left", "right", "bottom"]}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : Platform.OS === "android" ? "height" : undefined} keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}>
         <View style={styles.appBar}>
-          <Pressable onPress={() => navigation.dispatch(DrawerActions.openDrawer())} style={styles.headerButton} accessibilityRole="button" accessibilityLabel="فتح سجل المحادثات">
-            <Text style={styles.headerIcon}>☰</Text>
+          <Pressable onPress={() => router.push("/conversations")} style={styles.headerButton} accessibilityRole="button" accessibilityLabel="العودة إلى المحادثات">
+            <Ionicons name="list-outline" size={20} color={colors.textPrimary} />
           </Pressable>
           <View style={styles.headerSpacer} />
           <View style={styles.headerActions}>
