@@ -728,43 +728,42 @@ export const adminService = {
     allowed_mime_types: string[] | null; created_at: string | null; updated_at: string | null;
   }>> {
     await requireAdmin();
-    const { data, error } = await supabase.storage.listBuckets();
+    const { data, error } = await supabase.functions.invoke("admin-storage", { body: { action: "list_buckets" } });
     if (error) throw error;
-    return (data ?? []).map((bucket) => ({
-      id: bucket.id,
-      name: bucket.name,
-      public: bucket.public,
-      file_size_limit: bucket.file_size_limit ?? null,
-      allowed_mime_types: bucket.allowed_mime_types ?? null,
-      created_at: bucket.created_at ?? null,
-      updated_at: bucket.updated_at ?? null,
-    }));
+    if (!Array.isArray(data?.buckets)) throw new Error("استجابة جرد التخزين غير صالحة.");
+    return data.buckets.filter((bucket: any) => bucket && typeof bucket.id === "string" && typeof bucket.name === "string")
+      .map((bucket: any) => ({
+        id: bucket.id,
+        name: bucket.name,
+        public: bucket.public === true,
+        file_size_limit: typeof bucket.file_size_limit === "number" ? bucket.file_size_limit : null,
+        allowed_mime_types: Array.isArray(bucket.allowed_mime_types) ? bucket.allowed_mime_types.filter((item: unknown): item is string => typeof item === "string") : null,
+        created_at: typeof bucket.created_at === "string" ? bucket.created_at : null,
+        updated_at: typeof bucket.updated_at === "string" ? bucket.updated_at : null,
+      }));
   },
   async listStorageObjects(bucketId: string, path = ""): Promise<Array<{
     name: string; id: string | null; updated_at: string | null; created_at: string | null;
-    metadata: { size?: number; mimetype?: string; eTag?: string; cacheControl?: string } | null;
+    metadata: { size?: number; mimetype?: string } | null;
   }>> {
     await requireAdmin();
     const safeBucketId = bucketId.trim();
     if (!safeBucketId || safeBucketId.length > 100) throw new Error("معرّف مساحة التخزين غير صالح.");
     const safePath = path.split("/").filter(Boolean).join("/");
     if (safePath.length > 1024) throw new Error("مسار التخزين طويل جدًا.");
-    const { data, error } = await supabase.storage.from(safeBucketId).list(safePath, {
-      limit: 100,
-      offset: 0,
-      sortBy: { column: "name", order: "asc" },
+    const { data, error } = await supabase.functions.invoke("admin-storage", {
+      body: { action: "list_objects", bucket_id: safeBucketId, path: safePath },
     });
     if (error) throw error;
-    return (data ?? []).map((item) => ({
+    if (!Array.isArray(data?.objects)) throw new Error(typeof data?.error === "string" ? data.error : "استجابة ملفات التخزين غير صالحة.");
+    return data.objects.filter((item: any) => item && typeof item.name === "string").map((item: any) => ({
       name: item.name,
-      id: item.id ?? null,
-      updated_at: item.updated_at ?? null,
-      created_at: item.created_at ?? null,
+      id: typeof item.id === "string" ? item.id : null,
+      updated_at: typeof item.updated_at === "string" ? item.updated_at : null,
+      created_at: typeof item.created_at === "string" ? item.created_at : null,
       metadata: item.metadata ? {
         size: typeof item.metadata.size === "number" ? item.metadata.size : undefined,
         mimetype: typeof item.metadata.mimetype === "string" ? item.metadata.mimetype : undefined,
-        eTag: typeof item.metadata.eTag === "string" ? item.metadata.eTag : undefined,
-        cacheControl: typeof item.metadata.cacheControl === "string" ? item.metadata.cacheControl : undefined,
       } : null,
     }));
   },
