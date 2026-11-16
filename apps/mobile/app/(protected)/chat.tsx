@@ -133,7 +133,6 @@ export default function ChatPage() {
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const selectedModelProfile = "auto" as const;
   const openNavigationDrawer = useNavigationMenu();
-  const [creatingNewConversation, setCreatingNewConversation] = useState(false);
   const [actualModelUsed, setActualModelUsed] = useState<string | null>(null);
   const suggestions = isArabic ? TASK_SUGGESTIONS : TASK_SUGGESTIONS_EN;
   const [connectorApproval, setConnectorApproval] = useState<{ content: string; toolkit: ToolkitStatus["toolkit"]; intent: "read" | "write"; connected: boolean; accountExists: boolean; disabled: boolean; writeApproval: ConnectorWriteApproval | null } | null>(null);
@@ -681,19 +680,6 @@ export default function ChatPage() {
 
   const shareTitle = messages.find((message) => message.role === "user")?.content.slice(0, 48) || (isArabic ? "محادثة Suly" : "SULY conversation");
 
-  const startNewConversation = async () => {
-    if (creatingNewConversation) return;
-    setCreatingNewConversation(true);
-    setNavigationMenuVisible(false);
-    try {
-      const next = await chatService.createConversation(isArabic ? "محادثة جديدة" : "New conversation");
-      router.push({ pathname: "/chat", params: { conversationId: next.id } });
-    } catch (cause) {
-      show(cause instanceof Error ? cause.message : (isArabic ? "تعذر بدء محادثة جديدة." : "Could not start a new conversation."), "error");
-    } finally {
-      setCreatingNewConversation(false);
-    }
-  };
   const shareText = messages.map((message) => `${message.role === "user" ? (isArabic ? "أنت" : "You") : "Suly"}:\n${message.content}`).join("\n\n");
 
   return (
