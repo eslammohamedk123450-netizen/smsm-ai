@@ -222,7 +222,7 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   hero: { borderWidth: 1, borderRadius: 24, padding: 22, gap: 22 },
   heroBrandRow: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 10 },
   brandMark: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  brandMarkText: { color: "#FFFFFF", fontSize: 23, fontWeight: "900" },
+  brandMarkText: { color: colors.onPrimary, fontSize: 23, fontWeight: "900" },
   brandCopy: { gap: 2 },
   brandName: { fontSize: 15, fontWeight: "900", letterSpacing: 1.4 },
   brandTagline: { fontSize: 8, fontWeight: "700", letterSpacing: 0.5 },
