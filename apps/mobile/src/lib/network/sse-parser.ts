@@ -1,6 +1,7 @@
 export type RouterSseEvent =
-  | { type: "chunk"; text: string }
-  | { type: "done" }
+  | { type: "chunk"; text: string; modelIdentifier?: string }
+  | { type: "model"; identifier: string }
+  | { type: "done"; modelIdentifier?: string }
   | { type: "task"; task: string; status: "pending" | "running" | "completed" | "failed" }
   | { type: "error"; message: string };
 
@@ -35,8 +36,10 @@ function parseBlock(block: string): RouterSseEvent | null {
   if (typeof value.task === "string" && ["pending", "running", "completed", "failed"].includes(String(value.status))) {
     return { type: "task", task: value.task, status: value.status as "pending" | "running" | "completed" | "failed" };
   }
-  if (typeof value.chunk === "string") return { type: "chunk", text: value.chunk };
-  if (value.done === true) return { type: "done" };
+  const modelIdentifier = typeof value.model === "string" && value.model.length > 0 && value.model.length <= 160 ? value.model : undefined;
+  if (typeof value.chunk === "string") return { type: "chunk", text: value.chunk, ...(modelIdentifier ? { modelIdentifier } : {}) };
+  if (value.done === true) return { type: "done", ...(modelIdentifier ? { modelIdentifier } : {}) };
+  if (modelIdentifier) return { type: "model", identifier: modelIdentifier };
   throw new Error("The chat service returned an unrecognized SSE event.");
 }
 

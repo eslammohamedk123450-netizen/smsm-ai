@@ -19,6 +19,13 @@ describe("SseParser", () => {
     ]);
   });
 
+  it("parses the actual routed model identifier without treating it as user text", () => {
+    const parser = new SseParser();
+    expect(parser.push("data: {\"chunk\":\"Hello\",\"model\":\"openai/gpt-oss-120b\",\"model_id\":7,\"route\":\"free_race\"}\n\n")).toEqual([
+      { type: "chunk", text: "Hello", modelIdentifier: "openai/gpt-oss-120b" },
+    ]);
+  });
+
   it("converts server error payloads into explicit error events", () => {
     const parser = new SseParser();
     expect(parser.push("data: {\"error\":\"interrupted\"}\n\n")).toEqual([
