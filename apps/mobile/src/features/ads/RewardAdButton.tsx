@@ -1,15 +1,18 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { ActivityIndicator, Platform, Pressable, StyleSheet } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { randomUUID } from "expo-crypto";
 import { useRewardedAd } from "react-native-google-mobile-ads";
 import { supabase } from "../../lib/supabase/client";
-import { colors } from "../../theme/colors";
+import { useSulyTheme } from "../../theme/ThemeProvider";
+import type { ThemePalette } from "../../theme/colors";
 import { initializeAds } from "./ads-config";
 
 const REWARDED_ADS_PAUSED = true;
 
 export function RewardAdButton() {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [unitId, setUnitId] = useState<string | null>(null);
   const [loadingConfig, setLoadingConfig] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -84,9 +87,9 @@ export function RewardAdButton() {
   </>;
 }
 
-const styles = StyleSheet.create({
+function createStyles(colors: ThemePalette) { return StyleSheet.create({
   button: { minHeight: 44, borderRadius: 10, backgroundColor: colors.secondary, alignItems: "center", justifyContent: "center", paddingHorizontal: 16, marginTop: 10 },
   disabled: { opacity: 0.55 },
   buttonText: { color: colors.textPrimary, fontWeight: "800", textAlign: "center" },
   message: { color: colors.textSecondary, fontSize: 12, textAlign: "center", marginTop: 5 },
-});
+}); }
