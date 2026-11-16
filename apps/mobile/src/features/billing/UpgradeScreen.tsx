@@ -21,6 +21,8 @@ const planKey = (name: string) => {
 };
 
 export default function UpgradeScreen() {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
   const { user } = useAuth();
   const [plans, setPlans] = useState<Plan[]>([]);
