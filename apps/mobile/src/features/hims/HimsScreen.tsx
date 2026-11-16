@@ -3,7 +3,8 @@ import { ActivityIndicator, Image, Linking, Pressable, ScrollView, StyleSheet, V
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
-import { colors } from "../../theme/colors";
+import { useSulyTheme } from "../../theme/ThemeProvider";
+import type { ThemePalette } from "../../theme/colors";
 import { getHimsFeatureStatus, listMyHimsResources, type HimsResource } from "./hims-service";
 
 type Filter = "all" | "lecture" | "video" | "image" | "file";
@@ -17,6 +18,8 @@ const FILTERS: Array<{ key: Filter; label: string }> = [
 const kindLabel = (kind: string) => ["lecture", "lesson", "course"].includes(kind) ? "محاضرة" : kind === "video" ? "فيديو" : kind === "image" ? "صورة" : "ملف";
 
 export function HimsScreen() {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
   const [activated, setActivated] = useState(false);
   const [featureAvailable, setFeatureAvailable] = useState(true);
@@ -135,7 +138,7 @@ export function HimsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemePalette) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { width: "100%", maxWidth: 980, alignSelf: "center", padding: 18, paddingBottom: 40, gap: 14 },
   header: { flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "flex-start", gap: 12 },
