@@ -3,7 +3,8 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, useWindowDimensio
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { useRouter } from "expo-router";
 import { supabase } from "../../lib/supabase/client";
-import { colors } from "../../theme/colors";
+import { useSulyTheme } from "../../theme/ThemeProvider";
+import type { ThemePalette } from "../../theme/colors";
 import { confirmAdminAction } from "./admin-confirm";
 import { AgentTaskQueueCard } from "./AgentTaskQueueCard";
 import { SulyModelProfilesAdminCard } from "./SulyModelProfilesAdminCard";
@@ -19,6 +20,8 @@ function dateLabel(date: Date) { return date.toLocaleDateString("ar-EG", { weekd
 function valueText(value: number | null) { return value === null ? "—" : value.toLocaleString("ar-EG"); }
 
 export function AdminDashboardScreen() {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
   const { width } = useWindowDimensions();
   const compact = width < 700;
@@ -124,7 +127,7 @@ export function AdminDashboardScreen() {
   </ScrollView>;
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemePalette) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background }, content: { padding: 16, gap: 13, maxWidth: 1200, width: "100%", alignSelf: "center" },
   heading: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", gap: 10 }, headingCopy: { flex: 1, alignItems: "flex-end", gap: 3 }, eyebrow: { color: colors.primary, fontSize: 9, fontWeight: "800", letterSpacing: 0.7 }, title: { color: colors.textPrimary, fontSize: 21, fontWeight: "900", textAlign: "right" }, subtitle: { color: colors.textMuted, fontSize: 11, textAlign: "right" }, refresh: { borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 }, refreshText: { color: colors.textPrimary, fontSize: 11, fontWeight: "700" }, loader: { alignSelf: "flex-end" }, inlineWarning: { borderWidth: 1, borderColor: colors.error, borderRadius: 7, backgroundColor: colors.surface, padding: 9 }, inlineWarningText: { color: colors.error, fontSize: 11, textAlign: "right" },
   metricGrid: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 8 }, metric: { flexGrow: 1, flexBasis: 210, minWidth: 145, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface, gap: 5 }, metricTop: { flexDirection: "row-reverse", alignItems: "center", gap: 7 }, metricDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.textMuted }, goodDot: { backgroundColor: colors.success }, warningDot: { backgroundColor: colors.error }, metricLabel: { flex: 1, color: colors.textSecondary, fontSize: 10, textAlign: "right" }, metricValue: { color: colors.textPrimary, fontSize: 24, fontWeight: "900", textAlign: "right", fontVariant: ["tabular-nums"] }, metricNote: { color: colors.textMuted, fontSize: 9, textAlign: "right" },
