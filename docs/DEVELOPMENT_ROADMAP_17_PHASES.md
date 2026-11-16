@@ -161,6 +161,8 @@ Acceptance:
 
 **Current status:** [~] Conversational intent behavior was improved and merged; the core experience still needs full student-session testing and verified lecture delivery.
 
+**Owner direction (2026-11-16):** Prepare and organize the existing HIMS environment and authorized content-delivery path now. Defer student account, lecture retrieval, and end-to-end experience testing until the owner supplies test accounts and the real lecture/content source.
+
 Known evidence:
 - PR #96 — conversational HIMS behavior: ordinary greetings/small talk should not trigger the education workflow; general study questions remain natural.
 - One active HIMS resource was observed in the database at the latest review. The owner still needs to provide/confirm the real lecture/content source before content completeness can be verified.
@@ -606,14 +608,11 @@ For every work session, report:
 ### Immediate next work order
 
 1. Re-check current CI and the latest `release/v1` commit.
-2. Complete the phase 5 route/accessibility regression, including HIMS entry, Library, credits/plan visibility, and admin gating.
-3. Complete Studio service separation and media billing readiness without enabling unverified models.
-4. Finish Library and Account user journeys.
-5. Complete the admin catalog/provider/pricing/routing workflows.
-6. Complete localization/theme audits.
-7. Run the full Phase 16 security and end-to-end matrix.
-8. Complete Web/Android/iOS validation and release checks.
-9. Update this roadmap after every meaningful PR and produce the final owner-input report.
+2. Finish Phase 5 Home/navigation implementation and its code-level checks; report the exact delivered experience to the owner.
+3. After the Phase 5 report, continue through Phases 6–17 in their official order without skipping or parallelizing phase scope.
+4. Keep HIMS content testing deferred until the owner supplies real test accounts and the lecture/content source.
+5. Keep leaked-password protection deferred until the owner upgrades to a plan that exposes the setting.
+6. Update this roadmap after every meaningful PR and produce the final owner-input report.
 
 ---
 
