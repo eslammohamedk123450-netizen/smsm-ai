@@ -94,6 +94,7 @@ export function AdminShell() {
   const [adminName, setAdminName] = useState("A");
   const [openGroups, setOpenGroups] = useState<string[]>(DEFAULT_OPEN_GROUPS);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [customPages, setCustomPages] = useState<Array<{ page_key: string; title: string }>>([]);
 
   useEffect(() => {
     let active = true;
@@ -102,6 +103,29 @@ export function AdminShell() {
     });
     return () => { active = false; };
   }, [isArabic]);
+
+  useEffect(() => {
+    let active = true;
+    void supabase.rpc("suly_admin_list_custom_pages").then(({ data, error }) => {
+      if (!active || error || !Array.isArray(data)) return;
+      setCustomPages(data.filter((page: any) => page?.status === "published" && typeof page.page_key === "string" && typeof page.title === "string")
+        .slice(0, 30).map((page: any) => ({ page_key: page.page_key, title: page.title })));
+    }).catch(() => { if (active) setCustomPages([]); });
+    return () => { active = false; };
+  }, []);
+
+  const navGroups = useMemo<readonly NavGroup[]>(() => [
+    ...NAV_GROUPS,
+    ...(customPages.length ? [{
+      key: "custom-pages",
+      label: "صفحات مخصصة", labelEn: "Custom pages",
+      hint: "صفحات الإدارة المنشورة", hintEn: "Published admin pages",
+      items: customPages.map((page) => ({
+        path: `/admin/custom/${page.page_key}`,
+        label: page.title, labelEn: page.title, icon: "▦",
+      })),
+    }] : []),
+  ], [customPages]);
 
   const refreshHealth = async () => {
     setChecking(true);
@@ -124,7 +148,7 @@ export function AdminShell() {
   useEffect(() => { void refreshHealth(); }, []);
 
   const isActive = (path: string) => path === "/admin" ? pathname === path : pathname === path || pathname.startsWith(path);
-  const activeGroupKey = NAV_GROUPS.find((group) => group.items.some((item) => isActive(item.path)))?.key ?? "overview";
+  const activeGroupKey = navGroups.find((group) => group.items.some((item) => isActive(item.path)))?.key ?? "overview";
 
   useEffect(() => {
     if (!openGroups.includes(activeGroupKey)) setOpenGroups((current) => [...current, activeGroupKey]);
@@ -144,7 +168,7 @@ export function AdminShell() {
     </Pressable>;
   };
 
-  const activeItem = NAV_GROUPS.flatMap((group) => group.items).find((item) => isActive(item.path));
+  const activeItem = navGroups.flatMap((group) => group.items).find((item) => isActive(item.path));
 
   const searchResults = useMemo(() => {
     const value = query.trim().toLocaleLowerCase();
@@ -179,7 +203,7 @@ export function AdminShell() {
       <View style={styles.brand}><View style={styles.brandBadge}><Text style={styles.brandMark}>S</Text></View><View style={styles.brandCopy}><Text style={styles.brandName}>Suly</Text><Text style={styles.brandSub}>SULY CONTROL CENTER</Text></View></View>
       <Text style={styles.navCaption}>{isArabic ? "مساحة الإدارة" : "Admin workspace"}</Text>
       <ScrollView style={styles.nav} showsVerticalScrollIndicator={false}>
-        {NAV_GROUPS.map((group) => {
+        {navGroups.map((group) => {
           const expanded = openGroups.includes(group.key);
           const active = group.key === activeGroupKey;
           return <View key={group.key} style={styles.group}>
