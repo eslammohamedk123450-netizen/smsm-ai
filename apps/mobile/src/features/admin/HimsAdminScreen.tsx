@@ -15,7 +15,7 @@ function Button({ label, onPress, disabled = false, tone = "primary" }: { label:
 }
 function generateCode() {
   // Expo Crypto's UUID source is cryptographically secure; never use Math.random for bearer codes.
-  return `HIMS-${randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase()}`;
+  return `HIMS-${randomUUID().replace(/-/g, "").toUpperCase()}`;
 }
 function commandFor(code: string) {
   return `!ACTIVATE_${code}`;
