@@ -52,6 +52,7 @@ No parallel admin application or replacement data model is introduced.
    - The finance ledger count now shows unknown on query failure and clears stale rows, so a failed refresh cannot look like an empty or current ledger.
    - Audit-log result totals now show unknown on query failure and clear stale counts instead of displaying a false zero/current total.
    - AdMob settings inputs and save are disabled until existing settings load successfully, preventing a failed read from overwriting stored identifiers with blank defaults.
+   - Composio and Tavily key replacement now requires a successful current-status check; a retry control is available, and failed status reads no longer appear as confirmed “not configured.”
    - User directory totals and pagination now show unavailable after a failed load, and stale user rows/selections are cleared instead of being mistaken for current results.
    - Friction and feedback summaries now distinguish a failed summary request from a real zero-event/zero-rating period.
 6. **HIMS resource lifecycle**
