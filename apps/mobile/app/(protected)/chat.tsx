@@ -185,6 +185,7 @@ export default function ChatPage() {
 
   useEffect(() => {
     let active = true;
+    setModelCatalogLoaded(false);
     if (!user?.id) { setSubscriptionTier("free"); return () => { active = false; }; }
     void (async () => {
       const [tierResult, modelResult] = await Promise.all([
