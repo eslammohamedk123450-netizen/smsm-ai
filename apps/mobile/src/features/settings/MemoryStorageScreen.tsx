@@ -23,10 +23,12 @@ export default function MemoryStorageScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
-  const loadMemories = useCallback(async (refresh = false) => {
+  const loadMemories = useCallback(async (refresh = false, isActive: () => boolean = () => true) => {
     if (!user?.id) {
-      setItems([]);
-      setLoading(false);
+      if (isActive()) {
+        setItems([]);
+        setLoading(false);
+      }
       return;
     }
     if (refresh) setRefreshing(true);
@@ -40,17 +42,21 @@ export default function MemoryStorageScreen() {
         .order("created_at", { ascending: false })
         .limit(100);
       if (queryError) throw queryError;
-      setItems(Array.isArray(data) ? data as MemoryItem[] : []);
+      if (isActive()) setItems(Array.isArray(data) ? data as MemoryItem[] : []);
     } catch {
-      setError(isArabic ? "تعذر تحميل الذاكرة الآن. حاول مرة أخرى." : "Memory could not be loaded. Please try again.");
+      if (isActive()) setError(isArabic ? "تعذر تحميل الذاكرة الآن. حاول مرة أخرى." : "Memory could not be loaded. Please try again.");
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (isActive()) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, [user?.id, isArabic]);
 
   useFocusEffect(useCallback(() => {
-    void loadMemories();
+    let active = true;
+    void loadMemories(false, () => active);
+    return () => { active = false; };
   }, [loadMemories]));
 
   const formatDate = (value: string) => {
@@ -64,7 +70,7 @@ export default function MemoryStorageScreen() {
     <SafeAreaView style={styles.safe} edges={["top", "left", "right", "bottom"]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton} accessibilityRole="button" accessibilityLabel={isArabic ? "رجوع" : "Back"}>
-          <Ionicons name="arrow-forward" size={22} color={colors.textPrimary} />
+          <Ionicons name={isArabic ? "arrow-forward" : "arrow-back"} size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{isArabic ? "ذاكرة التخزين" : "Memory storage"}</Text>
         <TouchableOpacity onPress={() => void loadMemories(true)} style={styles.refreshButton} accessibilityRole="button" accessibilityLabel={isArabic ? "تحديث" : "Refresh"} disabled={refreshing || loading}>
