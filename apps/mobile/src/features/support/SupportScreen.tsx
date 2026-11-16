@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
-import { colors } from "../../theme/colors";
+import { useSulyTheme } from "../../theme/ThemeProvider";
+import type { ThemePalette } from "../../theme/colors";
 import { logFrictionEvent } from "../telemetry/friction";
 import { pickMedia, uploadMediaFile, type PickedMedia } from "../media/media-service";
 import { supportService, type SupportAttachment, type SupportReply, type SupportTicket, type TicketCategory } from "./support-service";
@@ -13,6 +14,8 @@ const categories: { key: TicketCategory; label: string }[] = [
 const statusLabel: Record<string, string> = { new: "جديد", in_progress: "قيد المعالجة", waiting_user: "بانتظارك", resolved: "تم الحل", closed: "مغلق" };
 
 export function SupportScreen() {
+  const { colors } = useSulyTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -119,7 +122,7 @@ export function SupportScreen() {
   </ScrollView></KeyboardAvoidingView>;
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemePalette) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background }, content: { width: "100%", maxWidth: 900, alignSelf: "center", padding: 16, gap: 14 },
   header: { flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center" }, title: { color: colors.textPrimary, fontSize: 24, fontWeight: "800" }, link: { color: colors.primary, fontWeight: "700" }, subtitle: { color: colors.textSecondary, textAlign: "right", lineHeight: 21 },
   card: { backgroundColor: colors.surface, borderColor: colors.divider, borderWidth: 1, borderRadius: 16, padding: 14, gap: 10 }, sectionTitle: { color: colors.textPrimary, fontSize: 17, fontWeight: "700", textAlign: "right" }, input: { backgroundColor: colors.inputBackground, color: colors.textPrimary, borderColor: colors.inputBorder, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11, textAlign: "right" }, multiline: { minHeight: 110 },
