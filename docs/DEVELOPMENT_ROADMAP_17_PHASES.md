@@ -1,10 +1,17 @@
-# SULY — 17-Phase Development Roadmap & Execution Tracker
+# SULY — Unified 17-Phase Build & 17-Group Test Master Plan
 
 > **Purpose:** This is the canonical project-development handover document. Every developer, agent, or contributor must read it before changing the product. It records the product intent, approved decisions, phase scope, current evidence-based status, outstanding work, blockers, and verification requirements.
 >
-> **Last reviewed:** 2026-11-16  
-> **Target branch:** `release/v1`  
-> **Working rule:** Update this document in the same change/PR that materially advances a phase. Never mark work complete merely because code was written or merged.
+> **Last reviewed:** 2026-11-16 (two-track plan approved by the product owner)  
+> **Working branch:** `develop` (all implementation and roadmap updates)  
+> **Production branch:** `release/v1` (protected; no direct development work)  
+> **Working rule:** The 17 phases below are the complete build, organization, integration, and implementation track. The independent comprehensive test track begins only after all 17 build phases and their integration work are complete. Routine developer/CI checks may still run during implementation to prevent regressions; they are not the final comprehensive test campaign. Never mark work complete merely because code was written or merged.
+>
+> **Single authoritative plan:** This file contains both Track A (17 sequential build/development phases) and Track B (17 comprehensive test groups). The former separate master-plan paths are compatibility pointers only; do not maintain parallel or conflicting plans.
+>
+> **Current execution gate (2026-11-16):** Phases 1–4 implementation scope is complete and reported; their comprehensive verification is deferred to Track B. Phase 5 five-area navigation and Home foundation already exist on `develop`. Continue sequentially with Phase 6; do not duplicate the navigation foundation.
+
+> **Canonical numbering reconciliation (2026-11-16):** The phase headings in this detailed tracker preserve an older feature ordering and do not currently match the newer authoritative `SULY_DEVELOPMENT_MASTER_PLAN.md`. For execution, the master plan's phase numbers are canonical. Crosswalk for the work now underway: Master Phase 6 = Tracker Phase 6 (chat); Master Phase 7 = Tracker Phase 10 (model catalog); Master Phase 8 = Tracker Phase 7 (Studio); Master Phase 9 = Tracker Phase 8 (Library); Master Phase 10 = Tracker Phase 11 (Projects); Master Phase 11 = Tracker Phase 9 (Account). Do not infer phase completion from the old tracker numbering. This tracker must be fully renumbered/reconciled before it is used to direct later phases.
 
 ---
 
@@ -50,7 +57,7 @@ On mobile, use a suitable bottom navigation pattern; on web, use a responsive si
 - Do not create multiple independent agents/brains that compete or make conflicting decisions.
 - Preserve the existing task runtime, DAG/dependency handling, checkpoints, leases, cancellation, idempotency, and usage ledger.
 - Model roles (chat, planner, worker, reviewer, summarizer) are constrained execution roles, not separate product assistants.
-- Show the actual model used where appropriate. Auto/Free/Pro/Max are selection modes/profiles, not necessarily subscription names.
+- The user-facing chat has no model-selection dropdown: the single central Agent automatically selects the appropriate verified model/profile according to task, entitlement, availability, and server-side routing rules. Show the actual model used only when the server confirms it. Model catalog, capability governance, health, provider configuration, and routing controls remain in the Admin Control Center.
 
 ### HIMS / HRMS educational entitlement — not a separate chat product
 The existing education feature is an entitlement integrated into the **same ordinary SULY conversation**:
@@ -87,6 +94,83 @@ The existing education feature is an entitlement integrated into the **same ordi
 
 ---
 
+
+## 2A. Owner-approved complete product and Control Center redesign
+
+This is a full product-wide UX/UI redesign requirement, not a palette-only adjustment or isolated screen polish. The redesign must be implemented across the shared Expo application while preserving the existing business logic, routes, data, entitlements, and working capabilities.
+
+### User application — complete experience
+
+- Product identity: **SULY**. Use the approved **Midnight Gold Luxury** identity: deep navy-black `#080B14`, surfaces `#151A27` and `#252B3A`, restrained gold `#D4AF37` / `#B88A2B`, warm light text `#F5F0E2`, and coherent Light, Dark, and System themes. Preserve the geometric SULY identity and avoid generic AI-assistant taglines.
+- Redesign all primary screens and shared components as one coherent system: typography, spacing, layout, surfaces, navigation, cards, fields, dialogs, menus, empty/loading/error states, responsive behavior, accessibility, RTL/LTR, and interaction feedback.
+- Keep the five primary product areas:
+  1. **Home** — welcoming entry point, focused actions, recent work, and useful discovery.
+  2. **Conversations** — ordinary chat with the one central SULY Agent, conversation search/history, projects, and task progress/results.
+  3. **SULY Studio** — specialized image/video/audio generation and audio transcription only where the relevant provider/runtime/cost is verified; unsupported modalities must be clearly unavailable, not simulated.
+  4. **Library** — owned uploads, generated outputs, documents, folders, favorites, search, and supported file actions.
+  5. **Account** — profile, preferences, security, plans, subscription, credits, billing, support, integrations, and app information.
+- Mobile uses a clear bottom navigation pattern with safe-area and keyboard handling. Web uses responsive navigation appropriate to desktop and narrow viewports. The same shared feature implementation serves Web, Android, and iOS.
+- Chat is the simple default entry. The central Agent detects ordinary conversation versus work requiring planning/tools/workers. Do not add a second assistant, competing brain, or user-facing model-selection dropdown. The Agent chooses a verified model automatically; show model provenance only after server confirmation.
+- HIMS remains embedded in ordinary chat and its authorized resource delivery. It is not a separate assistant, separate chat product, or replacement route.
+- Remove generic placeholder marketing copy and decorative controls that do not perform their advertised action. Preserve meaningful product branding and clear, concise copy.
+- Every redesigned screen must retain existing routes and supported functionality. Redesign is not permission to delete, disable, or hide existing features.
+
+### SULY Control Center — complete administrative experience
+
+Build the administration workspace as a coherent, professional **SULY Control Center**, with a clear information architecture, consistent responsive layout, global search/navigation, truthful system status, and role-gated actions. Keep it within the existing shared Expo application and server authorization model; do not create a parallel admin product or bypass server permissions.
+
+The 12 administrative domains are:
+
+1. **Overview** — operational summary, usage, cost, revenue, system health, queue/provider status, and recent events. Missing or failed data must display unknown/unavailable, never a fabricated zero or healthy state.
+2. **Providers & Models** — provider registry, server-held credentials/status, model catalog, identifiers, enable/disable lifecycle, metadata, and ownership. Never expose secret values to clients.
+3. **Capabilities & Tests** — model capability evidence, modality support, test/probe history, health, verified/unverified state, and explicit unavailable reasons.
+4. **Routing & Agent** — central Agent policy, task classification, model-role allowlists, fallback rules, worker limits, timeouts, retries, and circuit-breaker controls. Maintain one decision-making Agent.
+5. **Pricing & Plans** — provider cost, customer price, unit, currency, effective dates, margin, pricing version, plan features, and allowance configuration. Preserve approved formulas and never invent FX or credit conversion.
+6. **Credits & Wallet** — balances, reservations, settlement, release/refund, transaction history, reconciliation, and controlled audited adjustments. Preserve immutable ledger history and atomic/idempotent accounting.
+7. **Users & Accounts** — searchable/paginated users, roles, status, entitlements, subscriptions, and safe account-level administration.
+8. **Ads & Rewards** — rewarded-ad configuration, eligibility, reward rules, verification status, anti-replay protections, and available reporting. Do not claim revenue/impressions are live without evidence.
+9. **Finance & Profit** — provider costs, revenue, expenses, margins, currency consistency, unsettled amounts, and auditable financial summaries.
+10. **Activity & Audit** — searchable administrative/system events, actor, target, timestamp, action, outcome, and traceability. Preserve audit history.
+11. **HIMS & Content** — activation-code lifecycle, resource metadata/visibility, authorized content management, and audit trail. Preserve HIMS tables, student entitlements, resources, and existing workflows.
+12. **System & Security** — environment/health status, access controls, integrations, storage metadata, maintenance/circuit-breaker settings, security findings, and configuration history.
+
+### Dynamic administration and builder safeguards
+
+- Where the approved admin-builder capability exists, administrators may compose/reorder supported pages, sections, and registered UI components using an allowlisted component/data-source registry, with preview, save/version, restore, publish permissions, and audit history.
+- Do not allow arbitrary SQL, arbitrary RPC execution, raw secrets, privilege escalation, or unregistered data-source bindings through a visual builder.
+- Mandatory security, billing, HIMS, and audit controls cannot be hidden or removed in a way that bypasses required workflows or authorization.
+- Every control must be functional or explicitly disabled with a reason. Destructive/high-impact actions require server authorization, clear confirmation, audit logging, and safe recovery.
+- The existing admin build record in `docs/SULY_ADMIN_CONTROL_CENTER_PLAN.md` remains supporting implementation evidence, not a competing product specification.
+
+### Redesign acceptance
+
+- All five user areas and all 12 admin domains have a documented screen/route inventory and a consistent responsive design.
+- Web, Android, and iOS share feature behavior and business logic; platform-specific adapters are limited to genuine platform differences.
+- Arabic RTL and English LTR, Light/Dark/System themes, keyboard/safe areas, focus/contrast, text scaling, and accessibility are addressed.
+- No existing route, data, feature, HIMS workflow, or billing/security invariant is lost.
+- Visual redesign is not declared complete from token changes alone; screen-by-screen implementation and visual/accessibility evidence must be recorded in Track A/Track B as appropriate.
+
+## 2B. Unified two-track execution contract
+
+The two tracks live in this one document and are executed in this order:
+
+**Track A — Build & Development (17 phases):**
+- Execute the 17 development phases sequentially, one phase at a time, against `develop`.
+- Finish and record each phase's implementation scope, source evidence, migrations, focused developer checks, limitations, and next permitted phase before advancing.
+- Do not skip ahead, create an alternate plan, or repeat already-completed foundations without a concrete defect.
+- Routine typechecks, unit tests, Deno tests, SQL regression checks, and CI quality gates may run during Track A. They prevent regressions and do not count as completion of Track B.
+- If a focused check finds a defect, repair it in the relevant Track A phase before proceeding.
+
+**Track B — Comprehensive Testing (17 groups):**
+- Track B starts only after all 17 Track A phases and their integration are implementation-complete and the owner is notified that the build is ready for formal acceptance.
+- All comprehensive tests—security, HIMS live activation, real-user journeys, billing/accounting, concurrency, admin roles, migrations, browser, accessibility, Web/Android/iOS, resilience, and release acceptance—belong here.
+- Execute groups systematically, one at a time, recording exact evidence and PASS/FAIL/BLOCKED/NOT RUN/NOT APPLICABLE.
+- A Track B failure creates a scoped repair in Track A on `develop`; after repair, rerun the failed test and affected regression coverage. Preserve original failure evidence.
+- Do not represent source review, a bundle export, or a routine CI check as a complete end-to-end/device/security test.
+- No production deployment, production data mutation, pricing/provider activation, or release promotion without explicit owner authorization.
+
+The two tracks are not competing plans and must not be run as two unrelated projects. Track A builds; Track B verifies the completed build. This file is the sole authoritative source for both.
+
 # 3. The 17 development phases
 
 ## Phase 1 — Audit the existing project and map all functionality
@@ -105,7 +189,7 @@ Acceptance:
 - Each critical flow has an owner and verification status.
 - No existing feature is removed as part of the audit.
 
-**Current status:** [~] Initial audits and multiple schema/repository reviews have been performed. A single complete, maintained inventory and full flow matrix still need to be finalized.
+**Current status:** [x] DONE — VERIFIED (source-level audit). The maintained repository/system inventory and critical-flow ownership/evidence matrix are recorded in `docs/PHASES_1_4_BUILD_AUDIT.md`. Runtime journeys remain separately marked review-required or owner-blocked; this phase does not certify live user journeys.
 
 Evidence/notes:
 - Prior security foundation and model-routing governance migrations exist.
@@ -131,7 +215,7 @@ Acceptance:
 - Unauthorized, expired, reused, forged, or cross-user requests are rejected.
 - No regression to existing HIMS data or administrator workflows.
 
-**Current status:** [~] Important security foundations have been merged, including hashed activation-code handling and protected student resources. Full adversarial and end-to-end student/admin verification remains.
+**Current status:** [~] IMPLEMENTED ON `develop` — REVIEW REQUIRED. HIMS RLS/client privilege boundaries and server-side admin checks are present. The duplicate activation-code hash guard is now applied to the development Supabase project through migration `20261116180955_hims_activation_code_collision_guard`; the live function was checked and a rollback-only SQL regression confirmed duplicate rejection without mutating the original code. The earlier `20261116150000` draft is superseded by the later applied guard. Phase 2 remains open for broader adversarial/replay/race validation and full HIMS acceptance in Track B.
 
 Known evidence:
 - PR #92 — activation-code security/hash work.
@@ -159,7 +243,7 @@ Acceptance:
 - No repeated HIMS branding/system explanation on greetings or unrelated messages.
 - Resource access is enforced server-side.
 
-**Current status:** [~] Conversational intent behavior was improved and merged; the core experience still needs full student-session testing and verified lecture delivery.
+**Current status:** [~] IMPLEMENTED — REVIEW REQUIRED / OWNER-BLOCKED for real-user acceptance. Source-level intent and resource-delivery gates plus Deno regressions exist. Actual student activation and lecture delivery remain unverified because owner-approved test accounts and the real lecture/content source have not yet been supplied. Do not use production student credentials.
 
 **Owner direction (2026-11-16):** Prepare and organize the existing HIMS environment and authorized content-delivery path now. Defer student account, lecture retrieval, and end-to-end experience testing until the owner supplies test accounts and the real lecture/content source.
 
@@ -180,7 +264,7 @@ Known evidence:
 
 Scope:
 - Establish design tokens for surfaces, text, borders, spacing, radii, typography, elevations, icons, and interaction states.
-- Approved direction: clean, calm, premium white/black visual foundation with light and dark themes; avoid copying another product's identity.
+- Approved direction: Midnight Gold Luxury — deep navy-black foundation `#080B14`, surfaces `#151A27` / `#252B3A`, restrained gold accents `#D4AF37` / `#B88A2B`, warm text `#F5F0E2`, with Light, Dark, and System themes; avoid copying another product's identity.
 - Use suitable Arabic/English fonts and consistent hierarchy.
 - Build reusable buttons, fields, cards, dialogs, menus, empty states, loading states, error states, and navigation components.
 - Ensure contrast, focus/pressed/disabled states, responsive layouts, and accessibility.
@@ -191,7 +275,7 @@ Acceptance:
 - Both themes render consistently with accessible contrast.
 - No existing feature is hidden or removed by the redesign.
 
-**Current status:** [~] Design-system and theme foundations were merged. Complete visual audit across every screen and accessibility review remain.
+**Current status:** [~] PARTIALLY IMPLEMENTED — NOT COMPLETE. Shared semantic light/dark tokens, persisted theme foundation, reusable UI primitives, and some screen migrations exist. The current `develop` head has a confirmed Jest contrast failure in `src/theme/colors.test.ts`: light-theme body text contrast is 4.18:1 (below 4.5:1) and light-theme primary-button text contrast is 3.13:1 (below 4.5:1). Expo TypeScript passed in the latest Agent workflow, but its auth/theme regression job failed on these two assertions. The complete screen-by-screen Midnight Gold redesign and accessibility/visual sweep remain unfinished.
 
 Known evidence:
 - PR #94 — visual identity/theme foundation.
@@ -216,7 +300,7 @@ Acceptance:
 - No keyboard overlap, safe-area obstruction, or lost navigation entry.
 - HIMS remains accessible through the ordinary chat/authorized resource flow.
 
-**Current status:** [~] The five-section navigation foundation is merged (PR #95), and the Home screen has been refreshed in the current work branch. Source review confirms five primary destinations, a mobile bottom bar, a responsive web sidebar at wide widths, native keyboard-aware bottom-bar hiding, and safe-area handling. The refreshed Home screen adds a clearer SULY welcome/primary action, four focused section shortcuts, and recent-chat loading/empty/error/retry states. PR #117 merged to `release/v1` as `fbce76281424adfc61903537dd603d776b6a5c39`. CI passed Expo TypeScript typecheck, mobile auth regression tests, static Expo Web export, Android/iOS JavaScript bundle exports, Deno Agent/Edge tests and typecheck, Edge bundle verification, and media billing guardrails. GitHub Pages build and deployment also reported success. Route-click, visual browser, native installation, and real-device regression testing is still required.
+**Current status:** [x] IMPLEMENTATION COMPLETE ON `develop` — Track B verification deferred. The five-section navigation foundation is present in `apps/mobile/src/components/navigation/MainNavigation.tsx`; source review confirms five primary destinations, mobile bottom navigation, responsive wide-web sidebar, native keyboard-aware bottom-bar hiding, and safe-area handling. The Home screen provides a welcome/primary action, focused shortcuts, and recent-chat loading/empty/error/retry states. Conversations provides search and a Projects entry; existing routes remain reachable through the five areas and secondary links. Earlier PR #117/PR #95 evidence and CI/deployment history are retained below as historical evidence, not a claim that the current `develop` head has passed those runs. Route-click, visual browser, native installation, and real-device checks are assigned to Track B.
 
 Known evidence:
 - PR #95 — five-section navigation.
@@ -232,7 +316,7 @@ Scope:
 - Preserve DAG dependencies, bounded workers, checkpoints, lease fencing, idempotency, and durable task state.
 - Cancellation must stop queued work and safely handle running work; bill only performed work as defined by the usage ledger.
 - Preserve chat history, rename/pin/archive/delete semantics, attachments, and conversation navigation.
-- Model selector Auto/Free/Pro/Max should be clear and located in the chat header/top area—not obscured above the keyboard.
+- Do not show a model-selection dropdown in ordinary chat. The central Agent chooses automatically; show truthful server-confirmed model provenance when available.
 - Show the real model used when available; do not claim a model was used if routing did not confirm it.
 - The central agent selects model/tool according to task, permission, quality, latency, availability, and cost, with bounded safe fallbacks.
 - Avoid unbounded loops, uncontrolled parallelism, hidden retries, arbitrary model fallback, and duplicate charges.
@@ -244,7 +328,7 @@ Acceptance:
 - Model permissions and provider freeze rules are enforced on every new call.
 - Normal greetings and simple questions remain fast and natural.
 
-**Current status:** [~] Significant agent runtime and model-governance work is already merged. Full authenticated HTTP E2E, latency measurements, and complete chat UI verification remain.
+**Current status:** [>] IN PROGRESS on `develop`. Significant central-Agent runtime and model-governance work is present. Ordinary chat uses automatic server-side model routing with no user-facing model dropdown; only server-confirmed model provenance is shown. Authenticated entry, localized streaming status, Stop action, durable task runtime, and task result return-to-chat foundations exist. Remaining implementation includes live task-plan/progress visibility inside the conversation, robust atomic/idempotent saving of the user request plus final task result (the current two-write flow can duplicate the user message if the second write fails), cancellation/retry terminal-state consistency, and exact partial-billing presentation. Latest Agent workflow typecheck passed, but the Jest job failed on the Phase 4 theme contrast assertions; authenticated task E2E and visual/device verification remain open.
 
 Known evidence:
 - PR #85 and earlier runtime work established strict model-role allowlists, guarded routing, provider freeze behavior, safe fallbacks, and regression checks.
@@ -272,7 +356,7 @@ Acceptance:
 - No generation can bypass server-side credit checks.
 - Failures release unused holds; partial work is charged only according to measured/verified usage.
 
-**Current status:** [~] Studio UI foundation and moving image creation out of chat have been merged. A fresh read-only production DB inspection on 2026-11-16 found 4 media-generation model rows, 0 active; 0 rows in `suly_media_generation_prices`; 22 current rows in `suly_media_model_price_versions`; and 0 generation jobs. Therefore image generation remains unavailable because the runtime price table is empty and models are inactive, despite the separate 22-row price catalog. Do not enable models or populate runtime prices until a verified, audited mapping from catalog version/unit/EGP cost to provider USD cost, FX rate, and credit conversion is established. Video UI remains an explicit not-ready placeholder; audio and transcription have no end-to-end generation paths verified.
+**Current status:** [~] Studio UI foundation and moving image creation out of chat have been merged. A fresh read-only production DB inspection on 2026-11-16 found 4 media-generation model rows, 0 active; 0 rows in `suly_media_generation_prices`; 22 current rows in `suly_media_model_price_versions`; and 0 generation jobs. Therefore image generation remains unavailable because the runtime price table is empty and models are inactive, despite the separate 22-row price catalog. Do not enable models or populate runtime prices until a verified, audited mapping from catalog version/unit/EGP cost to provider USD cost, FX rate, and credit conversion is established. Video UI remains an explicit not-ready placeholder; audio and transcription have no end-to-end generation paths verified. The Image Studio UI now also blocks submission when the verified price is missing or zero (commit `3e90f3d7d4dd43491f27d894e8eaaa842f74c2b0`); this is a client guard only and does not activate a model or replace server-side billing enforcement.
 
 Known evidence:
 - PR #104 — move media creation from chat into Studio.
@@ -299,7 +383,7 @@ Acceptance:
 - Upload/download/preview/delete/favorites/folders/search pass tests.
 - All media/task outputs are traceable to their originating job and usage record where applicable.
 
-**Current status:** [~] Core organization features are implemented and merged; full visual/device and authenticated user-journey verification remains.
+**Current status:** [~] Core organization features are implemented and merged; full visual/device and authenticated user-journey verification remains. The Library now has a dedicated audio MIME filter and audio-specific labels without changing the persisted `image`/`video`/`raw` kind contract (commit `7f18b1aa27a57eb269f42b90118c08a907edd96`).
 
 Verified implementation evidence (2026-11-16):
 - PR #124 merged into `release/v1` as commit `c077526ae8033d3a04db0fc336e1d81b4f922065`.
@@ -379,7 +463,7 @@ Acceptance:
 - Unverified models are not routable.
 - Admin operations are atomic and audited.
 
-**Current status:** [~] Exact source-ID reconciliation is now complete for the 65 unique model/service identifiers extracted from the complete supplied file; all 65 are represented across the existing text-model registry and media price catalog. Remaining work is provider-account consolidation/owner confirmation, metadata completeness, and end-to-end admin workflow verification.
+**Current status:** [~] Exact source-ID reconciliation is complete for the 65 unique model/service identifiers extracted from the supplied file; all 65 are represented across the existing text-model registry and media price catalog. Historical chat-profile catalog fallback safeguards remain in the code history, but the current approved chat UX no longer exposes a model selector: the central Agent routes automatically. Remaining work is provider-account consolidation/owner confirmation, metadata completeness, and end-to-end admin workflow verification.
 
 Verified database audit (2026-11-16):
 - Source file was read in full (1,133 lines); case-insensitive extraction produced 65 unique identifiers across text, image, video, and transcription.
@@ -419,7 +503,7 @@ Acceptance:
 - RLS and grants are tested for anon, authenticated, and service roles.
 - Migrations are repeatable and rollback/forward recovery is documented.
 
-**Current status:** [>] Additive capability-evidence registry and admin editor are implemented on branch `feat/model-catalog-capability-evidence-20261116`; merge and CI verification are pending. The existing production routing and legacy `capabilities_json` behavior are intentionally unchanged until the evidence catalog is populated and regression-tested.
+**Current status:** [~] IMPLEMENTED ON `develop` — INTEGRATION/VERIFICATION REMAINS. The additive text and media capability-evidence registries, admin evidence editors, guarded RPCs, evidence URL validation, and central `ai-router` evidence consumption are present on `develop`. Vendor claims, provider probes, and SULY integration results remain separate states. The latest recorded catalog had 1,040 text evidence rows and 22 media claims, but provider/SULY pass counts were zero at that audit; the registry is not proof of working capabilities. Remaining work is full migration/RLS/RPC regression, authenticated admin save/probe verification, and SULY integration tests before any media activation.
 
 Implementation evidence (2026-11-16):
 - Added `ai_model_capability_evidence`, keyed by the existing integer `ai_models.id` and capability key. This deliberately does not reuse `model_capabilities`, which is FK-linked to the separate UUID-based `models` catalog.
@@ -451,7 +535,7 @@ Verified schema review (2026-11-16):
 - All tables listed above have RLS enabled; the full anon/authenticated/service_role grant-and-policy matrix still needs targeted regression coverage before this phase can close.
 - No parallel routing table or duplicate provider-secret store was introduced.
 
-## Phase 12 — Model selection, routing, cost calculation, and 40% pricing
+## Phase 12 — Automatic model routing, cost calculation, and 40% pricing
 
 **Goal:** Route requests to suitable verified models and calculate customer charges accurately.
 
@@ -489,32 +573,50 @@ Known evidence:
 - PR #99/#101 — catalog/pricing changes.
 - Do not interpret routing timeout budgets as measured full user-task latency.
 
-## Phase 13 — Rebuild and secure the admin panel
+## Phase 13 — Build, organize, and secure the complete SULY Admin Control Center
 
-**Goal:** Give administrators a clear control center without exposing privileged actions to ordinary users.
+**Goal:** Deliver the complete administrative control plane, including existing workflows and a protected dynamic page/component builder, without exposing privileged actions or replacing established business logic.
 
-Required areas:
-- Overview.
-- Providers and credential status (never reveal full secrets).
-- Model Catalog.
-- Routing.
-- Pricing & Profit.
-- Health / Tests.
-- Users.
-- Security / Audit.
-- Existing HIMS administration and other established admin tools must remain accessible.
-- Add safe filters, pagination, loading/error states, confirmations, and audit history.
+Required administrative modules (reuse existing sources and guarded services wherever authoritative sources already exist):
+1. Overview & operational activity: verified user, task, model, wallet, service-health, and operational metrics. Unknown metrics remain explicitly unavailable rather than fabricated.
+2. Providers & Models: provider accounts, masked credential status, model catalog, lifecycle, health, and metadata.
+3. Capabilities & Verification: vendor claims, provider-test evidence, and SULY-integration evidence as distinct levels.
+4. Central Agent & Routing: central-agent roles, route assignments, profiles, fallbacks, task queue, and routing history; no second independent agent or routing engine.
+5. Pricing & Plans: immutable/effective-dated model and media price versions, plans, features, and approved margin rules.
+6. Wallet, Credits & Coins only if a separate authoritative Coins ledger is confirmed: holds, transactions, adjustments, grants, settlement, and reconciliation. Never edit balances outside the authoritative ledger flow.
+7. Users & Subscriptions: account status, server-derived entitlements, subscriptions, and permission-safe support actions.
+8. Ads & Rewards: AdMob identifiers, reward claims, and verified ad-network settlement only when an authoritative settlement source exists.
+9. Finance & Profit/Loss: reconciled provider costs, revenue, expenses, pending items, and unknown/unconverted amounts kept separate.
+10. Activity & Audit: unified read experience over existing audit sources without deleting or silently merging historical records.
+11. HIMS & Content: activation codes, student entitlements, resources, and educational administration while HIMS remains inside ordinary central chat.
+12. System Settings & Security: admin roles, access controls, integration status, maintenance settings, security configuration, and audit protection.
+
+Dynamic Admin Page & Component Builder (required within this phase; not merely an AdminShell/navigation redesign):
+- Create, edit, rename, reorder, publish/unpublish, show, and hide administrative pages and sections, subject to permissions.
+- Add, configure, reorder, and remove permitted presentation components on configurable pages.
+- Support approved component types such as data tables, metric cards, charts, forms, lists, filters, and status panels.
+- Bind components only to explicitly registered data sources and approved read/write operations. Do not permit arbitrary SQL, arbitrary RPC execution, or client-defined privileged actions.
+- Configure page visibility and separate read/create/update/delete/sensitive-action permissions. Enforce every permission on the server/RPC/Edge Function and database layer, not only by hiding UI controls.
+- Persist versioned page layouts, validate configuration, and provide safe preview/publish/restore behavior.
+- Audit who changed what, when, and the previous/new configuration.
+- Protect mandatory security, audit, identity, and core administration routes from being removed or hidden in a way that locks out the owner or bypasses required controls.
+- Migrate existing admin pages gradually only after equivalent functionality and permissions exist. Keep current routes and workflows working during migration; do not delete the legacy implementation first.
+
+Implementation and security requirements:
+- Add safe filters, pagination, loading/error/empty states, confirmations, and audit history.
 - Verify admin status on the server for every privileged operation.
-- High-impact actions (provider disable, model activation, pricing changes, role/route edits, user privilege changes) require validated server-side operations and audit events.
+- High-impact actions (provider disable, model activation, pricing changes, role/route edits, user privilege changes, wallet adjustments, HIMS entitlement changes, and builder publishing) require validated server-side operations and audit events.
 - Keep provider secret values masked; show only safe metadata such as configured/not configured and last rotation if available.
+- Reuse existing tables, RPCs, Edge Functions, and ledgers when authoritative. Do not create parallel registries or financial sources without a documented need.
 
-Acceptance:
-- Admin can complete intended workflows.
-- Non-admin cannot read or invoke admin operations by direct API/RPC.
-- Sensitive changes are atomic, validated, and audited.
-- Existing admin features are not lost during navigation redesign.
+Build exit criteria:
+- All 12 administrative modules and the dynamic builder are implemented or have a specifically documented owner-approved blocker.
+- Existing admin routes and workflows remain available until safely migrated.
+- Privileged operations have server-side authorization, validation, least privilege, and audit coverage.
+- The builder cannot bypass business rules, expose raw secrets, or execute arbitrary privileged operations.
+- Final admin/user/adversarial test evidence is recorded in the independent comprehensive test track, not inferred from implementation or CI alone.
 
-**Current status:** [>] Admin navigation and governance foundations exist; the image-generation model editor's high-impact save path has now been moved behind an atomic, audited server-side RPC. Remaining admin areas still need the same end-to-end and adversarial review.
+**Current status:** [>] PARTIALLY IMPLEMENTED ON `develop`. PR #138 is merged into `develop` (`fe787973afa6506468ed8e7edec18a0fa0056682`): the AdminShell is reorganized into Control Center domains, `/admin/ads` and `/admin/finance` exist, and existing routes/services are retained. Existing admin modules cover the 12 operational domains to varying degrees, with storage, user/support pagination, HIMS lifecycle, audit, finance, providers/models, routing, pricing, credits, and rewards foundations. The required protected Dynamic Admin Page & Component Builder is NOT present in the `develop` source tree. Several high-impact admin writes still need atomic server-side authorization/audit review, and complete responsive visual redesign, route/role review, and Track B adversarial acceptance remain open.
 
 New verified implementation (2026-11-16):
 - Added migration `20261116130000_atomic_media_model_admin_save` and recorded it in `supabase_migrations.schema_migrations`.
@@ -548,7 +650,7 @@ Acceptance:
 - All major routes have been visually checked in all supported modes.
 - No unreadable text, invisible controls, or mismatched surfaces.
 
-**Current status:** [~] Persisted system/light/dark selection, hydration handling, and audited dynamic-palette migrations are merged (PRs #129, #130, #131). The shared UI and Balance follow the saved theme; remaining literal-color review, visual route coverage, and real-device checks remain open.
+**Current status:** [~] PARTIALLY IMPLEMENTED ON `develop`. `ThemeProvider` persists system/light/dark selection and hydrates it before screens render; semantic palette usage exists across shared UI and selected screens. The current light palette fails two WCAG AA contrast assertions in the latest CI run. Remaining work: correct contrast without losing the approved Midnight Gold identity, migrate every remaining hard-coded screen color, and complete route-by-route visual and device checks.
 
 **Additional Phase 14 work merged (2026-11-16):** PR #131 merged as `ac861a1b6844cf3b7ca081b8fe34d65408c1ebc0`. It migrates the Balance screen to the shared `ThemePalette` and updates Toast, IconButton, BottomSheet, AttachSheet, SharedConversationPage, and ShareConversationSheet to consume `useSulyTheme()` rather than independently reading the OS color scheme. PR #131 passed Expo TypeScript, auth regression tests, static Web export, Android JS bundle, iOS JS bundle, and Deno Agent/Edge checks. A further focused pass for Support, Image Studio loading state, and Admin alert surfaces is open in PR #132; visual/browser/device coverage and the remaining hard-coded color audit are still open.
 
@@ -577,7 +679,7 @@ Acceptance:
 - RTL/LTR screenshots and interaction tests pass.
 - Text does not overflow or reverse code, IDs, or numeric values incorrectly.
 
-**Current status:** [~] Arabic/English preference persistence, root direction support, and saved-language hydration are merged (PR #129). Centralized translation coverage, mixed-direction content, and full RTL/LTR visual review remain open.
+**Current status:** [~] PARTIALLY IMPLEMENTED ON `develop`. `LocaleProvider` persists Arabic/English choice and exposes RTL/LTR direction; saved-language hydration exists. However, user-facing strings are still distributed across feature screens rather than fully centralized, and mixed Arabic/English/model-ID rendering plus complete RTL/LTR visual and interaction coverage remain unfinished.
 
 New implementation (2026-11-16):
 - `LocaleProvider` now waits for the saved `ar`/`en` preference before mounting app screens, preventing a brief Arabic/RTL render when the saved preference is English/LTR (and vice versa).
@@ -586,11 +688,11 @@ New implementation (2026-11-16):
 - PR #129 build checks passed: Expo TypeScript, mobile auth regression, static Web export, Android JS bundle, iOS JS bundle, and Deno Agent/Edge Function checks. Full key-based translation catalog, mixed-script and RTL/LTR visual tests remain incomplete.
 - Do not auto-translate or claim legal/policy text is approved.
 
-## Phase 16 — Security, data integrity, and end-to-end functional testing
+## Phase 16 — Implement security, data integrity, and operational safeguards
 
-**Goal:** Test the product as an attacker and as a real user before declaring readiness.
+**Goal:** Complete the security architecture and operational protections required by the product. The independent final comprehensive test track later validates these controls across the entire finished application.
 
-Security test areas:
+Security and integrity controls to implement:
 - Authentication, session handling, account isolation, authorization, admin escalation, RLS, storage, signed URLs, RPC grants, SECURITY DEFINER functions, search_path, and secret exposure.
 - Activation-code brute force/replay, HIMS cross-student resource access, entitlement forgery, and resource link leakage.
 - Provider credential exposure, model-route tampering, provider freeze bypass, prompt/tool injection, SSRF, unsafe URL/file handling, and untrusted tool outputs.
@@ -599,7 +701,7 @@ Security test areas:
 - Audit log integrity and sensitive data minimization.
 - Dependency and build security where supported.
 
-Functional tests:
+Functional behavior that must be implemented and preserved:
 - Sign up/login/session restore/logout.
 - Chat, central agent, tools, long tasks, cancellation, task recovery, and history.
 - HIMS activation and authorized lecture delivery within normal chat.
@@ -609,13 +711,13 @@ Functional tests:
 - Admin provider/model/pricing/routing/users/security workflows.
 - Offline/network failure and retry behavior where supported.
 
-Acceptance:
-- All critical tests pass with evidence.
-- No unresolved critical/high security issue.
-- Database and wallet ledgers reconcile.
-- Any accepted residual risk is documented with owner approval.
+Build exit criteria:
+- Required security controls, authorization boundaries, data-integrity protections, rate limits, and recovery behavior are implemented.
+- No known critical/high issue is knowingly introduced or left without a documented containment decision.
+- Database and wallet-ledger invariants have defined authoritative sources and reconciliation procedures.
+- Any accepted residual risk is documented with owner approval. Final pass/fail evidence belongs to the independent comprehensive test track.
 
-**Current status:** [>] The original set of 57 authenticated-executable SECURITY DEFINER function bodies has now been reviewed individually. After the new least-privilege migration, 56 of the original functions remain executable by authenticated clients; the separate anonymous share-token endpoint remains intentional. The new `suly_admin_save_image_generation_model` RPC adds one more authenticated-executable function, bringing the current total to 57. Current classification: 43 functions contain a direct admin guard, 12 are caller/session-scoped, 1 legacy provider toggle delegates to the guarded lifecycle RPC, and 1 public-share function is scoped by its exact share token. All 57 authenticated-executable functions have fixed search_path settings. Targeted fixes and rollback-only SQL regressions passed; Deno Agent/Edge Function tests and typecheck, Edge bundle verification, and media billing guardrails also passed in PR #117 CI. Real authenticated HTTP/UI flows, true multi-session activation concurrency, and the full Phase 16 matrix remain open.
+**Current status:** [>] The original set of 57 authenticated-executable SECURITY DEFINER function bodies has now been reviewed individually. After the new least-privilege migration, 56 of the original functions remain executable by authenticated clients; the separate anonymous share-token endpoint remains intentional. The new `suly_admin_save_image_generation_model` RPC adds one more authenticated-executable function, bringing the current total to 57. Current classification: 43 functions contain a direct admin guard, 12 are caller/session-scoped, 1 legacy provider toggle delegates to the guarded lifecycle RPC, and 1 public-share function is scoped by its exact share token. All 57 authenticated-executable functions have fixed search_path settings. Targeted fixes and rollback-only SQL regressions passed; Deno Agent/Edge Function tests and typecheck, Edge bundle verification, and media billing guardrails also passed in PR #117 CI. Real authenticated HTTP/UI flows, true multi-session activation concurrency, and the independent final comprehensive test track remain open.
 
 Known constraints:
 - Supabase Free plan may not provide every optional security feature. Record limitations and compensating controls; do not claim unavailable controls are enabled.
@@ -628,14 +730,14 @@ Known constraints:
 - Remaining advisor owner action: enable leaked-password protection in Supabase Auth settings if available on the current plan. The `vector`/`pg_net` extension schema warnings need a dependency-reviewed migration plan; do not move extensions blindly. The 57 authenticated-executable SECURITY DEFINER warning rows still require preserving the documented per-function guard classification and regression evidence; the anonymous share-token endpoint is intentionally token-scoped.
 - Fresh SQL verification (2026-11-16): all 57 SECURITY DEFINER functions executable by `authenticated` have a function-level `search_path` setting. Exactly one of those is also executable by `anon`: `suly_get_public_conversation(uuid)`, whose current SQL body selects only the conversation matching the supplied `share_token`, returns user/assistant messages only, and is capped at 300 messages. This matches the intentionally public share-link design; the revocation regression remains the required companion test.
 
-## Phase 17 — Expo Web, Android, iOS validation and release
+## Phase 17 — Complete Expo Web, Android, and iOS compatibility and release preparation
 
-**Goal:** Ship a stable, tested experience on all intended platforms.
+**Goal:** Finish implementation, platform-specific configuration, build pipelines, and release/rollback preparation for all intended platforms. Final platform acceptance testing is recorded in the independent comprehensive test track.
 
-Scope:
-- Expo Web static export/build and deployment.
-- Android build/install/start/login/navigation/keyboard/safe area/deep links/file handling/notifications where supported.
-- iOS build/install/start/login/navigation/safe area/deep links/file handling/notifications where supported.
+Build and compatibility scope:
+- Expo Web static export/build and deployment pipeline configuration.
+- Android native project/build configuration, permissions, navigation, keyboard/safe-area handling, deep-link and file-handling integration, and notification integration where supported.
+- iOS native project/build configuration, permissions, navigation, keyboard/safe-area handling, deep-link and file-handling integration, and notification integration where supported.
 - Confirm platform-specific dependencies and permissions.
 - Test production environment configuration without committing secrets.
 - Verify CORS, auth redirects, universal/app links as applicable, storage access, and edge-function connectivity.
@@ -643,14 +745,13 @@ Scope:
 - Verify OTA/build workflows and secret configuration; never report an OTA update as published if the workflow failed.
 - Prepare release notes and rollback/recovery instructions.
 
-Acceptance:
-- Web deployment succeeds and core user flows pass.
-- Android and iOS builds/installations and critical flows are verified on real or supported test devices.
-- No platform has a broken critical path.
+Build exit criteria:
+- Web, Android, and iOS implementation/configuration and supported build/export workflows are prepared.
+- Platform-specific dependencies, permissions, environment configuration, auth redirects, links, storage integration, and notification wiring are implemented where supported.
 - Production secrets are stored only in appropriate secret managers.
-- Final release report lists tested commit, artifacts, test results, known limitations, and rollback procedure.
+- Release notes, artifact identification, and rollback/recovery instructions are prepared. Final device installation and user-journey pass/fail results belong to the independent comprehensive test track.
 
-**Current status:** [~] Latest release deployment and all three platform JS exports have fresh passing evidence; OTA publish and physical-device end-to-end validation remain open.
+**Current status:** [~] PLATFORM FOUNDATIONS PRESENT; CURRENT DEVELOP PREVIEW BUILD PENDING. Expo Web/Android/iOS JS export workflows and the combined production/preview Pages workflow exist. A previous Pages deployment succeeded for commit `2e9f78530ecc6d56a02b59de8905c24f69f2f548`, but the newest documentation/current develop head `82d17a88154d84bfaffb8615127c84ee47bd3fff` has a Pages workflow still in progress at this audit. OTA publish remains blocked by missing `EXPO_TOKEN`; JS exports do not prove native APK/IPA builds or physical-device acceptance.
 
 Verified since the prior review:
 - PR #125 merged as `965e6fc8809adb13af72a536755bf70609a7dd16`.
@@ -660,6 +761,83 @@ Verified since the prior review:
 - Expo OTA publish failed because `EXPO_TOKEN` is unavailable (workflow run `43866014716`).
 - JS bundle export is not the same as building/installing native APK/IPA or testing on real devices.
 - New theme/locale hydration fixes are pending CI; no visual browser/device test is claimed.
+
+---
+
+## 3A. Approved plan structure — two independent tracks (owner-approved 2026-11-16)
+
+The product owner approved separating the completion plan into exactly two major tracks. This is a roadmap/work-sequencing structure, **not two Git branches**.
+
+### Track A — Complete build, development, organization, and integration (the 17 phases above)
+
+- Phases 1–17 are the complete build track. They include discovery, implementation, UI organization, database and service integration, security architecture, admin control center construction, platform compatibility, and release preparation.
+- Phase 13 explicitly includes the full 12-module Admin Control Center and the dynamic page/component builder.
+- Phase 16 implements security and data-integrity controls; it is not the final application-wide test campaign.
+- Phase 17 prepares platform implementations and release workflows; final platform acceptance testing belongs to Track B.
+- Preserve existing behavior, data, HIMS entitlement semantics, the single central Agent, wallet/ledger invariants, provider/model identifiers, routing governance, and historical records.
+- Focused developer checks and CI may run during implementation to prevent regressions. These are implementation quality gates, not completion of Track B.
+- Track A is complete only when all 17 phases have their implementation scope delivered or a precise owner-approved blocker documented, major components are integrated, and a build handover inventory exists.
+
+### Track B — Independent comprehensive verification after Track A
+
+Track B begins only after the build track is declared implementation-complete. Its purpose is to verify that every required screen, feature, permission, data path, integration, and platform is present and works correctly as a whole. It is not a second implementation plan and must not silently introduce product scope.
+
+During Track B:
+1. Execute the test suites below systematically, one area at a time.
+2. Record exact environment, commit SHA, test identity/role, setup, steps, expected result, actual result, logs/artifacts, and pass/fail status.
+3. When a defect is found, create a specific repair item against the existing `develop` line, fix it without removing established functionality, and rerun the failed test plus affected regression suites.
+4. Keep original failure and repair/retest evidence; do not overwrite failures with a later green status.
+5. Distinguish automated tests, authenticated manual tests, provider integration tests, browser tests, and physical-device tests. Never claim one type from evidence of another.
+6. Do not use real customer credentials or ask the owner to post passwords/API secrets in chat. Use controlled test accounts and approved secret storage.
+7. Do not activate chargeable services, change live pricing/FX/credit conversion, grant real user entitlements, or make production financial adjustments merely to make a test pass. Use isolated fixtures/sandbox providers or explicitly approved test procedures.
+8. Do not deploy to production until the complete test report, unresolved-risk list, and owner release approval are ready.
+
+### Track B — Comprehensive test suites
+
+| Test suite | Required coverage |
+|---|---|
+| 1. Product inventory and completeness | Reconcile every phase deliverable, route, screen, control, service, migration, RPC, Edge Function, and required admin module against the approved inventory; identify missing, duplicate, dead, or unreachable functionality. |
+| 2. Authentication and account journeys | Sign-up, login, logout, session restoration, expired sessions, account/profile changes, password/reset flows where supported, and role/entitlement refresh. |
+| 3. HIMS and educational entitlement | Admin code creation, student activation in normal chat, valid/invalid/expired/reused codes, attempt throttling, entitlement checks, authorized resource retrieval, cross-student isolation, and natural handling of unrelated chat. |
+| 4. Central chat and Agent | Normal chat, fast responses, complex planning, DAG dependencies, bounded workers, tool calls, automatic model routing, history, streaming/status, timeouts, retries, cancellation, recovery, and failure reporting. |
+| 5. Wallet, Credits, and accounting | Reservation, settlement, partial billing, cancellation, release/refund, duplicate requests, idempotency, concurrent requests, negative-balance prevention, ledger reconciliation, and no charge for work not performed. |
+| 6. Providers, models, and capability evidence | Credential secrecy, provider health, model identifiers, enabled/disabled governance, vendor/provider/SULY evidence distinctions, probe results, fallback behavior, freeze enforcement, and unsupported-capability rejection. |
+| 7. Routing, pricing, and plans | Primary/backup selection, central-Agent automatic routing across verified/entitled profiles, task-role allowlists, price-version selection, units, margin calculations, missing FX/credit conversion blocks, plan entitlements, and server-authoritative decisions. |
+| 8. Studio media workflows | Image, video, audio, and transcription flows; input validation; user confirmation; provider integration; progress/status; cancellation; usage settlement; failures; and Library persistence. Test only modalities actually implemented and configured. |
+| 9. Library and file security | Upload, list, preview, signed URL, download, rename, folder, favorite, search, delete/confirmation, retention behavior, path traversal protection, private storage, and cross-user isolation. |
+| 10. Account, subscriptions, and billing | Profile and preferences, server-derived subscription tier, plan visibility, payment/renewal lifecycle where configured, billing history, storage usage, notification settings, and reconciliation against authoritative ledgers. |
+| 11. Admin Control Center | All 12 modules, existing admin routes, filters, pagination, loading/error states, high-impact actions, direct API/RPC denial for non-admins, atomic writes, and audit events. |
+| 12. Dynamic Admin Builder | Page/section create/edit/reorder/show/hide, component add/configure/remove, registered data-source bindings, layout save/version/restore, publish permissions, protected mandatory routes, audit history, and proof that arbitrary SQL/RPC or privilege escalation is impossible. |
+| 13. Ads, rewards, and finance | Reward claim validation, duplicate/replay prevention, AdMob configuration, network settlement evidence if available, provider-cost ledger, revenue/expense classification, currency consistency, and explicit treatment of unknown/unsettled values. |
+| 14. Security and adversarial testing | RLS/ACL, RPC/Edge Function authorization, SECURITY DEFINER/search_path, privilege escalation, tenant isolation, secrets, activation replay/brute force, prompt/tool injection, SSRF, unsafe files/URLs, rate limits, audit integrity, and dependency/build risks. |
+| 15. UI, accessibility, theme, and localization | All screens in light/dark/system themes, Arabic RTL and English LTR, text overflow, keyboard/safe areas, responsive layouts, accessibility labels/focus/contrast, empty/loading/error states, and navigation/deep links. |
+| 16. Integration, resilience, and load behavior | End-to-end cross-feature journeys, network loss/recovery, provider outage, timeouts, retries, concurrent users/tasks, worker leases, duplicate events, queue backpressure, and observable error recovery. |
+| 17. Web, Android, iOS, and release acceptance | Web deployment smoke tests; Android/iOS build and installation where available; real login/chat/files/Studio/navigation/notifications/deep links; device-specific behavior; secret/config validation; release artifact checks; rollback rehearsal; and final release readiness. |
+
+### Track B — Result and defect classification
+
+Use these statuses for every test case:
+- **PASS — VERIFIED:** Exact steps completed and expected behavior observed, with evidence attached.
+- **FAIL — DEFECT:** Actual result differs from expected result; create a repair item and preserve failure evidence.
+- **BLOCKED — EXTERNAL INPUT:** Requires an owner-supplied account, approved content, provider access, legal decision, device, or business setting.
+- **NOT RUN:** Not yet executed. Never imply success.
+- **NOT APPLICABLE:** Explain the technical reason and obtain owner acceptance where the requirement was part of the approved scope.
+
+A test suite is not passed if critical cases are blocked or not run. The final report must include:
+- Tested commit SHA and deployment/environment.
+- Total cases: passed, failed, blocked, not run, and not applicable.
+- Defects found, linked fixes, and retest/regression evidence.
+- Unresolved security, data, billing, and platform risks.
+- Tests requiring real provider accounts, real users, or physical devices.
+- A clear release recommendation: ready, not ready, or ready only with explicitly owner-accepted limitations.
+
+### Git and deployment governance for both tracks
+
+- Keep implementation and repair commits on the existing `develop` branch. Do not create a separate Git branch for the testing track.
+- Keep `release/v1` protected and unchanged during development and testing.
+- Do not force-push, reset, or delete branches with unreconciled work.
+- Prepare one coherent promotion from `develop` to `release/v1` only after Track B has passed and the owner approves release.
+- A successful CI/build is evidence for that specific check only; it is not proof of complete functional, security, billing, or device acceptance.
 
 ---
 
@@ -1117,13 +1295,13 @@ Updated `apps/mobile/src/features/home/HomeScreen.tsx`:
 
 **Verification limitation:** no browser/visual device session is available in this work session. The source is ready for repository CI typecheck/export and later visual route/device regression. Do not claim visual verification until that is performed.
 
-#### Remaining work before reporting Phase 5 complete
+#### Phase 5 implementation disposition on `develop`
 
-1. [x] GitHub Actions typecheck, mobile auth tests, Deno Agent tests/typecheck, Edge bundle verification, media billing guardrails, Expo Web export, and Android/iOS JavaScript exports passed on the code commit in PR #117.
-2. Review and merge PR #117 only after final diff/branch-head verification.
-3. Re-check the deployed web entry and preserve the existing five-section navigation.
-4. Run route-click checks for HIMS, Library, credits/plan, support/integrations, and admin access; perform actual visual/device tests when a test session is available.
-5. Stop after Phase 5 and report the delivered Home experience and remaining verification. Continue to Phase 6 only after that report, following the approved 17-phase order.
+1. Five primary destinations and responsive mobile/web navigation are present.
+2. Home, Conversations, Studio, Media/Library, Settings, and Projects route modules exist.
+3. Conversations exposes search and Projects; Settings exposes balance/credit history, plan/upgrade, Library, support, and connected apps.
+4. HIMS continues to redirect to the central chat and is not a separate assistant or navigation product.
+5. Implementation is considered complete; route-click, current-head CI, visual browser, keyboard/safe-area, and Android/iOS device checks are deferred to Track B. Any defect found there returns as a scoped Track A fix.
 
 #### Current status
 
@@ -1138,11 +1316,10 @@ Updated `apps/mobile/src/features/home/HomeScreen.tsx`:
 
 
 
-### Phase 6 continuation — conversation mode selector placement — 2026-11-16
+### Historical Phase 6 UI note — prior model-selector placement (superseded by owner direction on 2026-11-16)
 
 - Re-inspected the current `release/v1` chat screen, chat service, execution-mode resolver, intent classifier, and unified-agent architecture before changing code.
-- Confirmed the Auto/Lite/Pro/Max profile selector was rendered immediately above the composer, inside the keyboard-adjacent area. This contradicted the approved requirement that model mode selection remain in the chat header/top area and not compete with the keyboard.
-- Moved the existing selector into a dedicated row directly below the conversation app bar. The profile choices are horizontally scrollable on narrow screens; existing localized labels, tier-lock checks, profile descriptions, and request payload semantics are unchanged.
+- Historical note only: at that point, the Auto/Lite/Pro/Max profile selector had been moved into the chat header. This UI decision is superseded. The current owner-approved experience removes the user-facing model selector entirely; the central Agent chooses the model automatically under server-side policy.
 - No model routes, subscription rules, credit logic, Agent orchestration, database schema, or provider settings were changed.
 - Implementation is in PR #119: https://github.com/eslammohamedk123450-netizen/smsm-ai/pull/119
 - PR #119 merged into `release/v1` as commit `c2ffc15f79ce5922d2e8b8a424b81f0a20b0d899`. GitHub Actions run `43853785434` passed mobile TypeScript, mobile auth regression, Expo Web static export, Android JS export, iOS JS export, and Deno Agent/scheduler regression + typecheck. Follow-up release workflows were queued; no visual/device test is claimed.
@@ -1165,7 +1342,7 @@ Updated `apps/mobile/src/features/home/HomeScreen.tsx`:
 - **Expo OTA update:** workflow run `43852894585` failed before publishing because the GitHub Actions secret `EXPO_TOKEN` is missing. No OTA update was published. Owner action is required only if EAS OTA publishing is desired; this does not block GitHub Pages deployment.
 - **Post-merge verification:** the Deno/Expo workflow triggered by the release push was still running at the time of this note; the PR CI run for the exact code changes had already passed. Check the release-push run before considering the post-merge workflow fully closed.
 
-**Phase 5 stopping point:** Home implementation is merged and the Web static site deployment succeeded. Stop here for the owner report. Do not start Phase 6 until the owner has received this report. Remaining Phase 5 checks are visual/browser, actual route clicks, authenticated navigation, and Android/iOS device installation.
+**Historical Phase 5 stopping point:** Home implementation was merged and the Web static site deployment succeeded in the earlier release workflow. The current `develop` branch also contains the five-section navigation and Home implementation. Current-head route/browser/device verification is deferred to Track B; Phase 6 may proceed on `develop`.
 
 
 ### Phase 6 continuation — actual routed model display and regression — 2026-11-16
@@ -1219,3 +1396,480 @@ A second read-only audit confirms the exact boundary between the price catalogue
 - Client service and Library UI implementation (folder create/rename/delete, folder filtering, move/remove asset, favorites filtering/toggle) is in the current Phase 8 branch and awaits CI/review.
 - Existing `global_media_assets` direct client write restrictions and media-gateway flows were not loosened.
 
+
+
+## SULY Control Center — approved admin-console implementation track (2026-11-16)
+
+**Owner approval:** The product owner explicitly approved implementation of the SULY Control Center proposal. This work is additive to the existing 17-phase roadmap and must not replace, disable, or bypass existing admin workflows.
+
+### Baseline inspected on `release/v1` at `a80574d992630934c3a83ecc2db41ade31a4be62`
+
+**Existing admin UI and services (confirmed by source review):**
+- `apps/mobile/src/features/admin/AdminDashboardScreen.tsx` is the current admin landing screen. It already loads model health, user count, failed model attempts, credit settlements, recent admin audit events, and maintenance mode; it links to model, user, credit, image-generation, and audit routes.
+- Existing dashboard cards: `AgentTaskQueueCard`, `SulyFinanceOverviewCard`, `NegativeBalanceSettingsCard`, `SulyModelProfilesAdminCard`, `ModelPricingAdminCard`, `MediaModelPricingAdminCard`, and `MediaModelCapabilityEvidenceAdminCard`.
+- `apps/mobile/src/features/admin/admin-service.ts` already contains guarded admin operations for providers, model overview/health, model and media price versions, provider lifecycle, model testing, and HIMS activation/resource management. Reuse these APIs and their guarded RPC/Edge Function paths; do not create parallel write paths.
+- `ModelCapabilityEvidenceAdminCard.tsx` exposes three distinct evidence layers: vendor claim, provider test, and SULY integration test. PR #137 adds a real text/chat probe action and synchronizes provider probe outcomes without inventing vendor or SULY evidence.
+- The current dashboard deliberately shows live online users as unavailable because no authoritative presence source exists. Keep this honest; do not display fabricated zero/online counts.
+
+**Live database inventory (read-only catalog queries, 2026-11-16):**
+- `ai_models`: 251 rows, 9 enabled.
+- `ai_providers`: 7 provider-account rows, 3 enabled.
+- `ai_model_price_versions`: 46 rows, 45 current.
+- `ai_model_capability_evidence`: existing three-layer evidence registry.
+- `suly_media_model_price_versions`: 22 current rows (12 image, 7 video, 3 audio); these catalog claims do not mean Studio integration is verified.
+- `suly_media_generation_models`: 4 runtime models, 0 active.
+- `suly_media_generation_prices`: 0 rows.
+- `ai_route_model_assignments`, `suly_model_profiles`, `suly_model_profile_models`, and `ai_router_settings` already provide routing/profile configuration. The live route matrix has enabled assignments; do not replace it with a second routing registry.
+- Wallet/credit sources already include `suly_credit_accounts`, `suly_credit_holds`, `suly_credit_transactions`, `suly_credit_pricing`, `suly_daily_credit_grants`, and legacy `credit_transactions`. Treat the append-only transaction history as the financial source of truth; do not edit balances directly from a new UI.
+- Plan/subscription sources already include `subscription_plans`, `subscription_plan_features`, `suly_user_subscriptions`, and `user_subscriptions`.
+- Audit sources include `admin_audit_logs` and legacy `audit_logs`; preserve both until their usage is fully reconciled.
+- Finance/ad-related sources found include `suly_company_cost_ledger`, `suly_rewarded_ad_claims`, and `task_ledger`. The current rewarded-ad claims table records reward claims, not verified ad-network impressions, payout, or settlement. Do not report ad revenue from reward claims.
+- No dedicated ad-network revenue/settlement table was found in the inspected public table-name inventory. No standalone Coins wallet/ledger was established by this inventory; do not merge Coins with SULY Credits or invent a conversion.
+
+**Important financial configuration finding:** `suly_credit_pricing` row 1 is enabled, but `credit_value_egp` and `usd_to_egp` are NULL. Existing token-credit parameters are present. Therefore, do not infer a usable EGP/FX conversion, do not activate media runtime pricing, and do not calculate realized company profit from incomplete conversion data.
+
+### Control Center module matrix
+
+| Module | Existing evidence | Initial disposition |
+|---|---|---|
+| Overview | Existing dashboard metrics, alerts, queue, finance, audit cards | **EXTEND** into a grouped operational overview; keep unknown metrics as unavailable |
+| Providers & models | Existing provider RPCs, model catalogue, health/probe data, lifecycle controls | **REUSE + ORGANIZE**; preserve provider account identity and model IDs |
+| Capabilities & tests | Text model three-layer evidence and media evidence registry; PR #137 probe sync | **EXTEND** with clearer status/evidence display and modality-specific test actions only where real probes exist |
+| Agent & routing | Existing route assignments, profiles, router settings, task queue | **REUSE + AUDIT**; one central agent only; no second routing engine |
+| Pricing & plans | Versioned text/media price catalogues and plan tables | **REUSE + EXTEND**; retain effective-dated history and 40% target margin where already approved |
+| Wallet & Credits | Credit accounts, holds, transaction ledger, daily grants, admin credit flows | **REUSE + HARDEN**; adjustments must be ledger transactions with idempotency/audit, never direct balance edits |
+| Coins | No separate authoritative Coins ledger confirmed in this audit | **BLOCKED FOR DESIGN** until existing source is located or owner defines whether Coins are a distinct currency |
+| Users & subscriptions | Profiles, subscriptions, existing user admin routes | **REUSE + AUDIT**; server-side admin checks and least privilege |
+| Ads & rewards | Reward claims exist; no ad-network revenue/settlement source confirmed | **PARTIAL**; show reward claims separately; ad revenue stays unavailable until provider settlement data exists |
+| Finance & P&L | Company cost ledger has provider cost, revenue, costs, gross profit fields; credit transactions and subscriptions exist | **EXTEND WITH RECONCILIATION**; distinguish actual, estimated, pending, and unknown; never sum incompatible units |
+| Activity & audit | Admin audit and legacy audit logs exist | **UNIFY READ EXPERIENCE** without dropping either source or changing retention |
+| HIMS & content | Existing HIMS admin activation-code/resource functions and protected central-chat entitlement | **PRESERVE + ORGANIZE**; HIMS stays inside the ordinary chat and central agent |
+| System/security | Existing maintenance setting, admin permission guard, provider secret server-side paths | **EXTEND** with role-based least privilege, confirmation for destructive actions, and immutable audit history |
+
+### Approved Control Center information architecture
+
+1. Overview.
+2. Providers & Models.
+3. Capabilities & Verification.
+4. Central Agent & Routing.
+5. Pricing & Plans.
+6. Wallet, Credits & (only if confirmed) Coins.
+7. Users & Subscriptions.
+8. Ads & Rewards.
+9. Finance & Profit/Loss.
+10. Activity & Audit.
+11. HIMS & Content.
+12. System Settings & Security.
+
+The navigation is an administrative organization layer over existing screens and services. Keep current deep links and route behavior valid during migration. Do not hide or remove existing operations before equivalent paths are implemented and tested.
+
+### Implementation sequence and guardrails
+
+1. Complete the source/schema/route matrix for every existing admin screen, RPC, Edge Function, table, RLS policy, and audit event.
+2. Refactor the admin shell/navigation and dashboard composition without changing business logic or query semantics.
+3. Consolidate provider/model catalogue and evidence workflows using existing guarded APIs.
+4. Consolidate route/profile governance and display the actual central-agent assignments without altering production assignments by default.
+5. Consolidate price/plan editing while preserving immutable price versions and effective dates.
+6. Review wallet adjustments, subscription changes, rewarded-ad claims, cost ledger, and P&L definitions; add missing financial sources only after source-of-truth and provider settlement semantics are documented.
+7. Bring HIMS administration into the same console while preserving its existing secure code/resource workflows and ordinary-chat entitlement model.
+8. Add permission-matrix, audit, RLS, rollback-only SQL, TypeScript, Deno, Web export, Android/iOS export, and cross-feature regression tests.
+
+**Non-negotiable:** no direct table writes that bypass guarded admin RPCs; no service-role key in client code; no deleting provider/model/ledger/audit history; no guessed exchange rate, credit value, or Coins conversion; no fabricated ad revenue, presence, profit, or test result; no changes to current production route assignments or enabled models merely to make the console look tidy.
+
+**Current Control Center status:** [>] IN PROGRESS — initial source/schema mapping and first navigation/screen foundation are implemented on branch `feat/suly-control-center-foundation-20261116`. The matrix above is an initial evidence-backed map, not a claim that every screen/RPC/RLS path has been fully audited.
+
+**Initial UI slice now present on the working branch:**
+- Reorganized the existing admin shell groups around Overview & Activity, Providers & Models, Accounts & Finance, Ads & Rewards, HIMS & Content, and System & Integrations. Existing route destinations were retained; the mobile menu now respects Arabic/English group labels.
+- Added `/admin/ads` as a separate AdMob settings screen. It uses the existing admin-guarded service methods and saves only AdMob identifiers, without invoking plan updates. It explicitly does not claim ad-network revenue or settlement.
+- Added `/admin/finance` as a dedicated read-only entry to the existing company-cost ledger overview. It clearly labels this as an operational ledger overview, not a complete P&L; missing FX/credit conversions and absent subscription/ad settlement sources remain excluded.
+- No database migration, pricing edit, provider/model activation, routing assignment change, credit adjustment, HIMS entitlement change, or secret modification was performed in this UI slice.
+- The legacy combined Plans + AdMob form has now been separated: the Plans screen loads/saves only plans and features, while the dedicated Ads screen owns AdMob settings. Remaining next steps: rerun CI against the latest branch head; complete the exhaustive route/RPC/table/RLS permission matrix; extend finance only after revenue/expense source reconciliation; then implement the remaining Control Center modules incrementally.
+
+
+## Repository branch governance — approved 2026-11-16
+
+The product owner requested a strict reduction in branch proliferation and merge risk. Effective immediately:
+
+- Permanent branches are limited to `release/v1` (production) and `develop` (the single integration/development line).
+- `release/v1` is protected and is never edited directly.
+- All ongoing implementation work is accumulated on `develop`; do not create a new feature/fix/docs branch for every small task.
+- A single consolidated PR from `develop` to `release/v1` is prepared only when a coherent release batch has passed the required checks.
+- Do not open parallel PRs for pieces of the same work. Finish/reconcile the active integration item before starting another.
+- Existing open PR #83 (Projects) and PR #138 (Control Center) must be reviewed and reconciled into the integration line; do not leave them as independent long-lived streams.
+- Before retiring any legacy branch, verify its PR merge status and confirm its unique code/migrations/tests/docs are present in `release/v1` or `develop`. A squash-merged PR may still show as "ahead" in commit ancestry; merged PR status plus patch/content verification is required.
+- Never force-reset a branch with unique commits. Preserve unresolved branches as archived/pending until their content is reconciled.
+- Delete only branches proven fully integrated or empty. Keep a written cleanup inventory; no mass deletion based only on branch names or age.
+
+**Integration-line reset performed:** GitHub compare confirmed `develop` was exactly 29 commits behind `release/v1` with zero commits ahead. It was safely fast-forwarded (no force push) to production commit `a80574d992630934c3a83ecc2db41ade31a4be62`. This establishes a clean integration baseline without losing unique work.
+
+**Branch inventory observed:** 42 branches including the two permanent branches. The open PR list contains #83 and #138. Many old branches map to merged PRs (#137, #136, #135, #134, #133, #132, #131, #130, #129, #127, #126, #125, #124, #123, #122, #121, #120, #119, #118, #117, #116, #115, #114, #113, #112, #111, #110, #109, #108 and earlier merged PRs). These are cleanup candidates only after content/PR verification. Other branches have unique or unresolved work and must not be deleted until reconciled.
+
+**Tooling limitation during this pass:** the connected GitHub actions expose branch listing/ref updates but no delete-reference operation. Therefore no branch was deleted in this pass. Do not claim the branch cleanup is complete; perform deletion later through an authorized GitHub repository UI/API operation after each branch is verified.
+
+
+## Integration and branch cleanup checkpoint — 2026-11-16 17:20 +02:00
+
+- PR #138 (SULY Control Center foundation) was squash-merged successfully into `develop` at commit `fe787973afa6506468ed8e7edec18a0fa0056682`. The PR is closed with `merged=true`.
+- Latest PR #138 workflow run `43894112207` completed successfully. Expo TypeScript typecheck, mobile authentication regression tests, static Web export, Android JS bundle export, iOS JS bundle export, Deno Agent/scheduler regression tests, and Deno typecheck all passed.
+- `develop` now points to `fe787973afa6506468ed8e7edec18a0fa0056682`; compare against `release/v1` confirms exactly 1 commit ahead and 0 behind. No production branch changes were made.
+- PR #83 (Projects) remains open and unresolved. Its head `feat/projects-release-rebased-20261115` contains 11 changed files including project UI/service, conversation association, a database migration, and an owner-isolation regression test. It is 52 commits behind current `develop` and GitHub currently reports it non-mergeable. Do not delete its branch or claim its content is integrated. Reconcile its unique code and migration into `develop` after a conflict-aware review; do not force-reset the branch.
+- Current repository branch listing returned 43 branches. The connected GitHub toolset has no branch-delete operation; no branches were deleted. The following existing branches are safe for owner-side deletion because their associated PRs are confirmed merged into `release/v1`, and `develop` contains the complete `release/v1` baseline:
+  `docs/feature-registry-access-review-20261116`,
+  `docs/hims-resource-gating-test-20261116`,
+  `docs/phase5-final-verification-20261116`,
+  `docs/phase7-8-media-audit-20261116`,
+  `docs/phase10-12-catalog-routing-audit-20261116`,
+  `docs/phase-status-and-audit-20261116`,
+  `docs/security-advisor-audit-20261116`,
+  `docs/security-audit-log-20261116`,
+  `docs/security-function-audit-evidence-20261116`,
+  `docs/security-share-routing-review-20261116`,
+  `docs/update-roadmap-phase6-7-20261116`,
+  `feat/agent-capability-evidence-routing-20261116`,
+  `feat/model-catalog-capability-evidence-20261116`,
+  `feat/phase6-conversation-header-mode-20261116`,
+  `feat/phase6-show-actual-routed-model-20261116`,
+  `feat/phase8-library-folders-favorites-20261116`,
+  `feat/phase9-account-information-architecture-20261116`,
+  `feat/phase13-atomic-media-admin-save-20261116`,
+  `feat/provider-capability-probe-sync-20261116`,
+  `fix/activation-attempt-throttle-20261116`,
+  `fix/admin-dashboard-entry-auth-refresh-20261116`,
+  `fix/phase14-support-theme-20261116`,
+  `fix/phase14-shared-ui-theme-20261116`,
+  `fix/phase14-dynamic-palette-coverage-20261116`,
+  `fix/phase14-15-preference-hydration-release-20261116`,
+  `security/feature-flag-write-privileges-20261116`,
+  `test/phase6-model-metadata-pipeline-20261116`,
+  `work/phase16-security-phase5-home-20261116`.
+- Do not delete the Projects branch, PR #83, branches associated with closed-unmerged PRs #107/#128, or any remaining branch without a confirmed merged PR and content reconciliation. Future implementation commits must go directly to `develop`; keep `release/v1` untouched.
+
+
+## Projects integration continuation on the single `develop` line — 2026-11-16
+
+- PR #83 was retargeted to `develop` for reconciliation; it remains open and is not being merged as-is because its original protected-layout/drawer implementation predates the current `MainNavigation` architecture and conflicts with the current integration line.
+- Read-only production schema verification confirms `public.suly_projects` exists, `suly_conversations.project_id` exists, the composite owner foreign key exists, four authenticated owner-only RLS policies exist, and anon has no table grants. No production schema write was performed in this integration pass.
+- The Projects feature has been ported directly onto `develop` and adapted to the current product architecture:
+  - Added the protected `/projects` route and localized, theme-aware Projects screen.
+  - Added a Projects entry inside the Chats workspace without changing the five primary navigation destinations.
+  - Updated active-section and safe-area handling for the Projects route.
+  - Added owner-authenticated project list/create/update/archive service operations with input validation and UUID validation.
+  - Added project-aware conversation creation and reads; a chat launched from a project receives its project ID when the first message creates the conversation.
+  - Added a project input validation regression test.
+  - Added the already-applied Projects migration and rollback-only cross-user isolation SQL regression to source control. The migration is **not being re-applied**; the live schema already exists. The migration version was not found in `supabase_migrations.schema_migrations` during read-only verification, so reconcile migration history before any future automated migration deployment.
+  - Updated the verification workflow to run the project validation test and to trigger on pushes to `develop`.
+- Current CI run for the latest code at the time of this note: `43896360850` — pending/in progress. Do not treat the Projects integration as CI-verified until Expo TypeScript, auth/project tests, Web/Android/iOS exports, Deno tests, and Deno typecheck complete successfully.
+- No production deployment, provider routing, credit/price, HIMS, or user entitlement changes were made.
+- Remaining Projects work: display conversations within each project and support safe reassignment of existing conversations; review project deletion semantics and user-facing confirmation before adding any destructive action; verify project create/list/archive/chat-link flows with authenticated test accounts. The existing PR #83 must only be closed after the integrated code passes CI and its complete patch is reconciled; do not delete its source branch before then.
+
+
+### Projects security follow-up — least-privilege grants — 2026-11-16
+
+- A deeper ACL inspection found that the live `suly_projects` table had broader direct privileges for `authenticated` than the migration's intended CRUD scope: TRUNCATE, REFERENCES, TRIGGER, and MAINTAIN were also granted.
+- Corrected the live table ACL with `REVOKE ALL PRIVILEGES ... FROM authenticated` followed by only SELECT, INSERT, UPDATE, DELETE. Read-only recheck now shows exactly those four authenticated privileges and no anon grants.
+- Updated the source migration to revoke authenticated's prior/default privileges before granting the four required DML permissions. This is important because GRANTing CRUD alone does not remove pre-existing excess ACL privileges.
+- Re-read all four RLS policies: SELECT/DELETE use owner-only `auth.uid()`; INSERT uses owner-only WITH CHECK; UPDATE uses owner-only USING and WITH CHECK. The composite project/user foreign key remains present.
+- Re-ran the rollback-only two-user isolation test after the ACL correction. Cross-user SELECT, UPDATE, and cross-tenant conversation linking checks completed without exceptions; a separate query confirmed zero rollback fixture rows remained.
+- The migration version `20261115220000` is not present in `supabase_migrations.schema_migrations`, although the live schema objects exist. Do not automatically re-apply or mark migration history as reconciled until the actual deployment/migration workflow is reviewed.
+- CI run `43896360850` was still running its mobile regression suite at the time of this note; run `43896682177` was queued for the updated migration source. Record final results only after inspecting both runs.
+
+
+## Phases 1–4 build checkpoint — 2026-11-16
+
+**Working scope authorized by the product owner:** implement/reconcile only Phases 1–4 on `develop`; stop before Phase 5. This checkpoint is not authorization to deploy production or change live financial/provider/HIMS settings. Build-phase completion is assessed on implementation and source integration; end-to-end, browser/device, CI campaign, security adversarial, and live-user acceptance tests are tracked in Track B and are not reasons to hold a build phase open, unless a test reveals a defect that requires a code fix.
+
+- **Phase 1 — Audit and inventory:** source-level inventory and critical-flow ownership matrix added at `docs/PHASES_1_4_BUILD_AUDIT.md`. It records the 604-entry repository tree, active runtime layers, key UI/server/data owners, existing verification evidence, and explicit unknowns. Source inventory is complete enough to guide implementation; it is not a browser/device or penetration-test certification.
+- **Phase 2 — HIMS protection (implementation scope):** existing hash-only activation storage, admin-guarded RPCs, per-user activation throttle, private resource-table grants, authenticated student resource RPC, and resource-to-media authorization were reviewed. Added isolated parser/response regression coverage and committed the duplicate-code collision guard migration plus rollback-only regression SQL to `develop`. Applying/running that migration and adversarial verification are deferred to Track B; no live schema change was made.
+- **Phase 3 — HIMS in normal chat:** existing central-router activation and explicit resource-intent path was reviewed; existing `feature_flags.test.ts` covers greetings, explicit lecture delivery, study explanations, and follow-up context. The new activation parser tests extend the ordinary-chat boundary. Real student activation and real lecture delivery are explicitly deferred to Track B; obtain isolated owner-approved test accounts and approved lecture content then. This dependency does not block completion of the Phase 3 implementation.
+- **Phase 4 — Shared design system:** existing semantic light/dark tokens, system theme persistence, Cairo typography, and reusable UI primitives were reviewed. Added contrast/token regression tests for primary text, secondary text, muted text, and primary controls. The test identified light-theme muted text below the 4.5:1 AA contrast target; adjusted that semantic token from #737373 to #707070. Full screen-by-screen visual/accessibility and device verification is explicitly deferred to Track B; this does not block completion of the Phase 4 design-system implementation.
+- The existing CI run `43896682177` succeeded on `e9908464835e2fce8d78762a24ccd3700135ca9d`; it predates the changes in this checkpoint. The updated workflow now includes the new activation and theme tests. A fresh run and the full runtime/device verification are recorded in Track B; they do not block the implementation milestone.
+- No database migration was applied, no production data/configuration changed, no provider/model route or price was edited, no credits were adjusted, no HIMS entitlement was granted/revoked, and no secret was changed.
+- **Stop line:** Phases 1–4 implementation scope is complete and reported. All remaining end-to-end, live-user, security-adversarial, visual/accessibility, cross-platform, SQL migration execution, and full-CI verification are Track B cases. Phase 5 navigation implementation is present on `develop`; Phase 6 is now in progress. Track B remains a separate comprehensive campaign after all 17 build phases.
+
+## Approved chat-first UX and credit-policy decisions — 2026-11-16
+
+- The product owner approved two specification decisions: subscription-plan allowance is **monthly** and purchased credits **never expire**. In ordinary chat, model selection is automatic through the central Agent; model catalog and model governance are administered from the Control Center, not a user-facing chat dropdown.
+- The detailed specification is maintained in `docs/SULY_CHAT_FIRST_UX_AND_CREDIT_POLICY.md`.
+- The intended home experience is simple, chat-first: users write naturally and the single central Agent decides whether the request is ordinary chat or requires planning/tools. Specialized media workflows remain in Studio, while the Agent may invoke them from chat when appropriate.
+- These are **approved product specifications, not verified current backend behavior**. No subscription, credit-ledger, expiry, pricing, model-routing, provider, HIMS, or production setting was changed by recording these decisions.
+- Before implementation, inspect the existing plan/grant schedule, ledger and expiry semantics, model catalog/entitlements/routing, and current UI. Preserve historical balances and enforce server-side access. The specification explicitly leaves top-up prices, reward quantities/expiry, deduction priority, extra daily limits, and exact model capabilities/prices undecided.
+
+
+
+### Phase 6 implementation continuation — chat header and navigation menu — 2026-11-16
+
+- Working branch: `develop`; no production branch or deployment was touched.
+- Updated `apps/mobile/app/(protected)/chat.tsx`:
+  - Moved model selection out of the horizontal row above the composer and into a compact header dropdown.
+  - Added a compact navigation menu with direct links to New chat, Conversations/Search, Projects, Tasks, Studio, Library, Credits, Plans, Integrations, and Settings.
+  - New chat creates a new conversation record before navigating, avoiding accidental reuse of the current conversation.
+  - Ordinary chat does not display a model selector. The central Agent automatically routes to a verified model/profile subject to server-side entitlement and availability checks; actual model provenance is shown only when confirmed.
+  - Added SULY Ultra as a visible, disabled “Not available yet” entry. A read-only query of `suly_model_profiles` confirmed the live catalog currently contains only Lite, Pro, and Max. No Ultra model, plan, provider route, capability, or version was fabricated or activated.
+  - The displayed actual model remains sourced from server-confirmed response metadata and is kept distinct from the selected profile.
+  - Changed authenticated root entry and successful password, OTP, Google, and auth-callback redirects to open `/chat` directly; Home remains available through the five-area navigation.
+  - Simplified the empty chat state to a welcome, natural-language instruction, and compact optional example prompts. No task-mode selection cards are shown.
+  - Added Support as a separate navigation-menu destination alongside Settings.
+  - The streaming indicator now visibly presents the current localized task/status label and a localized Stop action.
+- No model routing, subscription/credit rules, provider settings, prices, database schema, or HIMS behavior were changed.
+- Comprehensive visual, responsive, keyboard, navigation-click, authenticated E2E, task lifecycle, and model-entitlement tests are assigned to Track B; no current-head CI/device pass is claimed.
+- Current Phase 6 status: **IN PROGRESS**. Next implementation slice: refine the minimal chat-first surface and ensure plan/progress/result/cancel/retry states remain discoverable without adding competing mode selectors.
+
+
+# TRACK B — DETAILED COMPREHENSIVE TEST MASTER PLAN
+
+## 1. Purpose and separation from development
+
+This is the independent, comprehensive verification plan for SULY. It contains 17 test groups and is separate from the Track A development phases in this unified master document.
+
+Routine unit tests, typechecks, Deno tests, SQL regressions, and CI checks must continue during development to prevent regressions. Those checks do **not** mean this final campaign has started or passed. Formal Track B begins only after Track A Phase 17 integration is complete and the owner is notified that the build is ready for comprehensive verification.
+
+Every test result must be reproducible and evidence-based. Use isolated test data and test accounts. Never request or store the owner's personal password, production bearer token, service-role key, or other secret in chat, test fixtures, logs, or GitHub.
+
+## 2. Test result vocabulary
+
+- **PASS:** Exact test executed successfully with evidence.
+- **FAIL:** Test executed and behavior failed; record reproduction and severity.
+- **BLOCKED:** Cannot execute due to unavailable account, content, provider, device, environment, or owner decision.
+- **NOT RUN:** Test is planned but not executed.
+- **NOT APPLICABLE:** Explain why and retain the rationale.
+- **REGRESSION:** Previously passing behavior now fails.
+
+A test group passes only when all required cases pass or the owner explicitly accepts documented limitations. A source-code review is not an end-to-end test. A successful static export is not proof that the web UI works in a browser. A JS bundle export is not proof of a native installation or real-device behavior.
+
+## 3. Safety and test-environment rules
+
+- Use isolated fixtures and dedicated test users; clean up only data created by the test.
+- Prefer rollback-only SQL transactions for database authorization tests.
+- Never use real customer/student accounts without explicit safe test arrangements.
+- Never expose or request passwords/secrets in chat. If user-supplied test access is required, provide a safe flow using temporary test accounts and owner-operated authentication.
+- No production writes, financial adjustments, HIMS entitlement changes, provider/model activation, secret rotation, or deployment as part of testing without explicit approval.
+- Test both allowed and denied paths; include cross-user/tenant isolation.
+- Record environment, commit SHA, migration state, test command, run ID, logs/artifacts, expected result, actual result, and cleanup.
+- Test Web, Android, and iOS separately where behavior differs; mark unavailable physical-device tests BLOCKED rather than assuming success.
+- Test Arabic RTL and English LTR, light/dark themes, keyboard/safe areas, accessibility, and responsive sizes.
+
+## 4. The 17 comprehensive test groups
+
+### Test Group 1 — Repository, build, and deployment baseline
+- Clean install and lockfile consistency; TypeScript/lint/unit checks where configured.
+- Expo Web static export; Android and iOS bundle exports.
+- Deno tests/typechecks and Edge Function bundle verification.
+- Workflow triggers, artifact contents, deployment target, environment variable handling, and branch protection.
+- Verify Pages preview and deployed site in a real browser; confirm routes load and no blank/black screen.
+- Verify no production deploy or protected branch mutation occurs from development workflows.
+
+### Test Group 2 — Authentication, sessions, and account boundaries
+- Sign-up/sign-in/sign-out, callback/deep links, expired/refresh token, session restoration, password reset where supported.
+- Anonymous/unauthenticated access to protected screens and server endpoints.
+- Session revocation, multiple devices, and account switching.
+- Verify one user's data is never visible or mutable by another user.
+
+### Test Group 3 — HIMS admin code lifecycle and authorization
+- Non-admin cannot create, list, disable, or manage codes.
+- Admin can create code under approved rules; plaintext is returned only through intended creation flow.
+- Stored data contains secure hashes, not bearer plaintext.
+- Test malformed, duplicate, collision, disabled, expired, exhausted, replayed, and rate-limited code cases.
+- Specifically test duplicate-hash behavior: a prior code must never be silently reactivated or have usage/disabled state reset by a collision/upsert path.
+- Focused development regression executed PASS on 2026-11-16 using a rollback-only transaction; the prior code remained disabled and unchanged after duplicate submission. Re-run the reusable SQL test in the isolated Track B environment and add concurrent collision attempts.
+- Verify audit trail and rollback behavior.
+
+### Test Group 4 — HIMS student activation and entitlement enforcement
+- Student submits code in ordinary chat; server validates authenticated identity and grants only permitted entitlement.
+- Invalid, expired, disabled, reused, forged-client-state, and cross-account attempts are denied safely.
+- Race two activation attempts and verify exactly one permitted outcome and no duplicate entitlement.
+- Change local storage/request body/profile flags and verify no privilege escalation.
+- Revoke/disable behavior follows established business rules and remains auditable.
+- Real student session is BLOCKED until safe owner-approved test accounts are available; never use personal credentials.
+
+### Test Group 5 — HIMS content discovery, delivery, and ordinary-chat behavior
+- Authorized student requests an available lecture; server verifies exact active resource mapping and returns safe delivery.
+- Unauthorized student, inactive resource, wrong media mapping, missing content, expired link, and cross-student request are denied.
+- General study questions answer naturally without unnecessary HIMS announcement.
+- Greetings, small talk, unrelated requests do not trigger education lookup.
+- Follow-ups such as “send it” resolve only with valid recent resource context.
+- Test real lecture delivery only after owner provides/approves actual content source.
+
+- Provider onboarding privilege regression: confirm `suly_admin_add_provider` is not executable by `anon` or `authenticated`, remains executable by `service_role`, and that `sync-models` rejects a non-admin caller before invoking the RPC.
+
+### Test Group 6 — Chat, streaming, history, and attachments
+- Normal text chat, SSE chunk order, completion, timeout, reconnect, retry, duplicate submission, and error handling.
+- Conversation creation, history, rename, pin/archive/delete semantics where supported.
+- Attachment upload, validation, preview, ownership, and retrieval.
+- Arabic/English messages, long messages, Unicode, RTL, and network interruptions.
+- Verify no false claim that a model/tool ran when server routing did not confirm it.
+- Verify the inline last-response model label appears only after a server-confirmed model event, is localized, and is cleared when a new response begins; verify no selected-profile label is presented as actual routing provenance.
+- Verify retry clears the prior response's actual-model label and displays only the model identifier confirmed by the retry stream.
+
+### Test Group 7 — Central Agent planning and durable task runtime
+- Simple chat stays fast and does not spawn a task unnecessarily.
+- Complex request creates bounded plan and dependency graph; verify valid ordering and no cycles.
+- Worker limits, lease acquisition/renewal/fencing, checkpoints, timeout, retry, and crash recovery.
+- Duplicate delivery/idempotency; no duplicate tool execution or charge.
+- Provider outage/freeze and fallback rules remain bounded and truthful.
+- Verify central Agent remains the single decision-maker; worker roles do not become independent assistants.
+- From an existing chat, open Tasks and confirm the conversation ID is carried into the task workspace; after completion, confirm the objective and final response appear exactly once in the same conversation with a traceable task ID.
+- Open Tasks without an existing conversation; confirm a conversation is created for the completed task exchange and the app returns to it.
+- Simulate app termination before enqueue returns, then reopen the task workspace; verify the pre-saved task ID resolves to the existing job (or retries the same idempotency key), with no second task or credit reservation. Also terminate after job ID persistence and verify normal resume.
+- Simulate failure after only the user message is persisted; retry sync and verify the missing assistant result is inserted exactly once using its stable role-specific request ID.
+- Retry after both messages are persisted but before local recovery state is cleared; verify no duplicate user or assistant message is created.
+- Verify the authenticated client cannot insert assistant messages directly; the brain-router sync path must verify task owner, completed status, objective/result match, and conversation owner before server-side persistence.
+- Verify that live plan/progress and safe cancellation remain visible in the durable task workspace while running; the ordinary chat transcript receives the final result only after completion.
+
+### Test Group 8 — Task cancellation, partial completion, and billing
+- Cancel before queueing, while queued, before worker starts, during running work, and after partial completion.
+- Only actually performed work is settled; unperformed reserved work is released.
+- Concurrent cancellation/retry/completion races settle exactly once.
+- Repeated callbacks and duplicate requests do not create duplicate ledger entries.
+- Verify task status, user-facing explanation, and ledger agree.
+- Verify queued cancellation is reported as cancelled-before-start, while a running cancellation is reported as a safe stop only after the worker confirms terminal cancellation; no premature success message.
+
+### Test Group 9 — Model catalog, permissions, and automatic routing
+- The ordinary chat has no user-facing model-selection dropdown; the central Agent automatically routes requests using verified and entitled profiles.
+- The Admin Control Center exposes model catalog and governance controls only to authorized administrators.
+- Unauthorized model request is denied server-side even if client is modified.
+- Model version/capability/provider/cost metadata matches verified catalog.
+- Disabled/frozen/unverified providers receive no new calls.
+- Verify selected vs actual routed model is represented truthfully.
+- If model-catalog or routing metadata is unavailable or malformed, the central Agent fails closed or uses only an independently verified safe fallback; it must not invent a model identity or route.
+- Switch between authenticated accounts while catalog/routing requests are pending or failing; verify no prior-session model permissions or provenance leak into the next session.
+- Verify administrators cannot activate a model until its provider, capability, permission, and routing metadata are verified.
+
+### Test Group 10 — Studio, media generation, and media security
+- Image/video/audio transcription workflows, validation, size/duration limits, quotas, and cost guardrails.
+- Provider success, timeout, outage, disabled state, malformed response, and partial failure.
+- Authenticated upload and private delivery; signed URL expiry and ownership.
+- Agent-triggered media job from chat returns result to the same conversation and appropriate Studio/Library reference.
+- Verify no cross-user media access and no charge for work not performed.
+- Missing, zero, or unverified image-generation price must block both UI submission and server-side generation; no zero-cost assumption is allowed.
+- Video/audio/transcription entries remain unavailable until their provider, execution path, verified pricing, and output delivery are configured.
+
+### Test Group 11 — Library, files, and storage lifecycle
+- List/search/filter/preview/download where supported.
+- Owner-only metadata and object access; cross-user object IDs must fail.
+- Signed URL scope/expiry, storage quota, unsupported files, malware/content validation if configured.
+- Delete/archive/retention behavior and audit records.
+- Verify generated outputs remain associated with the correct user/conversation/task.
+- Audio MIME types are discoverable through the audio filter and labeled as audio without changing or corrupting the existing raw/document storage-kind contract.
+- Admin storage explorer: authorized admin only; private bucket remains private; bucket/object metadata is sanitized; path traversal and unsupported actions are rejected; no upload/delete/public URL/policy mutation is exposed; first-100-item behavior and nested folder navigation are correct.
+
+### Test Group 12 — Projects and conversation grouping
+- Create/list/update/archive/restore/delete projects.
+- Link/unlink conversations with tenant consistency.
+- Cross-user SELECT/INSERT/UPDATE/DELETE and cross-tenant foreign-key attempts fail.
+- Project deletion preserves conversations according to defined nulling behavior.
+- Confirm no duplicate Projects implementation or route conflict remains after PR reconciliation.
+- Verify the `develop` implementation rather than merging stale PR #83 wholesale; compare route/navigation, project service, migration, isolation SQL, and CI workflow. Confirm the open branch's older workflow does not remove current Android/iOS export or newer regression coverage.
+- Re-run the rollback-only two-user SQL isolation regression on an isolated test database; separately verify owner update, cross-user delete denial, project deletion `ON DELETE SET NULL (project_id)`, archived-project filtering, and project-aware new conversation creation.
+- Confirm project navigation is reachable from the current chat navigation menu and does not replace the five primary navigation destinations.
+
+### Test Group 13 — Subscription, credits, wallet, and financial integrity
+- Monthly allowance grant and renewal semantics match approved policy and actual implementation.
+- Purchased-credit never-expire policy is reconciled safely without altering historical balances.
+- Test holds, settle, release, refund/adjustment where supported, idempotency, and immutable ledger.
+- Concurrent spend, insufficient balance, duplicate webhook, failed provider, cancellation, partial usage, and retry.
+- Verify source-level balance breakdown; no misleading combined percentage across pools with different expiry.
+- Prices, FX, credit conversion, and quantities must be tested only against explicitly approved configuration; do not invent values or mutate real balances.
+- Admin subscription grant: active plan only, optional future expiry, mandatory reason, confirmation, prior-active replacement, profile tier update, and audit event; never run against a real user's account during testing.
+
+### Test Group 14 — Reward ads and promotional credits
+- Only verified ad-network server callback can award a reward.
+- Spoofed client completion, replayed callback, duplicate event, invalid signature, rate abuse, and concurrent claims fail safely.
+- Caps, frequency, expiry, and award quantity match approved policy.
+- Ledger attribution and balance update are atomic and idempotent.
+- If no real ad-network integration is configured, mark monetized reward verification BLOCKED; do not treat a UI claim as revenue.
+
+### Test Group 15 — Admin, roles, governance, and audit
+- Enumerate admin/staff/student/user permissions for every admin screen and privileged RPC.
+- Non-admin direct route/API/RPC access is denied.
+- Provider/model/pricing/credit/reward/HIMS changes require correct role and are audited.
+- Verify safe disable/quarantine, immutable audit trail, pagination/export privacy, and sensitive data masking.
+- Check that admin UI hiding is not the only authorization control.
+- Review the complete responsive admin navigation: every route is discoverable, Arabic/English global search routes correctly, and the user-friction and storage pages are accessible on desktop/mobile.
+- Verify admin user-directory pagination bounds, exact totals, debounce behavior, stale-response suppression, selection reset on search/filter/page changes, and literal handling of punctuation/wildcards in email/name searches.
+- Verify admin-storage Edge Function returns 401 for missing/expired sessions and 403 for authenticated non-admin users, with no service-role material in client output.
+- Verify user subscription grant uses the server-side admin RPC, cannot grant inactive/retired plans, records reason and actor in the audit log, and cannot be invoked by non-admins.
+- Verify non-admin users cannot submit admin support replies, admins can reply with the admin marker, and direct RLS/API attempts cannot spoof `is_admin_reply`.
+
+### Test Group 16 — Cross-platform UX, accessibility, localization, and performance
+- Browser test across supported viewport widths and current target browsers; no black/blank screen or broken navigation.
+- Android/iOS install/launch, back behavior, keyboard, safe areas, permissions, notifications, deep links, and background/foreground transitions.
+- Light/dark/system theme, contrast, text scaling, touch target, screen reader labels/focus order.
+- Arabic RTL and English LTR on every primary flow; verify mixed-direction text and numbers.
+- Network loss/recovery, slow responses, memory/performance, long lists, and repeated task operation.
+- Real device checks require actual devices; static bundles alone are insufficient.
+
+### Test Group 17 — Full regression, release readiness, and recovery
+- Run all prior groups against the integrated release candidate and record exact commit/migration versions.
+- Run security regression, tenant isolation, financial reconciliation, task concurrency, HIMS, and route/deep-link suites.
+- Verify backup/restore and migration rollback/recovery plan where supported.
+- Review known issues, severity, monitoring/alerts, support runbook, release notes, and rollback owner.
+- Verify production configuration and secrets without printing secret values.
+- Produce a signed-off test report: PASS/FAIL/BLOCKED/NOT RUN per case, evidence links, residual risks, and explicit owner acceptance.
+- Production deployment is a separate owner-authorized action; test completion does not grant deployment permission.
+
+## 5. Entry criteria
+
+Track B may begin only when:
+1. All 17 Track A phases are integrated on the intended release candidate. Phase-level implementation is not held open merely because its comprehensive tests are pending; the deferred test inventory is carried forward into this campaign.
+2. Development roadmap and build plan show evidence for all required acceptance criteria.
+3. Migrations and environment configuration are reconciled; no unreviewed destructive change remains.
+4. Test environments, safe test users, required content, and provider stubs/credentials are available without sharing secrets in chat.
+5. The owner is informed that the build is ready for the comprehensive test campaign.
+
+## 6. Exit criteria
+
+Track B is complete only when:
+- Every applicable case in all 17 groups is PASS, or explicitly BLOCKED/accepted by the owner with a documented reason and mitigation.
+- No unresolved critical/high security or data-integrity defect remains without explicit owner acceptance and compensating controls.
+- HIMS, chat/Agent, task cancellation/partial billing, credits, admin authorization, and cross-user isolation have evidence-backed results.
+- Web, Android, and iOS have separate results; unavailable device/browser testing is not represented as passed.
+- The final report includes exact commit SHA, workflow run IDs, test commands, artifacts/logs, migration versions, limitations, and recovery instructions.
+- The owner explicitly decides whether to authorize production release.
+
+## 7. Execution report template
+
+For each test case record:
+- Test ID and group;
+- environment/platform and test account role;
+- commit SHA and migration version;
+- preconditions and isolated fixture IDs (never credentials);
+- exact steps/command;
+- expected and actual result;
+- PASS / FAIL / BLOCKED / NOT RUN;
+- evidence URL/log/artifact;
+- defect severity and linked issue;
+- cleanup confirmation and follow-up owner.
+
+**Current campaign status:** NOT STARTED. Routine regression checks performed during development remain part of Track A and must not be represented as completion of this independent campaign.
+
+
+## 8. Readiness snapshot — 2026-11-16
+
+- Track B remains **NOT STARTED** by design; it must wait until Track A Phase 17 integration is complete.
+- Routine focused regression tests continue under Track A.
+- The first-four implementation verification inventory assigned to Track B includes: HIMS migration application in an isolated environment, duplicate-code collision/replay and rollback; real student activation and protected lecture delivery; ordinary-chat boundaries; current-commit CI; full design accessibility; and actual browser/device journeys.
+- Phase 5/6 Track B cases include five-area route/deep-link navigation, mobile keyboard/safe-area and responsive web behavior, menu navigation, first authenticated app entry and all successful auth methods landing in Chat, empty-chat welcome and prompt chips, visible localized streaming/task status and stop action, absence of a user-facing automatic model routing and automatic server-side routing using verified/entitled profiles, actual server-reported model attribution, and chat/task lifecycle behavior.
+- These deferred tests are not implementation blockers. Any defect they expose must be fixed on Track A/develop and then retested in Track B.
+- No test is marked PASS unless it has a verified run/result. The new HIMS collision SQL regression is committed but not executed. The expanded theme Jest test and core chat/Home/HIMS semantic palette changes are committed but await a current-commit CI run.
+
+
+## Develop-only audit — 2026-11-16 (after unified-plan consolidation)
+
+This audit is based only on source and workflow evidence from branch `develop`. A PR merged only into `release/v1`, a feature branch not merged into `develop`, or an earlier CI run on another SHA is not counted as completed on the current development branch.
+
+### Current implementation disposition
+- **Fully implementation-complete:** Phase 1 (source inventory) and Phase 5 (five-section navigation foundation). Track B verification remains separate.
+- **Implemented but still open:** Phase 2 (HIMS security baseline and applied duplicate-code guard; broader adversarial validation remains); Phase 3 (HIMS flow in central chat; real student/content acceptance owner-blocked); Phase 8 (Library organization foundations); Phase 10 (65 source model/service IDs represented; provider/account reconciliation and metadata remain); Phase 11 (capability-evidence registries/editors and central-router consumption exist; integration evidence and regression remain); Phase 12 (text route governance and 40% markup at data level; credit/FX/media runtime pricing incomplete); Phase 14 (theme persistence and shared palette foundations); Phase 15 (language persistence and direction foundation); Phase 16 (substantial security controls and targeted regression evidence).
+- **In progress / major build work remains:** Phase 4 (full approved visual system and all-screen redesign; current light-theme contrast CI failures); Phase 6 (conversation progress/result/cancel/retry/accounting UX and idempotent persistence); Phase 7 (Studio generation workflows unavailable until verified provider, SULY integration, FX, and credit pricing); Phase 9 (Account UI exists, but profile/payment/renewal and complete billing lifecycle are incomplete); Phase 13 (Control Center foundation exists, but dynamic page/component builder is absent and admin modules are not yet complete); Phase 17 (preview deployment for the latest develop head, OTA, native artifacts/device work).
+
+### Explicit blockers found on develop
+1. Agent workflow run `43949561631` for SHA `2e9f78530ecc6d56a02b59de8905c24f69f2f548`: Expo TypeScript passed; Deno Edge Function typecheck passed; Jest auth/theme job failed because `src/theme/colors.test.ts` reported light-theme body contrast 4.1826:1 and primary-button contrast 3.1304:1. Web/Android/iOS exports were skipped after the test failure.
+2. The Pages workflow for SHA `82d17a88154d84bfaffb8615127c84ee47bd3fff` was still in progress at audit time; do not claim the latest preview deployment is complete until its build/deploy jobs succeed and the preview URL is checked.
+3. Required Dynamic Admin Page & Component Builder has no corresponding implementation found in the `develop` source tree.
+4. Studio remains disabled: media models are not SULY-integration-verified; runtime media price rows and credit/FX conversion are incomplete.
+5. Account paid-upgrade action currently displays “Upgrades coming soon”; payment and renewal lifecycle are not implemented end-to-end.
+6. PR #83 (Projects) remains open and dirty against `develop`; project-related files/tests are present in the branch, but its unique patch must be reconciled and the PR disposition decided without blindly merging or deleting it.
+7. Capability-evidence code is present on `develop` and was verified directly from current branch files; PRs #135–#137 being merged only into `release/v1` are not used as the evidence for this statement.
+
+### Branch and release boundary
+All future implementation work in this sequence remains on `develop`. Do not modify `release/v1`, promote changes, alter production data, activate providers/models, change prices/credit conversion, or run real-user tests without the applicable explicit owner authorization and test safeguards.

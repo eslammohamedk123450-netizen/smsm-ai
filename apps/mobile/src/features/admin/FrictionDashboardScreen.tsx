@@ -16,13 +16,14 @@ export function FrictionDashboardScreen() {
   const [friction, setFriction] = useState<FrictionRow[]>([]);
   const [feedback, setFeedback] = useState<FeedbackRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dataAvailable, setDataAvailable] = useState(false);
   const [error, setError] = useState("");
   const load = useCallback(async () => {
-    setLoading(true); setError("");
+    setLoading(true); setDataAvailable(false); setError("");
     try {
       const [events, ratings] = await Promise.all([supportService.adminFrictionSummary(30), supportService.adminFeedbackSummary(30)]);
-      setFriction(events as FrictionRow[]); setFeedback(ratings as FeedbackRow[]);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر تحميل المؤشرات."); }
+      setFriction(events as FrictionRow[]); setFeedback(ratings as FeedbackRow[]); setDataAvailable(true);
+    } catch (cause) { setFriction([]); setFeedback([]); setDataAvailable(false); setError(cause instanceof Error ? cause.message : "تعذر تحميل المؤشرات."); }
     finally { setLoading(false); }
   }, []);
   useEffect(() => { void load(); }, [load]);
@@ -34,15 +35,15 @@ export function FrictionDashboardScreen() {
     <Text style={styles.subtitle}>ملخص مجمّع لآخر 30 يومًا. لا يعرض نصوص المحادثات أو معرفات المستخدمين.</Text>
     {error ? <Text style={styles.error}>{error}</Text> : null}{loading ? <ActivityIndicator color={colors.primary} /> : null}
     <View style={styles.grid}>
-      <View style={styles.card}><Text style={styles.number}>{likes}</Text><Text style={styles.label}>إعجاب</Text></View>
-      <View style={styles.card}><Text style={styles.number}>{dislikes}</Text><Text style={styles.label}>عدم إعجاب</Text></View>
-      <View style={styles.card}><Text style={styles.number}>{total}</Text><Text style={styles.label}>أحداث تعثر</Text></View>
+      <View style={styles.card}><Text style={styles.number}>{dataAvailable ? likes : "—"}</Text><Text style={styles.label}>إعجاب</Text></View>
+      <View style={styles.card}><Text style={styles.number}>{dataAvailable ? dislikes : "—"}</Text><Text style={styles.label}>عدم إعجاب</Text></View>
+      <View style={styles.card}><Text style={styles.number}>{dataAvailable ? total : "—"}</Text><Text style={styles.label}>أحداث تعثر</Text></View>
     </View>
     <View style={styles.section}><Text style={styles.sectionTitle}>الأحداث حسب اليوم والميزة</Text>
-      {!loading && friction.length === 0 ? <Text style={styles.empty}>لا توجد أحداث مسجلة بعد. تظهر هنا بعد استخدام التطبيق.</Text> : friction.map((row, index) => <View key={`${row.event_day}-${row.event_kind}-${row.feature_key}-${index}`} style={styles.row}>
+      {!loading && dataAvailable && friction.length === 0 ? <Text style={styles.empty}>لا توجد أحداث مسجلة بعد. تظهر هنا بعد استخدام التطبيق.</Text> : !dataAvailable && !loading ? <Text style={styles.empty}>بيانات نقاط التعثر غير متاحة حاليًا.</Text> : dataAvailable ? friction.map((row, index) => <View key={`${row.event_day}-${row.event_kind}-${row.feature_key}-${index}`} style={styles.row}>
         <View style={styles.rowTop}><Text style={styles.value}>{row.event_count} حدث · {row.user_count} مستخدم</Text><Text style={styles.rowTitle}>{eventLabels[row.event_kind] ?? row.event_kind}</Text></View>
         <Text style={styles.meta}>{screenLabels[row.screen_key] ?? row.screen_key} · {row.feature_key} · {row.event_day}</Text>
-      </View>)}
+      </View>) : null}
     </View>
   </ScrollView>;
 }

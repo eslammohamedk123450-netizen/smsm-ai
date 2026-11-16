@@ -154,6 +154,20 @@ export const adminService = {
     if (error) throw error;
     return data as { success?: boolean; id?: string; feature_key?: string; code?: string; command?: string };
   },
+
+  async setHimsActivationCodeActive(codeId: string, isActive: boolean) {
+    await requireAdmin();
+    if (!codeId || typeof isActive !== "boolean") throw new Error("بيانات كود التفعيل غير صالحة.");
+    const { data, error } = await supabase.rpc("suly_admin_set_activation_code_active", {
+      p_code_id: codeId,
+      p_is_active: isActive,
+    });
+    if (error) throw error;
+    if (!data || data.success !== true || data.id !== codeId || data.is_active !== isActive) {
+      throw new Error("لم تؤكد قاعدة البيانات تحديث حالة كود التفعيل.");
+    }
+    return data as { success: true; id: string; is_active: boolean };
+  },
   async getHimsResources(): Promise<HimsResource[]> {
     await requireAdmin();
     const { data, error } = await supabase.rpc("suly_admin_list_feature_resources_v2", { p_feature_key: "hims" });
@@ -163,7 +177,7 @@ export const adminService = {
       url: resource.media_asset_id ? await getMediaDeliveryUrl(resource.media_asset_id) : resource.url ?? "",
     })));
   },
-  async createHimsResource(input: { title: string; url: string; kind: string; description: string; mediaAssetId?: string | null }) {
+  async createHimsResource(input: { title: string; url: string; kind: string; description: string; mediaAssetId?: string | null }, isActive = true) {
     await requireAdmin();
     const { data, error } = await supabase.rpc("suly_admin_upsert_feature_resource_v2", {
       p_feature_key: "hims",
@@ -171,11 +185,34 @@ export const adminService = {
       p_url: input.mediaAssetId ? null : input.url.trim(),
       p_kind: input.kind.trim() || "lecture",
       p_description: input.description.trim() || null,
-      p_is_active: true,
+      p_is_active: isActive,
       p_media_asset_id: input.mediaAssetId ?? null,
     });
     if (error) throw error;
-    return data as { success?: boolean; id?: string; feature_key?: string };
+    if (!data || data.success !== true || typeof data.id !== "string") {
+      throw new Error("لم تؤكد قاعدة البيانات حفظ مورد HIMS.");
+    }
+    return data as { success: true; id: string; feature_key: string; media_asset_id: string | null };
+  },
+
+  async setHimsResourceActive(resource: HimsResource, isActive: boolean) {
+    await requireAdmin();
+    if (!resource.id || !resource.title.trim()) throw new Error("بيانات مورد HIMS غير مكتملة.");
+    const mediaAssetId = resource.media_asset_id ?? null;
+    const { data, error } = await supabase.rpc("suly_admin_upsert_feature_resource_v2", {
+      p_feature_key: "hims",
+      p_title: resource.title.trim(),
+      p_url: mediaAssetId ? null : resource.url.trim(),
+      p_kind: resource.kind.trim() || "lecture",
+      p_description: resource.description?.trim() || null,
+      p_is_active: isActive,
+      p_media_asset_id: mediaAssetId,
+    });
+    if (error) throw error;
+    if (!data || data.success !== true || data.id !== resource.id) {
+      throw new Error("لم تؤكد قاعدة البيانات تحديث حالة مورد HIMS.");
+    }
+    return data as { success: true; id: string; feature_key: string; media_asset_id: string | null };
   },
   async getProviders() {
     await requireAdmin();
@@ -538,6 +575,96 @@ export const adminService = {
     return results;
   },
 
+  async getConversationsPage(page = 0, pageSize = 50, search = "") {
+    await requireAdmin();
+    const safePage = Number.isSafeInteger(page) ? Math.min(100_000, Math.max(0, page)) : 0;
+    const safePageSize = Number.isSafeInteger(pageSize) ? Math.min(100, Math.max(1, pageSize)) : 50;
+    const queryText = search.trim().slice(0, 100).replace(/[,%()\\*]/g, " ").trim();
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(queryText);
+    let matchingUserIds: string[] = [];
+    if (queryText && !isUuid) {
+      const escapedSearch = queryText.replaceAll("\\", "\\\\").replaceAll('"', '\\"').replaceAll("%", "\\%").replaceAll("_", "\\_").replaceAll("*", "\\*");
+      const pattern = `"%${escapedSearch}%"`;
+      const { data: people, error: peopleError } = await supabase.from("suly_profiles")
+        .select("id").or(`email.ilike.${pattern},full_name.ilike.${pattern}`).limit(100);
+      if (peopleError) throw peopleError;
+      matchingUserIds = (people ?? []).map((person) => String(person.id));
+    }
+    let query = supabase.from("suly_conversations")
+      .select("id,user_id,title,created_at,updated_at", { count: "exact" })
+      .order("updated_at", { ascending: false })
+      .range(safePage * safePageSize, (safePage + 1) * safePageSize - 1);
+    if (queryText) {
+      if (isUuid) query = query.or(`id.eq.${queryText},user_id.eq.${queryText}`);
+      else {
+        const escapedSearch = queryText.replaceAll("\\", "\\\\").replaceAll('"', '\\"').replaceAll("%", "\\%").replaceAll("_", "\\_").replaceAll("*", "\\*");
+        const pattern = `"%${escapedSearch}%"`;
+        const filters = [`title.ilike.${pattern}`];
+        if (matchingUserIds.length) filters.push(`user_id.in.(${matchingUserIds.join(",")})`);
+        query = query.or(filters.join(","));
+      }
+    }
+    const { data, error, count } = await query;
+    if (error) throw error;
+    const rows = (data ?? []) as Array<{ id: string; user_id: string; title: string | null; created_at: string; updated_at: string }>;
+    const ids = [...new Set(rows.map((row) => row.user_id))];
+    const { data: people, error: profileError } = ids.length
+      ? await supabase.from("suly_profiles").select("id,email,full_name").in("id", ids)
+      : { data: [], error: null };
+    if (profileError) throw profileError;
+    const profiles = Object.fromEntries((people ?? []).map((person) => [String(person.id), person]));
+    return { conversations: rows, profiles, total: count ?? 0, page: safePage, pageSize: safePageSize };
+  },
+
+  async getUsersPage(page = 0, pageSize = 50, search = "", filter: "all" | "active" | "banned" = "all") {
+    await requireAdmin();
+    const safePage = Number.isSafeInteger(page) ? Math.min(100_000, Math.max(0, page)) : 0;
+    const safePageSize = Number.isSafeInteger(pageSize) ? Math.min(100, Math.max(1, pageSize)) : 50;
+    const queryText = search.trim().slice(0, 100).replace(/[,%()\\*]/g, " ").trim();
+    let query = supabase.from("suly_profiles")
+      .select("id,email,full_name,subscription_tier,is_banned,created_at", { count: "exact" })
+      .order("created_at", { ascending: false })
+      .range(safePage * safePageSize, (safePage + 1) * safePageSize - 1);
+    if (filter === "active") query = query.eq("is_banned", false);
+    if (filter === "banned") query = query.eq("is_banned", true);
+    if (queryText) {
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(queryText)) {
+        query = query.eq("id", queryText);
+      } else {
+        const escapedSearch = queryText
+          .replaceAll("\\", "\\\\")
+          .replaceAll('"', '\\"')
+          .replaceAll("%", "\\%")
+          .replaceAll("_", "\\_")
+          .replaceAll("*", "\\*");
+        const pattern = `"%${escapedSearch}%"`;
+        query = query.or(`email.ilike.${pattern},full_name.ilike.${pattern}`);
+      }
+    }
+    const { data: profiles, error, count } = await query;
+    if (error) throw error;
+    const ids = (profiles ?? []).map((profile) => profile.id);
+    const { data: accounts, error: accountsError } = ids.length
+      ? await supabase.from("suly_credit_accounts").select("user_id,balance,reserved_balance").in("user_id", ids)
+      : { data: [], error: null };
+    if (accountsError) throw accountsError;
+    const accountByUser = new Map<string, { balance: number; reserved_balance: number }>();
+    for (const row of accounts ?? []) accountByUser.set(String(row.user_id), {
+      balance: Number(row.balance ?? 0),
+      reserved_balance: Number(row.reserved_balance ?? 0),
+    });
+    return {
+      users: (profiles ?? []).map((profile) => ({
+        ...profile,
+        balance: accountByUser.get(String(profile.id))?.balance ?? 0,
+        reserved_balance: accountByUser.get(String(profile.id))?.reserved_balance ?? 0,
+      })),
+      total: count ?? 0,
+      page: safePage,
+      page_size: safePageSize,
+    };
+  },
+
   async getUsers() {
     await requireAdmin();
     const [profiles, accounts] = await Promise.all([
@@ -645,6 +772,52 @@ export const adminService = {
     if (error) throw error;
     return data as { success?: boolean; negative_balance_limit?: number };
   },
+  async getActiveSubscriptionPlans(): Promise<Array<{
+    id: number; name: string; tier_key: string; price: number; currency: string;
+    billing_period: string; daily_credits: number; monthly_credits: number; max_requests: number;
+  }>> {
+    await requireAdmin();
+    const { data, error } = await supabase.from("subscription_plans")
+      .select("id,name,tier_key,price,currency,billing_period,daily_credits,monthly_credits,max_requests")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true })
+      .order("id", { ascending: true });
+    if (error) throw error;
+    return (data ?? []).map((plan) => ({
+      id: Number(plan.id),
+      name: String(plan.name),
+      tier_key: String(plan.tier_key),
+      price: Number(plan.price ?? 0),
+      currency: String(plan.currency ?? "USD"),
+      billing_period: String(plan.billing_period ?? "monthly"),
+      daily_credits: Number(plan.daily_credits ?? 0),
+      monthly_credits: Number(plan.monthly_credits ?? 0),
+      max_requests: Number(plan.max_requests ?? 0),
+    }));
+  },
+  async grantSubscription(userId: string, planId: number, expiresAt: string | null, reason: string) {
+    await requireAdmin();
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userId)) {
+      throw new Error("معرّف المستخدم غير صالح.");
+    }
+    if (!Number.isSafeInteger(planId) || planId < 1) throw new Error("اختر باقة فعالة.");
+    const cleanReason = reason.trim();
+    if (!cleanReason || cleanReason.length > 500) throw new Error("سبب منح الاشتراك إلزامي (حتى 500 حرف).");
+    if (expiresAt !== null && (!Number.isFinite(Date.parse(expiresAt)) || Date.parse(expiresAt) <= Date.now())) {
+      throw new Error("تاريخ انتهاء الاشتراك يجب أن يكون في المستقبل.");
+    }
+    const { data, error } = await supabase.rpc("suly_admin_grant_subscription", {
+      p_user_id: userId,
+      p_plan_id: planId,
+      p_expires_at: expiresAt,
+      p_reason: cleanReason,
+    });
+    if (error) throw error;
+    const result = Array.isArray(data) ? data[0] : data;
+    if (!result || result.success !== true) throw new Error("لم تؤكد قاعدة البيانات منح الاشتراك.");
+    return result as { success: true; subscription_id: string; tier_key: string };
+  },
+
   async getPricingPlans(): Promise<PricingPlan[]> {
     await requireAdmin();
     const { data, error } = await supabase.from("subscription_plans")
@@ -723,6 +896,51 @@ export const adminService = {
     const { error } = await supabase.from("system_settings").upsert(toUpdate, { onConflict: "key" });
     if (error) throw error;
   },
+  async getStorageBuckets(): Promise<Array<{
+    id: string; name: string; public: boolean; file_size_limit: number | null;
+    allowed_mime_types: string[] | null; created_at: string | null; updated_at: string | null;
+  }>> {
+    await requireAdmin();
+    const { data, error } = await supabase.functions.invoke("admin-storage", { body: { action: "list_buckets" } });
+    if (error) throw error;
+    if (!Array.isArray(data?.buckets)) throw new Error("استجابة جرد التخزين غير صالحة.");
+    return data.buckets.filter((bucket: any) => bucket && typeof bucket.id === "string" && typeof bucket.name === "string")
+      .map((bucket: any) => ({
+        id: bucket.id,
+        name: bucket.name,
+        public: bucket.public === true,
+        file_size_limit: typeof bucket.file_size_limit === "number" ? bucket.file_size_limit : null,
+        allowed_mime_types: Array.isArray(bucket.allowed_mime_types) ? bucket.allowed_mime_types.filter((item: unknown): item is string => typeof item === "string") : null,
+        created_at: typeof bucket.created_at === "string" ? bucket.created_at : null,
+        updated_at: typeof bucket.updated_at === "string" ? bucket.updated_at : null,
+      }));
+  },
+  async listStorageObjects(bucketId: string, path = ""): Promise<Array<{
+    name: string; id: string | null; updated_at: string | null; created_at: string | null;
+    metadata: { size?: number; mimetype?: string } | null;
+  }>> {
+    await requireAdmin();
+    const safeBucketId = bucketId.trim();
+    if (!safeBucketId || safeBucketId.length > 100) throw new Error("معرّف مساحة التخزين غير صالح.");
+    const safePath = path.split("/").filter(Boolean).join("/");
+    if (safePath.length > 1024) throw new Error("مسار التخزين طويل جدًا.");
+    const { data, error } = await supabase.functions.invoke("admin-storage", {
+      body: { action: "list_objects", bucket_id: safeBucketId, path: safePath },
+    });
+    if (error) throw error;
+    if (!Array.isArray(data?.objects)) throw new Error(typeof data?.error === "string" ? data.error : "استجابة ملفات التخزين غير صالحة.");
+    return data.objects.filter((item: any) => item && typeof item.name === "string").map((item: any) => ({
+      name: item.name,
+      id: typeof item.id === "string" ? item.id : null,
+      updated_at: typeof item.updated_at === "string" ? item.updated_at : null,
+      created_at: typeof item.created_at === "string" ? item.created_at : null,
+      metadata: item.metadata ? {
+        size: typeof item.metadata.size === "number" ? item.metadata.size : undefined,
+        mimetype: typeof item.metadata.mimetype === "string" ? item.metadata.mimetype : undefined,
+      } : null,
+    }));
+  },
+
   async getAgentTaskOverview(): Promise<AgentTaskQueueOverview> {
     await requireAdmin();
     const { data, error } = await supabase.rpc("suly_admin_agent_task_overview");

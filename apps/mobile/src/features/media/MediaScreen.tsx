@@ -31,7 +31,7 @@ export function MediaScreen() {
   const [reuseBusyId, setReuseBusyId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const router = useRouter();
-  const [filter, setFilter] = useState<"all" | "image" | "video" | "file" | "in_progress" | "favorites">("all");
+  const [filter, setFilter] = useState<"all" | "image" | "video" | "audio" | "file" | "in_progress" | "favorites">("all");
   const [search, setSearch] = useState("");
 
   const load = useCallback(async () => {
@@ -72,7 +72,7 @@ export function MediaScreen() {
   };
 
   const visibleAssets = assets
-    .filter((asset) => filter === "all" || (filter === "image" && asset.kind === "image") || (filter === "video" && asset.kind === "video") || (filter === "file" && asset.kind === "raw") || (filter === "favorites" && favoriteIds.includes(asset.id)))
+    .filter((asset) => filter === "all" || (filter === "image" && asset.kind === "image") || (filter === "video" && asset.kind === "video") || (filter === "audio" && asset.mimeType?.toLowerCase().startsWith("audio/")) || (filter === "file" && asset.kind === "raw" && !asset.mimeType?.toLowerCase().startsWith("audio/")) || (filter === "favorites" && favoriteIds.includes(asset.id)))
     .filter((asset) => !selectedFolderId || assetFolderIds[asset.id] === selectedFolderId)
     .filter((asset) => !search.trim() || `${asset.filename ?? ""} ${String(asset.metadata.prompt ?? "")}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase(isArabic ? "ar" : "en")));
 
@@ -235,6 +235,7 @@ export function MediaScreen() {
         ["all", isArabic ? "الكل" : "All"],
         ["image", isArabic ? "الصور" : "Images"],
         ["video", isArabic ? "الفيديوهات" : "Videos"],
+        ["audio", isArabic ? "الصوتيات" : "Audio"],
         ["file", isArabic ? "الملفات" : "Files"],
         ["in_progress", isArabic ? "قيد التنفيذ" : "In progress"],
         ["favorites", isArabic ? "المفضلة" : "Favorites"],
@@ -264,10 +265,10 @@ export function MediaScreen() {
     <View style={styles.grid}>
       {filter !== "in_progress" ? visibleAssets.map((asset) => <View key={asset.id || asset.url} style={styles.card}>
         {asset.kind === "raw" || asset.kind === "video"
-          ? <View style={[styles.thumb, styles.fileThumb]}><Text style={styles.fileIcon}>{asset.kind === "video" ? "VIDEO" : "FILE"}</Text></View>
+          ? <View style={[styles.thumb, styles.fileThumb]}><Text style={styles.fileIcon}>{asset.kind === "video" ? "VIDEO" : asset.mimeType?.toLowerCase().startsWith("audio/") ? "AUDIO" : "FILE"}</Text></View>
           : <Image source={{ uri: asset.url }} style={styles.thumb} resizeMode="cover" accessibilityLabel={asset.filename ?? (isArabic ? "صورة" : "Image")}/>}
         <Text numberOfLines={1} style={styles.filename}>{asset.filename ?? (isArabic ? "ملف" : "File")}</Text>
-        <Text style={styles.meta}>{asset.kind === "video" ? (isArabic ? "فيديو" : "Video") : asset.kind === "image" ? (isArabic ? "صورة" : "Image") : (isArabic ? "ملف" : "File")} · {formatBytes(asset.sizeBytes)}</Text>
+        <Text style={styles.meta}>{asset.kind === "video" ? (isArabic ? "فيديو" : "Video") : asset.kind === "image" ? (isArabic ? "صورة" : "Image") : asset.mimeType?.toLowerCase().startsWith("audio/") ? (isArabic ? "ملف صوتي" : "Audio") : (isArabic ? "ملف" : "File")} · {formatBytes(asset.sizeBytes)}</Text>
         {asset.width && asset.height ? <Text style={styles.meta}>{asset.width} × {asset.height}</Text> : null}
         {asset.durationSeconds ? <Text style={styles.meta}>{isArabic ? `المدة: ${asset.durationSeconds} ثانية` : `Duration: ${asset.durationSeconds} seconds`}</Text> : null}
         {asset.createdAt ? <Text style={styles.meta}>{new Date(asset.createdAt).toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text> : null}

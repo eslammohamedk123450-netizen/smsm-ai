@@ -8,6 +8,13 @@ function json(body: unknown, status = 200): Response {
 function asRecord(value: unknown): Record<string, unknown> { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
 function cleanText(value: unknown, max = 50000): string { return typeof value === "string" ? value.trim().slice(0, max) : ""; }
 
+async function taskMessageRequestId(taskId: string, role: "user" | "assistant"): Promise<string> {
+  const bytes = new TextEncoder().encode(`suly-task-chat:${taskId}:${role}`);
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+  const hex = Array.from(digest).map((value) => value.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+}
+
 async function main(req: Request): Promise<Response> {
   if (req.method !== "POST") return json({ error: "POST required" }, 405);
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -45,6 +52,81 @@ async function main(req: Request): Promise<Response> {
     .maybeSingle();
   if (profileError || !profile) return json({ error: "Application profile is missing" }, 403);
   if (profile.is_banned) return json({ error: "This account is suspended" }, 403);
+
+  if (!internalWorker && body.mode === "resume") {
+    const { data: job, error: jobError } = await admin.from("agent_task_jobs")
+      .select("id,status,payload")
+      .eq("task_id", taskId)
+      .eq("user_id", userId)
+      .eq("job_type", "brain_task")
+      .maybeSingle();
+    if (jobError) return json({ error: "Could not recover the queued task" }, 503);
+    if (!job) return json({ error: "task_not_found", task_id: taskId, status: "not_found" });
+    const payload = asRecord(job.payload);
+    if (cleanText(payload.objective) !== objective) return json({ error: "task_id_conflict" }, 409);
+    return json({ task_id: taskId, job_id: job.id, status: job.status, queued: true, route: "brain-router" });
+  }
+
+  // Persist a completed durable Agent task into its owner's ordinary chat.
+  // This server-side path is required because authenticated clients may only
+  // insert user messages; assistant rows are intentionally service-role only.
+  if (!internalWorker && body.mode === "sync_chat") {
+    const conversationId = cleanText(body.conversation_id, 64);
+    const expectedResponse = cleanText(body.response);
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(conversationId)
+      || !expectedResponse) return json({ error: "Invalid chat sync payload" }, 400);
+
+    const { data: task, error: taskError } = await admin.from("brain_task_contexts")
+      .select("objective,final_response,status")
+      .eq("task_id", taskId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (taskError) return json({ error: "Could not verify the completed task" }, 503);
+    if (!task || task.status !== "completed" || !task.final_response) {
+      return json({ error: "Task is not completed or does not belong to this account" }, 409);
+    }
+    if (task.objective !== objective || task.final_response !== expectedResponse) {
+      return json({ error: "Task chat sync payload does not match the saved task" }, 409);
+    }
+    const { data: conversation, error: conversationLookupError } = await admin.from("suly_conversations")
+      .select("id")
+      .eq("id", conversationId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (conversationLookupError) return json({ error: "Could not verify conversation ownership" }, 503);
+    if (!conversation) return json({ error: "Conversation not found for this account" }, 404);
+
+    const assistantContent = `${task.final_response}\n\nمعرّف المهمة: ${taskId}\n[SULY_TASK_ID:${taskId}]`;
+    const persistOnce = async (role: "user" | "assistant", content: string): Promise<boolean> => {
+      const requestId = await taskMessageRequestId(taskId, role);
+      const { error: writeError } = await admin.from("suly_messages").upsert({
+        conversation_id: conversationId,
+        user_id: userId,
+        role,
+        content,
+        request_id: requestId,
+        tokens_used: Math.ceil(content.length / 4),
+      }, { onConflict: "request_id", ignoreDuplicates: true });
+      if (writeError) return false;
+      const { data: saved, error: verifyError } = await admin.from("suly_messages")
+        .select("id,conversation_id,user_id,role,content")
+        .eq("request_id", requestId)
+        .maybeSingle();
+      if (verifyError || !saved) return false;
+      return saved.user_id === userId
+        && saved.conversation_id === conversationId
+        && saved.role === role
+        && saved.content === content;
+    };
+    if (!await persistOnce("user", objective)) return json({ error: "Could not safely persist the task request in chat" }, 503);
+    if (!await persistOnce("assistant", assistantContent)) return json({ error: "Task request is saved, but its result could not yet be persisted in chat" }, 503);
+    const { error: updateError } = await admin.from("suly_conversations")
+      .update({ updated_at: new Date().toISOString() })
+      .eq("id", conversationId)
+      .eq("user_id", userId);
+    if (updateError) return json({ error: "Chat messages are saved, but conversation ordering could not be refreshed" }, 503);
+    return json({ success: true, conversation_id: conversationId, task_id: taskId });
+  }
 
   if (internalWorker) {
     const workerId = cleanText(body.worker_id, 120);

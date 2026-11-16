@@ -23,9 +23,10 @@ export function AdminAuditScreen() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [total, setTotal] = useState(0);
+  const [dataAvailable, setDataAvailable] = useState(false);
 
   const load = async () => {
-    setLoading(true); setError(null);
+    setLoading(true); setDataAvailable(false); setError(null);
     let query = supabase.from("admin_audit_logs")
       .select("id,admin_id,action,target_table,target_id,old_value,new_value,created_at", { count: "exact" })
       .order("created_at", { ascending: false })
@@ -38,8 +39,8 @@ export function AdminAuditScreen() {
       query = query.or(`action.ilike.%${term}%,target_table.ilike.%${term}%,target_id.ilike.%${term}%`);
     }
     const { data, count, error: fetchError } = await query;
-    if (fetchError) { setRows([]); setError("تعذر قراءة سجل النشاط. تحقق من صلاحية الأدمن وسياسات RLS."); setLoading(false); return; }
-    const items = (data ?? []) as AuditRow[]; setRows(items); setTotal(count ?? 0);
+    if (fetchError) { setRows([]); setTotal(0); setDataAvailable(false); setError("تعذر قراءة سجل النشاط. تحقق من صلاحية الأدمن وسياسات RLS."); setLoading(false); return; }
+    const items = (data ?? []) as AuditRow[]; setRows(items); setTotal(count ?? 0); setDataAvailable(true);
     const ids = [...new Set(items.map((row) => row.admin_id).filter(Boolean))];
     if (ids.length) {
       const { data: people } = await supabase.from("suly_profiles").select("id,email,full_name").in("id", ids);
@@ -52,7 +53,7 @@ export function AdminAuditScreen() {
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     <View style={styles.heading}><View style={styles.headingCopy}><Text style={styles.eyebrow}>تتبّع التغييرات</Text><Text style={styles.title}>سجل النشاط</Text><Text style={styles.subtitle}>منفّذ العملية · الإجراء · الهدف · التوقيت والقيم المسجلة.</Text></View><Pressable onPress={() => void load()} style={styles.refresh}><Text style={styles.refreshText}>↻ تحديث</Text></Pressable></View>
     <View style={styles.filters}><TextInput style={styles.search} value={search} onChangeText={setSearch} placeholder="بحث في المنفّذ أو النوع أو الهدف" placeholderTextColor={colors.textMuted} autoCapitalize="none" /><View style={styles.dateRow}><TextInput style={styles.date} value={from} onChangeText={setFrom} placeholder="من YYYY-MM-DD" placeholderTextColor={colors.textMuted} autoCapitalize="none" /><TextInput style={styles.date} value={to} onChangeText={setTo} placeholder="إلى YYYY-MM-DD" placeholderTextColor={colors.textMuted} autoCapitalize="none" /></View><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.typeRow}>{TYPES.map((item) => <Pressable key={item} onPress={() => setType(item)} style={[styles.chip, item === type && styles.chipActive]}><Text style={[styles.chipText, item === type && styles.chipTextActive]}>{item === "الكل" ? item : item.replace("_", " · ")}</Text></Pressable>)}</ScrollView></View>
-    <View style={styles.summary}><Text style={styles.summaryLabel}>النتائج</Text><Text style={styles.summaryValue}>{rows.length.toLocaleString("ar-EG")} <Text style={styles.summaryMuted}>من {total.toLocaleString("ar-EG")}</Text></Text></View>
+    <View style={styles.summary}><Text style={styles.summaryLabel}>النتائج</Text><Text style={styles.summaryValue}>{dataAvailable ? rows.length.toLocaleString("ar-EG") : "—"} <Text style={styles.summaryMuted}>من {dataAvailable ? total.toLocaleString("ar-EG") : "—"}</Text></Text></View>
     {error ? <Text style={styles.error}>{error}</Text> : null}
     {loading ? <ActivityIndicator color={colors.primary} style={{ marginTop: 20 }} /> : rows.length ? rows.map((row) => {
       const profile = profiles[row.admin_id];

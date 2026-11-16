@@ -34,11 +34,7 @@ const TASK_SUGGESTIONS_EN = [
   { text: "Summarize a lesson", icon: "create-outline" as const },
   { text: "Write a professional email", icon: "bulb-outline" as const },
 ];
-const DEFAULT_SULY_PROFILES = [
-  { profile_key: "lite" as const, display_name: "SULY Lite", tagline: "للمهام السريعة واليومية", description: "للمحادثات والأسئلة والكتابة والطلبات اليومية الخفيفة.", icon_key: "zap", minimum_subscription_tier: "free" },
-  { profile_key: "pro" as const, display_name: "SULY Pro", tagline: "توازن بين السرعة والذكاء والقدرات", description: "للبرمجة والبحث والتحليل والمهام المتوسطة والمركبة.", icon_key: "rocket", minimum_subscription_tier: "pro" },
-  { profile_key: "max" as const, display_name: "SULY Max", tagline: "للمهام المعقدة والتحليل العميق", description: "للتخطيط والتحليل العميق والبرمجة المتقدمة والمهام متعددة الخطوات مع سياق أطول.", icon_key: "diamond", minimum_subscription_tier: "max" },
-];
+;
 
 export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   const { colors } = useSulyTheme();
@@ -111,8 +107,9 @@ export default function ChatPage() {
   const { user } = useAuth();
   const { show } = useToast();
   const router = useRouter();
-  const params = useLocalSearchParams<{ conversationId?: string | string[] }>();
+  const params = useLocalSearchParams<{ conversationId?: string | string[]; projectId?: string | string[] }>();
   const routeConversationId = Array.isArray(params.conversationId) ? params.conversationId[0] : params.conversationId;
+  const routeProjectId = Array.isArray(params.projectId) ? params.projectId[0] : params.projectId;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [responseIndexByUser, setResponseIndexByUser] = useState<Record<string, number>>({});
   const [conversationId, setConversationId] = useState<string | null>(routeConversationId || null);
@@ -133,20 +130,11 @@ export default function ChatPage() {
   const [ratingNote, setRatingNote] = useState("");
   const [ratingSaving, setRatingSaving] = useState(false);
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
-  const [selectedModelProfile, setSelectedModelProfile] = useState<"auto" | "lite" | "pro" | "max">("auto");
+  const selectedModelProfile = "auto" as const;
+  const [navigationMenuVisible, setNavigationMenuVisible] = useState(false);
+  const [creatingNewConversation, setCreatingNewConversation] = useState(false);
   const [actualModelUsed, setActualModelUsed] = useState<string | null>(null);
-  const [subscriptionTier, setSubscriptionTier] = useState("free");
-  const [modelProfiles, setModelProfiles] = useState(DEFAULT_SULY_PROFILES);
   const suggestions = isArabic ? TASK_SUGGESTIONS : TASK_SUGGESTIONS_EN;
-  const localizedModelProfiles = useMemo(() => modelProfiles.map((profile) => {
-    if (isArabic) return profile;
-    const copy = {
-      lite: { tagline: "For quick everyday tasks", description: "For chats, questions, writing, and lightweight daily requests." },
-      pro: { tagline: "A balance of speed, intelligence, and capability", description: "For coding, research, analysis, and medium-to-complex tasks." },
-      max: { tagline: "For complex tasks and deep analysis", description: "For planning, deep analysis, advanced coding, and multi-step tasks with longer context." },
-    }[profile.profile_key];
-    return { ...profile, ...copy };
-  }), [modelProfiles, isArabic]);
   const [connectorApproval, setConnectorApproval] = useState<{ content: string; toolkit: ToolkitStatus["toolkit"]; intent: "read" | "write"; connected: boolean; accountExists: boolean; disabled: boolean; writeApproval: ConnectorWriteApproval | null } | null>(null);
   const closeShareSheet = useCallback(() => setShareVisible(false), []);
   const composerRef = useRef<ChatComposerHandle>(null);
@@ -177,24 +165,6 @@ export default function ChatPage() {
     try { setTaskUsage(await getTaskUsage(conversationId)); } catch { setTaskUsage(null); }
     finally { setUsageLoading(false); }
   }, [conversationId]);
-
-  useEffect(() => {
-    let active = true;
-    if (!user?.id) { setSubscriptionTier("free"); return () => { active = false; }; }
-    void (async () => {
-      const [tierResult, modelResult] = await Promise.all([
-        supabase.rpc("suly_effective_subscription_tier", { p_user_id: user.id }),
-        supabase.from("suly_model_profiles").select("profile_key,display_name,tagline,description,icon_key,minimum_subscription_tier").eq("is_active", true).order("sort_order"),
-      ]);
-      if (!active) return;
-      const tier = typeof tierResult.data === "string" ? tierResult.data.toLowerCase() : "free";
-      setSubscriptionTier(!tierResult.error && ["free", "lite", "pro", "max"].includes(tier) ? tier : "free");
-      if (Array.isArray(modelResult.data) && modelResult.data.length) {
-        setModelProfiles(modelResult.data as typeof DEFAULT_SULY_PROFILES);
-      }
-    })().catch(() => undefined);
-    return () => { active = false; };
-  }, [user?.id]);
 
   useEffect(() => { void loadTaskUsage(); }, [loadTaskUsage, messages.length]);
   useEffect(() => {
@@ -339,7 +309,7 @@ export default function ChatPage() {
       let streamCompleted = false;
       try {
         if (!id) {
-          const conversation = await chatService.createConversation();
+          const conversation = await chatService.createConversation(isArabic ? "محادثة جديدة" : "New Conversation", routeProjectId || null);
           id = conversation.id;
           setConversationId(id);
           internalConversationTransitionRef.current = id;
@@ -454,6 +424,7 @@ export default function ChatPage() {
     await runOnce(lock, async () => {
       setError(null);
       setRetryFailure(null);
+      setActualModelUsed(null);
       setIsSending(true);
       setActiveTaskLabel(isArabic ? "جاري إعادة تنفيذ المهمة…" : "Retrying task…");
       const controller = new AbortController();
@@ -464,6 +435,7 @@ export default function ChatPage() {
         await chatService.retryAssistant({
           ...failed,
           signal: controller.signal,
+          onModelInfo(identifier) { setActualModelUsed(identifier); },
           onChunk(text) {
             streamedTextRef.current += text;
             setMessages((current) => {
@@ -707,66 +679,62 @@ export default function ChatPage() {
   );
 
   const shareTitle = messages.find((message) => message.role === "user")?.content.slice(0, 48) || (isArabic ? "محادثة Suly" : "SULY conversation");
+
+  const startNewConversation = async () => {
+    if (creatingNewConversation) return;
+    setCreatingNewConversation(true);
+    setNavigationMenuVisible(false);
+    try {
+      const next = await chatService.createConversation(isArabic ? "محادثة جديدة" : "New conversation");
+      router.push({ pathname: "/chat", params: { conversationId: next.id } });
+    } catch (cause) {
+      show(cause instanceof Error ? cause.message : (isArabic ? "تعذر بدء محادثة جديدة." : "Could not start a new conversation."), "error");
+    } finally {
+      setCreatingNewConversation(false);
+    }
+  };
   const shareText = messages.map((message) => `${message.role === "user" ? (isArabic ? "أنت" : "You") : "Suly"}:\n${message.content}`).join("\n\n");
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right", "bottom"]}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : Platform.OS === "android" ? "height" : undefined} keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}>
         <View style={styles.appBar}>
-          <Pressable onPress={() => router.push("/conversations")} style={styles.headerButton} accessibilityRole="button" accessibilityLabel={isArabic ? "العودة إلى المحادثات" : "Back to chats"}>
-            <Ionicons name="list-outline" size={20} color={colors.textPrimary} />
+          <Pressable onPress={() => setNavigationMenuVisible(true)} style={styles.headerButton} accessibilityRole="button" accessibilityLabel={isArabic ? "فتح قائمة التنقل" : "Open navigation menu"}>
+            <Ionicons name="menu-outline" size={22} color={colors.textPrimary} />
           </Pressable>
-          <View style={styles.headerSpacer} />
+          <View style={styles.brandCenter}>
+            <Text style={styles.brandTitle}>SULY</Text>
+          </View>
           <View style={styles.headerActions}>
             {creditBalance !== null ? (
               <TouchableOpacity onPress={() => router.push("/(protected)/balance")} style={styles.creditPill} accessibilityRole="button" accessibilityLabel={isArabic ? "رصيد Suly" : "SULY credits"}>
-                <Ionicons name="diamond-outline" size={14} color="#FACC15" />
+                <Ionicons name="diamond-outline" size={14} color={colors.warning} />
                 <Text style={styles.creditPillText}>{creditBalance.toLocaleString("en-US")}</Text>
               </TouchableOpacity>
             ) : null}
             <TouchableOpacity onPress={() => { setUsageVisible(true); void loadTaskUsage(); }} style={styles.headerButton} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={isArabic ? "إحصائيات استخدام المهمة" : "Task usage statistics"}>
-              <Ionicons name="analytics-outline" size={20} color="#94A3B8" />
+              <Ionicons name="analytics-outline" size={20} color={colors.textMuted} />
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setShareVisible(true)} style={styles.headerButton} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={isArabic ? "مشاركة المحادثة" : "Share conversation"}>
-              <Ionicons name="share-social-outline" size={18} color="#94A3B8" />
+              <Ionicons name="share-social-outline" size={18} color={colors.textMuted} />
             </TouchableOpacity>
           </View>
         </View>
-
-        <View style={{ paddingHorizontal: 14, paddingTop: 7, paddingBottom: 7, gap: 6, borderBottomWidth: 1, borderBottomColor: colors.divider }}>
-          <Text style={{ color: colors.textSecondary, textAlign: isArabic ? "right" : "left", fontSize: 12, fontWeight: "700" }}>{isArabic ? "مستوى SULY" : "SULY mode"}</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 7 }}>
-            <Pressable onPress={() => setSelectedModelProfile("auto")} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 18, borderWidth: 1, borderColor: selectedModelProfile === "auto" ? colors.primary : colors.divider, backgroundColor: selectedModelProfile === "auto" ? colors.surfaceElevated : colors.surface }}>
-              <Text style={{ color: selectedModelProfile === "auto" ? colors.primary : colors.textSecondary, fontSize: 12, fontWeight: "700" }}>{isArabic ? "تلقائي" : "Auto"}</Text>
-            </Pressable>
-            {modelProfiles.map((profile) => {
-              const tierRank: Record<string, number> = { free: 0, lite: 1, pro: 2, max: 3 };
-              const locked = (tierRank[subscriptionTier] ?? 0) < (tierRank[profile.minimum_subscription_tier] ?? 3);
-              const selected = selectedModelProfile === profile.profile_key;
-              return <Pressable key={profile.profile_key} disabled={locked} onPress={() => setSelectedModelProfile(profile.profile_key)} style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 18, borderWidth: 1, borderColor: selected ? colors.primary : colors.divider, backgroundColor: selected ? colors.surfaceElevated : colors.surface, opacity: locked ? 0.45 : 1, flexDirection: "row", alignItems: "center", gap: 5 }}>
-                <Ionicons name={profile.icon_key === "diamond" ? "diamond-outline" : profile.icon_key === "rocket" ? "rocket-outline" : "flash-outline"} size={13} color={selected ? colors.primary : colors.textSecondary} />
-                <Text style={{ color: selected ? colors.primary : colors.textSecondary, fontSize: 12, fontWeight: "700" }}>{profile.display_name}</Text>
-                {locked ? <Ionicons name="lock-closed" size={11} color={colors.textMuted} /> : null}
-              </Pressable>;
-            })}
-          </ScrollView>
-          <Text style={{ color: colors.textMuted, textAlign: isArabic ? "right" : "left", fontSize: 11, lineHeight: 17 }}>
-            {selectedModelProfile === "auto"
-              ? (isArabic ? "الوضع التلقائي يختار المستوى الأنسب للمهمة من المستويات المتاحة في اشتراكك." : "Auto selects the best available mode for your task and subscription.")
-              : localizedModelProfiles.find((profile) => profile.profile_key === selectedModelProfile)?.description ?? (isArabic ? "المستوى المحدد سيُستخدم كما اخترته دون تخفيض تلقائي." : "The selected mode will be used as chosen, without automatic downgrade.")}
-          </Text>
-          {actualModelUsed ? <Text style={{ color: colors.textMuted, textAlign: isArabic ? "right" : "left", fontSize: 10 }}>{isArabic ? "النموذج المستخدم فعليًا: " : "Actual model used: "}{actualModelUsed}</Text> : null}
-        </View>
+        {actualModelUsed ? (
+          <View style={styles.actualModelInline} accessibilityRole="text">
+            <Ionicons name="checkmark-circle-outline" size={13} color={colors.textMuted} />
+            <Text style={styles.actualModelInlineText}>
+              {isArabic ? "النموذج المستخدم في آخر رد (بتأكيد الخادم): " + actualModelUsed : "Last response model (server-confirmed): " + actualModelUsed}
+            </Text>
+          </View>
+        ) : null}
 
         {error ? <Pressable onPress={() => setError(null)} style={styles.errorBox}><Text style={styles.errorText}>{error}  ×</Text></Pressable> : null}
         {retryFailure ? <View style={styles.retryWarning} accessibilityRole="alert"><Text style={styles.retryWarningText}>{isArabic ? "حُفظت رسالتك، لكن تعذّر إكمال الرد." : "Your message was saved, but the response could not be completed."}</Text><Pressable onPress={() => void retryResponse()} disabled={isSending} accessibilityRole="button" accessibilityLabel={isArabic ? "إعادة محاولة الرد" : "Retry response"} style={styles.retryButton}><Text style={styles.retryButtonText}>{isSending ? (isArabic ? "جارٍ إعادة المحاولة…" : "Retrying…") : (isArabic ? "إعادة المحاولة" : "Retry")}</Text></Pressable></View> : null}
         {isLoading ? <View style={styles.loading}><ActivityIndicator color={colors.primary} /><Text style={styles.loadingText}>{isArabic ? "جارٍ تحميل المحادثة…" : "Loading conversation…"}</Text></View> : messages.length === 0 ? (
           <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>{isArabic ? "دع Suly يعمل من أجلك" : "Let SULY work for you"}</Text>
-            <View style={styles.chooseTaskTitle} accessibilityRole="text">
-              <Ionicons name="sparkles-outline" size={18} color={colors.primary} />
-              <Text style={styles.chooseTaskText}>{isArabic ? "ابدأ من هنا" : "Start here"}</Text>
-            </View>
+            <Text style={styles.emptyTitle}>{isArabic ? "أهلًا بك في SULY" : "What can I help with?"}</Text>
+            <Text style={styles.emptySubtitle}>{isArabic ? "اكتب ما تحتاجه بطريقتك العادية، والوكيل سيتولى اختيار طريقة المساعدة المناسبة." : "Describe what you need in your own words. The central Agent will decide how best to help."}</Text>
             <View style={styles.taskGrid}>
               {suggestions.map((suggestion) => (
                 <Pressable
@@ -776,12 +744,11 @@ export default function ChatPage() {
                   accessibilityRole="button"
                   accessibilityLabel={isArabic ? `استخدام اقتراح: ${suggestion.text}` : `Use suggestion: ${suggestion.text}`}
                 >
-                  <View style={styles.taskIconCircle}><Ionicons name={suggestion.icon} size={19} color={colors.primary} /></View>
-                  <Text numberOfLines={2} style={styles.taskCardText}>{suggestion.text}</Text>
+                  <Ionicons name={suggestion.icon} size={15} color={colors.primary} />
+                  <Text numberOfLines={1} style={styles.taskCardText}>{suggestion.text}</Text>
                 </Pressable>
               ))}
             </View>
-            <Text style={styles.taskHint}>{isArabic ? "اختر مثالًا لكتابته في الرسالة، أو اكتب طلبك بنفسك" : "Choose an example or write your own request."}</Text>
           </View>
         ) : (
           <View style={styles.messageListContainer}>
@@ -811,10 +778,34 @@ export default function ChatPage() {
         <ChatComposer ref={composerRef} onSend={handleSend} disabled={isSending || Boolean(connectorApproval)} isStreaming={isSending} onCancel={() => abortRef.current?.abort()} creditBalance={creditBalance} onOpenRecharge={() => router.push("/(protected)/balance")} />
       </KeyboardAvoidingView>
       <ShareConversationSheet visible={shareVisible} conversationId={conversationId} title={shareTitle} plainText={shareText} onClose={closeShareSheet} />
+      <BottomSheet visible={navigationMenuVisible} title={isArabic ? "قائمة SULY" : "SULY menu"} onClose={() => setNavigationMenuVisible(false)}>
+        <ScrollView style={styles.navigationMenuScroll} contentContainerStyle={styles.navigationMenu}>
+          {[
+            { labelAr: "محادثة جديدة", labelEn: "New chat", href: "/chat", icon: "add-circle-outline" as const },
+            { labelAr: "المحادثات والبحث", labelEn: "Conversations & search", href: "/conversations", icon: "chatbubbles-outline" as const },
+            { labelAr: "المشروعات", labelEn: "Projects", href: "/projects", icon: "folder-outline" as const },
+            { labelAr: "المهام", labelEn: "Tasks", href: "/tasks", icon: "git-branch-outline" as const },
+            { labelAr: "الاستوديو", labelEn: "Studio", href: "/studio", icon: "sparkles-outline" as const },
+            { labelAr: "المكتبة", labelEn: "Library", href: "/media", icon: "albums-outline" as const },
+            { labelAr: "الرصيد", labelEn: "Credits", href: "/balance", icon: "wallet-outline" as const },
+            { labelAr: "الباقات والاشتراك", labelEn: "Plans & subscription", href: "/upgrade", icon: "card-outline" as const },
+            { labelAr: "التكاملات", labelEn: "Integrations", href: "/integrations", icon: "git-network-outline" as const },
+            { labelAr: "الدعم والمساعدة", labelEn: "Support", href: "/support", icon: "help-circle-outline" as const },
+            { labelAr: "الإعدادات", labelEn: "Settings", href: "/settings", icon: "settings-outline" as const },
+          ].map((item) => (
+            <Pressable key={item.href} onPress={() => { if (item.href === "/chat") { void startNewConversation(); return; } setNavigationMenuVisible(false); if (item.href === "/tasks" && conversationId) { router.push({ pathname: "/tasks", params: { conversationId } }); return; } router.push(item.href as never); }} style={styles.navigationMenuItem} accessibilityRole="button">
+              <Ionicons name={item.icon} size={19} color={colors.textSecondary} />
+              <Text style={styles.navigationMenuLabel}>{isArabic ? item.labelAr : item.labelEn}</Text>
+              <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={16} color={colors.textMuted} />
+            </Pressable>
+          ))}
+        </ScrollView>
+      </BottomSheet>
       <BottomSheet visible={usageVisible} title={isArabic ? "إحصائيات المهمة الحالية" : "Current task usage"} onClose={() => setUsageVisible(false)}>
         {usageLoading ? <ActivityIndicator color={colors.primary} /> : taskUsage ? <View style={styles.usageSheet}>
           <Text style={styles.usageTaskTitle}>{taskUsage.taskTitle}</Text>
-          <View style={styles.usageMetric}><Text style={styles.usageMetricLabel}>{isArabic ? "الرصيد المستخدم في هذه المهمة" : "Credits used for this task"}</Text><Text style={styles.usageMetricValue}>{taskUsage.charged.toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text></View>
+          <View style={styles.usageMetric}><Text style={styles.usageMetricLabel}>{isArabic ? "الرصيد المحجوز للمهمة" : "Credits reserved for this task"}</Text><Text style={styles.usageMetricValue}>{taskUsage.reserved.toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text></View>
+          <View style={styles.usageMetric}><Text style={styles.usageMetricLabel}>{isArabic ? "الرصيد المخصوم فعليًا" : "Credits actually charged"}</Text><Text style={styles.usageMetricValue}>{taskUsage.charged.toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text></View>
           <Text style={styles.usageStatus}>{isArabic ? `الحالة: ${taskUsage.status === "settled" ? "مكتملة" : taskUsage.status === "held" ? "قيد التنفيذ" : taskUsage.status}` : `Status: ${taskUsage.status === "settled" ? "Completed" : taskUsage.status === "held" ? "In progress" : taskUsage.status}`}</Text>
           <Text style={styles.ratingPrompt}>{taskRating ? (isArabic ? "تقييمك لهذه المهمة" : "Your task rating") : (isArabic ? "قيّم هذه المهمة" : "Rate this task")}</Text>
           <View style={styles.starsRow}>{[1, 2, 3, 4, 5].map((star) => <Pressable key={star} onPress={() => setRatingStars(star)} accessibilityRole="button" accessibilityLabel={isArabic ? `تقييم ${star} نجوم` : `Rate ${star} stars`}><Text style={[styles.star, star <= (taskRating?.stars ?? ratingStars) && styles.starSelected]}>★</Text></Pressable>)}</View>
@@ -851,14 +842,20 @@ export default function ChatPage() {
 const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
-  appBar: { height: 58, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: colors.divider },
+  appBar: { minHeight: 62, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: colors.divider },
   headerButton: { width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 21 },
   headerSpacer: { width: 42, height: 42 },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 6 },
+  actualModelInline: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 5 },
+  actualModelInlineText: { color: colors.textMuted, fontSize: 11, lineHeight: 16 },
+  navigationMenuScroll: { maxHeight: 560 },
+  navigationMenu: { gap: 7, paddingBottom: 8 },
+  navigationMenuItem: { minHeight: 48, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 11, paddingHorizontal: 12, borderRadius: 11, backgroundColor: colors.surfaceElevated },
+  navigationMenuLabel: { flex: 1, color: colors.textPrimary, fontSize: 13, fontWeight: "700", textAlign: isArabic ? "right" : "left" },
   brandCenter: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 8 },
-  brandTitle: { color: "#F5F5F5", fontSize: 20, fontWeight: "700", letterSpacing: -0.5 },
-  creditPill: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 5, backgroundColor: "#1F1F1F", borderColor: "#262626", borderWidth: 1, borderRadius: 9999, paddingHorizontal: 10, paddingVertical: 5 },
-  creditPillText: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
+  brandTitle: { color: colors.textPrimary, fontSize: 20, fontWeight: "700", letterSpacing: -0.5 },
+  creditPill: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 5, backgroundColor: colors.surfaceElevated, borderColor: colors.divider, borderWidth: 1, borderRadius: 9999, paddingHorizontal: 10, paddingVertical: 5 },
+  creditPillText: { color: colors.textPrimary, fontSize: 12, fontWeight: "700" },
   headerIcon: { color: colors.textPrimary, fontSize: 25 },
   adminShortcut: { minWidth: 42, height: 36, paddingHorizontal: 7, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceElevated },
   adminShortcutText: { color: colors.primary, fontSize: 11, fontWeight: "700" },
@@ -878,17 +875,18 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   scrollToBottomButton: { position: "absolute", right: 24, bottom: 12, width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.divider, elevation: 5, zIndex: 2 },
   messageContent: { flexGrow: 1, paddingVertical: 12 },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 18, paddingVertical: 14, gap: 14 },
-  emptyTitle: { color: "#FFFFFF", fontSize: 22, fontWeight: "700", textAlign: "center" },
+  emptyTitle: { color: colors.textPrimary, fontSize: 23, fontWeight: "800", textAlign: "center" },
+  emptySubtitle: { color: colors.textSecondary, fontSize: 13, lineHeight: 21, textAlign: "center", maxWidth: 420 },
   chooseTaskTitle: { width: "100%", flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 8 },
-  chooseTaskText: { color: "#F5F5F5", fontSize: 16, fontWeight: "700", textAlign: isArabic ? "right" : "left" },
-  taskGrid: { width: "100%", flexDirection: isArabic ? "row-reverse" : "row", flexWrap: "wrap", justifyContent: "center", gap: 10 },
-  taskCard: { width: "48%", minHeight: 92, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 9, paddingHorizontal: 11, paddingVertical: 12, borderRadius: 16, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
-  taskIconCircle: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(14, 165, 233, 0.12)" },
-  taskCardText: { flex: 1, color: colors.textPrimary, textAlign: isArabic ? "right" : "left", fontSize: 12, lineHeight: 18 },
+  chooseTaskText: { color: colors.textPrimary, fontSize: 16, fontWeight: "700", textAlign: isArabic ? "right" : "left" },
+  taskGrid: { width: "100%", flexDirection: isArabic ? "row-reverse" : "row", flexWrap: "wrap", justifyContent: "center", gap: 8, marginTop: 6 },
+  taskCard: { minHeight: 38, maxWidth: "100%", flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 7, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
+  taskIconCircle: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.primarySoft },
+  taskCardText: { color: colors.textSecondary, textAlign: isArabic ? "right" : "left", fontSize: 11, lineHeight: 16 },
   taskHint: { color: colors.textMuted, textAlign: "center", fontSize: 11, lineHeight: 17 },
   starsRow: { flexDirection: "row", alignItems: "center", gap: 2 },
   star: { color: colors.textMuted, fontSize: 25 },
-  starSelected: { color: "#FBBF24" },
+  starSelected: { color: colors.warning },
   ratingSheet: { gap: 14 },
   ratingPrompt: { color: colors.textSecondary, textAlign: isArabic ? "right" : "left" },
   ratingInput: { minHeight: 90, borderWidth: 1, borderColor: colors.inputBorder, borderRadius: 10, backgroundColor: colors.inputBackground, color: colors.textPrimary, padding: 12, textAlign: isArabic ? "right" : "left" },

@@ -124,7 +124,7 @@ export function HimsScreen() {
                   {item.description ? <Text style={styles.description}>{item.description}</Text> : null}
                   {!item.url ? <Text style={styles.error}>الملف غير متاح حاليًا. حدّث الصفحة أو تواصل مع إدارة النظام.</Text> : (
                     <Pressable accessibilityRole="button" onPress={() => void Linking.openURL(item.url)} style={styles.openButton}>
-                      <Ionicons name="download-outline" size={17} color="#FFFFFF" />
+                      <Ionicons name="download-outline" size={17} color={colors.onPrimary} />
                       <Text style={styles.openButtonText}>فتح / تنزيل</Text>
                     </Pressable>
                   )}

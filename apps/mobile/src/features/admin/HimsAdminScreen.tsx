@@ -4,14 +4,16 @@ import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, TextInput,
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import * as Clipboard from "expo-clipboard";
 import { adminService, type HimsActivationCode, type HimsResource } from "./admin-service";
+import { parseHimsExpiryDate } from "./hims-admin-validation";
+import { confirmAdminAction } from "./admin-confirm";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
 import { formatBytes, pickMedia, uploadMediaFile, type MediaAsset, type PickKind } from "../media/media-service";
 
-function Field({ label, value, onChange, placeholder, keyboardType = "default" }: { label: string; value: string; onChange(value: string): void; placeholder: string; keyboardType?: "default" | "numeric" | "url" }) {
+function Field({ label, value, onChange, placeholder, keyboardType = "default", editable = true }: { label: string; value: string; onChange(value: string): void; placeholder: string; keyboardType?: "default" | "numeric" | "url"; editable?: boolean }) {
   const { colors } = useSulyTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  return <View><Text style={styles.label}>{label}</Text><TextInput style={styles.input} value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor={colors.textMuted} keyboardType={keyboardType} autoCapitalize="none" /></View>;
+  return <View><Text style={styles.label}>{label}</Text><TextInput accessibilityLabel={label} style={styles.input} value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor={colors.textMuted} keyboardType={keyboardType} autoCapitalize="none" editable={editable} /></View>;
 }
 function Button({ label, onPress, disabled = false, tone = "primary" }: { label: string; onPress(): void; disabled?: boolean; tone?: "primary" | "ghost" }) {
   const { colors } = useSulyTheme();
@@ -37,6 +39,7 @@ export function HimsAdminScreen() {
   const [code, setCode] = useState("");
   const [codeLabel, setCodeLabel] = useState("دفعة HIMS");
   const [maxUses, setMaxUses] = useState("1");
+  const [codeExpiresAt, setCodeExpiresAt] = useState("");
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
   const [mediaAssetId, setMediaAssetId] = useState<string | null>(null);
@@ -49,13 +52,16 @@ export function HimsAdminScreen() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [lastCreated, setLastCreated] = useState<{ code: string; command: string } | null>(null);
+  const [resourceBusyId, setResourceBusyId] = useState<string | null>(null);
+  const [codeBusyId, setCodeBusyId] = useState<string | null>(null);
+  const [editingResource, setEditingResource] = useState<HimsResource | null>(null);
 
   const load = async () => {
     setLoading(true); setError(null);
     try {
       const [loadedCodes, loadedResources] = await Promise.all([adminService.getHimsActivationCodes(), adminService.getHimsResources()]);
       setCodes(loadedCodes); setResources(loadedResources);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر تحميل بيانات HIMS."); }
+    } catch (cause) { setCodes([]); setResources([]); setError(cause instanceof Error ? cause.message : "تعذر تحميل بيانات HIMS."); }
     finally { setLoading(false); }
   };
   useEffect(() => { void load(); }, []);
@@ -74,13 +80,16 @@ export function HimsAdminScreen() {
     const normalized = code.trim().toUpperCase();
     const uses = maxUses.trim() ? Number(maxUses) : null;
     if (normalized.length < 12) { setError("اكتب كودًا من 12 حرفًا على الأقل أو اضغط توليد كود."); return; }
-    if (uses !== null && (!Number.isInteger(uses) || uses < 1)) { setError("عدد الاستخدامات يجب أن يكون رقمًا صحيحًا موجبًا."); return; }
+    if (uses !== null && (!Number.isSafeInteger(uses) || uses < 1)) { setError("عدد الاستخدامات يجب أن يكون رقمًا صحيحًا موجبًا."); return; }
+    let expiresAt: string | null;
+    try { expiresAt = parseHimsExpiryDate(codeExpiresAt); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "تاريخ انتهاء الكود غير صحيح."); return; }
     setBusy(true); setError(null); setNotice(null);
     try {
-      const created = await adminService.createHimsActivationCode({ code: normalized, label: codeLabel, maxUses: uses, expiresAt: null });
+      const created = await adminService.createHimsActivationCode({ code: normalized, label: codeLabel, maxUses: uses, expiresAt });
       const savedCode = created?.code ?? normalized;
       setLastCreated({ code: savedCode, command: created?.command ?? commandFor(savedCode) });
-      setCode("");
+      setCode(""); setCodeExpiresAt("");
       setNotice("تم إنشاء الكود. انسخه الآن؛ لن يُحفظ نصه ولن يمكن استرجاعه بعد مغادرة هذه الشاشة.");
       await load();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر إنشاء كود HIMS."); }
@@ -112,13 +121,92 @@ export function HimsAdminScreen() {
     if (!mediaAssetId) { try { if (new URL(url.trim()).protocol !== "https:") throw new Error(); } catch { setError("رابط المورد يجب أن يبدأ بـ https://"); return; } }
     setBusy(true); setError(null); setNotice(null);
     try {
-      await adminService.createHimsResource({ title, url, kind, description, mediaAssetId });
-      setTitle(""); setUrl(""); setMediaAssetId(null); setDescription(""); setPreview(null);
-      setNotice("تمت إضافة مورد HIMS بنجاح.");
+      const saved = await adminService.createHimsResource({ title, url, kind, description, mediaAssetId }, editingResource?.is_active ?? true);
+      if (editingResource && saved.id !== editingResource.id) throw new Error("لم يتم تحديث المورد نفسه؛ لم نغيّر السجل القديم.");
+      setTitle(""); setUrl(""); setMediaAssetId(null); setDescription(""); setPreview(null); setEditingResource(null);
+      setNotice(editingResource ? "تم تحديث بيانات مورد HIMS." : "تمت إضافة مورد HIMS بنجاح.");
       await load();
     }
     catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر إضافة مورد HIMS."); }
     finally { setBusy(false); }
+  };
+
+  const toggleActivationCode = async (item: HimsActivationCode) => {
+    const nextActive = !item.is_active;
+    const expired = item.expires_at !== null && new Date(item.expires_at).getTime() <= Date.now();
+    const exhausted = item.max_uses !== null && item.used_count >= item.max_uses;
+    if (nextActive && (expired || exhausted)) {
+      setError(expired ? "لا يمكن إعادة تفعيل كود انتهت صلاحيته." : "لا يمكن إعادة تفعيل كود استنفد عدد استخداماته.");
+      return;
+    }
+    const accepted = await confirmAdminAction(
+      nextActive ? "إعادة تفعيل كود HIMS؟" : "إيقاف كود HIMS؟",
+      nextActive
+        ? `سيصبح الكود ذو البصمة ${item.code_fingerprint} صالحًا للاستخدام وفق حدوده الحالية.`
+        : `سيُرفض استخدام الكود ذو البصمة ${item.code_fingerprint} من الآن. لن يتم حذف سجل استخداماته.`,
+      nextActive ? "إعادة التفعيل" : "إيقاف الكود",
+    );
+    if (!accepted) return;
+    setCodeBusyId(item.id);
+    setError(null);
+    setNotice(null);
+    try {
+      await adminService.setHimsActivationCodeActive(item.id, nextActive);
+      setNotice(nextActive ? "تمت إعادة تفعيل كود HIMS." : "تم إيقاف كود HIMS مع الاحتفاظ بسجل الاستخدام.");
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر تحديث حالة كود HIMS.");
+    } finally {
+      setCodeBusyId(null);
+    }
+  };
+
+  const beginEditResource = (resource: HimsResource) => {
+    setEditingResource(resource);
+    setTitle(resource.title);
+    setUrl(resource.media_asset_id ? "" : resource.url);
+    setMediaAssetId(resource.media_asset_id ?? null);
+    setKind(resource.kind);
+    setDescription(resource.description ?? "");
+    setPreview(null);
+    setError(null);
+    setNotice("وضع التعديل: يمكنك تحديث العنوان والنوع والوصف مع الحفاظ على مصدر الملف وحالة ظهوره.");
+  };
+
+  const cancelEditResource = () => {
+    setEditingResource(null);
+    setTitle("");
+    setUrl("");
+    setMediaAssetId(null);
+    setKind("lecture");
+    setDescription("");
+    setPreview(null);
+    setError(null);
+    setNotice(null);
+  };
+
+  const toggleResourceActive = async (resource: HimsResource) => {
+    const nextActive = !resource.is_active;
+    const accepted = await confirmAdminAction(
+      nextActive ? "إعادة تفعيل مورد HIMS؟" : "إيقاف مورد HIMS؟",
+      nextActive
+        ? `سيعود المورد «${resource.title}» للظهور للمستخدمين المستحقين.`
+        : `سيتوقف ظهور المورد «${resource.title}» للمستخدمين. لن يتم حذف الملف أو السجل.`,
+      nextActive ? "إعادة التفعيل" : "إيقاف المورد",
+    );
+    if (!accepted) return;
+    setResourceBusyId(resource.id);
+    setError(null);
+    setNotice(null);
+    try {
+      await adminService.setHimsResourceActive(resource, nextActive);
+      setNotice(nextActive ? "تمت إعادة تفعيل المورد." : "تم إيقاف المورد دون حذف بياناته.");
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر تحديث حالة مورد HIMS.");
+    } finally {
+      setResourceBusyId(null);
+    }
   };
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -137,15 +225,16 @@ export function HimsAdminScreen() {
       <Text style={styles.detail}>أرسل هذا الأمر في المحادثة كما هو. يعمل أيضًا لو أرسل المستخدم الكود وحده بدون البادئة.</Text>
     </View> : null}
 
-    <View style={styles.card}><Text style={styles.sectionTitle}>إنشاء كود تفعيل</Text><Field label="الكود" value={code} onChange={setCode} placeholder="HIMS-2026-ABC" /><View style={styles.inline}><Button label="توليد كود" tone="ghost" onPress={() => setCode(generateCode())} /><View style={styles.flex}><Field label="عدد الاستخدامات" value={maxUses} onChange={setMaxUses} placeholder="1" keyboardType="numeric" /></View></View><Field label="وصف الكود" value={codeLabel} onChange={setCodeLabel} placeholder="دفعة HIMS" /><Button label={busy ? "جارٍ الإنشاء…" : "إنشاء الكود"} onPress={() => void createCode()} disabled={busy} /></View>
+    <View style={styles.card}><Text style={styles.sectionTitle}>إنشاء كود تفعيل</Text><Field label="الكود" value={code} onChange={setCode} placeholder="HIMS-2026-ABC" /><View style={styles.inline}><Button label="توليد كود" tone="ghost" onPress={() => setCode(generateCode())} /><View style={styles.flex}><Field label="عدد الاستخدامات" value={maxUses} onChange={setMaxUses} placeholder="1" keyboardType="numeric" /></View></View><Field label="وصف الكود" value={codeLabel} onChange={setCodeLabel} placeholder="دفعة HIMS" /><Field label="تاريخ الانتهاء (اختياري · YYYY-MM-DD)" value={codeExpiresAt} onChange={setCodeExpiresAt} placeholder="2026-12-31" /><Button label={busy ? "جارٍ الإنشاء…" : "إنشاء الكود"} onPress={() => void createCode()} disabled={busy} /></View>
 
     <View style={styles.card}>
-      <Text style={styles.sectionTitle}>إضافة محاضرة أو ملف</Text>
+      <Text style={styles.sectionTitle}>{editingResource ? "تعديل مورد HIMS" : "إضافة محاضرة أو ملف"}</Text>
+      {editingResource ? <Text style={styles.detail}>تعديل بيانات المورد الحالي مع الحفاظ على مصدره وحالة تفعيله. لإضافة مصدر مختلف، ألغِ التعديل وأنشئ موردًا جديدًا.</Text> : null}
       <Text style={styles.detail}>ارفع صورة أو فيديو أو مستندًا مباشرة، أو الصق رابطًا خارجيًا.</Text>
       <View style={styles.inline}>
-        <Button label={uploading === "image" ? "جارٍ رفع الصورة…" : "رفع صورة"} tone="ghost" onPress={() => void uploadForHims("image")} disabled={uploading !== null || busy} />
-        <Button label={uploading === "video" ? "جارٍ رفع الفيديو…" : "رفع فيديو"} tone="ghost" onPress={() => void uploadForHims("video")} disabled={uploading !== null || busy} />
-        <Button label={uploading === "document" ? "جارٍ رفع الملف…" : "رفع ملف"} tone="ghost" onPress={() => void uploadForHims("document")} disabled={uploading !== null || busy} />
+        <Button label={uploading === "image" ? "جارٍ رفع الصورة…" : "رفع صورة"} tone="ghost" onPress={() => void uploadForHims("image")} disabled={editingResource !== null || uploading !== null || busy} />
+        <Button label={uploading === "video" ? "جارٍ رفع الفيديو…" : "رفع فيديو"} tone="ghost" onPress={() => void uploadForHims("video")} disabled={editingResource !== null || uploading !== null || busy} />
+        <Button label={uploading === "document" ? "جارٍ رفع الملف…" : "رفع ملف"} tone="ghost" onPress={() => void uploadForHims("document")} disabled={editingResource !== null || uploading !== null || busy} />
       </View>
       {uploading ? <ActivityIndicator color={colors.primary} /> : null}
       {preview ? <View style={styles.previewRow}>
@@ -159,20 +248,30 @@ export function HimsAdminScreen() {
         </View>
       </View> : null}
       <Field label="العنوان" value={title} onChange={setTitle} placeholder="محاضرة الشبكات - الوحدة الأولى" />
-      <Field label="الرابط HTTPS" value={url} onChange={(value) => { setUrl(value); setMediaAssetId(null); }} placeholder="https://..." keyboardType="url" />
+      <Field label="الرابط HTTPS" value={url} onChange={(value) => { setUrl(value); setMediaAssetId(null); }} placeholder="https://..." keyboardType="url" editable={!editingResource} />
       <Field label="النوع" value={kind} onChange={setKind} placeholder="lecture أو image أو video أو file" />
       <Field label="الوصف" value={description} onChange={setDescription} placeholder="وصف اختياري" />
-      <Button label={busy ? "جارٍ الحفظ…" : "إضافة المورد"} onPress={() => void createResource()} disabled={busy || uploading !== null} />
+      <Button label={busy ? "جارٍ الحفظ…" : editingResource ? "حفظ التعديلات" : "إضافة المورد"} onPress={() => void createResource()} disabled={busy || uploading !== null} />
+      {editingResource ? <Button label="إلغاء التعديل" tone="ghost" onPress={cancelEditResource} disabled={busy || uploading !== null} /> : null}
     </View>
 
     {loading ? <ActivityIndicator color={colors.primary} /> : null}
     <View style={styles.card}>
       <Text style={styles.sectionTitle}>أكواد HIMS الحالية</Text>
-      {!loading && codes.length === 0 ? <Text style={styles.detail}>لا يوجد كود بعد.</Text> : codes.map((item) => <View key={item.id} style={styles.row}>
-        <Text style={styles.cardTitle}>{item.label || "كود HIMS"}</Text>
-        <Text style={styles.detail}>الكود الكامل لا يُخزَّن ولا يمكن استرجاعه بعد الإنشاء. البصمة: {item.code_fingerprint}</Text>
-        <Text style={styles.detail}>الاستخدام: {item.used_count}/{item.max_uses ?? "∞"} · {item.is_active ? "فعال" : "معطل"}{item.last_used_at ? ` · آخر استخدام: ${item.last_used_at.slice(0, 16).replace("T", " ")}` : ""}</Text>
-      </View>)}
+      {!loading && codes.length === 0 ? <Text style={styles.detail}>لا يوجد كود بعد.</Text> : codes.map((item) => {
+        const expired = item.expires_at !== null && new Date(item.expires_at).getTime() <= Date.now();
+        const exhausted = item.max_uses !== null && item.used_count >= item.max_uses;
+        const cannotReactivate = !item.is_active && (expired || exhausted);
+        return <View key={item.id} style={styles.row}>
+          <Text style={styles.cardTitle}>{item.label || "كود HIMS"}</Text>
+          <Text style={styles.detail}>الكود الكامل لا يُخزَّن ولا يمكن استرجاعه بعد الإنشاء. البصمة: {item.code_fingerprint}</Text>
+          <Text style={styles.detail}>الاستخدام: {item.used_count}/{item.max_uses ?? "∞"} · {item.is_active ? "فعال" : "معطل"}{item.last_used_at ? ` · آخر استخدام: ${item.last_used_at.slice(0, 16).replace("T", " ")}` : ""}</Text>
+          {item.expires_at ? <Text style={styles.detail}>ينتهي: {new Date(item.expires_at).toLocaleString("ar-EG")}</Text> : null}
+          <Pressable accessibilityRole="button" disabled={codeBusyId === item.id || busy || cannotReactivate} onPress={() => void toggleActivationCode(item)} style={[styles.resourceAction, item.is_active && styles.resourceActionActive, (codeBusyId === item.id || cannotReactivate) && styles.disabled]}>
+            <Text style={styles.resourceActionText}>{codeBusyId === item.id ? "جارٍ التحديث…" : item.is_active ? "إيقاف الكود" : cannotReactivate ? expired ? "منتهي الصلاحية" : "مستنفد الاستخدام" : "إعادة تفعيل الكود"}</Text>
+          </Pressable>
+        </View>;
+      })}
     </View>
 
     <View style={styles.card}>
@@ -182,13 +281,22 @@ export function HimsAdminScreen() {
           {item.kind === "image" || item.kind === "video" ? <Image source={{ uri: posterFor(item.url, item.kind) }} style={styles.preview} resizeMode="cover" /> : null}
           <View style={styles.flex}>
             <Text style={styles.cardTitle}>{item.title}</Text>
-            <Text style={styles.detail}>{item.kind} · {item.url}</Text>
+            <Text style={styles.detail}>{item.kind} · {item.media_asset_id ? "ملف خاص عبر بوابة الوسائط — الرابط المؤقت غير معروض" : item.url}</Text>
             {item.description ? <Text style={styles.detail}>{item.description}</Text> : null}
+            <Text style={styles.detail}>{item.is_active ? "ظاهر للمستخدمين المستحقين" : "متوقف — غير ظاهر للمستخدمين"}</Text>
           </View>
+        </View>
+        <View style={styles.inline}>
+          <Pressable accessibilityRole="button" disabled={resourceBusyId === item.id || busy || editingResource !== null} onPress={() => beginEditResource(item)} style={styles.resourceEditAction}>
+            <Text style={styles.resourceActionText}>تعديل البيانات</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" disabled={resourceBusyId === item.id || busy || editingResource !== null} onPress={() => void toggleResourceActive(item)} style={[styles.resourceAction, !item.is_active && styles.resourceActionActive, resourceBusyId === item.id && styles.disabled]}>
+            <Text style={styles.resourceActionText}>{resourceBusyId === item.id ? "جارٍ التحديث…" : item.is_active ? "إيقاف المورد" : "إعادة تفعيل المورد"}</Text>
+          </Pressable>
         </View>
       </View>)}
     </View>
   </ScrollView>;
 }
 
-const createStyles = (colors: ThemePalette) => StyleSheet.create({ screen: { flex: 1, backgroundColor: colors.background }, content: { width: "100%", maxWidth: 1000, alignSelf: "center", padding: 16, gap: 12 }, header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" }, title: { color: colors.textPrimary, fontSize: 26, fontWeight: "800", textAlign: "right" }, explainer: { color: colors.textSecondary, lineHeight: 21, textAlign: "right" }, card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 14, padding: 16, gap: 9 }, highlightCard: { borderColor: colors.accent }, sectionTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: "700", textAlign: "right" }, label: { color: colors.textSecondary, textAlign: "right", marginTop: 3 }, input: { minHeight: 44, borderRadius: 9, borderWidth: 1, borderColor: colors.inputBorder, backgroundColor: colors.inputBackground, paddingHorizontal: 12, color: colors.textPrimary, marginTop: 4 }, button: { minHeight: 42, borderRadius: 9, backgroundColor: colors.primary, paddingHorizontal: 14, justifyContent: "center", alignItems: "center", marginTop: 6 }, ghostButton: { minHeight: 42, borderRadius: 9, borderWidth: 1, borderColor: colors.accent, paddingHorizontal: 14, justifyContent: "center", alignItems: "center", marginTop: 6 }, ghostButtonText: { color: colors.accent, fontWeight: "700" }, disabled: { opacity: 0.45 }, buttonText: { color: colors.onPrimary, fontWeight: "700" }, link: { color: colors.accent, fontWeight: "700" }, error: { color: colors.error, textAlign: "right" }, success: { color: colors.success, textAlign: "right" }, inline: { flexDirection: "row", gap: 10, alignItems: "center", flexWrap: "wrap" }, flex: { flex: 1 }, row: { borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 10, marginTop: 3, gap: 6 }, cardTitle: { color: colors.textPrimary, fontWeight: "700", textAlign: "right" }, commandText: { color: colors.accent, fontSize: 15, fontWeight: "700", textAlign: "left", backgroundColor: colors.surfaceElevated, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, overflow: "hidden" }, detail: { color: colors.textSecondary, fontSize: 13, lineHeight: 20, textAlign: "right" }, previewRow: { flexDirection: "row-reverse", gap: 10, alignItems: "center" }, preview: { width: 84, height: 64, borderRadius: 8, backgroundColor: colors.surfaceElevated }, fileThumb: { alignItems: "center", justifyContent: "center" }, fileIcon: { color: colors.textMuted, fontWeight: "800", fontSize: 12 } });
+const createStyles = (colors: ThemePalette) => StyleSheet.create({ screen: { flex: 1, backgroundColor: colors.background }, content: { width: "100%", maxWidth: 1000, alignSelf: "center", padding: 16, gap: 12 }, header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" }, title: { color: colors.textPrimary, fontSize: 26, fontWeight: "800", textAlign: "right" }, explainer: { color: colors.textSecondary, lineHeight: 21, textAlign: "right" }, card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 14, padding: 16, gap: 9 }, highlightCard: { borderColor: colors.accent }, sectionTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: "700", textAlign: "right" }, label: { color: colors.textSecondary, textAlign: "right", marginTop: 3 }, input: { minHeight: 44, borderRadius: 9, borderWidth: 1, borderColor: colors.inputBorder, backgroundColor: colors.inputBackground, paddingHorizontal: 12, color: colors.textPrimary, marginTop: 4 }, button: { minHeight: 42, borderRadius: 9, backgroundColor: colors.primary, paddingHorizontal: 14, justifyContent: "center", alignItems: "center", marginTop: 6 }, ghostButton: { minHeight: 42, borderRadius: 9, borderWidth: 1, borderColor: colors.accent, paddingHorizontal: 14, justifyContent: "center", alignItems: "center", marginTop: 6 }, ghostButtonText: { color: colors.accent, fontWeight: "700" }, disabled: { opacity: 0.45 }, buttonText: { color: colors.onPrimary, fontWeight: "700" }, link: { color: colors.accent, fontWeight: "700" }, error: { color: colors.error, textAlign: "right" }, success: { color: colors.success, textAlign: "right" }, inline: { flexDirection: "row", gap: 10, alignItems: "center", flexWrap: "wrap" }, flex: { flex: 1 }, row: { borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 10, marginTop: 3, gap: 6 }, resourceEditAction: { minHeight: 36, borderWidth: 1, borderColor: colors.divider, borderRadius: 8, paddingHorizontal: 12, alignSelf: "flex-start", justifyContent: "center" }, resourceAction: { minHeight: 36, borderWidth: 1, borderColor: colors.warning, borderRadius: 8, paddingHorizontal: 12, alignSelf: "flex-start", justifyContent: "center" }, resourceActionActive: { borderColor: colors.success }, resourceActionText: { color: colors.textPrimary, fontWeight: "700", fontSize: 12 }, cardTitle: { color: colors.textPrimary, fontWeight: "700", textAlign: "right" }, commandText: { color: colors.accent, fontSize: 15, fontWeight: "700", textAlign: "left", backgroundColor: colors.surfaceElevated, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, overflow: "hidden" }, detail: { color: colors.textSecondary, fontSize: 13, lineHeight: 20, textAlign: "right" }, previewRow: { flexDirection: "row-reverse", gap: 10, alignItems: "center" }, preview: { width: 84, height: 64, borderRadius: 8, backgroundColor: colors.surfaceElevated }, fileThumb: { alignItems: "center", justifyContent: "center" }, fileIcon: { color: colors.textMuted, fontWeight: "800", fontSize: 12 } });

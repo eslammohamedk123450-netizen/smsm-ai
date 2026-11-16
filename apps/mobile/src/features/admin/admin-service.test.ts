@@ -30,6 +30,14 @@ describe("adminService tests", () => {
     await expect(adminService.getProviders()).rejects.toThrow("يتطلب هذا الإجراء صلاحية مشرف موثقة.");
   });
 
+  test("getConversationsPage requires a verified admin before reading conversation metadata", async () => {
+    (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "user-123" } }, error: null });
+    (supabase.rpc as jest.Mock).mockResolvedValue({ data: false, error: null });
+
+    await expect(adminService.getConversationsPage()).rejects.toThrow("يتطلب هذا الإجراء صلاحية مشرف موثقة.");
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
   test("adjustCredits validates amount and reason", async () => {
     (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "admin-1" } }, error: null });
     (supabase.rpc as jest.Mock).mockImplementation((rpcName: string) => {
@@ -72,6 +80,106 @@ describe("adminService tests", () => {
     const results = await adminService.testModelsBatch([10]);
     expect(results).toEqual([{ modelId: 10, status: "success", durationMs: 120, errorCode: null }]);
     expect(fromSpy).not.toHaveBeenCalledWith("ai_models");
+  });
+
+  test("setHimsActivationCodeActive requires admin and calls the audited status RPC", async () => {
+    (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "admin-1" } }, error: null });
+    (supabase.rpc as jest.Mock).mockImplementation((rpcName: string) => {
+      if (rpcName === "suly_is_admin") return Promise.resolve({ data: true, error: null });
+      return Promise.resolve({ data: { success: true, id: "code-1", is_active: false }, error: null });
+    });
+
+    await expect(adminService.setHimsActivationCodeActive("code-1", false)).resolves.toMatchObject({
+      success: true,
+      id: "code-1",
+      is_active: false,
+    });
+    expect(supabase.rpc).toHaveBeenNthCalledWith(2, "suly_admin_set_activation_code_active", {
+      p_code_id: "code-1",
+      p_is_active: false,
+    });
+  });
+
+  test("setHimsActivationCodeActive rejects non-admin sessions", async () => {
+    (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "user-1" } }, error: null });
+    (supabase.rpc as jest.Mock).mockResolvedValue({ data: false, error: null });
+
+    await expect(adminService.setHimsActivationCodeActive("code-1", false)).rejects.toThrow("يتطلب هذا الإجراء صلاحية مشرف موثقة.");
+    expect(supabase.rpc).toHaveBeenCalledTimes(1);
+  });
+
+  test("setHimsResourceActive requires admin and preserves the existing resource identity", async () => {
+    (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "admin-1" } }, error: null });
+    (supabase.rpc as jest.Mock).mockImplementation((rpcName: string) => {
+      if (rpcName === "suly_is_admin") return Promise.resolve({ data: true, error: null });
+      return Promise.resolve({ data: { success: true, id: "resource-1", feature_key: "hims", media_asset_id: "asset-1" }, error: null });
+    });
+
+    await expect(adminService.setHimsResourceActive({
+      id: "resource-1",
+      feature_key: "hims",
+      title: "محاضرة",
+      url: "https://signed.example/file",
+      media_asset_id: "asset-1",
+      kind: "video",
+      description: "وصف",
+      is_active: true,
+      created_at: "2026-11-16T00:00:00.000Z",
+    }, false)).resolves.toMatchObject({ success: true, id: "resource-1" });
+
+    expect(supabase.rpc).toHaveBeenNthCalledWith(2, "suly_admin_upsert_feature_resource_v2", {
+      p_feature_key: "hims",
+      p_title: "محاضرة",
+      p_url: null,
+      p_kind: "video",
+      p_description: "وصف",
+      p_is_active: false,
+      p_media_asset_id: "asset-1",
+    });
+  });
+
+  test("createHimsResource can preserve an existing inactive resource during metadata edits", async () => {
+    (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "admin-1" } }, error: null });
+    (supabase.rpc as jest.Mock).mockImplementation((rpcName: string) => {
+      if (rpcName === "suly_is_admin") return Promise.resolve({ data: true, error: null });
+      return Promise.resolve({ data: { success: true, id: "resource-2", feature_key: "hims", media_asset_id: null }, error: null });
+    });
+
+    await expect(adminService.createHimsResource({
+      title: "عنوان جديد",
+      url: "https://example.com/lecture",
+      kind: "lecture",
+      description: "وصف جديد",
+    }, false)).resolves.toMatchObject({ success: true, id: "resource-2" });
+
+    expect(supabase.rpc).toHaveBeenNthCalledWith(2, "suly_admin_upsert_feature_resource_v2", {
+      p_feature_key: "hims",
+      p_title: "عنوان جديد",
+      p_url: "https://example.com/lecture",
+      p_kind: "lecture",
+      p_description: "وصف جديد",
+      p_is_active: false,
+      p_media_asset_id: null,
+    });
+  });
+
+  test("setHimsResourceActive rejects non-admin sessions before the resource write", async () => {
+    (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "user-1" } }, error: null });
+    (supabase.rpc as jest.Mock).mockResolvedValue({ data: false, error: null });
+
+    await expect(adminService.setHimsResourceActive({
+      id: "resource-1",
+      feature_key: "hims",
+      title: "محاضرة",
+      url: "https://example.com/file",
+      media_asset_id: null,
+      kind: "file",
+      description: null,
+      is_active: true,
+      created_at: "2026-11-16T00:00:00.000Z",
+    }, false)).rejects.toThrow("يتطلب هذا الإجراء صلاحية مشرف موثقة.");
+
+    expect(supabase.rpc).toHaveBeenCalledTimes(1);
   });
 
   test("updateAgentModels requires admin and saves the two independent model selections", async () => {

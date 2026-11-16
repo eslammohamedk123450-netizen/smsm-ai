@@ -45,7 +45,7 @@ export default function LoginPage() {
     return () => clearInterval(timer);
   }, [cooldownSeconds]);
 
-  if (status === "authenticated" && user) return <Redirect href="/home" />;
+  if (status === "authenticated" && user) return <Redirect href="/chat" />;
 
   const resetMessage = () => {
     setError(null);
@@ -92,18 +92,18 @@ export default function LoginPage() {
         if (!canSendEmail()) return;
         const hasSession = await register(cleanEmail, password, fullName);
         if (!hasSession) recordEmailAttempt();
-        if (hasSession) router.replace("/home");
+        if (hasSession) router.replace("/chat");
         else setConfirmation("أرسلنا رسالة تأكيد إلى بريدك الإلكتروني. افتح الرسالة واضغط «تأكيد البريد» من هذا الهاتف؛ سيفتح SULY ويكمل تسجيل دخولك تلقائيًا، ولن تحتاج إلى كتابة بياناتك مرة أخرى. إذا لم تجد الرسالة، افحص مجلد Spam.");
       } else if (method === "password") {
         const session = await signInWithPassword(cleanEmail, password);
         if (!session.user) throw new Error("Password authentication did not return a user session.");
-        router.replace("/home");
+        router.replace("/chat");
       } else if (method === "otp" && codeSent) {
         const session = await verifyEmailOtp(cleanEmail, code);
         if (!session.user) throw new Error("Email verification did not return a user session.");
         setEmailAttempts(0);
         setCooldownSeconds(0);
-        router.replace("/home");
+        router.replace("/chat");
       } else if (method === "otp") {
         if (!canSendEmail()) return;
         await sendEmailOtp(cleanEmail);
@@ -131,7 +131,7 @@ export default function LoginPage() {
     try {
       const session = await signInWithGoogle();
       if (!session.user) throw new Error("Google authentication did not return a user session.");
-      router.replace("/home");
+      router.replace("/chat");
     } catch (cause) {
       setError(mapAuthError(cause));
       setBusy(false);
@@ -188,7 +188,6 @@ export default function LoginPage() {
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <View style={styles.card}>
             <Text style={styles.brand}>Suly</Text>
-            <Text style={styles.subtitle}>مساعد ذكاء اصطناعي للدردشة النصية</Text>
             <Text style={styles.heading}>{isRegister ? "إنشاء حساب" : isVerifyingCode ? "أدخل رمز التحقق" : "تسجيل الدخول"}</Text>
             {isRegister && <TextInput value={fullName} onChangeText={setFullName} placeholder="الاسم الكامل" placeholderTextColor={colors.textMuted} style={styles.input} autoComplete="name" returnKeyType="next" />}
             <TextInput value={email} onChangeText={changeEmail} placeholder="البريد الإلكتروني" placeholderTextColor={colors.textMuted} style={styles.input} keyboardType="email-address" autoCapitalize="none" autoComplete="email" textContentType="emailAddress" returnKeyType="next" />
@@ -249,7 +248,6 @@ function createStyles(colors: ThemePalette) { return StyleSheet.create({
   scroll: { flexGrow: 1, width: "100%", justifyContent: "center", alignItems: "stretch", padding: 20 },
   card: { width: "100%", maxWidth: 480, alignSelf: "center", padding: 28, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider },
   brand: { color: colors.primary, fontSize: 34, fontWeight: "800", textAlign: "center" },
-  subtitle: { color: colors.textSecondary, textAlign: "center", marginTop: 6, marginBottom: 30 },
   heading: { color: colors.textPrimary, fontSize: 22, fontWeight: "700", textAlign: "right", marginBottom: 16 },
   input: { width: "100%", height: 52, borderRadius: 12, borderWidth: 1, borderColor: colors.inputBorder, backgroundColor: colors.inputBackground, color: colors.textPrimary, paddingHorizontal: 14, marginBottom: 12, textAlign: "auto" },
   codeInput: { textAlign: "center", fontSize: 24, letterSpacing: 8, fontWeight: "700" },
