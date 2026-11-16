@@ -124,6 +124,9 @@ function CustomDrawerContent({ isAdmin, ...props }: DrawerContentComponentProps 
             <Ionicons name="chatbubbles-outline" size={18} color="#0EA5E9" />
             <Text style={styles.navItemText}>المحادثة</Text>
           </TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.7} style={styles.navItem} onPress={() => { router.push("/(protected)/hims"); props.navigation.closeDrawer(); }}>
+            <View style={styles.navItemRight}><Ionicons name="school-outline" size={18} color={colors.primary} /><Text style={styles.navItemText}>محتوى الجامعة HIMS</Text></View>
+          </TouchableOpacity>
           <TouchableOpacity activeOpacity={0.7} style={styles.navItem} onPress={() => { router.push("/(protected)/image-studio"); props.navigation.closeDrawer(); }}>
             <View style={styles.navItemRight}><Ionicons name="images-outline" size={18} color="#D4AF37" /><Text style={styles.navItemText}>استوديو الصور</Text></View>
           </TouchableOpacity>
