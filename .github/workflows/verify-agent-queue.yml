@@ -26,6 +26,7 @@ on:
       - "supabase/functions/ai-router/agent/model_eligibility.ts"
       - "supabase/functions/ai-router/execution_mode.ts"
       - "supabase/migrations/**"
+      - "supabase/tests/**"
       - "supabase/config.toml"
       - ".github/workflows/verify-agent-queue.yml"
   push:
