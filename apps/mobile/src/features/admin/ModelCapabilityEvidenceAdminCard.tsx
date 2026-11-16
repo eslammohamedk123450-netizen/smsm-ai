@@ -94,9 +94,9 @@ export function ModelCapabilityEvidenceAdminCard({ models }: { models: ModelOpti
   return <View style={styles.card}>
     <View style={styles.header}><View style={styles.copy}><Text style={styles.title}>توثيق قدرات النماذج</Text><Text style={styles.sub}>3 مستويات منفصلة: توثيق المزود، اختبار المزود، واختبار تكامل SULY. الحالة المجهولة لا تعني أن القدرة مدعومة.</Text></View><Pressable onPress={() => void load()}><Text style={styles.action}>تحديث</Text></Pressable></View>
     <TextInput value={search} onChangeText={setSearch} placeholder="ابحث عن نموذج بالاسم أو المعرّف" placeholderTextColor={colors.textMuted} style={styles.input} />
-    <View style={styles.wrap}>{filteredModels.slice(0, 30).map((m) => <Pressable key={m.id} onPress={() => setModelId(m.id)} style={[styles.chip, modelId === m.id && styles.selected]}><Text style={styles.chipText}>{m.name}</Text></Pressable>)}</View>
+    <View style={styles.wrap}>{filteredModels.slice(0, 30).map((m) => <Pressable key={m.id} onPress={() => setModelId(m.id)} style={[styles.chip, modelId === m.id && styles.selected]}><Text style={styles.chipText}>{m.name} · {m.provider_name ?? "مزود"} · #{m.id}</Text></Pressable>)}</View>
     <Text style={styles.hint}>{filteredModels.length > 30 ? "اعرض أول 30 نتيجة؛ استخدم البحث لتضييق القائمة." : `${filteredModels.length} نموذج مطابق`}</Text>
-    {current ? <Text style={styles.selectedName}>{current.name} · {current.model_identifier}</Text> : null}
+    {current ? <Text style={styles.selectedName}>{current.name} · {current.provider_name ?? "مزود"} · #{current.id} · {current.model_identifier}</Text> : null}
     <View style={styles.wrap}>{CAPABILITIES.map(([key, label]) => <Pressable key={key} onPress={() => setCapability(key)} style={[styles.chip, capability === key && styles.selected]}><Text style={styles.chipText}>{label}</Text></Pressable>)}</View>
     {loading ? <ActivityIndicator color={colors.primary} /> : null}
     <Text style={styles.label}>١. ما تقوله وثائق المزود</Text>
