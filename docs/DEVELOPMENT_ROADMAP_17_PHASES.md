@@ -1040,3 +1040,13 @@ Updated `apps/mobile/src/features/home/HomeScreen.tsx`:
 - **Post-merge verification:** the Deno/Expo workflow triggered by the release push was still running at the time of this note; the PR CI run for the exact code changes had already passed. Check the release-push run before considering the post-merge workflow fully closed.
 
 **Phase 5 stopping point:** Home implementation is merged and the Web static site deployment succeeded. Stop here for the owner report. Do not start Phase 6 until the owner has received this report. Remaining Phase 5 checks are visual/browser, actual route clicks, authenticated navigation, and Android/iOS device installation.
+
+
+### Phase 6 continuation — actual routed model display and regression — 2026-11-16
+
+- PR #121 merged into `release/v1` as commit `6ddbe66254985d39d604b75ca1fd910fc5fb1154`.
+- Verified the existing direct-chat router SSE payload includes the winning model's `model`, `model_id`, provider, and route metadata on streamed chunks. The mobile SSE parser now extracts the actual model identifier while preserving the first response chunk and existing event shapes.
+- The chat screen displays the server-confirmed identifier and clears it when a new request starts. This is not inferred from the selected Auto/Lite/Pro/Max profile.
+- GitHub Actions run `43854700204` passed both jobs: Expo TypeScript, mobile authentication regression, Expo Web static export, Android/iOS JavaScript exports, and Deno Agent/scheduler regression/typecheck.
+- Added a regression in `apps/mobile/src/features/chat/chat-service.test.ts` for routed model metadata through retry. The first CI run caught a real omission: `retryAssistant` passed the callback into `regenerateAssistant`, but `regenerateAssistant` did not forward it into the stream manager. Fixed that forwarding and added a guard so the generic `agent` orchestration label is not presented as a concrete model. Follow-up PR #122 is awaiting final CI.
+- **Remaining Phase 6 verification:** test the same metadata behavior on normal send (not only retry), review Agent/tool-stream model attribution where multiple internal roles may run, authenticated HTTP end-to-end chat/task/cancel/retry/partial-billing tests, and visual browser/device checks. Do not claim those tests are complete.
