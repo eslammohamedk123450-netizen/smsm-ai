@@ -43,6 +43,7 @@ export function MediaModelPricingAdminCard() {
       return result;
     } catch {
       setError("تعذر تحميل أسعار خدمات الوسائط.");
+      return null;
     } finally {
       setLoading(false);
     }
