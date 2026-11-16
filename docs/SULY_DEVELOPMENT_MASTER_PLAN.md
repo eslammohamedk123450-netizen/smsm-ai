@@ -296,3 +296,10 @@
 - لا نشر Edge Function، ولا نشر إنتاج، ولا تعديل أسعار/رصيد/نماذج/مزودين.
 - لا هجرة جديدة مطبقة ولا بيانات مستخدمين حقيقية.
 - مرجع الاختبارات المؤجلة: `SULY_COMPREHENSIVE_TEST_MASTER_PLAN.md`، مجموعة 9 HIMS، ومجموعة 16 الأمن.
+
+
+#### نتائج التحقق الآلي بعد الإصلاح
+- أضيف workflow `HIMS activation and resource isolation regressions` إلى `.github/workflows/verify-ai-router-bundle.yml` ليعمل عند تغييرات `develop` في `supabase/functions/_shared/**`، مع تثبيت Node dependencies وتشغيل Deno بـ`--node-modules-dir=auto`.
+- التشغيل النهائي الحالي: **PASS** في GitHub Actions run `43960751890` على commit `36ee3423e275da3c5594c8d65439e72370463e97`. نجحت وظيفة HIMS activation/resource isolation regressions، ونجحت أيضًا اختبارات media billing وtype-check image generator؛ كانت وظيفة بناء bundle ما تزال جارية وقت تحديث هذا السجل.
+- محاولتا CI السابقتان لم تكونا PASS: run `43960322088` كشف syntax error في fixture الاختبار، وrun `43960664237` كشف غياب تهيئة Deno npm type dependencies. أُصلح السبب في develop وأعيد التشغيل؛ لا تُحسب هاتان المحاولتان نجاحًا.
+- لا يزال اختبار تزامن أكواد مختلفة للمستخدم نفسه غير منفذ؛ لا يغيّر نجاح اختبارات Deno حدود هذا الاختبار أو يغلق Phase 2.
