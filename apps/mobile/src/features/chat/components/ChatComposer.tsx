@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import type { ElementRef } from "react";
 import {
   ActivityIndicator,
@@ -17,6 +17,7 @@ import { PremiumText as Text } from "../../../components/ui/PremiumText";
 import { Ionicons } from "@expo/vector-icons";
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition";
 import { useToast } from "../../../components/ui/Toast";
+import { useAppLocale } from "../../../theme/LocaleProvider";
 import { AttachSheet } from "./AttachSheet";
 import type { PickedMedia } from "../../media/media-service";
 
@@ -53,6 +54,8 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
   },
   ref
 ) {
+  const { isArabic } = useAppLocale();
+  const styles = useMemo(() => createStyles(isArabic), [isArabic]);
   const [text, setText] = useState("");
   const [inputHeight, setInputHeight] = useState(MIN_INPUT_HEIGHT);
   const [selection, setSelection] = useState<{ start: number; end: number } | undefined>();
@@ -115,7 +118,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
       setVoiceActive(false);
       setVoiceListening(false);
       clearRestart();
-      show("التعرّف الصوتي غير متاح على هذا الجهاز.", "error");
+      show(isArabic ? "التعرّف الصوتي غير متاح على هذا الجهاز." : "Speech recognition is unavailable on this device.", "error");
     }
   };
 
@@ -148,7 +151,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
       voiceIntent.current = false;
       clearRestart();
       setVoiceActive(false);
-      show(event.message || "تعذّر الوصول إلى الميكروفون. تحقق من الأذونات وحاول مجددًا.", "error");
+      show(event.message || (isArabic ? "تعذّر الوصول إلى الميكروفون. تحقق من الأذونات وحاول مجددًا." : "Could not access the microphone. Check permissions and try again."), "error");
       return;
     }
     if (voiceIntent.current) scheduleRestartRef.current();
@@ -260,12 +263,12 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
     try {
       const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
       if (!permission.granted) {
-        show("لم يُمنح إذن الميكروفون.", "info");
+        show(isArabic ? "لم يُمنح إذن الميكروفون." : "Microphone permission was not granted.", "info");
         return;
       }
       beginVoice();
     } catch {
-      show("تعذّر طلب إذن الميكروفون على هذا الجهاز.", "error");
+      show(isArabic ? "تعذّر طلب إذن الميكروفون على هذا الجهاز." : "Could not request microphone permission on this device.", "error");
     }
   };
 
@@ -279,31 +282,31 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
           <View style={styles.bannerTextRow}>
             <Ionicons name="alert-circle" size={16} color="#F87171" />
             <Text style={styles.bannerText}>
-              رصيدك أوشك على النفاد (المتبقي: {creditBalance?.toLocaleString("en-US")} نقطة)
+              {isArabic ? `رصيدك أوشك على النفاد (المتبقي: ${creditBalance?.toLocaleString("en-US")} نقطة)` : `Your credits are running low (${creditBalance?.toLocaleString("en-US")} remaining).`}
             </Text>
           </View>
           <TouchableOpacity onPress={onOpenRecharge} style={styles.bannerRechargeBtn} activeOpacity={0.8}>
-            <Text style={styles.bannerRechargeText}>اشحن الآن</Text>
+            <Text style={styles.bannerRechargeText}>{isArabic ? "اشحن الآن" : "Recharge"}</Text>
           </TouchableOpacity>
         </View>
       )}
 
       {attachment ? attachment.kind === "image" && attachmentPreviewUri ? (
         <View style={styles.imageAttachmentPreview}>
-          <Pressable onPress={() => setPreviewVisible(true)} accessibilityRole="button" accessibilityLabel="عرض معاينة الصورة">
+          <Pressable onPress={() => setPreviewVisible(true)} accessibilityRole="button" accessibilityLabel={isArabic ? "عرض معاينة الصورة" : "Preview image"}>
             <Image source={{ uri: attachmentPreviewUri }} style={styles.attachmentThumbnail} resizeMode="cover" />
           </Pressable>
           <View style={styles.attachmentInfo}>
             <Text numberOfLines={1} style={styles.attachmentText}>{attachment.part.name}</Text>
-            <Text style={styles.attachmentHint}>اضغط على الصورة للتكبير</Text>
+            <Text style={styles.attachmentHint}>{isArabic ? "اضغط على الصورة للتكبير" : "Tap the image to enlarge"}</Text>
           </View>
-          <Pressable onPress={() => setAttachment(null)} accessibilityRole="button" accessibilityLabel="إزالة المرفق" style={styles.removeAttachmentButton}>
+          <Pressable onPress={() => setAttachment(null)} accessibilityRole="button" accessibilityLabel={isArabic ? "إزالة المرفق" : "Remove attachment"} style={styles.removeAttachmentButton}>
             <Ionicons name="close" size={18} color="#A1A1AA" />
           </Pressable>
         </View>
       ) : (
         <View style={styles.attachmentChip}>
-          <Text numberOfLines={1} style={styles.attachmentText}>مرفق: {attachment.part.name}</Text>
+          <Text numberOfLines={1} style={styles.attachmentText}>{isArabic ? `مرفق: ${attachment.part.name}` : `Attachment: ${attachment.part.name}`}</Text>
           <Pressable onPress={() => setAttachment(null)} accessibilityRole="button" accessibilityLabel="إزالة المرفق">
             <Text style={styles.removeAttachment}>×</Text>
           </Pressable>
@@ -313,7 +316,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
       {voiceActive ? (
         <View style={styles.voiceToolbar}>
           <View style={styles.voiceStatus} accessibilityLiveRegion="polite">
-            <View style={styles.voiceWaveform} accessibilityLabel="موجات الصوت">
+            <View style={styles.voiceWaveform} accessibilityLabel={isArabic ? "موجات الصوت" : "Audio waveform"}>
               {waveBars.current.map((bar, index) => (
                 <Animated.View
                   key={index}
@@ -322,7 +325,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
               ))}
             </View>
             <Text style={styles.voiceTimer}>{formatDictationDuration(elapsedSeconds)}</Text>
-            {!voiceListening ? <Text style={styles.reconnecting}>جارٍ إعادة الاتصال…</Text> : null}
+            {!voiceListening ? <Text style={styles.reconnecting}>{isArabic ? "جارٍ إعادة الاتصال…" : "Reconnecting…"}</Text> : null}
           </View>
           <Pressable onPress={stopVoice} style={styles.cancelVoiceButton}>
             <Text style={styles.cancelVoiceText}>×</Text>
@@ -338,7 +341,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
           disabled={disabled || isStreaming}
           activeOpacity={0.7}
           style={styles.plusButton}
-          accessibilityLabel="إضافة ملف"
+          accessibilityLabel={isArabic ? "إضافة ملف" : "Add attachment"}
         >
           <Ionicons name="add" size={22} color="#A1A1AA" />
         </TouchableOpacity>
@@ -355,14 +358,14 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
           selection={selection}
           onSelectionChange={(event) => setSelection(event.nativeEvent.selection)}
           editable={!disabled && !isStreaming}
-          placeholder="اسأل Suly"
+          placeholder={isArabic ? "اسأل Suly" : "Ask SULY"}
           placeholderTextColor="#A1A1AA"
           style={[styles.input, { height: inputHeight }]}
           multiline
           scrollEnabled={inputHeight >= MAX_INPUT_HEIGHT}
           maxLength={16000}
           textAlign="right"
-          accessibilityLabel="اسأل Suly"
+          accessibilityLabel={isArabic ? "اسأل Suly" : "Ask SULY"}
         />
 
         {/* Left side (RTL end): Mic icon + Blue circular button with sound waves */}
@@ -372,14 +375,14 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
             disabled={disabled || isStreaming || !voiceSupported}
             activeOpacity={0.7}
             style={styles.micButton}
-            accessibilityLabel="تسجيل صوتي"
+            accessibilityLabel={isArabic ? "تسجيل صوتي" : "Record audio"}
           >
             <Ionicons name={voiceActive ? "mic" : "mic-outline"} size={20} color={voiceActive ? "#F87171" : "#A1A1AA"} />
             {voiceActive ? <Animated.View style={styles.recordingPulse} /> : null}
           </TouchableOpacity>
 
           {isStreaming ? (
-            <Pressable style={styles.blueButton} onPress={onCancel} accessibilityLabel="إيقاف الرد">
+            <Pressable style={styles.blueButton} onPress={onCancel} accessibilityLabel={isArabic ? "إيقاف الرد" : "Stop response"}>
               <ActivityIndicator size="small" color="#FFFFFF" />
             </Pressable>
           ) : (
@@ -387,10 +390,10 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
               style={[styles.blueButton, Platform.OS === "web" && styles.webSendButton, (!text.trim() && !attachment && !voiceActive) && styles.blueButtonIdle]}
               onPress={submit}
               disabled={disabled || (!text.trim() && !attachment)}
-              accessibilityLabel="إرسال"
+              accessibilityLabel={isArabic ? "إرسال" : "Send"}
             >
               {text.trim() || attachment ? (
-                <><Ionicons name="arrow-up" size={18} color="#FFFFFF" />{Platform.OS === "web" ? <Text style={styles.webSendLabel}>إرسال</Text> : null}</>
+                <><Ionicons name="arrow-up" size={18} color="#FFFFFF" />{Platform.OS === "web" ? <Text style={styles.webSendLabel}>{isArabic ? "إرسال" : "Send"}</Text> : null}</>
               ) : (
                 <Ionicons name="radio-outline" size={18} color="#FFFFFF" />
               )}
@@ -401,8 +404,8 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
 
       <AttachSheet visible={attachVisible} onClose={() => setAttachVisible(false)} onPicked={setAttachment} />
       <Modal visible={previewVisible} transparent animationType="fade" onRequestClose={() => setPreviewVisible(false)}>
-        <Pressable style={styles.previewOverlay} onPress={() => setPreviewVisible(false)} accessibilityRole="button" accessibilityLabel="إغلاق معاينة الصورة">
-          <Pressable style={styles.previewClose} onPress={() => setPreviewVisible(false)} accessibilityRole="button" accessibilityLabel="إغلاق">
+        <Pressable style={styles.previewOverlay} onPress={() => setPreviewVisible(false)} accessibilityRole="button" accessibilityLabel={isArabic ? "إغلاق معاينة الصورة" : "Close image preview"}>
+          <Pressable style={styles.previewClose} onPress={() => setPreviewVisible(false)} accessibilityRole="button" accessibilityLabel={isArabic ? "إغلاق" : "Close"}>
             <Ionicons name="close" size={24} color="#FFFFFF" />
           </Pressable>
           {attachmentPreviewUri ? <Image source={{ uri: attachmentPreviewUri }} style={styles.previewImage} resizeMode="contain" /> : null}
@@ -412,7 +415,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
   );
 });
 
-const styles = StyleSheet.create({
+const createStyles = (isArabic: boolean) => StyleSheet.create({
   wrapper: {
     paddingHorizontal: 16,
     paddingTop: 6,
@@ -420,7 +423,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#000000",
   },
   lowBalanceBanner: {
-    flexDirection: "row-reverse",
+    flexDirection: isArabic ? "row-reverse" : "row",
     justifyContent: "space-between",
     alignItems: "center",
     backgroundColor: "#1F1F1F",
@@ -431,13 +434,13 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     marginBottom: 8,
   },
-  bannerTextRow: { flexDirection: "row-reverse", alignItems: "center", gap: 6, flex: 1 },
-  bannerText: { color: "#F5F5F5", fontSize: 13, fontWeight: "400", textAlign: "right" },
+  bannerTextRow: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 6, flex: 1 },
+  bannerText: { color: "#F5F5F5", fontSize: 13, fontWeight: "400", textAlign: isArabic ? "right" : "left" },
   bannerRechargeBtn: { backgroundColor: "#FFFFFF", paddingHorizontal: 12, paddingVertical: 5, borderRadius: 999 },
   bannerRechargeText: { color: "#000000", fontSize: 11, fontWeight: "700" },
   container: {
     minHeight: 56,
-    flexDirection: "row-reverse",
+    flexDirection: isArabic ? "row-reverse" : "row",
     alignItems: "center",
     paddingHorizontal: 8,
     paddingVertical: 6,
@@ -462,7 +465,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingTop: 8,
     paddingBottom: 8,
-    textAlign: "right",
+    textAlign: isArabic ? "right" : "left",
     textAlignVertical: "top",
     writingDirection: "rtl",
   },
@@ -505,7 +508,7 @@ const styles = StyleSheet.create({
   previewClose: { position: "absolute", top: 44, right: 20, zIndex: 1, width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 21, backgroundColor: "rgba(45, 45, 45, 0.9)" },
   voiceToolbar: {
     minHeight: 46,
-    flexDirection: "row-reverse",
+    flexDirection: isArabic ? "row-reverse" : "row",
     alignItems: "center",
     gap: 8,
     borderWidth: 1,
@@ -516,7 +519,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     marginBottom: 6,
   },
-  voiceStatus: { flex: 1, flexDirection: "row-reverse", alignItems: "center", gap: 8 },
+  voiceStatus: { flex: 1, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 8 },
   voiceWaveform: { height: 24, flexDirection: "row", alignItems: "center", gap: 3, marginHorizontal: 2 },
   voiceWaveBar: { width: 3, height: 18, borderRadius: 2, backgroundColor: "#0EA5E9" },
   voiceTimer: { color: "#F5F5F5", fontSize: 14, fontWeight: "700" },
