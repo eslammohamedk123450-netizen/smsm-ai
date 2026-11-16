@@ -1,4 +1,5 @@
 import { isFeatureResourceRequest, buildFeatureSystemContext, shouldSearchWebForMessage, type FeatureContext } from "./feature_resource_context.ts";
+import { activateFeatureByCode, checkFeatureActivationRateLimit, getFeatureContext } from "./feature_flags.ts";
 import { isWebSearchRequest } from "./tavily.ts";
 
 Deno.test("ordinary greetings do not request private feature resources", () => {
@@ -63,4 +64,55 @@ Deno.test("feature context never exposes internal feature labels or activation n
 Deno.test("empty resource sets do not add feature context", () => {
   const context: FeatureContext = { features: { hims: { label: "HIMS", activated: true, resources: [] } } };
   if (buildFeatureSystemContext(context) !== null) throw new Error("empty feature context should be omitted");
+});
+
+
+Deno.test("activation throttling fails closed when the backend is unavailable", async () => {
+  let called = false;
+  const result = await checkFeatureActivationRateLimit({
+    rpc: async (name: string, args: Record<string, unknown>) => {
+      called = name === "suly_check_feature_activation_rate_limit" && args.p_user_id === "user-1";
+      return { data: null, error: new Error("backend unavailable") };
+    },
+  }, "user-1");
+  if (!called) throw new Error("activation throttle RPC was not called with the authenticated user id");
+  if (result.allowed || result.reason !== "unavailable") {
+    throw new Error("activation must fail closed when throttling cannot be verified");
+  }
+});
+
+Deno.test("activation throttling preserves bounded retry information", async () => {
+  const result = await checkFeatureActivationRateLimit({
+    rpc: async () => ({ data: { allowed: false, reason: "activation_attempt_limit", retry_after_seconds: 17 }, error: null }),
+  }, "user-2");
+  if (result.allowed || result.reason !== "limited" || result.retryAfterSeconds !== 17) {
+    throw new Error("rate-limit response was not mapped to a bounded client result");
+  }
+});
+
+Deno.test("activation RPC errors never leak raw backend details", async () => {
+  const result = await activateFeatureByCode({
+    rpc: async () => ({ data: null, error: new Error("sensitive SQL detail") }),
+  }, "user-3", "HIMS-TEST-CODE");
+  if (result.outcome !== "unavailable" || result.featureKey !== null || result.label !== null) {
+    throw new Error("activation RPC error was not reduced to the safe unavailable outcome");
+  }
+});
+
+Deno.test("unactivated feature context never fetches or returns private resources", async () => {
+  let directTableRead = false;
+  const context = await getFeatureContext({
+    rpc: async () => ({
+      data: { features: { hims: { label: "HIMS", activated: false, resources: [{ title: "private", url: "https://example.test/private.pdf" }] } },
+      error: null,
+    }),
+    from: () => {
+      directTableRead = true;
+      throw new Error("private resource table must not be queried for an unactivated user");
+    },
+  }, "user-4");
+  if (directTableRead) throw new Error("unactivated user caused a private resource table read");
+  if (context.features.hims?.resources.length !== 0) {
+    throw new Error("unactivated user received private resources in feature context");
+  }
 });
