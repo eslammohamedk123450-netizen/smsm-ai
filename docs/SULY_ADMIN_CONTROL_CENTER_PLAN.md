@@ -34,6 +34,7 @@ No parallel admin application or replacement data model is introduced.
 3. **Navigation**
    - Added the existing User Friction dashboard to the admin navigation; its route existed but was previously undiscoverable from the menu.
    - Expanded global admin search to search the actual navigation catalogue and open matching pages; email/UUID searches route to users.
+   - Reviewed all 20 protected admin route entry files against the navigation catalogue; each route resolves to its corresponding feature screen, with no navigation-only dead route found in this source review.
 4. **User directory and subscriptions**
    - Replaced the first-200-only user list with server-side 50-row pagination, total-count reporting, server-side active/banned filtering, and server-side name/email/UUID search. Search input is debounced, stale in-flight responses are ignored, page bounds are clamped, and user-provided search text is quoted/escaped before it enters the PostgREST OR filter. Bulk selection is cleared when changing search, pages, or filters so actions cannot accidentally target a stale result set.
    - Added a user-level subscription grant workflow using the existing audited `suly_admin_grant_subscription` RPC.
