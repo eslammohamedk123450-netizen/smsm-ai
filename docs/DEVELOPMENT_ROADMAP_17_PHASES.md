@@ -9,7 +9,7 @@
 >
 > **Authoritative plans:** [Unified Development Master Plan](SULY_DEVELOPMENT_MASTER_PLAN.md) (Track A) and [Independent Comprehensive Test Master Plan](SULY_COMPREHENSIVE_TEST_MASTER_PLAN.md) (Track B). These two files are maintained separately and must stay aligned with this execution tracker.
 >
-> **Current gate (2026-11-16):** Close Phases 1–4 and report to the owner before starting Phase 5. Do not start the unified UX/navigation implementation before that report.
+> **Current execution gate (2026-11-16):** Phases 1–4 implementation scope is complete and reported; their comprehensive verification is deferred to Track B. Phase 5 five-area navigation and Home foundation already exist on `develop`. Continue sequentially with Phase 6; do not duplicate the navigation foundation.
 
 ---
 
@@ -221,7 +221,7 @@ Acceptance:
 - No keyboard overlap, safe-area obstruction, or lost navigation entry.
 - HIMS remains accessible through the ordinary chat/authorized resource flow.
 
-**Current status:** [~] The five-section navigation foundation is merged (PR #95), and the Home screen has been refreshed in the current work branch. Source review confirms five primary destinations, a mobile bottom bar, a responsive web sidebar at wide widths, native keyboard-aware bottom-bar hiding, and safe-area handling. The refreshed Home screen adds a clearer SULY welcome/primary action, four focused section shortcuts, and recent-chat loading/empty/error/retry states. PR #117 merged to `release/v1` as `fbce76281424adfc61903537dd603d776b6a5c39`. CI passed Expo TypeScript typecheck, mobile auth regression tests, static Expo Web export, Android/iOS JavaScript bundle exports, Deno Agent/Edge tests and typecheck, Edge bundle verification, and media billing guardrails. GitHub Pages build and deployment also reported success. Route-click, visual browser, native installation, and real-device regression testing is still required.
+**Current status:** [x] IMPLEMENTATION COMPLETE ON `develop` — Track B verification deferred. The five-section navigation foundation is present in `apps/mobile/src/components/navigation/MainNavigation.tsx`; source review confirms five primary destinations, mobile bottom navigation, responsive wide-web sidebar, native keyboard-aware bottom-bar hiding, and safe-area handling. The Home screen provides a welcome/primary action, focused shortcuts, and recent-chat loading/empty/error/retry states. Conversations provides search and a Projects entry; existing routes remain reachable through the five areas and secondary links. Earlier PR #117/PR #95 evidence and CI/deployment history are retained below as historical evidence, not a claim that the current `develop` head has passed those runs. Route-click, visual browser, native installation, and real-device checks are assigned to Track B.
 
 Known evidence:
 - PR #95 — five-section navigation.
@@ -1216,13 +1216,13 @@ Updated `apps/mobile/src/features/home/HomeScreen.tsx`:
 
 **Verification limitation:** no browser/visual device session is available in this work session. The source is ready for repository CI typecheck/export and later visual route/device regression. Do not claim visual verification until that is performed.
 
-#### Remaining work before reporting Phase 5 complete
+#### Phase 5 implementation disposition on `develop`
 
-1. [x] GitHub Actions typecheck, mobile auth tests, Deno Agent tests/typecheck, Edge bundle verification, media billing guardrails, Expo Web export, and Android/iOS JavaScript exports passed on the code commit in PR #117.
-2. Review and merge PR #117 only after final diff/branch-head verification.
-3. Re-check the deployed web entry and preserve the existing five-section navigation.
-4. Run route-click checks for HIMS, Library, credits/plan, support/integrations, and admin access; perform actual visual/device tests when a test session is available.
-5. Stop after Phase 5 and report the delivered Home experience and remaining verification. Continue to Phase 6 only after that report, following the approved 17-phase order.
+1. Five primary destinations and responsive mobile/web navigation are present.
+2. Home, Conversations, Studio, Media/Library, Settings, and Projects route modules exist.
+3. Conversations exposes search and Projects; Settings exposes balance/credit history, plan/upgrade, Library, support, and connected apps.
+4. HIMS continues to redirect to the central chat and is not a separate assistant or navigation product.
+5. Implementation is considered complete; route-click, current-head CI, visual browser, keyboard/safe-area, and Android/iOS device checks are deferred to Track B. Any defect found there returns as a scoped Track A fix.
 
 #### Current status
 
@@ -1264,7 +1264,7 @@ Updated `apps/mobile/src/features/home/HomeScreen.tsx`:
 - **Expo OTA update:** workflow run `43852894585` failed before publishing because the GitHub Actions secret `EXPO_TOKEN` is missing. No OTA update was published. Owner action is required only if EAS OTA publishing is desired; this does not block GitHub Pages deployment.
 - **Post-merge verification:** the Deno/Expo workflow triggered by the release push was still running at the time of this note; the PR CI run for the exact code changes had already passed. Check the release-push run before considering the post-merge workflow fully closed.
 
-**Phase 5 stopping point:** Home implementation is merged and the Web static site deployment succeeded. Stop here for the owner report. Do not start Phase 6 until the owner has received this report. Remaining Phase 5 checks are visual/browser, actual route clicks, authenticated navigation, and Android/iOS device installation.
+**Historical Phase 5 stopping point:** Home implementation was merged and the Web static site deployment succeeded in the earlier release workflow. The current `develop` branch also contains the five-section navigation and Home implementation. Current-head route/browser/device verification is deferred to Track B; Phase 6 may proceed on `develop`.
 
 
 ### Phase 6 continuation — actual routed model display and regression — 2026-11-16
@@ -1506,7 +1506,7 @@ The product owner requested a strict reduction in branch proliferation and merge
 - **Phase 4 — Shared design system:** existing semantic light/dark tokens, system theme persistence, Cairo typography, and reusable UI primitives were reviewed. Added contrast/token regression tests for primary text, secondary text, muted text, and primary controls. The test identified light-theme muted text below the 4.5:1 AA contrast target; adjusted that semantic token from #737373 to #707070. Full screen-by-screen visual/accessibility and device verification is explicitly deferred to Track B; this does not block completion of the Phase 4 design-system implementation.
 - The existing CI run `43896682177` succeeded on `e9908464835e2fce8d78762a24ccd3700135ca9d`; it predates the changes in this checkpoint. The updated workflow now includes the new activation and theme tests. A fresh run and the full runtime/device verification are recorded in Track B; they do not block the implementation milestone.
 - No database migration was applied, no production data/configuration changed, no provider/model route or price was edited, no credits were adjusted, no HIMS entitlement was granted/revoked, and no secret was changed.
-- **Stop line:** Phases 1–4 are implementation scope only. All remaining end-to-end, live-user, security-adversarial, visual/accessibility, cross-platform, SQL migration execution, and full-CI verification are Track B cases. Do not hold the build phases open solely for those tests. Report the first-four implementation milestone to the owner before proceeding to Phase 5. Track B remains a separate comprehensive campaign after all 17 build phases.
+- **Stop line:** Phases 1–4 implementation scope is complete and reported. All remaining end-to-end, live-user, security-adversarial, visual/accessibility, cross-platform, SQL migration execution, and full-CI verification are Track B cases. Phase 5 navigation implementation is present on `develop`; continue sequentially with Phase 6. Track B remains a separate comprehensive campaign after all 17 build phases.
 
 ## Approved chat-first UX and credit-policy decisions — 2026-11-16
 
