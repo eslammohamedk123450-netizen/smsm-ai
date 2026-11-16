@@ -2,9 +2,10 @@
 
 > **Purpose:** This is the canonical project-development handover document. Every developer, agent, or contributor must read it before changing the product. It records the product intent, approved decisions, phase scope, current evidence-based status, outstanding work, blockers, and verification requirements.
 >
-> **Last reviewed:** 2026-11-16  
-> **Target branch:** `release/v1`  
-> **Working rule:** Update this document in the same change/PR that materially advances a phase. Never mark work complete merely because code was written or merged.
+> **Last reviewed:** 2026-11-16 (two-track plan approved by the product owner)  
+> **Working branch:** `develop` (all implementation and roadmap updates)  
+> **Production branch:** `release/v1` (protected; no direct development work)  
+> **Working rule:** The 17 phases below are the complete build, organization, integration, and implementation track. The independent comprehensive test track begins only after all 17 build phases and their integration work are complete. Routine developer/CI checks may still run during implementation to prevent regressions; they are not the final comprehensive test campaign. Never mark work complete merely because code was written or merged.
 
 ---
 
@@ -489,30 +490,48 @@ Known evidence:
 - PR #99/#101 — catalog/pricing changes.
 - Do not interpret routing timeout budgets as measured full user-task latency.
 
-## Phase 13 — Rebuild and secure the admin panel
+## Phase 13 — Build, organize, and secure the complete SULY Admin Control Center
 
-**Goal:** Give administrators a clear control center without exposing privileged actions to ordinary users.
+**Goal:** Deliver the complete administrative control plane, including existing workflows and a protected dynamic page/component builder, without exposing privileged actions or replacing established business logic.
 
-Required areas:
-- Overview.
-- Providers and credential status (never reveal full secrets).
-- Model Catalog.
-- Routing.
-- Pricing & Profit.
-- Health / Tests.
-- Users.
-- Security / Audit.
-- Existing HIMS administration and other established admin tools must remain accessible.
-- Add safe filters, pagination, loading/error states, confirmations, and audit history.
+Required administrative modules (reuse existing sources and guarded services wherever authoritative sources already exist):
+1. Overview & operational activity: verified user, task, model, wallet, service-health, and operational metrics. Unknown metrics remain explicitly unavailable rather than fabricated.
+2. Providers & Models: provider accounts, masked credential status, model catalog, lifecycle, health, and metadata.
+3. Capabilities & Verification: vendor claims, provider-test evidence, and SULY-integration evidence as distinct levels.
+4. Central Agent & Routing: central-agent roles, route assignments, profiles, fallbacks, task queue, and routing history; no second independent agent or routing engine.
+5. Pricing & Plans: immutable/effective-dated model and media price versions, plans, features, and approved margin rules.
+6. Wallet, Credits & Coins only if a separate authoritative Coins ledger is confirmed: holds, transactions, adjustments, grants, settlement, and reconciliation. Never edit balances outside the authoritative ledger flow.
+7. Users & Subscriptions: account status, server-derived entitlements, subscriptions, and permission-safe support actions.
+8. Ads & Rewards: AdMob identifiers, reward claims, and verified ad-network settlement only when an authoritative settlement source exists.
+9. Finance & Profit/Loss: reconciled provider costs, revenue, expenses, pending items, and unknown/unconverted amounts kept separate.
+10. Activity & Audit: unified read experience over existing audit sources without deleting or silently merging historical records.
+11. HIMS & Content: activation codes, student entitlements, resources, and educational administration while HIMS remains inside ordinary central chat.
+12. System Settings & Security: admin roles, access controls, integration status, maintenance settings, security configuration, and audit protection.
+
+Dynamic Admin Page & Component Builder (required within this phase; not merely an AdminShell/navigation redesign):
+- Create, edit, rename, reorder, publish/unpublish, show, and hide administrative pages and sections, subject to permissions.
+- Add, configure, reorder, and remove permitted presentation components on configurable pages.
+- Support approved component types such as data tables, metric cards, charts, forms, lists, filters, and status panels.
+- Bind components only to explicitly registered data sources and approved read/write operations. Do not permit arbitrary SQL, arbitrary RPC execution, or client-defined privileged actions.
+- Configure page visibility and separate read/create/update/delete/sensitive-action permissions. Enforce every permission on the server/RPC/Edge Function and database layer, not only by hiding UI controls.
+- Persist versioned page layouts, validate configuration, and provide safe preview/publish/restore behavior.
+- Audit who changed what, when, and the previous/new configuration.
+- Protect mandatory security, audit, identity, and core administration routes from being removed or hidden in a way that locks out the owner or bypasses required controls.
+- Migrate existing admin pages gradually only after equivalent functionality and permissions exist. Keep current routes and workflows working during migration; do not delete the legacy implementation first.
+
+Implementation and security requirements:
+- Add safe filters, pagination, loading/error/empty states, confirmations, and audit history.
 - Verify admin status on the server for every privileged operation.
-- High-impact actions (provider disable, model activation, pricing changes, role/route edits, user privilege changes) require validated server-side operations and audit events.
+- High-impact actions (provider disable, model activation, pricing changes, role/route edits, user privilege changes, wallet adjustments, HIMS entitlement changes, and builder publishing) require validated server-side operations and audit events.
 - Keep provider secret values masked; show only safe metadata such as configured/not configured and last rotation if available.
+- Reuse existing tables, RPCs, Edge Functions, and ledgers when authoritative. Do not create parallel registries or financial sources without a documented need.
 
-Acceptance:
-- Admin can complete intended workflows.
-- Non-admin cannot read or invoke admin operations by direct API/RPC.
-- Sensitive changes are atomic, validated, and audited.
-- Existing admin features are not lost during navigation redesign.
+Build exit criteria:
+- All 12 administrative modules and the dynamic builder are implemented or have a specifically documented owner-approved blocker.
+- Existing admin routes and workflows remain available until safely migrated.
+- Privileged operations have server-side authorization, validation, least privilege, and audit coverage.
+- The builder cannot bypass business rules, expose raw secrets, or execute arbitrary privileged operations.
+- Final admin/user/adversarial test evidence is recorded in the independent comprehensive test track, not inferred from implementation or CI alone.
 
 **Current status:** [>] Admin navigation and governance foundations exist; the image-generation model editor's high-impact save path has now been moved behind an atomic, audited server-side RPC. Remaining admin areas still need the same end-to-end and adversarial review.
 
@@ -586,11 +605,11 @@ New implementation (2026-11-16):
 - PR #129 build checks passed: Expo TypeScript, mobile auth regression, static Web export, Android JS bundle, iOS JS bundle, and Deno Agent/Edge Function checks. Full key-based translation catalog, mixed-script and RTL/LTR visual tests remain incomplete.
 - Do not auto-translate or claim legal/policy text is approved.
 
-## Phase 16 — Security, data integrity, and end-to-end functional testing
+## Phase 16 — Implement security, data integrity, and operational safeguards
 
-**Goal:** Test the product as an attacker and as a real user before declaring readiness.
+**Goal:** Complete the security architecture and operational protections required by the product. The independent final comprehensive test track later validates these controls across the entire finished application.
 
-Security test areas:
+Security and integrity controls to implement:
 - Authentication, session handling, account isolation, authorization, admin escalation, RLS, storage, signed URLs, RPC grants, SECURITY DEFINER functions, search_path, and secret exposure.
 - Activation-code brute force/replay, HIMS cross-student resource access, entitlement forgery, and resource link leakage.
 - Provider credential exposure, model-route tampering, provider freeze bypass, prompt/tool injection, SSRF, unsafe URL/file handling, and untrusted tool outputs.
@@ -599,7 +618,7 @@ Security test areas:
 - Audit log integrity and sensitive data minimization.
 - Dependency and build security where supported.
 
-Functional tests:
+Functional behavior that must be implemented and preserved:
 - Sign up/login/session restore/logout.
 - Chat, central agent, tools, long tasks, cancellation, task recovery, and history.
 - HIMS activation and authorized lecture delivery within normal chat.
@@ -609,13 +628,13 @@ Functional tests:
 - Admin provider/model/pricing/routing/users/security workflows.
 - Offline/network failure and retry behavior where supported.
 
-Acceptance:
-- All critical tests pass with evidence.
-- No unresolved critical/high security issue.
-- Database and wallet ledgers reconcile.
-- Any accepted residual risk is documented with owner approval.
+Build exit criteria:
+- Required security controls, authorization boundaries, data-integrity protections, rate limits, and recovery behavior are implemented.
+- No known critical/high issue is knowingly introduced or left without a documented containment decision.
+- Database and wallet-ledger invariants have defined authoritative sources and reconciliation procedures.
+- Any accepted residual risk is documented with owner approval. Final pass/fail evidence belongs to the independent comprehensive test track.
 
-**Current status:** [>] The original set of 57 authenticated-executable SECURITY DEFINER function bodies has now been reviewed individually. After the new least-privilege migration, 56 of the original functions remain executable by authenticated clients; the separate anonymous share-token endpoint remains intentional. The new `suly_admin_save_image_generation_model` RPC adds one more authenticated-executable function, bringing the current total to 57. Current classification: 43 functions contain a direct admin guard, 12 are caller/session-scoped, 1 legacy provider toggle delegates to the guarded lifecycle RPC, and 1 public-share function is scoped by its exact share token. All 57 authenticated-executable functions have fixed search_path settings. Targeted fixes and rollback-only SQL regressions passed; Deno Agent/Edge Function tests and typecheck, Edge bundle verification, and media billing guardrails also passed in PR #117 CI. Real authenticated HTTP/UI flows, true multi-session activation concurrency, and the full Phase 16 matrix remain open.
+**Current status:** [>] The original set of 57 authenticated-executable SECURITY DEFINER function bodies has now been reviewed individually. After the new least-privilege migration, 56 of the original functions remain executable by authenticated clients; the separate anonymous share-token endpoint remains intentional. The new `suly_admin_save_image_generation_model` RPC adds one more authenticated-executable function, bringing the current total to 57. Current classification: 43 functions contain a direct admin guard, 12 are caller/session-scoped, 1 legacy provider toggle delegates to the guarded lifecycle RPC, and 1 public-share function is scoped by its exact share token. All 57 authenticated-executable functions have fixed search_path settings. Targeted fixes and rollback-only SQL regressions passed; Deno Agent/Edge Function tests and typecheck, Edge bundle verification, and media billing guardrails also passed in PR #117 CI. Real authenticated HTTP/UI flows, true multi-session activation concurrency, and the independent final comprehensive test track remain open.
 
 Known constraints:
 - Supabase Free plan may not provide every optional security feature. Record limitations and compensating controls; do not claim unavailable controls are enabled.
@@ -628,14 +647,14 @@ Known constraints:
 - Remaining advisor owner action: enable leaked-password protection in Supabase Auth settings if available on the current plan. The `vector`/`pg_net` extension schema warnings need a dependency-reviewed migration plan; do not move extensions blindly. The 57 authenticated-executable SECURITY DEFINER warning rows still require preserving the documented per-function guard classification and regression evidence; the anonymous share-token endpoint is intentionally token-scoped.
 - Fresh SQL verification (2026-11-16): all 57 SECURITY DEFINER functions executable by `authenticated` have a function-level `search_path` setting. Exactly one of those is also executable by `anon`: `suly_get_public_conversation(uuid)`, whose current SQL body selects only the conversation matching the supplied `share_token`, returns user/assistant messages only, and is capped at 300 messages. This matches the intentionally public share-link design; the revocation regression remains the required companion test.
 
-## Phase 17 — Expo Web, Android, iOS validation and release
+## Phase 17 — Complete Expo Web, Android, and iOS compatibility and release preparation
 
-**Goal:** Ship a stable, tested experience on all intended platforms.
+**Goal:** Finish implementation, platform-specific configuration, build pipelines, and release/rollback preparation for all intended platforms. Final platform acceptance testing is recorded in the independent comprehensive test track.
 
-Scope:
-- Expo Web static export/build and deployment.
-- Android build/install/start/login/navigation/keyboard/safe area/deep links/file handling/notifications where supported.
-- iOS build/install/start/login/navigation/safe area/deep links/file handling/notifications where supported.
+Build and compatibility scope:
+- Expo Web static export/build and deployment pipeline configuration.
+- Android native project/build configuration, permissions, navigation, keyboard/safe-area handling, deep-link and file-handling integration, and notification integration where supported.
+- iOS native project/build configuration, permissions, navigation, keyboard/safe-area handling, deep-link and file-handling integration, and notification integration where supported.
 - Confirm platform-specific dependencies and permissions.
 - Test production environment configuration without committing secrets.
 - Verify CORS, auth redirects, universal/app links as applicable, storage access, and edge-function connectivity.
@@ -643,12 +662,11 @@ Scope:
 - Verify OTA/build workflows and secret configuration; never report an OTA update as published if the workflow failed.
 - Prepare release notes and rollback/recovery instructions.
 
-Acceptance:
-- Web deployment succeeds and core user flows pass.
-- Android and iOS builds/installations and critical flows are verified on real or supported test devices.
-- No platform has a broken critical path.
+Build exit criteria:
+- Web, Android, and iOS implementation/configuration and supported build/export workflows are prepared.
+- Platform-specific dependencies, permissions, environment configuration, auth redirects, links, storage integration, and notification wiring are implemented where supported.
 - Production secrets are stored only in appropriate secret managers.
-- Final release report lists tested commit, artifacts, test results, known limitations, and rollback procedure.
+- Release notes, artifact identification, and rollback/recovery instructions are prepared. Final device installation and user-journey pass/fail results belong to the independent comprehensive test track.
 
 **Current status:** [~] Latest release deployment and all three platform JS exports have fresh passing evidence; OTA publish and physical-device end-to-end validation remain open.
 
@@ -660,6 +678,83 @@ Verified since the prior review:
 - Expo OTA publish failed because `EXPO_TOKEN` is unavailable (workflow run `43866014716`).
 - JS bundle export is not the same as building/installing native APK/IPA or testing on real devices.
 - New theme/locale hydration fixes are pending CI; no visual browser/device test is claimed.
+
+---
+
+## 3A. Approved plan structure — two independent tracks (owner-approved 2026-11-16)
+
+The product owner approved separating the completion plan into exactly two major tracks. This is a roadmap/work-sequencing structure, **not two Git branches**.
+
+### Track A — Complete build, development, organization, and integration (the 17 phases above)
+
+- Phases 1–17 are the complete build track. They include discovery, implementation, UI organization, database and service integration, security architecture, admin control center construction, platform compatibility, and release preparation.
+- Phase 13 explicitly includes the full 12-module Admin Control Center and the dynamic page/component builder.
+- Phase 16 implements security and data-integrity controls; it is not the final application-wide test campaign.
+- Phase 17 prepares platform implementations and release workflows; final platform acceptance testing belongs to Track B.
+- Preserve existing behavior, data, HIMS entitlement semantics, the single central Agent, wallet/ledger invariants, provider/model identifiers, routing governance, and historical records.
+- Focused developer checks and CI may run during implementation to prevent regressions. These are implementation quality gates, not completion of Track B.
+- Track A is complete only when all 17 phases have their implementation scope delivered or a precise owner-approved blocker documented, major components are integrated, and a build handover inventory exists.
+
+### Track B — Independent comprehensive verification after Track A
+
+Track B begins only after the build track is declared implementation-complete. Its purpose is to verify that every required screen, feature, permission, data path, integration, and platform is present and works correctly as a whole. It is not a second implementation plan and must not silently introduce product scope.
+
+During Track B:
+1. Execute the test suites below systematically, one area at a time.
+2. Record exact environment, commit SHA, test identity/role, setup, steps, expected result, actual result, logs/artifacts, and pass/fail status.
+3. When a defect is found, create a specific repair item against the existing `develop` line, fix it without removing established functionality, and rerun the failed test plus affected regression suites.
+4. Keep original failure and repair/retest evidence; do not overwrite failures with a later green status.
+5. Distinguish automated tests, authenticated manual tests, provider integration tests, browser tests, and physical-device tests. Never claim one type from evidence of another.
+6. Do not use real customer credentials or ask the owner to post passwords/API secrets in chat. Use controlled test accounts and approved secret storage.
+7. Do not activate chargeable services, change live pricing/FX/credit conversion, grant real user entitlements, or make production financial adjustments merely to make a test pass. Use isolated fixtures/sandbox providers or explicitly approved test procedures.
+8. Do not deploy to production until the complete test report, unresolved-risk list, and owner release approval are ready.
+
+### Track B — Comprehensive test suites
+
+| Test suite | Required coverage |
+|---|---|
+| 1. Product inventory and completeness | Reconcile every phase deliverable, route, screen, control, service, migration, RPC, Edge Function, and required admin module against the approved inventory; identify missing, duplicate, dead, or unreachable functionality. |
+| 2. Authentication and account journeys | Sign-up, login, logout, session restoration, expired sessions, account/profile changes, password/reset flows where supported, and role/entitlement refresh. |
+| 3. HIMS and educational entitlement | Admin code creation, student activation in normal chat, valid/invalid/expired/reused codes, attempt throttling, entitlement checks, authorized resource retrieval, cross-student isolation, and natural handling of unrelated chat. |
+| 4. Central chat and Agent | Normal chat, fast responses, complex planning, DAG dependencies, bounded workers, tool calls, model selection, history, streaming/status, timeouts, retries, cancellation, recovery, and failure reporting. |
+| 5. Wallet, Credits, and accounting | Reservation, settlement, partial billing, cancellation, release/refund, duplicate requests, idempotency, concurrent requests, negative-balance prevention, ledger reconciliation, and no charge for work not performed. |
+| 6. Providers, models, and capability evidence | Credential secrecy, provider health, model identifiers, enabled/disabled governance, vendor/provider/SULY evidence distinctions, probe results, fallback behavior, freeze enforcement, and unsupported-capability rejection. |
+| 7. Routing, pricing, and plans | Primary/backup selection, task-role allowlists, Lite/Pro/Max/Auto behavior, price-version selection, units, margin calculations, missing FX/credit conversion blocks, plan entitlements, and server-authoritative decisions. |
+| 8. Studio media workflows | Image, video, audio, and transcription flows; input validation; user confirmation; provider integration; progress/status; cancellation; usage settlement; failures; and Library persistence. Test only modalities actually implemented and configured. |
+| 9. Library and file security | Upload, list, preview, signed URL, download, rename, folder, favorite, search, delete/confirmation, retention behavior, path traversal protection, private storage, and cross-user isolation. |
+| 10. Account, subscriptions, and billing | Profile and preferences, server-derived subscription tier, plan visibility, payment/renewal lifecycle where configured, billing history, storage usage, notification settings, and reconciliation against authoritative ledgers. |
+| 11. Admin Control Center | All 12 modules, existing admin routes, filters, pagination, loading/error states, high-impact actions, direct API/RPC denial for non-admins, atomic writes, and audit events. |
+| 12. Dynamic Admin Builder | Page/section create/edit/reorder/show/hide, component add/configure/remove, registered data-source bindings, layout save/version/restore, publish permissions, protected mandatory routes, audit history, and proof that arbitrary SQL/RPC or privilege escalation is impossible. |
+| 13. Ads, rewards, and finance | Reward claim validation, duplicate/replay prevention, AdMob configuration, network settlement evidence if available, provider-cost ledger, revenue/expense classification, currency consistency, and explicit treatment of unknown/unsettled values. |
+| 14. Security and adversarial testing | RLS/ACL, RPC/Edge Function authorization, SECURITY DEFINER/search_path, privilege escalation, tenant isolation, secrets, activation replay/brute force, prompt/tool injection, SSRF, unsafe files/URLs, rate limits, audit integrity, and dependency/build risks. |
+| 15. UI, accessibility, theme, and localization | All screens in light/dark/system themes, Arabic RTL and English LTR, text overflow, keyboard/safe areas, responsive layouts, accessibility labels/focus/contrast, empty/loading/error states, and navigation/deep links. |
+| 16. Integration, resilience, and load behavior | End-to-end cross-feature journeys, network loss/recovery, provider outage, timeouts, retries, concurrent users/tasks, worker leases, duplicate events, queue backpressure, and observable error recovery. |
+| 17. Web, Android, iOS, and release acceptance | Web deployment smoke tests; Android/iOS build and installation where available; real login/chat/files/Studio/navigation/notifications/deep links; device-specific behavior; secret/config validation; release artifact checks; rollback rehearsal; and final release readiness. |
+
+### Track B — Result and defect classification
+
+Use these statuses for every test case:
+- **PASS — VERIFIED:** Exact steps completed and expected behavior observed, with evidence attached.
+- **FAIL — DEFECT:** Actual result differs from expected result; create a repair item and preserve failure evidence.
+- **BLOCKED — EXTERNAL INPUT:** Requires an owner-supplied account, approved content, provider access, legal decision, device, or business setting.
+- **NOT RUN:** Not yet executed. Never imply success.
+- **NOT APPLICABLE:** Explain the technical reason and obtain owner acceptance where the requirement was part of the approved scope.
+
+A test suite is not passed if critical cases are blocked or not run. The final report must include:
+- Tested commit SHA and deployment/environment.
+- Total cases: passed, failed, blocked, not run, and not applicable.
+- Defects found, linked fixes, and retest/regression evidence.
+- Unresolved security, data, billing, and platform risks.
+- Tests requiring real provider accounts, real users, or physical devices.
+- A clear release recommendation: ready, not ready, or ready only with explicitly owner-accepted limitations.
+
+### Git and deployment governance for both tracks
+
+- Keep implementation and repair commits on the existing `develop` branch. Do not create a separate Git branch for the testing track.
+- Keep `release/v1` protected and unchanged during development and testing.
+- Do not force-push, reset, or delete branches with unreconciled work.
+- Prepare one coherent promotion from `develop` to `release/v1` only after Track B has passed and the owner approves release.
+- A successful CI/build is evidence for that specific check only; it is not proof of complete functional, security, billing, or device acceptance.
 
 ---
 
