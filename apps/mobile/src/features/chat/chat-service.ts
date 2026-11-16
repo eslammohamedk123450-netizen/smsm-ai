@@ -256,6 +256,7 @@ export const chatService = {
     signal: AbortSignal;
     onUserSaved(message: ChatMessage): void | Promise<void>;
     onChunk(text: string): void;
+    onModelInfo?(identifier: string): void;
     onTaskUpdate?(task: { task: string; status: "pending" | "running" | "completed" | "failed" }): void;
   }): Promise<void> {
     const content = options.content.trim() || (options.mediaAsset?.kind === "image" ? "حلّل الصورة المرفقة من فضلك." : options.mediaAsset ? "اقرأ المرفق وأجب عنه من فضلك." : "");
@@ -314,7 +315,7 @@ export const chatService = {
       connector_approval_request_id: options.writeApproval?.requestId,
       connector_approval_original_text: options.writeApproval?.originalText,
     };
-    await chatStreamManager.start(requestBody, { onChunk: options.onChunk, onTaskUpdate: options.onTaskUpdate, onDone() {} }, options.signal);
+    await chatStreamManager.start(requestBody, { onChunk: options.onChunk, onModelInfo: options.onModelInfo, onTaskUpdate: options.onTaskUpdate, onDone() {} }, options.signal);
   },
 
   async regenerateAssistant(options: {
@@ -323,6 +324,7 @@ export const chatService = {
     requestId?: string;
     signal: AbortSignal;
     onChunk(text: string): void;
+    onModelInfo?(identifier: string): void;
     onTaskUpdate?(task: { task: string; status: "pending" | "running" | "completed" | "failed" }): void;
   }): Promise<void> {
     const messages: ChatRequestBody["messages"] = options.history
@@ -350,6 +352,7 @@ export const chatService = {
     userMessageId: string;
     signal: AbortSignal;
     onChunk(text: string): void;
+    onModelInfo?(identifier: string): void;
     onTaskUpdate?(task: { task: string; status: "pending" | "running" | "completed" | "failed" }): void;
   }): Promise<void> {
     const savedMessages = await this.getMessages(options.conversationId);
@@ -362,6 +365,7 @@ export const chatService = {
       requestId: retryRequestId(options.userMessageId),
       signal: options.signal,
       onChunk: options.onChunk,
+      onModelInfo: options.onModelInfo,
       onTaskUpdate: options.onTaskUpdate,
     });
   },
