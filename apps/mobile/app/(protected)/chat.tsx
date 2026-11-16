@@ -328,6 +328,7 @@ export default function ChatPage() {
       }]);
       setError(null);
       setRetryFailure(null);
+      setActualModelUsed(null);
       setIsSending(true);
       setActiveTaskLabel(studioIntent ? isArabic ? "تجهيز بطاقة الاستوديو…" : "Preparing Studio card…" : isArabic ? "جارٍ الرد على رسالتك…" : "Responding to your message…");
       void logFrictionEvent({ eventKind: "task_start", screenKey: "chat", featureKey: "chat", stepKey: "send_message", conversationId });
