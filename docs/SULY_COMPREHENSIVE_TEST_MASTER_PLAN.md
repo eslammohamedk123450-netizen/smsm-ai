@@ -174,6 +174,7 @@ A test group passes only when all required cases pass or the owner explicitly ac
 - Verify admin user-directory pagination bounds, exact totals, debounce behavior, stale-response suppression, selection reset on search/filter/page changes, and literal handling of punctuation/wildcards in email/name searches.
 - Verify admin-storage Edge Function returns 401 for missing/expired sessions and 403 for authenticated non-admin users, with no service-role material in client output.
 - Verify user subscription grant uses the server-side admin RPC, cannot grant inactive/retired plans, records reason and actor in the audit log, and cannot be invoked by non-admins.
+- Verify non-admin users cannot submit admin support replies, admins can reply with the admin marker, and direct RLS/API attempts cannot spoof `is_admin_reply`.
 
 ### Test Group 16 — Cross-platform UX, accessibility, localization, and performance
 - Browser test across supported viewport widths and current target browsers; no black/blank screen or broken navigation.
