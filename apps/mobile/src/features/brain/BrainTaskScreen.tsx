@@ -100,6 +100,24 @@ export function BrainTaskScreen() {
     }
   };
 
+  const resumePendingTask = async (saved: PendingBrainTask) => {
+    if (monitoringTask.current) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const accepted = saved.job_id
+        ? { task_id: saved.task_id, job_id: saved.job_id }
+        : await recoverBrainTask(saved.task_id, saved.objective);
+      const recovered = { ...saved, job_id: accepted.job_id };
+      await AsyncStorage.setItem(`${PENDING_TASK_STORAGE_PREFIX}${saved.user_id}`, JSON.stringify(recovered));
+      setPendingTask(recovered);
+      void monitorAcceptedTask(accepted, saved.objective, saved.conversation_id, saved.user_id);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر استعادة المهمة المحفوظة.");
+      setBusy(false);
+    }
+  };
+
   useEffect(() => {
     mounted.current = true;
     let active = true;
@@ -109,20 +127,13 @@ export function BrainTaskScreen() {
       const key = `${PENDING_TASK_STORAGE_PREFIX}${user.id}`;
       const raw = await AsyncStorage.getItem(key);
       if (!raw || !active) return;
-      try {
-        const saved = JSON.parse(raw) as PendingBrainTask;
-        if (saved.user_id !== user.id || !saved.task_id || !saved.job_id || !saved.objective || !saved.conversation_id) return;
-        setObjective(saved.objective);
-        setPendingTask(saved);
-        const accepted = saved.job_id
-          ? { task_id: saved.task_id, job_id: saved.job_id }
-          : await recoverBrainTask(saved.task_id, saved.objective);
-        if (!active) return;
-        const recovered = { ...saved, job_id: accepted.job_id };
-        await AsyncStorage.setItem(key, JSON.stringify(recovered));
-        setPendingTask(recovered);
-        void monitorAcceptedTask(accepted, saved.objective, saved.conversation_id, user.id);
-      } catch { await AsyncStorage.removeItem(key); }
+      let saved: PendingBrainTask;
+      try { saved = JSON.parse(raw) as PendingBrainTask; }
+      catch { await AsyncStorage.removeItem(key); return; }
+      if (saved.user_id !== user.id || !saved.task_id || !saved.objective || !saved.conversation_id) return;
+      setObjective(saved.objective);
+      setPendingTask(saved);
+      if (active) void resumePendingTask(saved);
     })().catch(() => undefined);
     return () => { active = false; mounted.current = false; };
   }, []);
@@ -238,7 +249,7 @@ export function BrainTaskScreen() {
       {pendingTask && !busy ? (
         <View style={styles.panel}>
           <Text style={styles.meta}>هناك مهمة محفوظة لم تنتهِ متابعتها. يمكنك استئنافها دون إنشاء مهمة جديدة أو حجز جديد.</Text>
-          <Pressable onPress={() => void monitorAcceptedTask({ task_id: pendingTask.task_id, job_id: pendingTask.job_id }, pendingTask.objective, pendingTask.conversation_id, pendingTask.user_id)} style={styles.primary} accessibilityRole="button">
+          <Pressable onPress={() => void resumePendingTask(pendingTask)} style={styles.primary} accessibilityRole="button">
             <Text style={styles.primaryText}>استئناف متابعة المهمة</Text>
           </Pressable>
         </View>
