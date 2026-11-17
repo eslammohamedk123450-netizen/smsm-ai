@@ -36,6 +36,11 @@ const config: ExpoConfig & { splash?: { image: string; resizeMode: "contain"; ba
     "expo-router",
     "expo-web-browser",
     "expo-font",
+    ["expo-speech-recognition", {
+      microphonePermission: "اسمح لـ SULY باستخدام الميكروفون لإملاء رسالتك الصوتية.",
+      speechRecognitionPermission: "اسمح لـ SULY بتحويل كلامك إلى نص داخل المحادثة.",
+      androidSpeechServicePackages: ["com.google.android.googlequicksearchbox", "com.google.android.tts"],
+    }],
     ["expo-splash-screen", {
       image: "./assets/splash.png",
       imageWidth: 200,
@@ -71,8 +76,9 @@ const config: ExpoConfig & { splash?: { image: string; resizeMode: "contain"; ba
     output: "static",
   },
   experiments: {
-    // Root-relative by default (Cloudflare Pages / Netlify). GitHub Pages builds
-    // override this with EXPO_PUBLIC_WEB_BASE_URL=/smsm-ai.
+    // The canonical site uses a custom domain, so production assets are
+    // root-relative. The GitHub Pages preview is mounted at /preview.
+    // The deploy workflow supplies the correct base URL for each export.
     baseUrl: process.env.EXPO_PUBLIC_WEB_BASE_URL ?? "",
   },
 };

@@ -6,6 +6,7 @@ import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { supabase } from "../../lib/supabase/client";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
+import { AdminMobileBreadcrumb } from "./AdminMobileBreadcrumb";
 
 type ServiceType = "chat" | "image" | "video" | "audio";
 type OperationalState = "active" | "disabled" | "restricted" | "candidate" | "archived" | "unknown";
@@ -77,14 +78,14 @@ export function ModelCapabilitiesScreen() {
     try {
       const [registry, providers, chat, media, health] = await Promise.all([
         supabase.rpc("suly_admin_list_unified_model_capabilities"),
-        supabase.from("ai_providers").select("id,name,provider_type,enabled").limit(500),
+        supabase.rpc("suly_admin_list_providers"),
         supabase.from("ai_models").select("id,enabled,routing_group").limit(1000),
         supabase.from("suly_media_generation_models").select("id,is_active").limit(1000),
         supabase.from("ai_model_health").select("model_id,auto_restricted").limit(1000),
       ]);
       if (registry.error) throw registry.error;
       if (providers.error) throw providers.error;
-      const providerMap = new Map<number, { name: string; provider_type: string; enabled: boolean }>((providers.data ?? []).map((p) => [Number(p.id), { name: String(p.name ?? "—"), provider_type: String(p.provider_type ?? "—"), enabled: p.enabled === true }]));
+      const providerMap = new Map<number, { name: string; provider_type: string; enabled: boolean }>(((providers.data ?? []) as Array<{ id: number; name: string; provider_type: string; enabled: boolean }>).map((p) => [Number(p.id), { name: String(p.name ?? "—"), provider_type: String(p.provider_type ?? "—"), enabled: p.enabled === true }]));
       const chatMap = new Map<number, { enabled: boolean; routing_group: string }>((chat.data ?? []).map((m) => [Number(m.id), { enabled: m.enabled === true, routing_group: String(m.routing_group ?? "") }]));
       const mediaMap = new Map<string, boolean>((media.data ?? []).map((m) => [String(m.id), m.is_active === true]));
       const restricted = new Set<number>((health.data ?? []).filter((h) => h.auto_restricted === true).map((h) => Number(h.model_id)));
@@ -164,6 +165,7 @@ export function ModelCapabilitiesScreen() {
   };
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <AdminMobileBreadcrumb />
     {!selected ? <>
       <View style={styles.header}>
         <Text style={styles.eyebrow}>SULY · CAPABILITY DIRECTORY</Text>

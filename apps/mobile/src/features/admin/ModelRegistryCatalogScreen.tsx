@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
-import { Link } from "expo-router";
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from "react-native";
+import { Link, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { supabase } from "../../lib/supabase/client";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
+import { AdminMobileBreadcrumb } from "./AdminMobileBreadcrumb";
 
 type ServiceType = "chat" | "image" | "video" | "audio";
 type OperationalState = "active" | "disabled" | "restricted" | "candidate" | "archived" | "unknown";
@@ -14,6 +15,7 @@ type RegistryModel = {
   provider_id: number;
   provider_name: string | null;
   provider_type?: string | null;
+  provider_enabled?: boolean;
   service_type: ServiceType;
   model_identifier: string;
   display_name: string;
@@ -61,6 +63,10 @@ function capabilityKeys(rows: RegistryModel[]): Map<string, Set<string>> {
 export function ModelRegistryCatalogScreen() {
   const { colors } = useSulyTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const { width } = useWindowDimensions();
+  const router = useRouter();
+  const [viewMode, setViewMode] = useState<"table" | "cards">(width >= 900 ? "table" : "cards");
+  const [selectedModel, setSelectedModel] = useState<RegistryModel | null>(null);
   const [rows, setRows] = useState<RegistryModel[]>([]);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
@@ -73,7 +79,7 @@ export function ModelRegistryCatalogScreen() {
     try {
       const [registry, providers, chat, media, health] = await Promise.all([
         supabase.rpc("suly_admin_list_unified_model_capabilities"),
-        supabase.from("ai_providers").select("id,name,provider_type,enabled").limit(500),
+        supabase.rpc("suly_admin_list_providers"),
         supabase.from("ai_models").select("id,enabled,routing_group").limit(1000),
         supabase.from("suly_media_generation_models").select("id,is_active").limit(1000),
         supabase.from("ai_model_health").select("model_id,auto_restricted").limit(1000),
@@ -81,7 +87,7 @@ export function ModelRegistryCatalogScreen() {
       if (registry.error) throw registry.error;
       if (providers.error) throw providers.error;
       const providerById = new Map<number, { name: string; provider_type: string; enabled: boolean }>(
-        (providers.data ?? []).map((item) => [Number(item.id), { name: String(item.name ?? "—"), provider_type: String(item.provider_type ?? "—"), enabled: item.enabled === true }])
+        ((providers.data ?? []) as Array<{ id: number; name: string; provider_type: string; enabled: boolean }>).map((item) => [Number(item.id), { name: String(item.name ?? "—"), provider_type: String(item.provider_type ?? "—"), enabled: item.enabled === true }])
       );
       const chatById = new Map<number, { enabled: boolean; routing_group: string }>(
         (chat.data ?? []).map((item) => [Number(item.id), { enabled: item.enabled === true, routing_group: String(item.routing_group ?? "") }])
@@ -93,7 +99,7 @@ export function ModelRegistryCatalogScreen() {
         const provider = providerById.get(Number(raw.provider_id));
         let operational_state: OperationalState = "unknown";
         if (raw.lifecycle_state === "archived") operational_state = "archived";
-        else if (provider?.enabled === false) operational_state = "disabled";
+        else if (!provider || provider.enabled === false) operational_state = "disabled";
         else if (raw.legacy_chat_model_id !== null) {
           const legacy = chatById.get(Number(raw.legacy_chat_model_id));
           if (legacy && !legacy.enabled || legacy?.routing_group === "disabled") operational_state = "disabled";
@@ -104,7 +110,7 @@ export function ModelRegistryCatalogScreen() {
           if (active === false) operational_state = "disabled";
           else if (active === true && provider?.enabled) operational_state = "active";
         } else if (raw.lifecycle_state === "candidate") operational_state = "candidate";
-        const model = { ...raw, provider_name: provider?.name ?? raw.provider_name ?? null, provider_type: provider?.provider_type ?? null, operational_state };
+        const model = { ...raw, provider_name: provider?.name ?? raw.provider_name ?? null, provider_type: provider?.provider_type ?? null, provider_enabled: provider?.enabled === true, operational_state };
         if (!unique.has(model.model_id)) unique.set(model.model_id, model);
       }
       setRows([...unique.values()].sort((a, b) => a.display_name.localeCompare(b.display_name)));
@@ -115,6 +121,48 @@ export function ModelRegistryCatalogScreen() {
 
   useEffect(() => { void load(); }, [load]);
   const capabilitiesByModel = useMemo(() => capabilityKeys(rows), [rows]);
+  const openOperationalRecord = (model: RegistryModel) => {
+    if (!model.provider_enabled) {
+      router.push("/admin/api-keys");
+      return;
+    }
+    const q = encodeURIComponent(model.model_identifier);
+    if (model.service_type === "chat") {
+      router.push(`/admin/models?q=${q}` as never);
+      return;
+    }
+    if (model.service_type === "audio") {
+      const evidence = capabilitiesByModel.get(model.model_id);
+      if (evidence?.has("transcription")) {
+        router.push(`/admin/media-catalog?kind=transcription&q=${q}` as never);
+      } else if (evidence?.has("audio_output")) {
+        router.push(`/admin/media-catalog?kind=voice&q=${q}` as never);
+      } else {
+        router.push("/admin/model-capability-review");
+      }
+      return;
+    }
+    router.push(`/admin/media-catalog?kind=${model.service_type}&q=${q}` as never);
+  };
+  const openModelPriceHistory = (model: RegistryModel) => {
+    const q = encodeURIComponent(model.model_identifier);
+    if (model.service_type === "chat") {
+      router.push(`/admin/models?q=${q}` as never);
+      return;
+    }
+    if (model.service_type === "audio") {
+      const evidence = capabilitiesByModel.get(model.model_id);
+      if (evidence?.has("transcription")) {
+        router.push(`/admin/media-catalog?kind=transcription&q=${q}` as never);
+      } else if (evidence?.has("audio_output")) {
+        router.push(`/admin/media-catalog?kind=voice&q=${q}` as never);
+      } else {
+        router.push("/admin/model-capability-review");
+      }
+      return;
+    }
+    router.push(`/admin/media-catalog?kind=${model.service_type}&q=${q}` as never);
+  };
   const models = useMemo(() => [...new Map(rows.map((row) => [row.model_id, row])).values()], [rows]);
   const filtered = useMemo(() => {
     const q = search.trim().toLocaleLowerCase();
@@ -127,6 +175,7 @@ export function ModelRegistryCatalogScreen() {
   }, [models, search, status, capability, capabilitiesByModel]);
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <AdminMobileBreadcrumb />
     <View style={styles.header}>
       <Text style={styles.eyebrow}>SULY · MODEL REGISTRY</Text>
       <Text style={styles.title}>نماذج التطبيق</Text>
@@ -135,6 +184,17 @@ export function ModelRegistryCatalogScreen() {
     <View style={styles.actions}>
       <Link href="/admin/models-operations" asChild><Pressable style={styles.secondaryButton}><Ionicons name="settings-outline" size={16} color={colors.primary}/><Text style={styles.secondaryText}>إدارة التشغيل والاختبارات</Text></Pressable></Link>
       <Link href="/admin/model-capabilities" asChild><Pressable style={styles.primaryButton}><Ionicons name="grid-outline" size={16} color={colors.onPrimary}/><Text style={styles.primaryText}>إدارة القدرات</Text></Pressable></Link>
+    </View>
+    <View style={styles.viewToolbar}>
+      <Text style={styles.label}>طريقة العرض</Text>
+      <View style={styles.viewToggle}>
+        <Pressable accessibilityRole="button" accessibilityState={{ selected: viewMode === "table" }} onPress={() => setViewMode("table")} style={[styles.viewOption, viewMode === "table" && styles.viewOptionActive]}>
+          <Ionicons name="list-outline" size={15} color={viewMode === "table" ? colors.primary : colors.textMuted}/><Text style={[styles.viewOptionText, viewMode === "table" && styles.viewOptionTextActive]}>جدول</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityState={{ selected: viewMode === "cards" }} onPress={() => setViewMode("cards")} style={[styles.viewOption, viewMode === "cards" && styles.viewOptionActive]}>
+          <Ionicons name="grid-outline" size={15} color={viewMode === "cards" ? colors.primary : colors.textMuted}/><Text style={[styles.viewOptionText, viewMode === "cards" && styles.viewOptionTextActive]}>بطاقات</Text>
+        </Pressable>
+      </View>
     </View>
     <View style={styles.metrics}>
       <Text style={styles.metric}>الكل: {models.length}</Text>
@@ -158,7 +218,7 @@ export function ModelRegistryCatalogScreen() {
     <Text style={styles.resultCount}>عرض {filtered.length} من {models.length}</Text>
     {loading ? <ActivityIndicator color={colors.primary}/> : null}
     {error ? <View style={styles.errorBox}><Text style={styles.error}>{error}</Text><Pressable onPress={() => void load()}><Text style={styles.link}>إعادة المحاولة</Text></Pressable></View> : null}
-    {!loading && filtered.map((model) => <View key={model.model_id} style={styles.modelCard}>
+    {!loading && viewMode === "cards" ? filtered.map((model) => <View key={model.model_id} style={styles.modelCard}>
       <View style={styles.modelHeading}>
         <View style={styles.modelCopy}>
           <Text style={styles.modelName}>{model.display_name}</Text>
@@ -173,8 +233,77 @@ export function ModelRegistryCatalogScreen() {
         {(CAPABILITIES.filter(([key]) => capabilitiesByModel.get(model.model_id)?.has(key))).slice(0, 7).map(([key, label, icon]) => <View key={key} style={styles.capabilityBadge}><Ionicons name={icon} size={13} color={colors.textSecondary}/><Text style={styles.capabilityText}>{label}</Text></View>)}
         {!capabilitiesByModel.get(model.model_id)?.size ? <Text style={styles.meta}>لا توجد قدرات مسجلة بعد</Text> : null}
       </View>
-    </View>)}
+      <View style={styles.modelCardActions}>
+        <Pressable accessibilityRole="button" onPress={() => setSelectedModel(model)} style={styles.detailAction}><Ionicons name="information-circle-outline" size={14} color={colors.primary}/><Text style={styles.detailActionText}>تفاصيل النموذج</Text></Pressable>
+        <Pressable accessibilityRole="button" onPress={() => openOperationalRecord(model)} style={styles.manageAction}><Ionicons name="settings-outline" size={14} color={colors.textSecondary}/><Text style={styles.manageActionText}>{model.provider_enabled ? "فتح الإدارة" : "إدارة المزود"}</Text></Pressable>
+      </View>
+    </View>) : null}
+    {!loading && viewMode === "table" ? <View style={styles.tableFrame}>
+      <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={styles.tableScrollContent}>
+        <View style={styles.table}>
+          <View style={styles.tableHeader}>
+            <Text style={[styles.tableHeaderCell, styles.tableNameCell]}>النموذج / المعرّف</Text>
+            <Text style={[styles.tableHeaderCell, styles.tableProviderCell]}>المزود</Text>
+            <Text style={[styles.tableHeaderCell, styles.tableTypeCell]}>النوع</Text>
+            <Text style={[styles.tableHeaderCell, styles.tableCapabilitiesCell]}>القدرات المسجلة</Text>
+            <Text style={[styles.tableHeaderCell, styles.tableStateCell]}>الحالة</Text>
+            <Text style={[styles.tableHeaderCell, styles.tableActionsCell]}>الإجراءات</Text>
+          </View>
+          {filtered.map((model) => {
+            const modelCapabilities = CAPABILITIES.filter(([key]) => capabilitiesByModel.get(model.model_id)?.has(key)).map(([, label]) => label);
+            return <View key={model.model_id} style={styles.tableRow}>
+              <View style={[styles.tableCell, styles.tableNameCell]}><Text style={styles.tableModelName}>{model.display_name}</Text><Text style={styles.meta}>{model.model_identifier}</Text></View>
+              <View style={[styles.tableCell, styles.tableProviderCell]}><Text style={styles.tableCellText}>{model.provider_name ?? `مزود #${model.provider_id}`}</Text><Text style={styles.meta}>{model.provider_type ?? "—"}</Text></View>
+              <View style={[styles.tableCell, styles.tableTypeCell]}><Text style={styles.tableCellText}>{model.service_type}</Text></View>
+              <View style={[styles.tableCell, styles.tableCapabilitiesCell]}><Text style={styles.tableCellText}>{modelCapabilities.length ? modelCapabilities.join(" · ") : "غير موثقة"}</Text></View>
+              <View style={[styles.tableCell, styles.tableStateCell]}><View style={[styles.status, model.operational_state === "active" ? styles.statusActive : model.operational_state === "restricted" ? styles.statusRestricted : styles.statusDisabled]}><Text style={styles.statusText}>{STATUS_LABEL[model.operational_state]}</Text></View></View>
+              <View style={[styles.tableCell, styles.tableActionsCell]}>
+                <Pressable accessibilityRole="button" onPress={() => setSelectedModel(model)} style={styles.tableAction}><Ionicons name="information-circle-outline" size={14} color={colors.primary}/><Text style={styles.tableActionText}>تفاصيل</Text></Pressable>
+                <Pressable accessibilityRole="button" onPress={() => openOperationalRecord(model)} style={styles.tableAction}><Ionicons name="settings-outline" size={14} color={colors.textSecondary}/><Text style={styles.tableActionText}>{model.provider_enabled ? "إدارة" : "المزود"}</Text></Pressable>
+              </View>
+            </View>;
+          })}
+        </View>
+      </ScrollView>
+    </View> : null}
     {!loading && filtered.length === 0 ? <Text style={styles.empty}>لا توجد نماذج تطابق البحث والفلاتر.</Text> : null}
+    <Modal visible={selectedModel !== null} transparent animationType="slide" onRequestClose={() => setSelectedModel(null)}>
+      <View style={styles.modalBackdrop}>
+        <Pressable style={styles.modalScrim} onPress={() => setSelectedModel(null)} accessibilityRole="button" accessibilityLabel="إغلاق التفاصيل"/>
+        <View style={styles.detailModal}>
+          <View style={styles.detailModalHeader}>
+            <View style={styles.detailModalCopy}>
+              <Text style={styles.detailModalEyebrow}>MODEL DETAILS · READ ONLY</Text>
+              <Text style={styles.detailModalTitle}>{selectedModel?.display_name ?? "تفاصيل النموذج"}</Text>
+            </View>
+            <Pressable accessibilityRole="button" accessibilityLabel="إغلاق" onPress={() => setSelectedModel(null)}><Ionicons name="close-circle-outline" size={23} color={colors.textMuted}/></Pressable>
+          </View>
+          {selectedModel ? <>
+            <View style={styles.detailMetaGrid}>
+              <View style={styles.detailMetaCell}><Text style={styles.detailMetaLabel}>المزود / اسم المفتاح</Text><Text style={styles.detailMetaValue}>{selectedModel.provider_name ?? `مزود #${selectedModel.provider_id}`} · {selectedModel.provider_type ?? "—"}</Text></View>
+              <View style={styles.detailMetaCell}><Text style={styles.detailMetaLabel}>نوع الخدمة</Text><Text style={styles.detailMetaValue}>{selectedModel.service_type}</Text></View>
+              <View style={styles.detailMetaCell}><Text style={styles.detailMetaLabel}>معرّف المزود</Text><Text selectable style={styles.detailMetaValue}>{selectedModel.model_identifier}</Text></View>
+              <View style={styles.detailMetaCell}><Text style={styles.detailMetaLabel}>دورة الحياة</Text><Text style={styles.detailMetaValue}>{selectedModel.lifecycle_state === "active" ? "مفعل في السجل" : selectedModel.lifecycle_state === "archived" ? "مؤرشف" : "مرشح"}</Text></View>
+              <View style={styles.detailMetaCell}><Text style={styles.detailMetaLabel}>حالة التشغيل</Text><Text style={styles.detailMetaValue}>{STATUS_LABEL[selectedModel.operational_state]}</Text></View>
+              <View style={styles.detailMetaCell}><Text style={styles.detailMetaLabel}>حالة المزود</Text><Text style={styles.detailMetaValue}>{selectedModel.provider_enabled ? "مفعّل" : "معطّل أو غير متاح"}</Text></View>
+            </View>
+            <Text style={styles.detailSectionTitle}>القدرات المسجلة — ليست كلها معتمدة</Text>
+            <View style={styles.capabilityLine}>
+              {(CAPABILITIES.filter(([key]) => capabilitiesByModel.get(selectedModel.model_id)?.has(key))).map(([key, label, icon]) => <View key={key} style={styles.capabilityBadge}><Ionicons name={icon} size={13} color={colors.textSecondary}/><Text style={styles.capabilityText}>{label}</Text></View>)}
+              {!capabilitiesByModel.get(selectedModel.model_id)?.size ? <Text style={styles.meta}>لا توجد أدلة قدرات مسجلة لهذا النموذج.</Text> : null}
+            </View>
+            <View style={styles.detailNotice}><Text style={styles.detailNoticeText}>الأسعار وسجل الصحة والتاريخ التفصيلي للتدقيق موجودة في صفحاتها المختصة؛ لم تُنسخ إلى هذا الملخص ولا يتم استنتاج قيم غير متاحة.</Text></View>
+            <View style={styles.detailLinks}>
+              <Pressable accessibilityRole="button" onPress={() => { setSelectedModel(null); router.push("/admin/model-capability-review"); }} style={styles.detailLink}><Text style={styles.detailLinkText}>مراجعة أدلة القدرات</Text></Pressable>
+              <Pressable accessibilityRole="button" onPress={() => { setSelectedModel(null); router.push("/admin/models-operations"); }} style={styles.detailLink}><Text style={styles.detailLinkText}>التشغيل والصحة</Text></Pressable>
+              <Pressable accessibilityRole="button" onPress={() => { const model = selectedModel; setSelectedModel(null); openModelPriceHistory(model); }} style={styles.detailLink}><Text style={styles.detailLinkText}>سجل أسعار النموذج</Text></Pressable>
+              <Pressable accessibilityRole="button" onPress={() => { setSelectedModel(null); router.push("/admin/audit"); }} style={styles.detailLink}><Text style={styles.detailLinkText}>سجل التدقيق</Text></Pressable>
+            </View>
+            <Pressable accessibilityRole="button" onPress={() => { const model = selectedModel; setSelectedModel(null); openOperationalRecord(model); }} style={styles.detailPrimaryAction}><Text style={styles.detailPrimaryActionText}>{selectedModel.provider_enabled ? "فتح شاشة إدارة النموذج" : "فتح إدارة المزود"}</Text></Pressable>
+          </> : null}
+        </View>
+      </View>
+    </Modal>
   </ScrollView>;
 }
 
@@ -192,6 +321,12 @@ const createStyles = (c: ThemePalette) => StyleSheet.create({
   secondaryText: { color: c.primary, fontSize: 9, fontWeight: "900" },
   metrics: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 10 },
   metric: { color: c.textSecondary, fontSize: 9 },
+  viewToolbar: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  viewToggle: { flexDirection: "row-reverse", borderWidth: 1, borderColor: c.divider, borderRadius: 10, padding: 3, backgroundColor: c.surface, gap: 3 },
+  viewOption: { minHeight: 32, paddingHorizontal: 10, borderRadius: 7, flexDirection: "row-reverse", alignItems: "center", justifyContent: "center", gap: 5 },
+  viewOptionActive: { backgroundColor: c.primary + "18" },
+  viewOptionText: { color: c.textMuted, fontSize: 9, fontWeight: "700" },
+  viewOptionTextActive: { color: c.primary },
   searchBox: { flexDirection: "row-reverse", alignItems: "center", gap: 8, borderWidth: 1, borderColor: c.divider, borderRadius: 10, paddingHorizontal: 10, backgroundColor: c.surface },
   search: { flex: 1, minWidth: 0, color: c.textPrimary, paddingVertical: 10, textAlign: "right", fontSize: 10 },
   filters: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 6 },
@@ -202,6 +337,21 @@ const createStyles = (c: ThemePalette) => StyleSheet.create({
   chipTextActive: { color: c.primary },
   label: { color: c.textPrimary, fontSize: 10, fontWeight: "800", textAlign: "right" },
   resultCount: { color: c.textMuted, fontSize: 9, textAlign: "right" },
+  tableFrame: { borderWidth: 1, borderColor: c.divider, borderRadius: 12, overflow: "hidden", backgroundColor: c.surface },
+  tableScrollContent: { minWidth: "100%" },
+  table: { minWidth: 890 },
+  tableHeader: { minHeight: 42, flexDirection: "row-reverse", alignItems: "center", backgroundColor: c.surfaceElevated, borderBottomWidth: 1, borderBottomColor: c.divider },
+  tableHeaderCell: { color: c.textSecondary, fontSize: 9, fontWeight: "900", textAlign: "right", paddingHorizontal: 10 },
+  tableRow: { minHeight: 58, flexDirection: "row-reverse", alignItems: "center", borderBottomWidth: 1, borderBottomColor: c.divider },
+  tableCell: { minHeight: 58, paddingHorizontal: 10, paddingVertical: 7, justifyContent: "center", alignItems: "flex-end", gap: 3 },
+  tableNameCell: { width: 205 }, tableProviderCell: { width: 145 }, tableTypeCell: { width: 85 }, tableCapabilitiesCell: { width: 235 }, tableStateCell: { width: 100 }, tableActionsCell: { width: 120 },
+  tableModelName: { color: c.textPrimary, fontSize: 10, fontWeight: "900", textAlign: "right" },
+  tableCellText: { color: c.textSecondary, fontSize: 9, textAlign: "right" },
+  tableAction: { flexDirection: "row-reverse", alignItems: "center", gap: 3, paddingVertical: 4 },
+  tableActionText: { color: c.textSecondary, fontSize: 8, fontWeight: "700" },
+  modelCardActions: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", gap: 8, borderTopWidth: 1, borderTopColor: c.divider, paddingTop: 7 },
+  detailAction: { flexDirection: "row-reverse", alignItems: "center", gap: 5, paddingVertical: 5 }, detailActionText: { color: c.primary, fontSize: 9, fontWeight: "800" },
+  manageAction: { flexDirection: "row-reverse", alignItems: "center", gap: 5, paddingVertical: 5 }, manageActionText: { color: c.textSecondary, fontSize: 9, fontWeight: "700" },
   modelCard: { borderWidth: 1, borderColor: c.divider, borderRadius: 12, backgroundColor: c.surface, padding: 11, gap: 8 },
   modelHeading: { flexDirection: "row-reverse", alignItems: "flex-start", gap: 8 },
   modelCopy: { flex: 1, gap: 3, alignItems: "flex-end" },
@@ -216,6 +366,10 @@ const createStyles = (c: ThemePalette) => StyleSheet.create({
   capabilityBadge: { flexDirection: "row-reverse", alignItems: "center", gap: 4, borderWidth: 1, borderColor: c.divider, borderRadius: 7, paddingHorizontal: 6, paddingVertical: 4 },
   capabilityText: { color: c.textSecondary, fontSize: 7 },
   empty: { color: c.textMuted, fontSize: 10, textAlign: "center", padding: 20 },
+  modalBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: c.modalOverlay, padding: 12 }, modalScrim: { ...StyleSheet.absoluteFill }, detailModal: { maxHeight: "88%", width: "100%", maxWidth: 760, alignSelf: "center", borderWidth: 1, borderColor: c.divider, borderTopLeftRadius: 17, borderTopRightRadius: 17, borderBottomLeftRadius: 13, borderBottomRightRadius: 13, backgroundColor: c.surface, padding: 15, gap: 11 },
+  detailModalHeader: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", gap: 12 }, detailModalCopy: { flex: 1, alignItems: "flex-end", gap: 3 }, detailModalEyebrow: { color: c.primary, fontSize: 8, fontWeight: "900", letterSpacing: 1 }, detailModalTitle: { color: c.textPrimary, fontSize: 17, fontWeight: "900", textAlign: "right" },
+  detailMetaGrid: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 7 }, detailMetaCell: { flexBasis: "48%", flexGrow: 1, minWidth: 120, backgroundColor: c.surfaceElevated, borderRadius: 8, padding: 9, gap: 4 }, detailMetaLabel: { color: c.textMuted, fontSize: 8, textAlign: "right" }, detailMetaValue: { color: c.textPrimary, fontSize: 9, fontWeight: "700", textAlign: "right" },
+  detailSectionTitle: { color: c.textPrimary, fontSize: 10, fontWeight: "900", textAlign: "right" }, detailNotice: { borderWidth: 1, borderColor: c.divider, borderRadius: 8, padding: 9 }, detailNoticeText: { color: c.textMuted, fontSize: 9, lineHeight: 16, textAlign: "right" }, detailLinks: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 6 }, detailLink: { borderWidth: 1, borderColor: c.divider, borderRadius: 7, paddingHorizontal: 9, paddingVertical: 7 }, detailLinkText: { color: c.textSecondary, fontSize: 8, fontWeight: "800" }, detailPrimaryAction: { minHeight: 40, borderRadius: 9, backgroundColor: c.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: 12 }, detailPrimaryActionText: { color: c.onPrimary, fontSize: 10, fontWeight: "900" },
   errorBox: { borderWidth: 1, borderColor: c.error, borderRadius: 9, padding: 10, gap: 6 },
   error: { color: c.error, fontSize: 9, textAlign: "right" },
   link: { color: c.primary, fontSize: 9, fontWeight: "800", textAlign: "right" },

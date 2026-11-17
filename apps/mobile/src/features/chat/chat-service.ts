@@ -3,7 +3,7 @@ import { env } from "../../config/env";
 import { supabase } from "../../lib/supabase/client";
 import type { ChatRequestBody } from "../../lib/network/sse-transport";
 import { summarizeContent } from "./conversation-title";
-import { buildRetryHistory } from "./chat-retry";
+import { buildRetryHistory, createRetryRequestId } from "./chat-retry";
 import { chatStreamManager } from "./chat-stream-manager";
 import { getStudioIntent } from "./image-generation";
 import { getMediaDeliveryUrls, type MediaAsset } from "../media/media-service";
@@ -56,9 +56,8 @@ interface MessageRow {
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-function retryRequestId(messageId: string): string {
-  // Persisted message IDs are UUIDs. Reusing one for a retry makes the server's
-  // escrow and workspace upserts idempotent across reconnects and app restarts.
+function stableMessageRequestId(messageId: string): string {
+  // The first generation attempt is stable across transport reconnects.
   return UUID_PATTERN.test(messageId) ? messageId : randomUUID();
 }
 
@@ -300,6 +299,7 @@ export const chatService = {
     conversationId: string;
     content: string;
     modelProfileKey?: ChatRequestBody["model_profile_key"];
+    executionMode?: ChatRequestBody["execution_mode"];
     writeApproval?: { requestId: string; originalText: string };
     mediaAsset?: MediaAsset;
     signal: AbortSignal;
@@ -355,11 +355,11 @@ export const chatService = {
       conversation_id: options.conversationId,
       user_message_id: String(inserted.id),
       media_asset_ids: options.mediaAsset ? [options.mediaAsset.id] : undefined,
-      request_id: options.writeApproval?.requestId ?? retryRequestId(String(inserted.id)),
+      request_id: options.writeApproval?.requestId ?? stableMessageRequestId(String(inserted.id)),
       messages: history,
-      routing_mode: options.modelProfileKey && options.modelProfileKey !== "auto" ? "manual" : "auto",
+      routing_mode: "auto",
       model_profile_key: options.modelProfileKey ?? "auto",
-      execution_mode: "auto",
+      execution_mode: options.executionMode ?? "chat",
       stream: true,
       connector_approval_request_id: options.writeApproval?.requestId,
       connector_approval_original_text: options.writeApproval?.originalText,
@@ -371,6 +371,7 @@ export const chatService = {
     conversationId: string;
     history: ChatMessage[];
     modelProfileKey?: ChatRequestBody["model_profile_key"];
+    executionMode?: ChatRequestBody["execution_mode"];
     requestId?: string;
     signal: AbortSignal;
     onChunk(text: string): void;
@@ -391,9 +392,9 @@ export const chatService = {
       media_asset_ids: latestUser?.attachments?.map((asset) => asset.id),
       request_id: options.requestId ?? randomUUID(),
       messages,
-      routing_mode: options.modelProfileKey && options.modelProfileKey !== "auto" ? "manual" : "auto",
+      routing_mode: "auto",
       model_profile_key: options.modelProfileKey ?? "auto",
-      execution_mode: "auto",
+      execution_mode: options.executionMode ?? "chat",
       stream: true,
     }, { onChunk: options.onChunk, onModelInfo: options.onModelInfo, onTaskUpdate: options.onTaskUpdate, onDone() {} }, options.signal);
   },
@@ -402,6 +403,7 @@ export const chatService = {
     conversationId: string;
     userMessageId: string;
     modelProfileKey?: ChatRequestBody["model_profile_key"];
+    executionMode?: ChatRequestBody["execution_mode"];
     signal: AbortSignal;
     onChunk(text: string): void;
     onModelInfo?(identifier: string): void;
@@ -414,8 +416,9 @@ export const chatService = {
     await this.regenerateAssistant({
       conversationId: options.conversationId,
       history,
-      requestId: retryRequestId(options.userMessageId),
+      requestId: createRetryRequestId(randomUUID),
       modelProfileKey: options.modelProfileKey,
+      executionMode: options.executionMode,
       signal: options.signal,
       onChunk: options.onChunk,
       onModelInfo: options.onModelInfo,

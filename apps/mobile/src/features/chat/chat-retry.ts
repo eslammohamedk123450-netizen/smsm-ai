@@ -1,5 +1,10 @@
 import type { ChatMessage } from "./chat-service";
 
+/** A new explicit retry is a new server request; reconnects reuse its in-memory request. */
+export function createRetryRequestId(randomUUID: () => string): string {
+  return randomUUID();
+}
+
 /** Return saved conversation history through the persisted user message being retried. */
 export function buildRetryHistory(messages: ChatMessage[], userMessageId: string): ChatMessage[] {
   const userMessageIndex = messages.findIndex((message) => message.id === userMessageId);

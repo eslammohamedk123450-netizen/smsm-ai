@@ -5,6 +5,7 @@ import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import { supabase } from "../../lib/supabase/client";
 import { adminService } from "./admin-service";
+import { AdminMobileBreadcrumb } from "./AdminMobileBreadcrumb";
 
 type Provider = { id: number; name: string; provider_type: string; enabled: boolean };
 type MediaModel = {
@@ -154,6 +155,7 @@ export function MediaGenerationModelsAdminScreen() {
   };
 
   return <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: 16, gap: 13, maxWidth: 950, width: "100%", alignSelf: "center" }} keyboardShouldPersistTaps="handled">
+    <AdminMobileBreadcrumb />
     <View style={{ flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center" }}>
       <Link href="/admin" asChild><Pressable><Text style={{ color: colors.primary }}>‹ لوحة المشرف</Text></Pressable></Link>
       <Text style={{ color: colors.textPrimary, fontSize: 21, fontWeight: "900" }}>نماذج الصور الخارجية</Text>

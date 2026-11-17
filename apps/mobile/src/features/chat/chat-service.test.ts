@@ -78,6 +78,39 @@ describe("chatService.retryAssistant", () => {
     expect(onModelInfo).toHaveBeenCalledWith("openai/gpt-oss-120b");
   });
 
+  it("keeps SULY profile selection in automatic routing for normal chat", async () => {
+    await chatService.sendMessage({
+      conversationId: "conversation-1",
+      content: "Hello",
+      modelProfileKey: "lite",
+      executionMode: "chat",
+      signal: new AbortController().signal,
+      onUserSaved: jest.fn(),
+      onChunk: jest.fn(),
+    });
+
+    const request = streamMock.mock.calls[0][0] as ChatRequestBody;
+    expect(request.model_profile_key).toBe("lite");
+    expect(request.routing_mode).toBe("auto");
+    expect(request.execution_mode).toBe("chat");
+  });
+
+  it("keeps SULY profile selection in automatic routing when retrying", async () => {
+    await chatService.retryAssistant({
+      conversationId: "conversation-1",
+      userMessageId: "saved-user-1",
+      modelProfileKey: "lite",
+      executionMode: "agent",
+      signal: new AbortController().signal,
+      onChunk: jest.fn(),
+    });
+
+    const request = streamMock.mock.calls[0][0] as ChatRequestBody;
+    expect(request.model_profile_key).toBe("lite");
+    expect(request.routing_mode).toBe("auto");
+    expect(request.execution_mode).toBe("agent");
+  });
+
   it("reuses the persisted message in request history without inserting a duplicate row", async () => {
     const controller = new AbortController();
     await chatService.retryAssistant({
@@ -91,7 +124,7 @@ describe("chatService.retryAssistant", () => {
     expect(fromMock).toHaveBeenCalledWith("suly_messages");
     expect(query.insert).not.toHaveBeenCalled();
     const request = streamMock.mock.calls[0][0] as ChatRequestBody;
-    expect(request.execution_mode).toBe("auto");
+    expect(request.execution_mode).toBe("chat");
     expect(request.request_id).toBe("retry-request-id");
     expect(request).not.toHaveProperty("confirmed_connector_action");
     expect(request.messages).toEqual([{ role: "user", content: "Explain this" }]);

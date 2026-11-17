@@ -4,6 +4,7 @@ import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { supabase } from "../../lib/supabase/client";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
+import { AdminMobileBreadcrumb } from "./AdminMobileBreadcrumb";
 
 type AuditRow = { id: string; admin_id: string; action: string; target_table: string | null; target_id: string | null; old_value?: unknown; new_value?: unknown; created_at: string };
 type AdminProfile = { id: string; email?: string | null; full_name?: string | null };
@@ -51,6 +52,7 @@ export function AdminAuditScreen() {
   useEffect(() => { void load(); }, [page, type, from, to, search]);
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <AdminMobileBreadcrumb />
     <View style={styles.heading}><View style={styles.headingCopy}><Text style={styles.eyebrow}>تتبّع التغييرات</Text><Text style={styles.title}>سجل النشاط</Text><Text style={styles.subtitle}>منفّذ العملية · الإجراء · الهدف · التوقيت والقيم المسجلة.</Text></View><Pressable onPress={() => void load()} style={styles.refresh}><Text style={styles.refreshText}>↻ تحديث</Text></Pressable></View>
     <View style={styles.filters}><TextInput style={styles.search} value={search} onChangeText={setSearch} placeholder="بحث في المنفّذ أو النوع أو الهدف" placeholderTextColor={colors.textMuted} autoCapitalize="none" /><View style={styles.dateRow}><TextInput style={styles.date} value={from} onChangeText={setFrom} placeholder="من YYYY-MM-DD" placeholderTextColor={colors.textMuted} autoCapitalize="none" /><TextInput style={styles.date} value={to} onChangeText={setTo} placeholder="إلى YYYY-MM-DD" placeholderTextColor={colors.textMuted} autoCapitalize="none" /></View><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.typeRow}>{TYPES.map((item) => <Pressable key={item} onPress={() => setType(item)} style={[styles.chip, item === type && styles.chipActive]}><Text style={[styles.chipText, item === type && styles.chipTextActive]}>{item === "الكل" ? item : item.replace("_", " · ")}</Text></Pressable>)}</ScrollView></View>
     <View style={styles.summary}><Text style={styles.summaryLabel}>النتائج</Text><Text style={styles.summaryValue}>{dataAvailable ? rows.length.toLocaleString("ar-EG") : "—"} <Text style={styles.summaryMuted}>من {dataAvailable ? total.toLocaleString("ar-EG") : "—"}</Text></Text></View>

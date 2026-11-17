@@ -1,4 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition";
 import { useSulyTheme } from "../../../theme/ThemeProvider";
 import type { ThemePalette } from "../../../theme/colors";
 import type { ElementRef } from "react";
@@ -29,7 +30,11 @@ export interface ChatComposerProps {
   disabled?: boolean;
   isStreaming?: boolean;
   onCancel?(): void;
-  onOpenConnectors?(): void;
+  isAgentMode?: boolean;
+  onToggleAgent?(): void;
+  modelLabel?: string;
+  onOpenModelPicker?(): void;
+  modelPickerDisabled?: boolean;
 }
 
 const MIN_INPUT_HEIGHT = 42;
@@ -42,7 +47,11 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
     disabled = false,
     isStreaming = false,
     onCancel,
-    onOpenConnectors,
+    isAgentMode = false,
+    onToggleAgent,
+    modelLabel,
+    onOpenModelPicker,
+    modelPickerDisabled = false,
   },
   ref
 ) {
@@ -56,6 +65,9 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
   const [attachmentPreviewUri, setAttachmentPreviewUri] = useState<string | null>(null);
   const [previewVisible, setPreviewVisible] = useState(false);
   const [attachVisible, setAttachVisible] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const voiceBaseTextRef = useRef("");
   const inputRef = useRef<ElementRef<typeof TextInput>>(null);
   useImperativeHandle(ref, () => ({
     editMessage(content: string) {
@@ -80,6 +92,61 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
     return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [attachment]);
 
+
+  useSpeechRecognitionEvent("start", () => {
+    setIsListening(true);
+    setVoiceError(null);
+  });
+  useSpeechRecognitionEvent("end", () => setIsListening(false));
+  useSpeechRecognitionEvent("result", (event) => {
+    const transcript = event.results?.[0]?.transcript?.trim();
+    if (!transcript) return;
+    const nextText = [voiceBaseTextRef.current, transcript].filter(Boolean).join(" ");
+    setText(nextText);
+    if (event.isFinal) voiceBaseTextRef.current = nextText;
+  });
+  useSpeechRecognitionEvent("error", (event) => {
+    setIsListening(false);
+    if (event.error === "aborted") return;
+    setVoiceError(event.error === "not-allowed"
+      ? (isArabic ? "اسمح لـ SULY باستخدام الميكروفون والتعرّف على الكلام." : "Allow microphone and speech recognition access for SULY.")
+      : event.error === "service-not-allowed" || event.error === "language-not-supported"
+        ? (isArabic ? "التعرّف الصوتي غير متاح لهذا الجهاز أو اللغة." : "Speech recognition is unavailable for this device or language.")
+        : event.error === "no-speech"
+          ? (isArabic ? "لم أسمع كلامًا واضحًا. حاول مرة أخرى." : "No clear speech was detected. Try again.")
+          : (isArabic ? "تعذّر التعرّف على الكلام. حاول مرة أخرى." : "Speech recognition failed. Please try again."));
+  });
+
+  const handleVoicePress = async () => {
+    if (isListening) {
+      ExpoSpeechRecognitionModule.stop();
+      return;
+    }
+    if (disabled || isStreaming) return;
+    setVoiceError(null);
+    try {
+      if (!ExpoSpeechRecognitionModule.isRecognitionAvailable()) {
+        setVoiceError(isArabic ? "التعرّف الصوتي غير متاح حاليًا على هذا الجهاز أو المتصفح." : "Speech recognition is not available on this device or browser.");
+        return;
+      }
+      const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      if (!permission.granted) {
+        setVoiceError(isArabic ? "لم يتم منح إذن الميكروفون والتعرّف على الكلام." : "Microphone and speech recognition permission was not granted.");
+        return;
+      }
+      voiceBaseTextRef.current = text.trim();
+      ExpoSpeechRecognitionModule.start({
+        lang: isArabic ? "ar-EG" : "en-US",
+        interimResults: true,
+        continuous: false,
+        addsPunctuation: true,
+      });
+    } catch {
+      setIsListening(false);
+      setVoiceError(isArabic ? "تعذّر تشغيل الميكروفون. تحقق من الأذونات وحاول مرة أخرى." : "Could not start the microphone. Check permissions and try again.");
+    }
+  };
+
   const submit = () => {
     const content = text.trim();
     if ((!content && !attachment) || disabled) return;
@@ -90,6 +157,26 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
 
   return (
     <View style={styles.wrapper}>
+      {modelLabel && onOpenModelPicker ? (
+        <View style={styles.modelRow}>
+          <TouchableOpacity
+            onPress={onOpenModelPicker}
+            disabled={modelPickerDisabled || isListening}
+            activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel={isArabic ? "اختيار مستوى SULY" : "Choose SULY model profile"}
+            accessibilityState={{ disabled: modelPickerDisabled }}
+            style={[styles.modelPickerButton, modelPickerDisabled && styles.controlDisabled]}
+          >
+            <Ionicons name="layers-outline" size={14} color={colors.textSecondary} />
+            <Text style={styles.modelPickerText}>{modelLabel}</Text>
+            <Ionicons name="chevron-down" size={14} color={colors.textMuted} />
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
+      {isListening ? <Text style={styles.voiceListening}>{isArabic ? "جارٍ الاستماع… اضغط إيقاف عند الانتهاء." : "Listening… tap stop when finished."}</Text> : null}
+      {voiceError ? <Text accessibilityRole="alert" style={styles.voiceError}>{voiceError}</Text> : null}
 
       {attachment ? attachment.kind === "image" && attachmentPreviewUri ? (
         <View style={styles.imageAttachmentPreview}>
@@ -113,31 +200,45 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
         </View>
       ) : null}
 
-      {/* Main Bar: Height 56, #1F1F1F, r: 999 */}
+      {/* Compact composer: one attachment entry point, Agent toggle, message field and send. */}
       <View style={styles.container}>
         {/* Right side (RTL start): + Button */}
         <TouchableOpacity
           onPress={() => setAttachVisible(true)}
-          disabled={disabled || isStreaming}
+          disabled={disabled || isStreaming || isListening}
           activeOpacity={0.7}
           style={styles.plusButton}
-          accessibilityLabel={isArabic ? "إضافة ملف" : "Add attachment"}
+          accessibilityRole="button"
+          accessibilityLabel={isArabic ? "إرفاق صورة أو ملف" : "Attach an image or file"}
         >
           <Ionicons name="add" size={22} color={colors.textMuted} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={onToggleAgent}
+          disabled={disabled || isStreaming || isListening || !onToggleAgent}
+          activeOpacity={0.7}
+          style={[styles.agentToggle, isAgentMode && styles.agentToggleActive]}
+          accessibilityRole="button"
+          accessibilityState={{ selected: isAgentMode, disabled: disabled || isStreaming || isListening || !onToggleAgent }}
+          accessibilityLabel={isArabic ? (isAgentMode ? "إيقاف وضع الوكيل" : "تفعيل وضع الوكيل") : (isAgentMode ? "Turn Agent mode off" : "Turn Agent mode on")}
+        >
+          <Ionicons name="sparkles-outline" size={15} color={isAgentMode ? colors.onPrimary : colors.textMuted} />
+          <Text style={[styles.agentToggleLabel, isAgentMode && styles.agentToggleLabelActive]}>{isArabic ? "وكيل" : "Agent"}</Text>
         </TouchableOpacity>
 
         {/* Center: TextInput with placeholder "اسأل Suly" */}
         <TextInput
           ref={inputRef}
           value={text}
-          onChangeText={setText}
+          onChangeText={(value) => { setText(value); if (voiceError) setVoiceError(null); }}
           onContentSizeChange={(event) => {
             const measuredHeight = Math.ceil(event.nativeEvent.contentSize.height) + 16;
             setInputHeight(Math.max(MIN_INPUT_HEIGHT, Math.min(MAX_INPUT_HEIGHT, measuredHeight)));
           }}
           selection={selection}
           onSelectionChange={(event) => setSelection(event.nativeEvent.selection)}
-          editable={!disabled && !isStreaming}
+          editable={!disabled && !isStreaming && !isListening}
           placeholder={isArabic ? "اسأل Suly" : "Ask SULY"}
           placeholderTextColor={colors.textMuted}
           style={[styles.input, { height: inputHeight }]}
@@ -148,35 +249,44 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
           accessibilityLabel={isArabic ? "اسأل Suly" : "Ask SULY"}
         />
 
-        {/* Connectors shortcut replaces voice input; voice capture is not part of this chat UI. */}
+        {/* Compact voice, send and stop controls. */}
         <View style={styles.leftControls}>
-          <TouchableOpacity
-            onPress={onOpenConnectors}
-            disabled={disabled || isStreaming}
-            activeOpacity={0.7}
-            style={styles.connectorButton}
-            accessibilityLabel={isArabic ? "فتح الموصلات" : "Open connectors"}
-          >
-            <Ionicons name="git-network-outline" size={20} color={colors.textMuted} />
-          </TouchableOpacity>
-
           {isStreaming ? (
             <Pressable style={styles.blueButton} onPress={onCancel} accessibilityLabel={isArabic ? "إيقاف الرد" : "Stop response"}>
               <ActivityIndicator size="small" color={colors.onPrimary} />
             </Pressable>
-          ) : (
+          ) : isListening ? (
             <Pressable
-              style={[styles.blueButton, Platform.OS === "web" && styles.webSendButton, (!text.trim() && !attachment) && styles.blueButtonIdle]}
-              onPress={submit}
-              disabled={disabled || (!text.trim() && !attachment)}
-              accessibilityLabel={isArabic ? "إرسال" : "Send"}
+              style={[styles.micButton, styles.micButtonActive]}
+              onPress={() => void handleVoicePress()}
+              accessibilityRole="button"
+              accessibilityLabel={isArabic ? "إيقاف الإملاء الصوتي" : "Stop voice dictation"}
             >
-              {text.trim() || attachment ? (
-                <><Ionicons name="arrow-up" size={18} color={colors.onPrimary} />{Platform.OS === "web" ? <Text style={styles.webSendLabel}>{isArabic ? "إرسال" : "Send"}</Text> : null}</>
-              ) : (
-                <Ionicons name="radio-outline" size={18} color={colors.onPrimary} />
-              )}
+              <Ionicons name="stop" size={17} color={colors.onPrimary} />
             </Pressable>
+          ) : (
+            <>
+              <Pressable
+                style={[styles.micButton, disabled && styles.controlDisabled]}
+                onPress={() => void handleVoicePress()}
+                disabled={disabled}
+                accessibilityRole="button"
+                accessibilityLabel={isArabic ? "إملاء رسالة صوتيًا" : "Dictate a message"}
+              >
+                <Ionicons name="mic-outline" size={19} color={colors.textPrimary} />
+              </Pressable>
+              {text.trim() || attachment ? (
+                <Pressable
+                  style={[styles.blueButton, Platform.OS === "web" && styles.webSendButton]}
+                  onPress={submit}
+                  disabled={disabled}
+                  accessibilityRole="button"
+                  accessibilityLabel={isArabic ? "إرسال" : "Send"}
+                >
+                  <><Ionicons name="arrow-up" size={18} color={colors.onPrimary} />{Platform.OS === "web" ? <Text style={styles.webSendLabel}>{isArabic ? "إرسال" : "Send"}</Text> : null}</>
+                </Pressable>
+              ) : null}
+            </>
           )}
         </View>
       </View>
@@ -201,6 +311,12 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
     paddingBottom: 10,
     backgroundColor: colors.background,
   },
+  voiceError: { color: colors.error, fontSize: 10, lineHeight: 15, textAlign: isArabic ? "right" : "left", paddingHorizontal: 4, marginBottom: 5 },
+  voiceListening: { color: colors.textSecondary, fontSize: 10, lineHeight: 15, textAlign: isArabic ? "right" : "left", paddingHorizontal: 4, marginBottom: 5 },
+  modelRow: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", marginBottom: 7 },
+  modelPickerButton: { minHeight: 30, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 6, paddingHorizontal: 10, borderRadius: 16, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
+  modelPickerText: { color: colors.textSecondary, fontSize: 11, fontWeight: "700" },
+  controlDisabled: { opacity: 0.45 },
   lowBalanceBanner: {
     flexDirection: isArabic ? "row-reverse" : "row",
     justifyContent: "space-between",
@@ -249,7 +365,10 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
     writingDirection: "rtl",
   },
   leftControls: { flexDirection: "row", alignItems: "center", gap: 4 },
-  connectorButton: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 18 },
+  agentToggle: { minWidth: 58, height: 36, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 8, borderRadius: 18, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
+  agentToggleActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  agentToggleLabel: { color: colors.textMuted, fontSize: 11, fontWeight: "700" },
+  agentToggleLabelActive: { color: colors.onPrimary },
   blueButton: {
     width: 38,
     height: 38,
@@ -259,6 +378,8 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
     backgroundColor: colors.primary,
   },
   blueButtonIdle: { backgroundColor: colors.primary, opacity: 0.9 },
+  micButton: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
+  micButtonActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   webSendButton: { width: "auto", minWidth: 72, paddingHorizontal: 12, flexDirection: "row", gap: 5, borderRadius: 20 },
   webSendLabel: { color: colors.onPrimary, fontSize: 12, fontWeight: "700" },
   attachmentChip: {

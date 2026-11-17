@@ -4,6 +4,7 @@ import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { adminService } from "./admin-service";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
+import { AdminMobileBreadcrumb } from "./AdminMobileBreadcrumb";
 
 type Conversation = { id: string; user_id: string; title: string | null; created_at: string; updated_at: string };
 type Profile = { id: string; email: string | null; full_name: string | null };
@@ -55,6 +56,7 @@ export function AdminConversationsScreen() {
   const to = Math.min(total, (page + 1) * PAGE_SIZE);
 
   return <View style={styles.screen}>
+    <AdminMobileBreadcrumb />
     <View style={styles.heading}>
       <View style={styles.headingCopy}>
         <Text style={styles.eyebrow}>مراقبة النشاط</Text>

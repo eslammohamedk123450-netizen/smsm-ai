@@ -4,6 +4,7 @@ import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { adminService } from "./admin-service";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
+import { AdminMobileBreadcrumb } from "./AdminMobileBreadcrumb";
 
 export function TavilyAdminScreen() {
   const { colors } = useSulyTheme();
@@ -32,6 +33,7 @@ export function TavilyAdminScreen() {
     finally { setSaving(false); }
   };
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <AdminMobileBreadcrumb />
     <Text style={styles.title}>Tavily Web Search</Text>
     <Text style={styles.explainer}>يُستخدم هذا المفتاح فقط عندما يطلب المستخدم بحثًا على الإنترنت من وضع Agent. لا يُرسل إلى التطبيق ولا يُستخدم في المحادثة العادية.</Text>
     <View style={styles.card}><View style={styles.headerRow}><View style={styles.badge}><Text style={styles.badgeText}>T</Text></View><View style={styles.headerCopy}><Text style={styles.sectionTitle}>مفتاح API</Text><Text style={styles.detail}>{loading ? "جارٍ التحقق…" : !statusAvailable ? "تعذر التحقق من الحالة" : configured ? "مفتاح محفوظ وآمن" : "لم تتم الإضافة بعد"}</Text></View>{loading ? <ActivityIndicator color={colors.primary} /> : <Text style={statusAvailable ? (configured ? styles.ready : styles.pending) : styles.pending}>{!statusAvailable ? "غير معروف" : configured ? "مُضاف" : "غير مُضاف"}</Text>}</View>

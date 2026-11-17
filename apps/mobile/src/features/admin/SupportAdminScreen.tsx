@@ -4,6 +4,7 @@ import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
 import { supportService, type SupportAttachment, type SupportReply, type SupportTicket, type TicketStatus } from "../support/support-service";
+import { AdminMobileBreadcrumb } from "./AdminMobileBreadcrumb";
 
 const statusLabel: Record<string, string> = { new: "جديد", in_progress: "قيد المعالجة", waiting_user: "بانتظار المستخدم", resolved: "تم الحل", closed: "مغلق" };
 const statuses: TicketStatus[] = ["new", "in_progress", "waiting_user", "resolved", "closed"];
@@ -75,6 +76,7 @@ export function SupportAdminScreen() {
   };
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <AdminMobileBreadcrumb />
     <View style={styles.header}><Text style={styles.title}>الدعم والشكاوى</Text><Pressable onPress={() => void load()}><Text style={styles.link}>تحديث</Text></Pressable></View>
     <Text style={styles.subtitle}>صندوق تذاكر من قاعدة البيانات؛ المرفقات تُعرض بروابط خاصة ومصرح بها.</Text>
     {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}

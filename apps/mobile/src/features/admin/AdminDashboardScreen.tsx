@@ -11,6 +11,7 @@ import { SulyFinanceOverviewCard } from "./SulyFinanceOverviewCard";
 import { NegativeBalanceSettingsCard } from "./NegativeBalanceSettingsCard";
 import { WelcomeTrialSettingsCard } from "./WelcomeTrialSettingsCard";
 import { adminService } from "./admin-service";
+import { AdminMobileBreadcrumb } from "./AdminMobileBreadcrumb";
 
 type Model = { id: number; enabled: boolean; health?: { auto_restricted?: boolean; last_status?: string | null; total_attempts?: number; successful_attempts?: number; average_latency_ms?: number | null } | null };
 type Tx = { amount: number | null; event_type: string; created_at: string };
@@ -40,12 +41,13 @@ export function AdminDashboardScreen() {
   const [audit, setAudit] = useState<Audit[]>([]);
   const [maintenanceMode, setMaintenanceMode] = useState<boolean | null>(null);
   const [maintenanceBusy, setMaintenanceBusy] = useState(false);
+  const [usageRange, setUsageRange] = useState<7 | 30>(7);
 
   const load = useCallback(async (refresh = false) => {
     if (refresh) setRefreshing(true); else setLoading(true);
     setError(null);
     try {
-      const since = new Date(Date.now() - 7 * 86400000).toISOString();
+      const since = new Date(Date.now() - 30 * 86400000).toISOString();
       const hourAgo = new Date(Date.now() - 3600000).toISOString();
       const [modelsOverview, usersResult, transactionsResult, auditResult, maintenanceResult] = await Promise.all([
         adminService.getModelsOverview(),
@@ -96,10 +98,30 @@ export function AdminDashboardScreen() {
     : null;
   const chart = useMemo(() => {
     if (!transactionsAvailable) return [];
-    const days = Array.from({ length: 7 }, (_, index) => { const date = new Date(); date.setHours(0, 0, 0, 0); date.setDate(date.getDate() - (6 - index)); return { key: date.toISOString().slice(0, 10), label: dateLabel(date), total: 0 }; });
-    for (const tx of transactions) { if (tx.event_type !== "settle") continue; const day = days.find((item) => item.key === tx.created_at.slice(0, 10)); if (day) day.total += Math.abs(Number(tx.amount ?? 0)); }
-    return days;
-  }, [transactions, transactionsAvailable]);
+    const bucketCount = usageRange === 7 ? 7 : 6;
+    const bucketDays = usageRange === 7 ? 1 : 5;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const buckets = Array.from({ length: bucketCount }, (_, index) => {
+      const end = new Date(today);
+      end.setDate(today.getDate() - (bucketCount - 1 - index) * bucketDays);
+      const start = new Date(end);
+      start.setDate(end.getDate() - (bucketDays - 1));
+      const startKey = start.toISOString().slice(0, 10);
+      const endKey = end.toISOString().slice(0, 10);
+      const label = usageRange === 7
+        ? dateLabel(end)
+        : `${start.toLocaleDateString("ar-EG", { day: "numeric", month: "short" })}–${end.toLocaleDateString("ar-EG", { day: "numeric", month: "short" })}`;
+      return { key: `${startKey}-${endKey}`, startKey, endKey, label, total: 0 };
+    });
+    for (const tx of transactions) {
+      if (tx.event_type !== "settle") continue;
+      const dateKey = tx.created_at.slice(0, 10);
+      const bucket = buckets.find((item) => dateKey >= item.startKey && dateKey <= item.endKey);
+      if (bucket) bucket.total += Math.abs(Number(tx.amount ?? 0));
+    }
+    return buckets;
+  }, [transactions, transactionsAvailable, usageRange]);
   const maxChart = Math.max(1, ...chart.map((item) => item.total));
   const alerts = [
     ...(modelStatusReady ? models.filter((item) => !item.enabled || item.health?.auto_restricted || item.health?.last_status === "error").slice(0, 3).map((item) => ({ key: `model-${item.id}`, title: `نموذج متوقف أو متعثر: #${item.id}`, detail: "تحقق من حالة النموذج ومزود الخدمة.", path: "/admin/models" })) : []),
@@ -123,11 +145,12 @@ export function AdminDashboardScreen() {
   const metrics = [
     { title: "النماذج المتاحة / المتعثرة", value: modelStatusReady ? `${activeModels} / ${downModels}` : "—", note: modelStatusReady ? `${disabledModels} معطلة إداريًا · ${models.length} إجمالي النماذج` : "بيانات النماذج أو الصحة غير مكتملة", path: "/admin/models", tone: modelStatusReady && downModels ? "warning" : "neutral" },
     { title: "المستخدمون أونلاين", value: onlineCount === null ? "—" : valueText(onlineCount), note: `${valueText(userCount)} إجمالي الحسابات · الحضور الحي غير مفعّل`, path: "/admin/users", tone: "neutral" },
-    { title: "استهلاك اليوم", value: valueText(todayUsage), note: transactionsAvailable ? "رصيد مُسوّى · آخر 7 أيام محمّلة" : "تعذر تحميل سجل الاستهلاك", path: "/admin/credit-management", tone: "neutral" },
+    { title: "استهلاك اليوم", value: valueText(todayUsage), note: transactionsAvailable ? "تسوية اليوم · بيانات آخر 30 يومًا محمّلة" : "تعذر تحميل سجل الاستهلاك", path: "/admin/credit-management", tone: "neutral" },
     { title: "أخطاء آخر ساعة", value: valueText(hourErrors), note: "محاولات النماذج الفاشلة", path: "/admin/models", tone: hourErrors ? "warning" : "good" },
   ];
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <AdminMobileBreadcrumb />
     <View style={styles.heading}><View style={styles.headingCopy}><Text style={styles.eyebrow}>نظرة تشغيلية مباشرة</Text><Text style={styles.title}>مركز تحكم الأدمن</Text><Text style={styles.subtitle}>مؤشرات الخدمة والإجراءات الإدارية في مساحة واحدة.</Text></View><Pressable accessibilityRole="button" onPress={() => void load(true)} style={styles.refresh}><Text style={styles.refreshText}>{refreshing ? "جارٍ التحديث…" : "↻ تحديث"}</Text></Pressable></View>
     {error ? <View style={styles.inlineWarning}><Text style={styles.inlineWarningText}>{error}</Text></View> : null}
     {loading ? <ActivityIndicator color={colors.primary} style={styles.loader} /> : null}
@@ -147,10 +170,17 @@ export function AdminDashboardScreen() {
     <NegativeBalanceSettingsCard />
     <WelcomeTrialSettingsCard />
     <View style={styles.lowerGrid}>
-      <View style={styles.panel}><View style={styles.panelHeading}><Text style={styles.sectionTitle}>استهلاك آخر 7 أيام</Text><Pressable onPress={() => router.push("/admin/credit-management")}><Text style={styles.link}>التفاصيل ←</Text></Pressable></View><View style={styles.chart}>{chart.length ? chart.map((item) => <Pressable key={item.key} onPress={() => router.push("/admin/credit-management")} style={styles.barColumn}><Text style={styles.barValue}>{item.total ? valueText(item.total) : "0"}</Text><View style={styles.barTrack}><View style={[styles.bar, { height: `${Math.max(5, item.total / maxChart * 100)}%` }]} /></View><Text style={styles.barLabel}>{item.label}</Text></Pressable>) : <Text style={styles.emptyText}>بيانات الاستهلاك غير متاحة حاليًا.</Text>}</View><Text style={styles.chartFootnote}>تقدير مبني على معاملات `settle` المحمّلة؛ اضغط للانتقال إلى تفاصيل الرصيد.</Text></View>
+      <View style={styles.panel}><View style={styles.panelHeading}>
+        <Text style={styles.sectionTitle}>{usageRange === 7 ? "استهلاك آخر 7 أيام" : "استهلاك آخر 30 يومًا"}</Text>
+        <View style={styles.chartRangeToggle}>
+          <Pressable accessibilityRole="button" accessibilityState={{ selected: usageRange === 7 }} onPress={() => setUsageRange(7)} style={[styles.chartRangeButton, usageRange === 7 && styles.chartRangeButtonActive]}><Text style={[styles.chartRangeText, usageRange === 7 && styles.chartRangeTextActive]}>7 أيام</Text></Pressable>
+          <Pressable accessibilityRole="button" accessibilityState={{ selected: usageRange === 30 }} onPress={() => setUsageRange(30)} style={[styles.chartRangeButton, usageRange === 30 && styles.chartRangeButtonActive]}><Text style={[styles.chartRangeText, usageRange === 30 && styles.chartRangeTextActive]}>30 يومًا</Text></Pressable>
+        </View>
+        <Pressable onPress={() => router.push("/admin/credit-management")}><Text style={styles.link}>التفاصيل ←</Text></Pressable>
+      </View><View style={styles.chart}>{chart.length ? chart.map((item) => <Pressable key={item.key} onPress={() => router.push("/admin/credit-management")} style={styles.barColumn}><Text style={styles.barValue}>{item.total ? valueText(item.total) : "0"}</Text><View style={styles.barTrack}><View style={[styles.bar, { height: `${Math.max(5, item.total / maxChart * 100)}%` }]} /></View><Text style={styles.barLabel}>{item.label}</Text></Pressable>) : <Text style={styles.emptyText}>بيانات الاستهلاك غير متاحة حاليًا.</Text>}</View><Text style={styles.chartFootnote}>{transactions.length >= 2000 ? "تنبيه: يصل عرض الرسم إلى 2000 معاملة محمّلة كحد أقصى؛ قد تكون البيانات جزئية." : "التجميع مبني على معاملات settle المحمّلة فقط؛ اضغط للانتقال إلى تفاصيل الرصيد."}</Text></View>
       <View style={styles.panel}><View style={styles.panelHeading}><Text style={styles.sectionTitle}>آخر أحداث سجل النشاط</Text><Pressable onPress={() => router.push("/admin/audit")}><Text style={styles.link}>عرض السجل ←</Text></Pressable></View>{audit.length ? audit.map((item) => <Pressable key={item.id} onPress={() => router.push("/admin/audit")} style={styles.auditRow}><View style={styles.auditBullet} /><View style={styles.auditCopy}><Text style={styles.auditAction}>{item.action}</Text><Text style={styles.auditMeta}>{item.target_table ?? "—"} · {new Date(item.created_at).toLocaleString("ar-EG")}</Text></View></Pressable>) : <Text style={styles.emptyText}>{auditAvailable ? "لا توجد أحداث حديثة." : "تعذر تحميل سجل النشاط."}</Text>}</View>
     </View>
-    <View style={styles.alertPanel}><View style={styles.panelHeading}><Text style={styles.sectionTitle}>التنبيهات التشغيلية</Text><Text style={[styles.alertCount, alerts.length ? styles.alertCountHot : styles.alertCountOk]}>{alerts.length ? `${alerts.length} يتطلب المراجعة` : "لا تنبيهات"}</Text></View>{alerts.length ? alerts.map((alert) => <Pressable key={alert.key} onPress={() => router.push(alert.path)} style={styles.alertRow}><View style={styles.alertMark} /><View style={styles.alertCopy}><Text style={styles.alertTitle}>{alert.title}</Text><Text style={styles.alertDetail}>{alert.detail}</Text></View><Text style={styles.link}>فتح ←</Text></Pressable>) : <Text style={styles.emptyText}>لا توجد حالات توقف ضمن المؤشرات المحمّلة.</Text>}</View>
+    <View style={styles.alertPanel}><View style={styles.panelHeading}><Text style={styles.sectionTitle}>التنبيهات التشغيلية</Text><Text style={[styles.alertCount, alerts.length ? styles.alertCountHot : styles.alertCountOk]}>{alerts.length ? `${alerts.length} يتطلب المراجعة` : modelStatusReady && hourErrors !== null ? "لا تنبيهات ضمن البيانات المتاحة" : "بيانات التنبيهات غير مكتملة"}</Text></View>{alerts.length ? alerts.map((alert) => <Pressable key={alert.key} onPress={() => router.push(alert.path)} style={styles.alertRow}><View style={styles.alertMark} /><View style={styles.alertCopy}><Text style={styles.alertTitle}>{alert.title}</Text><Text style={styles.alertDetail}>{alert.detail}</Text></View><Text style={styles.link}>فتح ←</Text></Pressable>) : <Text style={styles.emptyText}>{modelStatusReady && hourErrors !== null ? "لا توجد حالات توقف ضمن المؤشرات المحمّلة." : "لا يمكن تأكيد حالة التنبيهات حتى تكتمل بيانات النماذج والأخطاء."}</Text>}</View>
     <Text style={styles.footer}>Suly · Admin only · الأرقام قابلة للفتح لعرض التفاصيل</Text>
   </ScrollView>;
 }
@@ -162,5 +192,6 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
   metricGridStacked: { gap: 7 }, metricStacked: { flexBasis: "100%" },
   quickHeader: { flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center", gap: 8 }, sectionTitle: { color: colors.textPrimary, fontWeight: "800", fontSize: 13, textAlign: "right" }, sectionHint: { color: colors.textMuted, fontSize: 9, textAlign: "right", flex: 1 }, quickActions: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 7 }, quickAction: { minHeight: 39, flexDirection: "row-reverse", alignItems: "center", justifyContent: "center", gap: 7, borderWidth: 1, borderColor: colors.divider, borderRadius: 8, paddingHorizontal: 11, backgroundColor: colors.surface }, quickPrimary: { backgroundColor: colors.primary, borderColor: colors.primary }, quickDisabled: { opacity: 0.55 }, quickDanger: { borderColor: colors.error, backgroundColor: colors.surfaceElevated }, quickIcon: { color: colors.primary, fontSize: 13, fontWeight: "900" }, quickText: { color: colors.textPrimary, fontSize: 10, fontWeight: "700" }, quickPrimaryText: { color: colors.onPrimary },
   lowerGrid: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 9 }, panel: { flexGrow: 1, flexBasis: 340, minWidth: 260, padding: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 10, gap: 8 }, panelHeading: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", gap: 8 }, link: { color: colors.accent, fontSize: 10, fontWeight: "700" }, chart: { minHeight: 112, flexDirection: "row-reverse", alignItems: "flex-end", justifyContent: "space-around", gap: 5, paddingTop: 5 }, barColumn: { flex: 1, alignItems: "center", justifyContent: "flex-end", gap: 4, height: 100 }, barValue: { color: colors.textMuted, fontSize: 8, height: 12 }, barTrack: { height: 65, width: "70%", justifyContent: "flex-end", backgroundColor: colors.background, borderRadius: 4, overflow: "hidden" }, bar: { width: "100%", minHeight: 3, backgroundColor: colors.primary, borderRadius: 4 }, barLabel: { color: colors.textMuted, fontSize: 8 }, chartFootnote: { color: colors.textMuted, fontSize: 8, textAlign: "right" }, auditRow: { flexDirection: "row-reverse", alignItems: "center", gap: 8, borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 7 }, auditBullet: { width: 6, height: 6, borderRadius: 4, backgroundColor: colors.primary }, auditCopy: { flex: 1, alignItems: "flex-end", gap: 2 }, auditAction: { color: colors.textPrimary, fontSize: 10, fontWeight: "700", textAlign: "right" }, auditMeta: { color: colors.textMuted, fontSize: 8, textAlign: "right" }, emptyText: { color: colors.textMuted, textAlign: "right", fontSize: 10, paddingVertical: 6 },
+  chartRangeToggle: { flexDirection: "row-reverse", alignItems: "center", borderWidth: 1, borderColor: colors.divider, borderRadius: 8, padding: 2, gap: 2 }, chartRangeButton: { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6 }, chartRangeButtonActive: { backgroundColor: colors.primarySoft }, chartRangeText: { color: colors.textMuted, fontSize: 8, fontWeight: "700" }, chartRangeTextActive: { color: colors.primary },
   alertPanel: { borderWidth: 1, borderColor: colors.divider, borderRadius: 10, backgroundColor: colors.surface, padding: 12, gap: 7 }, alertCount: { fontSize: 9, fontWeight: "700" }, alertCountHot: { color: colors.error }, alertCountOk: { color: colors.success }, alertRow: { flexDirection: "row-reverse", alignItems: "center", gap: 8, padding: 8, borderRadius: 7, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.error }, alertMark: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.error }, alertCopy: { flex: 1, alignItems: "flex-end" }, alertTitle: { color: colors.error, fontSize: 10, fontWeight: "800", textAlign: "right" }, alertDetail: { color: colors.textSecondary, fontSize: 9, textAlign: "right" }, footer: { color: colors.textMuted, fontSize: 8, textAlign: "right" },
 });

@@ -9,6 +9,7 @@ import { confirmAdminAction } from "./admin-confirm";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
 import { formatBytes, pickMedia, uploadMediaFile, type MediaAsset, type PickKind } from "../media/media-service";
+import { AdminMobileBreadcrumb } from "./AdminMobileBreadcrumb";
 
 function Field({ label, value, onChange, placeholder, keyboardType = "default", editable = true }: { label: string; value: string; onChange(value: string): void; placeholder: string; keyboardType?: "default" | "numeric" | "url"; editable?: boolean }) {
   const { colors } = useSulyTheme();
@@ -210,6 +211,7 @@ export function HimsAdminScreen() {
   };
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <AdminMobileBreadcrumb />
     <View style={styles.header}><Text style={styles.title}>إدارة HIMS</Text><Pressable onPress={() => void load()}><Text style={styles.link}>تحديث</Text></Pressable></View>
       <Text style={styles.explainer}>أنشئ أكواد تفعيل وأضف محاضرات وملفات. تُحفظ الملفات كأصول خاصة وتُسجّل بياناتها وملكية الوصول بأمان.</Text>
     {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}

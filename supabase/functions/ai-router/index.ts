@@ -28,6 +28,7 @@ import { buildIndependentTaskPlan, buildTaskPlan, executeTaskPlan, hasExplicitDe
 import { parseAgentDecision, runAgentLoop, type AgentLoopResumeStep, type AgentLoopStep, type AgentTool, type AgentDecision } from "./agent/orchestrator.ts";
 import { hasCapabilityEvidenceConflict, prioritizeModelCandidate, restrictModelsToAssignedRoute, type ModelCapabilityEvidence } from "./agent/model_routing.ts";
 import { isModelEligibleForRequest, modelSupportsRole as supportsModelRole } from "./agent/model_eligibility.ts";
+import { resolveRoutingMode } from "./agent/routing_mode.ts";
 import { resolveExecutionMode } from "./execution_mode.ts";
 import { resolveSulyProfileKey } from "./agent/suly_profile_routing.ts";
 import { getAgentReservationCallCount } from "./agent/agent_budget_policy.ts";
@@ -726,8 +727,9 @@ async function handleRequest(req: Request): Promise<Response> {
   const hasExplicitModel = modelId > 0;
   const rawProfileKey = typeof body.model_profile_key === "string" ? body.model_profile_key.trim().toLowerCase() : "";
   const requestedProfileKey = ["auto", "lite", "pro", "max", "x"].includes(rawProfileKey) ? rawProfileKey : null;
-  const hasManualProfile = requestedProfileKey !== null && requestedProfileKey !== "auto";
-  const routingMode = hasManualProfile || body.routing_mode === "manual" || (hasExplicitModel && body.routing_mode !== "auto") ? "manual" : "auto";
+  // A SULY profile selects entitlements/capabilities, never a concrete model.
+  // Only an explicit model request or explicit manual mode can bypass auto routing.
+  const routingMode = resolveRoutingMode({ requestedMode: body.routing_mode, hasExplicitModel });
   // New clients select Chat or Agent explicitly. Legacy clients remain Agent
   // compatible so existing connected-app requests do not silently lose tools.
   let executionMode: "chat" | "agent" = body.execution_mode === "chat" ? "chat" : "agent";
