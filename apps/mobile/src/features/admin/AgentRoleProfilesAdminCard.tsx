@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Switch, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { useSulyTheme } from "../../theme/ThemeProvider";
@@ -43,6 +43,7 @@ export function AgentRoleProfilesAdminCard() {
   const [models, setModels] = useState<ModelOption[]>([]);
   const [role, setRole] = useState<AgentRole>("coordinator");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [profileEnabled, setProfileEnabled] = useState(true);
   const [search, setSearch] = useState("");
   const [newProfileName, setNewProfileName] = useState("");
   const [newProfilePrompt, setNewProfilePrompt] = useState("");
@@ -75,6 +76,7 @@ export function AgentRoleProfilesAdminCard() {
 
   useEffect(() => {
     setSelectedIds(currentProfile?.model_fallback_chain ?? []);
+    setProfileEnabled(currentProfile?.is_active ?? true);
     setNotice(null);
   }, [currentProfile?.id, currentProfile?.updated_at, role]);
 
@@ -96,7 +98,7 @@ export function AgentRoleProfilesAdminCard() {
         name: currentProfile.name,
         systemPrompt: currentProfile.system_prompt,
         modelFallbackChain: selectedIds,
-        isActive: currentProfile.is_active,
+        isActive: profileEnabled,
       });
       setNotice("تم حفظ ترتيب النماذج المفضلة لهذا الدور. يظل التوجيه المركزي والأهلية والميزانية هي المرجع النهائي.");
       await load();
@@ -140,6 +142,10 @@ export function AgentRoleProfilesAdminCard() {
     <Text style={styles.description}>{ROLES.find((item) => item.key === role)?.description}</Text>
     {loading ? <ActivityIndicator color={colors.primary}/> : currentProfile ? <>
       <View style={styles.profileInfo}>
+        <View style={styles.profileStatusRow}>
+          <Text style={styles.description}>تفعيل تعليمات هذا الدور</Text>
+          <Switch value={profileEnabled} onValueChange={setProfileEnabled} />
+        </View>
         <Text style={styles.profileName}>{currentProfile.name}</Text>
         <Text style={styles.description}>الأولوية التالية داخل قائمة النماذج المؤهلة. لا تُستخدم النماذج غير المؤهلة حتى لو أضيفت هنا.</Text>
       </View>
@@ -209,6 +215,7 @@ const createStyles = (c: ThemePalette) => StyleSheet.create({
   roleCount: { color: c.textMuted, fontSize: 8, textAlign: "right" },
   profileInfo: { borderWidth: 1, borderColor: c.divider, borderRadius: 9, padding: 10, gap: 4, backgroundColor: c.background },
   profileName: { color: c.textPrimary, fontSize: 11, fontWeight: "900", textAlign: "right" },
+  profileStatusRow: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between" },
   sectionTitle: { color: c.textPrimary, fontSize: 10, fontWeight: "900", textAlign: "right" },
   modelRow: { flexDirection: "row-reverse", alignItems: "center", gap: 8, borderWidth: 1, borderColor: c.divider, borderRadius: 8, padding: 8 },
   availableRow: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", gap: 8, borderWidth: 1, borderColor: c.divider, borderRadius: 8, padding: 9, backgroundColor: c.background },
