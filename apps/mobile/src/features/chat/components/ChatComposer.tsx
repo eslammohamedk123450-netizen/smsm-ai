@@ -244,7 +244,6 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
           selectionColor={colors.primary}
           underlineColorAndroid="transparent"
           keyboardAppearance="dark"
-          includeFontPadding={false}
           style={[styles.input, { height: inputHeight }]}
           multiline
           scrollEnabled={inputHeight >= MAX_INPUT_HEIGHT}
