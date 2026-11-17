@@ -41,7 +41,7 @@ function parseInline(text: string): InlineToken[] {
 
 function InlineText({ text, baseStyle, styles }: { text: string; baseStyle?: object; styles: ReturnType<typeof createStyles> }) {
   return <Text style={[styles.body, baseStyle]}>{parseInline(text).map((token, index) => (
-    <Text key={`token.type-index`} style={tokenStyle(token, styles)} onPress={token.type === "link" && token.url ? () => { void Linking.openURL(token.url!).catch(() => undefined); } : undefined}>{token.text}</Text>
+    <Text key={`${token.type}-${index}`} style={tokenStyle(token, styles)} onPress={token.type === "link" && token.url ? () => { void Linking.openURL(token.url!).catch(() => undefined); } : undefined}>{token.text}</Text>
   ))}</Text>;
 }
 
@@ -55,9 +55,9 @@ function tokenStyle(token: InlineToken, styles: ReturnType<typeof createStyles>)
 function InlineFlow({ text, styles }: { text: string; styles: ReturnType<typeof createStyles> }) {
   return <View style={styles.inlineFlow}>
     {parseInline(text).map((token, index) => token.type === "image" && token.url
-      ? <Image key={`image-index`} source={{ uri: token.url }} style={styles.image} resizeMode="contain" accessibilityLabel={token.text || "صورة في الرسالة"} />
+      ? <Image key={`image-${index}`} source={{ uri: token.url }} style={styles.image} resizeMode="contain" accessibilityLabel={token.text || "صورة في الرسالة"} />
       : token.type === "link" && token.url
-        ? <Pressable key={`link-index`} onPress={() => { void Linking.openURL(token.url!).catch(() => undefined); }} accessibilityRole="link"><Text style={[styles.body, styles.link]}>{token.text}</Text></Pressable>
+        ? <Pressable key={`link-${index}`} onPress={() => { void Linking.openURL(token.url!).catch(() => undefined); }} accessibilityRole="link"><Text style={[styles.body, styles.link]}>{token.text}</Text></Pressable>
         : <Text key={`token.type-index`} style={[styles.body, tokenStyle(token, styles)]}>{token.text}</Text>)}
   </View>;
 }
