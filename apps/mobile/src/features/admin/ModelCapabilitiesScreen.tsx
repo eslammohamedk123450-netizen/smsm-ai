@@ -197,7 +197,7 @@ export function ModelCapabilitiesScreen() {
       {linked.map((model) => <View key={model.model_id} style={styles.modelCard}>
         <View style={styles.modelCopy}>
           <Text style={styles.modelName}>{model.display_name}</Text>
-          <Text style={styles.meta}>اسم المفتاح: {model.provider_name ?? `مزود #${model.provider_id}`} · المزود: {model.provider_type ?? "—"} · المزود: {model.provider_type ?? "—"}</Text>
+          <Text style={styles.meta}>اسم المفتاح: {model.provider_name ?? `مزود #${model.provider_id}`} · المزود: {model.provider_type ?? "—"}</Text>
           <Text style={styles.meta}>{model.model_identifier} · {model.service_type}</Text>
         </View>
         <View style={styles.modelFooter}>
