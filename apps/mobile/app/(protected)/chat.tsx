@@ -38,8 +38,8 @@ type SulyModelProfileOption = {
 const SUBSCRIPTION_TIER_RANK: Record<string, number> = { free: 0, lite: 1, pro: 2, max: 3 };
 const DEFAULT_MODEL_PROFILE_OPTIONS: SulyModelProfileOption[] = [
   { profile_key: "lite", display_name: "SULY Lite", tagline: "للمهام السريعة واليومية", minimum_subscription_tier: "free", is_active: true },
-  { profile_key: "pro", display_name: "SULY Pro", tagline: "توازن بين السرعة والقدرات", minimum_subscription_tier: "pro", is_active: true },
-  { profile_key: "max", display_name: "SULY Max", tagline: "للمهام المعقدة والتحليل العميق", minimum_subscription_tier: "pro", is_active: true },
+  { profile_key: "pro", display_name: "SULY Pro", tagline: "توازن بين السرعة والقدرات", minimum_subscription_tier: "pro", is_active: false },
+  { profile_key: "max", display_name: "SULY Max", tagline: "للمهام المعقدة والتحليل العميق", minimum_subscription_tier: "pro", is_active: false },
 ];
 
 const STREAMING_ID = "local-streaming-assistant";
