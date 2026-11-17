@@ -680,6 +680,7 @@ export default function ChatPage() {
         conversationId,
         history,
         modelProfileKey: selectedModelProfile,
+        executionMode: isAgentMode ? "agent" : "auto",
         signal: controller.signal,
         onChunk(text) {
           streamedTextRef.current += text;
@@ -721,6 +722,8 @@ export default function ChatPage() {
       await chatService.regenerateAssistant({
         conversationId,
         history,
+        modelProfileKey: selectedModelProfile,
+        executionMode: isAgentMode ? "agent" : "auto",
         signal: controller.signal,
         onChunk(text) {
           setMessages((current) => {
