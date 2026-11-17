@@ -1,4 +1,10 @@
+import { randomUUID } from "expo-crypto";
 import type { ChatMessage } from "./chat-service";
+
+/** A new explicit retry is a new server request; reconnects reuse its in-memory request. */
+export function createRetryRequestId(): string {
+  return randomUUID();
+}
 
 /** Return saved conversation history through the persisted user message being retried. */
 export function buildRetryHistory(messages: ChatMessage[], userMessageId: string): ChatMessage[] {
