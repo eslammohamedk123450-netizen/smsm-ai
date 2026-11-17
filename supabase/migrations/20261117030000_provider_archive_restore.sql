@@ -196,11 +196,11 @@ returns void
 language plpgsql
 security definer
 set search_path = pg_catalog, public, auth
-as $
+as $function$
 begin
   perform public.suly_admin_set_provider_lifecycle_v2(p_provider_id, p_enabled, p_hide_models);
 end;
-$;
+$function$;
 
 -- Active providers are the only providers shown in ordinary admin catalog lists.
 create or replace function public.suly_admin_list_providers()
