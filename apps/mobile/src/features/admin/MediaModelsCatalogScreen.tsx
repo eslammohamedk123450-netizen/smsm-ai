@@ -14,7 +14,7 @@ type Kind = "image" | "video" | "transcription" | "voice";
 type ServiceType = "image" | "video" | "audio";
 type MediaModelRow = {
   id: string; provider_id: number; provider_name: string; provider_type: string; service_type: ServiceType;
-  model_identifier: string; display_name: string; unit_type: string;
+  model_identifier: string; display_name: string; unit_type: "image" | "video_second" | "audio_minute";
   provider_cost_egp_per_unit: number; selling_price_egp_per_unit: number;
   price_version: number; provider_tested: boolean; suly_integration_verified: boolean;
 };
