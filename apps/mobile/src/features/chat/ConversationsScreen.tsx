@@ -92,7 +92,7 @@ export function ConversationsScreen() {
       <View style={styles.header}>
         <View style={styles.headerCopy}><Text style={[styles.title, { color: colors.textPrimary }]}>{isArabic ? "سجل المحادثات" : "History"}</Text><Text style={[styles.subtitle, { color: colors.textSecondary }]}>{activeTab === "chats" ? (isArabic ? "محادثاتك السابقة مرتبة في مكان واحد." : "Your previous conversations in one place.") : (isArabic ? "المهام التي نفذتها وحالتها ونتائجها." : "Your executed tasks, statuses, and results.")}</Text></View>
         <Pressable accessibilityRole="button" disabled={creating} onPress={() => { if (activeTab === "chats") void create(); else router.push("/tasks"); }} style={[styles.newButton, { backgroundColor: colors.primary }]}>
-          {creating ? <ActivityIndicator color="#FFFFFF" /> : <Ionicons name="add" size={18} color="#FFFFFF" />}
+          {creating ? <ActivityIndicator color={colors.onPrimary} /> : <Ionicons name="add" size={18} color={colors.onPrimary} />}
           <Text style={styles.newButtonText}>{activeTab === "chats" ? (isArabic ? "محادثة جديدة" : "New chat") : (isArabic ? "مهمة جديدة" : "New task")}</Text>
         </Pressable>
       </View>
@@ -183,10 +183,10 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   moreButton: { width: 38, height: 38, alignItems: "center", justifyContent: "center" },
   notice: { textAlign: isArabic ? "right" : "left", fontSize: 12 },
   sheetActions: { gap: 9 },
-  sheetAction: { minHeight: 46, borderRadius: 11, paddingHorizontal: 14, justifyContent: "center", alignItems: "center", borderWidth: 1, borderColor: "#777777" },
+  sheetAction: { minHeight: 46, borderRadius: 11, paddingHorizontal: 14, justifyContent: "center", alignItems: "center", borderWidth: 1, borderColor: colors.divider },
   sheetActionText: { fontWeight: "700" },
-  dangerAction: { borderColor: "#B91C1C" },
-  dangerText: { color: "#B91C1C", fontWeight: "800" },
+  dangerAction: { borderColor: colors.divider },
+  dangerText: { color: colors.textPrimary, fontWeight: "800" },
   primarySheetText: { color: colors.onPrimary, fontWeight: "800" },
   sheetButtons: { flexDirection: isArabic ? "row-reverse" : "row", gap: 9, marginTop: 14 },
   renameInput: { minHeight: 44, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, textAlign: isArabic ? "right" : "left" },
