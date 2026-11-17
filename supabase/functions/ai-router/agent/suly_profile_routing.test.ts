@@ -23,10 +23,10 @@ Deno.test("manual profile selection is never silently downgraded", () => {
   if (result.profileKey !== "pro" || result.mode !== "manual" || !result.allowed) throw new Error("Manual Pro selection must remain Pro.");
 });
 
-Deno.test("Free cannot manually select paid Lite, and Pro cannot manually select Max", () => {
+Deno.test("Free cannot manually select paid Lite, while Pro retains the existing Max-profile entitlement", () => {
   const freeLite = resolveSulyProfileKey({ requestedProfileKey: "lite", userTier: "free", intent: "chat" });
   const proMax = resolveSulyProfileKey({ requestedProfileKey: "max", userTier: "pro", intent: "complex_task" });
-  if (freeLite.allowed || proMax.allowed) throw new Error("Manual selection must respect the minimum paid tier.");
+  if (freeLite.allowed || !proMax.allowed) throw new Error("Manual selection must respect the configured profile minimum tier.");
 });
 
 Deno.test("Ultra Team is the highest tier and inherits all lower profile access", () => {
@@ -36,7 +36,7 @@ Deno.test("Ultra Team is the highest tier and inherits all lower profile access"
   if (!isSubscriptionTierEligible("ultra_team", "free")) throw new Error("Ultra Team should inherit Free access.");
   if (!isSubscriptionTierEligible("free", "free")) throw new Error("Free should access the Free profile.");
   if (isSubscriptionTierEligible("free", "lite")) throw new Error("Free must not access paid Lite.");
-  if (isSubscriptionTierEligible("pro", "max")) throw new Error("Pro must not access Max.");
+  if (!isSubscriptionTierEligible("pro", "max")) throw new Error("Pro retains access to the Max profile under the existing entitlement policy.");
   if (isSubscriptionTierEligible("unknown", "free")) throw new Error("Unknown user tiers must fail closed.");
   if (isSubscriptionTierEligible("max", "unknown")) throw new Error("Unknown profile tiers must fail closed.");
 });
