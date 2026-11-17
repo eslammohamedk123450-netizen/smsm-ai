@@ -56,9 +56,8 @@ interface MessageRow {
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-function retryRequestId(messageId: string): string {
-  // Persisted message IDs are UUIDs. Reusing one for a retry makes the server's
-  // escrow and workspace upserts idempotent across reconnects and app restarts.
+function stableMessageRequestId(messageId: string): string {
+  // The first generation attempt is stable across transport reconnects.
   return UUID_PATTERN.test(messageId) ? messageId : randomUUID();
 }
 
@@ -356,7 +355,7 @@ export const chatService = {
       conversation_id: options.conversationId,
       user_message_id: String(inserted.id),
       media_asset_ids: options.mediaAsset ? [options.mediaAsset.id] : undefined,
-      request_id: options.writeApproval?.requestId ?? retryRequestId(String(inserted.id)),
+      request_id: options.writeApproval?.requestId ?? stableMessageRequestId(String(inserted.id)),
       messages: history,
       routing_mode: "auto",
       model_profile_key: options.modelProfileKey ?? "auto",
@@ -417,7 +416,7 @@ export const chatService = {
     await this.regenerateAssistant({
       conversationId: options.conversationId,
       history,
-      requestId: retryRequestId(options.userMessageId),
+      requestId: randomUUID(),
       modelProfileKey: options.modelProfileKey,
       executionMode: options.executionMode,
       signal: options.signal,
