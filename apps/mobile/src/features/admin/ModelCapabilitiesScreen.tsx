@@ -85,7 +85,7 @@ export function ModelCapabilitiesScreen() {
       ]);
       if (registry.error) throw registry.error;
       if (providers.error) throw providers.error;
-      const providerMap = new Map<number, { name: string; provider_type: string; enabled: boolean }>((providers.data ?? []).map((p) => [Number(p.id), { name: String(p.name ?? "—"), provider_type: String(p.provider_type ?? "—"), enabled: p.enabled === true }]));
+      const providerMap = new Map<number, { name: string; provider_type: string; enabled: boolean }>(((providers.data ?? []) as Array<{ id: number; name: string; provider_type: string; enabled: boolean }>).map((p) => [Number(p.id), { name: String(p.name ?? "—"), provider_type: String(p.provider_type ?? "—"), enabled: p.enabled === true }]));
       const chatMap = new Map<number, { enabled: boolean; routing_group: string }>((chat.data ?? []).map((m) => [Number(m.id), { enabled: m.enabled === true, routing_group: String(m.routing_group ?? "") }]));
       const mediaMap = new Map<string, boolean>((media.data ?? []).map((m) => [String(m.id), m.is_active === true]));
       const restricted = new Set<number>((health.data ?? []).filter((h) => h.auto_restricted === true).map((h) => Number(h.model_id)));
