@@ -29,8 +29,6 @@ export interface ChatComposerProps {
   disabled?: boolean;
   isStreaming?: boolean;
   onCancel?(): void;
-  creditBalance?: number | null;
-  onOpenRecharge?(): void;
   onOpenConnectors?(): void;
 }
 
@@ -44,8 +42,6 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
     disabled = false,
     isStreaming = false,
     onCancel,
-    creditBalance = null,
-    onOpenRecharge,
     onOpenConnectors,
   },
   ref
