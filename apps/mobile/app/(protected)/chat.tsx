@@ -808,17 +808,17 @@ export default function ChatPage() {
                 accessibilityRole="button"
               >
                 <View style={styles.modelPickerCopy}>
-                  <Text style={styles.modelPickerName}>SULY 2.0 {profile.profile_key === "free" ? "Free" : profile.profile_key === "lite" ? "Lite" : profile.profile_key === "pro" ? "Pro" : profile.profile_key === "max" ? "Max" : "Ultra Team"}</Text>
+                  <Text style={styles.modelPickerName}>SULY {profile.profile_key === "lite" ? "Lite" : profile.profile_key === "pro" ? "Pro" : profile.profile_key === "max" ? "Max" : "X"}</Text>
                   <Text style={styles.modelPickerDescription}>{profile.tagline || profile.display_name}</Text>
                 </View>
                 {selectedModelProfile === profile.profile_key ? <Ionicons name="checkmark-circle" size={19} color={colors.primary} /> : null}
-                {!profile.is_active || (SUBSCRIPTION_TIER_RANK[currentSubscriptionTier] ?? 0) < (SUBSCRIPTION_TIER_RANK[profile.minimum_subscription_tier] ?? Number.POSITIVE_INFINITY) ? <Ionicons name="lock-closed-outline" size={16} color={colors.textMuted} /> : null}
+                {!profile.is_active ? <Ionicons name="lock-closed-outline" size={16} color={colors.textMuted} /> : null}
               </Pressable>
             ))}
             <Pressable onPress={chooseXProfile} style={[styles.modelPickerOption, styles.modelPickerOptionDisabled]} accessibilityRole="button">
               <View style={styles.modelPickerCopy}>
                 <Text style={styles.modelPickerName}>SULY 2.0 X</Text>
-                <Text style={styles.modelPickerDescription}>{isArabic ? "مخصص لمشتركي Max — يتطلب اعتماد النموذج ومزود الخدمة." : "For Max subscribers — model and provider approval required."}</Text>
+                <Text style={styles.modelPickerDescription}>{isArabic ? "يتطلب اعتماد النموذج ومزود الخدمة." : "Requires model and provider approval."}</Text>
               </View>
               <Ionicons name="lock-closed-outline" size={17} color={colors.textMuted} />
             </Pressable>
