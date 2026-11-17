@@ -476,6 +476,20 @@ export const adminService = {
     await requireAdmin();
     const allowed = ["enabled", "priority", "routing_group", "allowed_tiers", "response_timeout_ms", "restriction_failure_threshold", "restriction_window_minutes", "capabilities_json", "task_roles"];
     if (Object.keys(changes).some((key) => !allowed.includes(key))) throw new Error("حقل تعديل غير مسموح.");
+    if ("allowed_tiers" in changes) {
+      const tiers = changes.allowed_tiers;
+      const supportedTiers = ["free", "lite", "pro", "max", "ultra_team"];
+      if (!Array.isArray(tiers) || tiers.length === 0 || tiers.some((tier) => typeof tier !== "string" || !supportedTiers.includes(tier))) {
+        throw new Error("يجب تحديد باقة صالحة واحدة على الأقل لأهلية النموذج.");
+      }
+      changes.allowed_tiers = [...new Set(tiers as string[])];
+      if ((changes.allowed_tiers as string[]).includes("free")) {
+        const requestedGroup = typeof changes.routing_group === "string"
+          ? changes.routing_group
+          : (await supabase.from("ai_models").select("routing_group").eq("id", modelId).maybeSingle()).data?.routing_group;
+        if (requestedGroup !== "free_race") throw new Error("أهلية Free مسموحة فقط لنماذج مجموعة Free.");
+      }
+    }
     if ("task_roles" in changes) {
       const roles = changes.task_roles;
       const supportedRoles = ["general", "chat", "planner", "worker", "executor", "reviewer", "summarizer"];
