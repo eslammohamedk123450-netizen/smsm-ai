@@ -13,6 +13,14 @@ begin
     raise exception 'provider lifecycle snapshot table must have RLS enabled';
   end if;
 
+  if not exists (
+    select 1 from pg_policies
+    where schemaname='public' and tablename='ai_provider_lifecycle_snapshots'
+      and policyname='provider_lifecycle_snapshots_no_client_access'
+  ) then
+    raise exception 'provider lifecycle snapshots must have an explicit deny policy for client roles';
+  end if;
+
   if has_table_privilege('anon','public.ai_provider_lifecycle_snapshots','select')
      or has_table_privilege('authenticated','public.ai_provider_lifecycle_snapshots','select') then
     raise exception 'client roles must not read provider lifecycle snapshots';
