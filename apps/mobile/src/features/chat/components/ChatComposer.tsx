@@ -29,7 +29,6 @@ export interface ChatComposerProps {
   disabled?: boolean;
   isStreaming?: boolean;
   onCancel?(): void;
-  onOpenConnectors?(): void;
   isAgentMode?: boolean;
   onToggleAgent?(): void;
 }
@@ -44,7 +43,6 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
     disabled = false,
     isStreaming = false,
     onCancel,
-    onOpenConnectors,
     isAgentMode = false,
     onToggleAgent,
   },
@@ -117,28 +115,20 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
         </View>
       ) : null}
 
-      {/* Main Bar: Height 56, #1F1F1F, r: 999 */}
+      {/* Compact composer: one attachment entry point, Agent toggle, message field and send. */}
       <View style={styles.container}>
         {/* Right side (RTL start): + Button */}
-        <TouchableOpacity
-          onPress={onOpenConnectors}
-          disabled={disabled || isStreaming || !onOpenConnectors}
-          activeOpacity={0.7}
-          style={styles.plusButton}
-          accessibilityLabel={isArabic ? "فتح الموصلات والأدوات" : "Open connectors and tools"}
-        >
-          <Ionicons name="add" size={22} color={colors.textMuted} />
-        </TouchableOpacity>
-
         <TouchableOpacity
           onPress={() => setAttachVisible(true)}
           disabled={disabled || isStreaming}
           activeOpacity={0.7}
-          style={styles.connectorButton}
+          style={styles.plusButton}
+          accessibilityRole="button"
           accessibilityLabel={isArabic ? "إرفاق صورة أو ملف" : "Attach an image or file"}
         >
-          <Ionicons name="attach-outline" size={20} color={colors.textMuted} />
+          <Ionicons name="add" size={22} color={colors.textMuted} />
         </TouchableOpacity>
+
         <TouchableOpacity
           onPress={onToggleAgent}
           disabled={disabled || isStreaming || !onToggleAgent}
@@ -265,7 +255,6 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
     writingDirection: "rtl",
   },
   leftControls: { flexDirection: "row", alignItems: "center", gap: 4 },
-  connectorButton: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 18 },
   agentToggle: { minWidth: 58, height: 36, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 8, borderRadius: 18, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
   agentToggleActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   agentToggleLabel: { color: colors.textMuted, fontSize: 11, fontWeight: "700" },
