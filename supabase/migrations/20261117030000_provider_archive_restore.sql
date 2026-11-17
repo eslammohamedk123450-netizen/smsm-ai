@@ -251,6 +251,46 @@ begin
 end;
 $$;
 
+-- Capability evidence belongs to the operational catalog too: archived
+-- providers disappear from these admin lists without deleting their evidence.
+create or replace function public.suly_admin_list_model_capability_evidence(p_model_id integer default null)
+returns setof public.ai_model_capability_evidence
+language plpgsql stable security definer
+set search_path = pg_catalog, public, auth
+as $function$
+begin
+  if auth.uid() is null or not public.suly_is_admin() then
+    raise exception 'administrator privileges required' using errcode = '42501';
+  end if;
+  return query
+    select e.*
+    from public.ai_model_capability_evidence e
+    join public.ai_models m on m.id = e.model_id
+    join public.ai_providers p on p.id = m.provider_id
+    where p.enabled is true
+      and (p_model_id is null or e.model_id = p_model_id)
+    order by e.model_id, e.capability_key;
+end;
+$function$;
+
+create or replace function public.suly_admin_list_media_model_capability_evidence()
+returns setof public.suly_media_model_capability_evidence
+language plpgsql stable security definer
+set search_path = pg_catalog, public, auth
+as $function$
+begin
+  if auth.uid() is null or not public.suly_is_admin() then
+    raise exception 'administrator privileges required' using errcode = '42501';
+  end if;
+  return query
+    select e.*
+    from public.suly_media_model_capability_evidence e
+    join public.ai_providers p on p.id = e.provider_id
+    where p.enabled is true
+    order by e.service_type, e.model_identifier, e.capability_key;
+end;
+$function$;
+
 revoke all on function public.suly_admin_set_provider_lifecycle(integer, boolean, boolean) from public, anon;
 revoke all on function public.suly_admin_set_provider_lifecycle_v2(integer, boolean, boolean) from public, anon;
 revoke all on function public.suly_admin_list_providers() from public, anon;
