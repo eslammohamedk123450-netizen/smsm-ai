@@ -221,6 +221,13 @@ export const adminService = {
     return data ?? [];
   },
 
+  async getArchivedProviders() {
+    await requireAdmin();
+    const { data, error } = await supabase.rpc("suly_admin_list_archived_providers");
+    if (error) throw error;
+    return data ?? [];
+  },
+
   async saveImageGenerationModel(input: {
     modelId: string | null;
     providerId: number;
@@ -297,10 +304,14 @@ export const adminService = {
     if (error) throw error;
   },
 
-  async setProviderLifecycle(providerId: number, enabled: boolean, hideModels: boolean) {
+  async setProviderLifecycle(providerId: number, enabled: boolean, hideModels = true) {
     await requireAdmin();
-    const { error } = await supabase.rpc("suly_admin_set_provider_lifecycle", { p_provider_id: providerId, p_enabled: enabled, p_hide_models: hideModels });
+    const { data, error } = await supabase.rpc("suly_admin_set_provider_lifecycle", { p_provider_id: providerId, p_enabled: enabled, p_hide_models: hideModels });
     if (error) throw error;
+    if (!data || data.success !== true || Number(data.provider_id) !== providerId) {
+      throw new Error("لم تؤكد قاعدة البيانات إيقاف المزود أو استعادته.");
+    }
+    return data as { success: true; provider_id: number; enabled: boolean; archived?: boolean; restored?: boolean; financial_history_preserved: true };
   },
 
   async deleteProvider(providerId: number) {
@@ -351,7 +362,9 @@ export const adminService = {
     const health = new Map<number, Record<string, unknown>>((healthResult.data ?? []).map((row) => [Number(row.model_id), row]));
     const probe = new Map<number, Record<string, unknown>>((probeResult.data ?? []).map((row) => [Number(row.model_id), row]));
     return {
-      models: (modelsResult.data ?? []).map((row) => ({ ...row, provider_name: providerNames.get(Number(row.provider_id)) ?? "—", provider_type: providerTypes.get(Number(row.provider_id)) ?? "—", provider_enabled: providerEnabled.get(Number(row.provider_id)) ?? false, health: health.get(Number(row.id)) ?? null, probe: probe.get(Number(row.id)) ?? null })),
+      models: (modelsResult.data ?? [])
+        .filter((row) => providerEnabled.get(Number(row.provider_id)) === true)
+        .map((row) => ({ ...row, provider_name: providerNames.get(Number(row.provider_id)) ?? "—", provider_type: providerTypes.get(Number(row.provider_id)) ?? "—", provider_enabled: true, health: health.get(Number(row.id)) ?? null, probe: probe.get(Number(row.id)) ?? null })),
       settings: settingsResult.data,
     };
   },
@@ -364,6 +377,8 @@ export const adminService = {
       .eq("is_current", true)
       .order("model_id");
     if (priceError) throw priceError;
+    const activeProviders = await this.getProviders();
+    const activeProviderIds = new Set(activeProviders.map((provider: { id: number }) => Number(provider.id)));
     const modelIds = [...new Set((prices ?? []).map((row) => Number(row.model_id)))];
     if (modelIds.length === 0) return [];
     const { data: models, error: modelError } = await supabase
@@ -371,8 +386,8 @@ export const adminService = {
       .select("id,name,model_identifier,provider_id")
       .in("id", modelIds);
     if (modelError) throw modelError;
-    const modelById = new Map((models ?? []).map((row) => [Number(row.id), row]));
-    return (prices ?? []).map((price) => ({ ...price, model: modelById.get(Number(price.model_id)) ?? null }));
+    const modelById = new Map((models ?? []).filter((row) => activeProviderIds.has(Number(row.provider_id))).map((row) => [Number(row.id), row]));
+    return (prices ?? []).filter((price) => modelById.has(Number(price.model_id))).map((price) => ({ ...price, model: modelById.get(Number(price.model_id)) ?? null }));
   },
 
   async updateModelPrice(modelId: number, inputCost: number, outputCost: number, expectedVersion: number) {
@@ -408,7 +423,8 @@ export const adminService = {
     if (error) throw error;
     const providerNames = new Map<number, string>(providers.map((provider: { id: number; name?: string | null }) => [Number(provider.id), String(provider.name ?? "—")]));
     const providerTypes = new Map<number, string>(providers.map((provider: { id: number; provider_type?: string | null }) => [Number(provider.id), String(provider.provider_type ?? "—")]));
-    return (data ?? []).map((row) => ({ ...row, provider_name: providerNames.get(Number(row.provider_id)) ?? "—", provider_type: providerTypes.get(Number(row.provider_id)) ?? "—" }));
+    const activeProviderIds = new Set(providers.map((provider: { id: number }) => Number(provider.id)));
+    return (data ?? []).filter((row) => activeProviderIds.has(Number(row.provider_id))).map((row) => ({ ...row, provider_name: providerNames.get(Number(row.provider_id)) ?? "—", provider_type: providerTypes.get(Number(row.provider_id)) ?? "—" }));
   },
 
   async updateMediaModelPrice(input: {
