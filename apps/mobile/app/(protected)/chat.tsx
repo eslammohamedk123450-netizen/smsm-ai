@@ -147,6 +147,7 @@ export default function ChatPage() {
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   // The selected profile is screen-local; the server revalidates subscription eligibility on every request.
   const [selectedModelProfile, setSelectedModelProfile] = useState<SulyModelProfileKey>("lite");
+  const [isAgentMode, setIsAgentMode] = useState(false);
   const [currentSubscriptionTier, setCurrentSubscriptionTier] = useState("free");
   const [modelProfileOptions, setModelProfileOptions] = useState<SulyModelProfileOption[]>([]);
   const [modelProfileLoading, setModelProfileLoading] = useState(false);
@@ -408,6 +409,7 @@ export default function ChatPage() {
           conversationId: conversationKey,
           content,
           modelProfileKey: selectedModelProfile,
+          executionMode: isAgentMode ? "agent" : "auto",
           writeApproval,
           mediaAsset: uploadedAsset,
           signal: controller.signal,
@@ -463,6 +465,7 @@ export default function ChatPage() {
               conversationId: id,
               userMessageId: savedUserMessageId,
               modelProfileKey: selectedModelProfile,
+              executionMode: isAgentMode ? "agent" : "auto",
               signal: controller.signal,
               onChunk(text) {
                 streamedTextRef.current += text;
@@ -512,6 +515,7 @@ export default function ChatPage() {
         await chatService.retryAssistant({
           ...failed,
           modelProfileKey: selectedModelProfile,
+          executionMode: isAgentMode ? "agent" : "auto",
           signal: controller.signal,
           
           onChunk(text) {
@@ -864,7 +868,7 @@ export default function ChatPage() {
         )}
         {isUploadingAttachment ? <View style={styles.uploadStatus}><ActivityIndicator size="small" color={colors.primary} /><Text style={styles.loadingText}>{isArabic ? "جارٍ رفع المرفق…" : "Uploading attachment…"}</Text></View> : null}
         <StreamingStatus isStreaming={isSending && !isUploadingAttachment} taskLabel={activeTaskLabel} onCancel={() => abortRef.current?.abort()} />
-        <ChatComposer ref={composerRef} onSend={handleSend} disabled={isSending || Boolean(connectorApproval)} isStreaming={isSending} onCancel={() => abortRef.current?.abort()} onOpenConnectors={() => router.push("/integrations")} />
+        <ChatComposer ref={composerRef} onSend={handleSend} disabled={isSending || Boolean(connectorApproval)} isStreaming={isSending} onCancel={() => abortRef.current?.abort()} onOpenConnectors={() => router.push("/integrations")} isAgentMode={isAgentMode} onToggleAgent={() => setIsAgentMode((current) => !current)} />
       </KeyboardAvoidingView>
       <ShareConversationSheet visible={shareVisible} conversationId={conversationId} title={shareTitle} plainText={shareText} onClose={closeShareSheet} />
       <BottomSheet visible={usageVisible} title={isArabic ? "إحصائيات المهمة الحالية" : "Current task usage"} onClose={() => setUsageVisible(false)}>
