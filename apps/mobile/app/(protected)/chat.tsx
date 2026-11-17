@@ -27,7 +27,7 @@ import { integrationService, type ToolkitStatus } from "../../src/features/integ
 import { randomUUID } from "expo-crypto";
 import { useNavigationMenu, usePlusMenu } from "../../src/components/navigation/MainNavigation";
 
-type SulyModelProfileKey = "auto" | "lite" | "pro" | "max";
+type SulyModelProfileKey = "lite" | "pro" | "max";
 type SulyModelProfileOption = {
   profile_key: Exclude<SulyModelProfileKey, "auto">;
   display_name: string;
@@ -36,6 +36,11 @@ type SulyModelProfileOption = {
   is_active: boolean;
 };
 const SUBSCRIPTION_TIER_RANK: Record<string, number> = { free: 0, lite: 1, pro: 2, max: 3 };
+const DEFAULT_MODEL_PROFILE_OPTIONS: SulyModelProfileOption[] = [
+  { profile_key: "lite", display_name: "SULY Lite", tagline: "للمهام السريعة واليومية", minimum_subscription_tier: "free", is_active: true },
+  { profile_key: "pro", display_name: "SULY Pro", tagline: "توازن بين السرعة والقدرات", minimum_subscription_tier: "pro", is_active: true },
+  { profile_key: "max", display_name: "SULY Max", tagline: "للمهام المعقدة والتحليل العميق", minimum_subscription_tier: "pro", is_active: true },
+];
 
 const STREAMING_ID = "local-streaming-assistant";
 const TASK_SUGGESTIONS = getRotatingSuggestions(Date.now(), 4);
@@ -142,16 +147,18 @@ export default function ChatPage() {
   const [ratingSaving, setRatingSaving] = useState(false);
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   // The selected profile is screen-local; the server revalidates subscription eligibility on every request.
-  const [selectedModelProfile, setSelectedModelProfile] = useState<SulyModelProfileKey>("auto");
+  const [selectedModelProfile, setSelectedModelProfile] = useState<SulyModelProfileKey>("lite");
+  const [currentSubscriptionTier, setCurrentSubscriptionTier] = useState("free");
   const [modelProfileOptions, setModelProfileOptions] = useState<SulyModelProfileOption[]>([]);
   const [modelProfileLoading, setModelProfileLoading] = useState(false);
   const [modelProfileMenuVisible, setModelProfileMenuVisible] = useState(false);
   useEffect(() => {
     let active = true;
     if (!user?.id) {
-      setModelProfileOptions([]);
+      setCurrentSubscriptionTier("free");
+      setModelProfileOptions(DEFAULT_MODEL_PROFILE_OPTIONS);
       setModelProfileLoading(false);
-      setSelectedModelProfile("auto");
+      setSelectedModelProfile("lite");
       return () => { active = false; };
     }
     setModelProfileLoading(true);
@@ -165,18 +172,16 @@ export default function ChatPage() {
             .order("sort_order", { ascending: true }),
         ]);
         if (tierError || profilesError || typeof tier !== "string") throw new Error("profile catalog unavailable");
-        const currentRank = SUBSCRIPTION_TIER_RANK[tier] ?? 0;
-        const eligible = ((profiles ?? []) as SulyModelProfileOption[]).filter((profile) => {
-          const minimumRank = SUBSCRIPTION_TIER_RANK[profile.minimum_subscription_tier];
-          return profile.is_active === true && Number.isFinite(minimumRank) && currentRank >= minimumRank;
-        });
         if (!active) return;
-        setModelProfileOptions(eligible);
-        setSelectedModelProfile((current) => current !== "auto" && !eligible.some((item) => item.profile_key === current) ? "auto" : current);
+        setCurrentSubscriptionTier(tier.toLowerCase());
+        const visibleProfiles = ((profiles ?? []) as SulyModelProfileOption[]).filter((profile) => profile.is_active === true);
+        setModelProfileOptions(visibleProfiles.length ? visibleProfiles : DEFAULT_MODEL_PROFILE_OPTIONS);
+        setSelectedModelProfile((current) => visibleProfiles.some((item) => item.profile_key === current) ? current : "lite");
       } catch {
         if (active) {
-          setModelProfileOptions([]);
-          setSelectedModelProfile("auto");
+          setCurrentSubscriptionTier("free");
+          setModelProfileOptions(DEFAULT_MODEL_PROFILE_OPTIONS);
+          setSelectedModelProfile("lite");
         }
       } finally {
         if (active) setModelProfileLoading(false);
@@ -185,11 +190,28 @@ export default function ChatPage() {
     return () => { active = false; };
   }, [user?.id]);
 
-  const selectedProfileLabel = selectedModelProfile === "auto"
-    ? (isArabic ? "SULY 2.0 Auto" : "SULY 2.0 Auto")
-    : modelProfileOptions.find((item) => item.profile_key === selectedModelProfile)?.display_name
-      ? `SULY 2.0 ${selectedModelProfile === "lite" ? "Lite" : selectedModelProfile === "pro" ? "Pro" : "Max"}`
-      : "SULY 2.0 Auto";
+  const selectedProfileLabel = `SULY 2.0 ${selectedModelProfile === "lite" ? "Lite" : selectedModelProfile === "pro" ? "Pro" : "Max"}`;
+
+  const chooseModelProfile = (profile: SulyModelProfileOption) => {
+    const currentRank = SUBSCRIPTION_TIER_RANK[currentSubscriptionTier] ?? 0;
+    const requiredRank = SUBSCRIPTION_TIER_RANK[profile.minimum_subscription_tier];
+    if (!Number.isFinite(requiredRank) || currentRank < requiredRank) {
+      setModelProfileMenuVisible(false);
+      router.push("/(protected)/upgrade");
+      return;
+    }
+    setSelectedModelProfile(profile.profile_key);
+    setModelProfileMenuVisible(false);
+  };
+
+  const chooseXProfile = () => {
+    setModelProfileMenuVisible(false);
+    if ((SUBSCRIPTION_TIER_RANK[currentSubscriptionTier] ?? 0) < SUBSCRIPTION_TIER_RANK.max) {
+      router.push("/(protected)/upgrade");
+      return;
+    }
+    show(isArabic ? "SULY X سيُتاح بعد اكتمال اعتماد النموذج ومزود الخدمة." : "SULY X will be available after its model and provider are approved.", "info");
+  };
 
   const openNavigationDrawer = useNavigationMenu();
   const openPlusMenu = usePlusMenu();
@@ -782,21 +804,10 @@ export default function ChatPage() {
         {modelProfileMenuVisible ? (
           <View style={styles.modelPickerMenu}>
             <Text style={styles.modelPickerHeading}>{isArabic ? "اختر نموذج SULY" : "Choose a SULY model"}</Text>
-            <Pressable
-              onPress={() => { setSelectedModelProfile("auto"); setModelProfileMenuVisible(false); }}
-              style={[styles.modelPickerOption, selectedModelProfile === "auto" && styles.modelPickerOptionSelected]}
-              accessibilityRole="button"
-            >
-              <View style={styles.modelPickerCopy}>
-                <Text style={styles.modelPickerName}>SULY 2.0 Auto</Text>
-                <Text style={styles.modelPickerDescription}>{isArabic ? "يختار الوكيل المركزي المستوى المؤهل الأنسب للمهمة." : "The central Agent selects the best eligible profile for the task."}</Text>
-              </View>
-              {selectedModelProfile === "auto" ? <Ionicons name="checkmark-circle" size={19} color={colors.primary} /> : null}
-            </Pressable>
             {modelProfileOptions.map((profile) => (
               <Pressable
                 key={profile.profile_key}
-                onPress={() => { setSelectedModelProfile(profile.profile_key); setModelProfileMenuVisible(false); }}
+                onPress={() => chooseModelProfile(profile)}
                 style={[styles.modelPickerOption, selectedModelProfile === profile.profile_key && styles.modelPickerOptionSelected]}
                 accessibilityRole="button"
               >
@@ -805,19 +816,17 @@ export default function ChatPage() {
                   <Text style={styles.modelPickerDescription}>{profile.tagline || profile.display_name}</Text>
                 </View>
                 {selectedModelProfile === profile.profile_key ? <Ionicons name="checkmark-circle" size={19} color={colors.primary} /> : null}
+                {profile.profile_key !== "lite" && (SUBSCRIPTION_TIER_RANK[currentSubscriptionTier] ?? 0) < SUBSCRIPTION_TIER_RANK.pro ? <Ionicons name="lock-closed-outline" size={16} color={colors.textMuted} /> : null}
               </Pressable>
             ))}
-            {(
-              <View style={[styles.modelPickerOption, styles.modelPickerOptionDisabled]}>
-                <View style={styles.modelPickerCopy}>
-                  <Text style={styles.modelPickerName}>SULY 2.0 X</Text>
-                  <Text style={styles.modelPickerDescription}>{isArabic ? "غير متاح حتى اكتمال التحقق والاعتماد." : "Unavailable until verification and approval are complete."}</Text>
-                </View>
-                <Ionicons name="lock-closed-outline" size={17} color={colors.textMuted} />
+            <Pressable onPress={chooseXProfile} style={[styles.modelPickerOption, styles.modelPickerOptionDisabled]} accessibilityRole="button">
+              <View style={styles.modelPickerCopy}>
+                <Text style={styles.modelPickerName}>SULY 2.0 X</Text>
+                <Text style={styles.modelPickerDescription}>{isArabic ? "مخصص لمشتركي Max — يتطلب اعتماد النموذج ومزود الخدمة." : "For Max subscribers — model and provider approval required."}</Text>
               </View>
-            )}
-            {modelProfileLoading ? <Text style={styles.modelPickerHint}>{isArabic ? "جارٍ تحميل المستويات المسموح بها…" : "Loading eligible profiles…"}</Text> : null}
-            {!modelProfileLoading && modelProfileOptions.length === 0 ? <Text style={styles.modelPickerHint}>{isArabic ? "تعذر تحميل مستويات الحساب؛ الوضع التلقائي متاح." : "Could not load account profiles; Auto remains available."}</Text> : null}
+              <Ionicons name="lock-closed-outline" size={17} color={colors.textMuted} />
+            </Pressable>
+            {modelProfileLoading ? <Text style={styles.modelPickerHint}>{isArabic ? "جارٍ تحميل النماذج…" : "Loading models…"}</Text> : null}
           </View>
         ) : null}
         {error ? <Pressable onPress={() => setError(null)} style={styles.errorBox}><Text style={styles.errorText}>{error}  ×</Text></Pressable> : null}
@@ -866,7 +875,7 @@ export default function ChatPage() {
         )}
         {isUploadingAttachment ? <View style={styles.uploadStatus}><ActivityIndicator size="small" color={colors.primary} /><Text style={styles.loadingText}>{isArabic ? "جارٍ رفع المرفق…" : "Uploading attachment…"}</Text></View> : null}
         <StreamingStatus isStreaming={isSending && !isUploadingAttachment} taskLabel={activeTaskLabel} onCancel={() => abortRef.current?.abort()} />
-        <ChatComposer ref={composerRef} onSend={handleSend} disabled={isSending || Boolean(connectorApproval)} isStreaming={isSending} onCancel={() => abortRef.current?.abort()} creditBalance={creditBalance} onOpenRecharge={() => router.push("/(protected)/balance")} onOpenConnectors={() => router.push("/integrations")} />
+        <ChatComposer ref={composerRef} onSend={handleSend} disabled={isSending || Boolean(connectorApproval)} isStreaming={isSending} onCancel={() => abortRef.current?.abort()} onOpenConnectors={() => router.push("/integrations")} />
       </KeyboardAvoidingView>
       <ShareConversationSheet visible={shareVisible} conversationId={conversationId} title={shareTitle} plainText={shareText} onClose={closeShareSheet} />
       <BottomSheet visible={usageVisible} title={isArabic ? "إحصائيات المهمة الحالية" : "Current task usage"} onClose={() => setUsageVisible(false)}>
