@@ -30,6 +30,8 @@ export interface ChatComposerProps {
   isStreaming?: boolean;
   onCancel?(): void;
   onOpenConnectors?(): void;
+  isAgentMode?: boolean;
+  onToggleAgent?(): void;
 }
 
 const MIN_INPUT_HEIGHT = 42;
@@ -43,6 +45,8 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
     isStreaming = false,
     onCancel,
     onOpenConnectors,
+    isAgentMode = false,
+    onToggleAgent,
   },
   ref
 ) {
@@ -134,6 +138,18 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
           accessibilityLabel={isArabic ? "إرفاق صورة أو ملف" : "Attach an image or file"}
         >
           <Ionicons name="attach-outline" size={20} color={colors.textMuted} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={onToggleAgent}
+          disabled={disabled || isStreaming || !onToggleAgent}
+          activeOpacity={0.7}
+          style={[styles.agentToggle, isAgentMode && styles.agentToggleActive]}
+          accessibilityRole="button"
+          accessibilityState={{ selected: isAgentMode, disabled: disabled || isStreaming || !onToggleAgent }}
+          accessibilityLabel={isArabic ? (isAgentMode ? "إيقاف وضع الوكيل" : "تفعيل وضع الوكيل") : (isAgentMode ? "Turn Agent mode off" : "Turn Agent mode on")}
+        >
+          <Ionicons name="sparkles-outline" size={15} color={isAgentMode ? colors.onPrimary : colors.textMuted} />
+          <Text style={[styles.agentToggleLabel, isAgentMode && styles.agentToggleLabelActive]}>{isArabic ? "وكيل" : "Agent"}</Text>
         </TouchableOpacity>
 
         {/* Center: TextInput with placeholder "اسأل Suly" */}
@@ -250,6 +266,10 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   },
   leftControls: { flexDirection: "row", alignItems: "center", gap: 4 },
   connectorButton: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 18 },
+  agentToggle: { minWidth: 58, height: 36, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 8, borderRadius: 18, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
+  agentToggleActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  agentToggleLabel: { color: colors.textMuted, fontSize: 11, fontWeight: "700" },
+  agentToggleLabelActive: { color: colors.onPrimary },
   blueButton: {
     width: 38,
     height: 38,
