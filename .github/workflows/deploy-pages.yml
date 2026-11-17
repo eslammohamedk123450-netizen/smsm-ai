@@ -112,23 +112,23 @@ jobs:
             archive="/tmp/suly-old-assets/$run_id.zip"
             if ! curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$api/actions/artifacts/$artifact_id/zip" -o "$archive"; then continue; fi
             python3 - "$archive" site <<'PY'
-import pathlib, sys, zipfile
-archive, site = sys.argv[1], pathlib.Path(sys.argv[2])
-copied = 0
-with zipfile.ZipFile(archive) as bundle:
-    for item in bundle.infolist():
-        name = item.filename.replace("\\\\", "/").lstrip("./")
-        if item.is_dir() or not (name.startswith("_expo/") or name.startswith("preview/_expo/")):
-            continue
-        target = (site / name).resolve()
-        if site.resolve() not in target.parents:
-            continue
-        target.parent.mkdir(parents=True, exist_ok=True)
-        if not target.exists():
-            target.write_bytes(bundle.read(item))
-            copied += 1
-print(f"Retained {copied} immutable assets from a previous deployment")
-PY
+          import pathlib, sys, zipfile
+          archive, site = sys.argv[1], pathlib.Path(sys.argv[2])
+          copied = 0
+          with zipfile.ZipFile(archive) as bundle:
+              for item in bundle.infolist():
+                  name = item.filename.replace("\\\\", "/").lstrip("./")
+                  if item.is_dir() or not (name.startswith("_expo/") or name.startswith("preview/_expo/")):
+                      continue
+                  target = (site / name).resolve()
+                  if site.resolve() not in target.parents:
+                      continue
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  if not target.exists():
+                      target.write_bytes(bundle.read(item))
+                      copied += 1
+          print(f"Retained {copied} immutable assets from a previous deployment")
+          PY
             retained=$((retained + 1))
             [ "$retained" -ge 8 ] && break
           done
