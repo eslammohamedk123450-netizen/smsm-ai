@@ -124,6 +124,21 @@ function renderBlock(block: MarkdownBlock, index: number, onCopyCode: ((code: st
       {block.rows.map((row, rowIndex) => <View key={`row-${rowIndex}`} style={[styles.tableRow, rowIndex % 2 === 0 ? styles.rowEven : styles.rowOdd]}>{row.map((cell, cellIndex) => <View key={`cell-${cellIndex}`} style={styles.tableCell}><InlineText text={cell} baseStyle={styles.tableText} styles={styles} /></View>)}</View>)}
     </View></ScrollView>
   </View>;
+  if (block.type === "chart") {
+    const maxValue = Math.max(1, ...block.values);
+    return <View key={`chart-index`} style={styles.chartContainer}>
+      {block.title ? <Text style={styles.chartTitle}>{block.title}</Text> : null}
+      {block.labels.map((label, itemIndex) => {
+        const value = block.values[itemIndex];
+        const width = Math.max(0, Math.min(100, (value / maxValue) * 100));
+        return <View key={`bar-itemIndex`} style={styles.chartRow}>
+          <Text numberOfLines={2} style={styles.chartLabel}>{label}</Text>
+          <View style={styles.chartTrack}><View style={[styles.chartBar, { width: `width%` }]} /></View>
+          <Text style={styles.chartValue}>{value.toLocaleString()}</Text>
+        </View>;
+      })}
+    </View>;
+  }
   return <View key={`code-${index}`} style={styles.codeContainer}>
     <View style={styles.codeHeader}><Text style={styles.codeLanguage}>{block.language || "كود"}</Text><Pressable accessibilityRole="button" accessibilityLabel="نسخ الكود" onPress={() => onCopyCode?.(block.code)} style={styles.copyButton}><Text style={styles.copyText}>نسخ</Text></Pressable></View>
     <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator={false} directionalLockEnabled style={styles.codeScroll} contentContainerStyle={styles.codeContent}><Text selectable style={styles.codeText}>{block.code}</Text></ScrollView>
@@ -144,5 +159,6 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
   stepCard: { flexDirection: "row-reverse", alignItems: "flex-start", width: "100%", paddingVertical: 2 }, stepNumber: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", marginLeft: 10 }, stepNumberText: { color: colors.onPrimary, fontSize: 14, lineHeight: 20, fontWeight: "800", textAlign: "center", writingDirection: "rtl" }, stepContent: { flex: 1, minWidth: 0 }, stepTitle: { color: colors.textPrimary, fontSize: 16, lineHeight: 25, fontWeight: "700", textAlign: "right", writingDirection: "rtl", marginBottom: 4 }, stepDescription: { color: colors.textSecondary, fontSize: 14, lineHeight: 23, textAlign: "right", writingDirection: "rtl" },
   quote: { borderRightWidth: 3, borderRightColor: colors.primary, paddingRight: 12, marginBottom: 10, backgroundColor: colors.surface, borderRadius: 8 }, quoteText: { color: colors.textSecondary, paddingVertical: 8 },
   tableCard: { marginVertical: 12, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, overflow: "hidden" }, tableScroll: { width: "100%" }, tableContent: { minWidth: "100%" }, tableRow: { flexDirection: "row-reverse", borderBottomWidth: 1, borderBottomColor: colors.divider }, tableHeader: { backgroundColor: colors.surfaceElevated }, rowEven: { backgroundColor: colors.surface }, rowOdd: { backgroundColor: colors.surfaceElevated }, tableCell: { minWidth: 120, paddingHorizontal: 12, paddingVertical: 12, borderLeftWidth: 1, borderLeftColor: colors.divider }, tableHeaderText: { color: colors.textPrimary, fontSize: 13, fontWeight: "700", textAlign: "right" }, tableText: { color: colors.textSecondary, fontSize: 14, lineHeight: 22, textAlign: "right" },
+  chartContainer: { width: "100%", padding: 14, marginVertical: 10, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, gap: 12 }, chartTitle: { color: colors.textPrimary, fontSize: 15, fontWeight: "800", textAlign: "right" }, chartRow: { width: "100%", flexDirection: "row-reverse", alignItems: "center", gap: 8 }, chartLabel: { width: "28%", color: colors.textSecondary, fontSize: 12, textAlign: "right" }, chartTrack: { flex: 1, height: 10, borderRadius: 6, overflow: "hidden", backgroundColor: colors.surfaceElevated }, chartBar: { height: "100%", borderRadius: 6, backgroundColor: colors.primary }, chartValue: { minWidth: 38, color: colors.textPrimary, fontSize: 12, fontWeight: "700", textAlign: "left", writingDirection: "ltr" },
   codeContainer: { width: "100%", backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.divider, padding: 12, marginVertical: 10, overflow: "hidden" }, codeHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }, codeLanguage: { color: colors.textMuted, fontSize: 12, writingDirection: "ltr", textAlign: "left" }, copyButton: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, backgroundColor: colors.surfaceElevated }, copyText: { color: colors.primary, fontSize: 12, fontWeight: "700" }, codeScroll: { maxHeight: 280, width: "100%" }, codeContent: { minWidth: "100%" }, codeText: { color: colors.textPrimary, fontFamily: "monospace", fontSize: 14, lineHeight: 22, writingDirection: "ltr", textAlign: "left" },
 });
