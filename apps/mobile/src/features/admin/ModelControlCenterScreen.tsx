@@ -5,8 +5,7 @@ import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
 import { adminService } from "./admin-service";
-import { ModelCapabilityEvidenceAdminCard } from "./ModelCapabilityEvidenceAdminCard";
-import { MediaModelCapabilityEvidenceAdminCard } from "./MediaModelCapabilityEvidenceAdminCard";
+import { UnifiedModelCapabilitiesAdminCard } from "./UnifiedModelCapabilitiesAdminCard";
 import { MediaModelPricingAdminCard } from "./MediaModelPricingAdminCard";
 import { RouteModelChainsCard } from "./RouteModelChainsCard";
 
@@ -77,12 +76,8 @@ export function ModelControlCenterScreen() {
       <Link href="/admin/models-catalog" asChild><Pressable style={styles.action}><Text style={styles.actionText}>فتح إدارة النماذج النصية</Text></Pressable></Link>
     </Section>
 
-    <Section title="مراجعة قدرات نماذج المحادثة" description="توثيق المزود، اختبار المزود، والتحقق من تكامل SULY.">
-      {!loading ? <ModelCapabilityEvidenceAdminCard models={models} /> : null}
-    </Section>
-
-    <Section title="مراجعة قدرات الصور والفيديو والصوت" description="أدلة قدرات الوسائط منفصلة عن التسعير والتفعيل؛ لا يؤدي توثيق القدرة إلى تشغيلها.">
-      <MediaModelCapabilityEvidenceAdminCard />
+    <Section title="سجل مركزي موحد للقدرات" description="كتالوج واحد لكل أنواع النماذج، مع اقتراحات ومراجعة واعتماد الأدلة من مكان واحد.">
+      <UnifiedModelCapabilitiesAdminCard />
     </Section>
 
     <Section title="تعيينات Brain وسلاسل النماذج" description="تحديد ترتيب النماذج لوظائف الدردشة والتخطيط والتنفيذ والمراجعة والتلخيص.">
@@ -93,7 +88,7 @@ export function ModelControlCenterScreen() {
       <MediaModelPricingAdminCard />
     </Section>
 
-    <View style={styles.footer}><Text style={styles.footerText}>واجهة مركزية واحدة فوق الخدمات الحالية. لن تُحذف الجداول القديمة أو تتغير الأسعار والتعيينات تلقائيًا قبل اكتمال ترحيل آمن واختبار كل مسار استخدام.</Text></View>
+    <View style={styles.footer}><Text style={styles.footerText}>واجهة وسجل مركزيان للهوية والقدرات. تظل جداول التشغيل والأسعار والتعيينات متوافقة عبر طبقة ترحيل آمنة إلى أن يكتمل نقل كل المستهلكين.</Text></View>
   </ScrollView>;
 }
 
