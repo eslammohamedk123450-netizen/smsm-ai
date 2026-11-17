@@ -4,7 +4,8 @@ export type MarkdownBlock =
   | { type: "list"; ordered: boolean; items: string[] }
   | { type: "quote"; text: string }
   | { type: "code"; language: string; code: string }
-  | { type: "table"; headers: string[]; rows: string[][] };
+  | { type: "table"; headers: string[]; rows: string[][] }
+  | { type: "chart"; title?: string; labels: string[]; values: number[] };
 
 function splitTableRow(line: string): string[] {
   return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim());
@@ -39,7 +40,28 @@ export function parseMarkdownBlocks(markdown: string): MarkdownBlock[] {
         index += 1;
       }
       if (index < lines.length) index += 1;
-      blocks.push({ type: "code", language: fence[1] || "", code: codeLines.join("\n") });
+      const code = codeLines.join("\n");
+      if (fence[1]?.toLowerCase() === "chart") {
+        try {
+          const chart = JSON.parse(code) as { type?: unknown; title?: unknown; labels?: unknown; values?: unknown };
+          if (chart.type === "bar" && Array.isArray(chart.labels) && Array.isArray(chart.values)
+            && chart.labels.length > 0 && chart.labels.length <= 12
+            && chart.labels.length === chart.values.length
+            && chart.labels.every((label) => typeof label === "string" && label.length <= 80)
+            && chart.values.every((value) => typeof value === "number" && Number.isFinite(value) && value >= 0)) {
+            blocks.push({
+              type: "chart",
+              title: typeof chart.title === "string" ? chart.title.slice(0, 120) : undefined,
+              labels: chart.labels as string[],
+              values: chart.values as number[],
+            });
+            continue;
+          }
+        } catch {
+          // Invalid chart payloads remain visible as ordinary code blocks.
+        }
+      }
+      blocks.push({ type: "code", language: fence[1] || "", code });
       continue;
     }
 
