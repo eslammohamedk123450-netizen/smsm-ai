@@ -42,10 +42,6 @@ const config: ExpoConfig & { splash?: { image: string; resizeMode: "contain"; ba
       resizeMode: "contain",
       backgroundColor: "#000000",
     }],
-    ["expo-speech-recognition", {
-      microphonePermission: "السماح لـ Suly باستخدام الميكروفون لإملاء الرسائل.",
-      speechRecognitionPermission: "السماح لـ Suly بتحويل الصوت إلى نص للرسائل.",
-    }],
     ["react-native-google-mobile-ads", {
       androidAppId: process.env.EXPO_PUBLIC_ADMOB_APP_ID_ANDROID ?? "ca-app-pub-3940256099942544~3347511713",
       iosAppId: process.env.EXPO_PUBLIC_ADMOB_APP_ID_IOS ?? "ca-app-pub-3940256099942544~1458002511",
