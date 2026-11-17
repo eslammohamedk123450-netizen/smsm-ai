@@ -54,7 +54,7 @@ export function MediaModelPricingAdminCard({ serviceType }: { serviceType?: "ima
     const query = search.trim().toLocaleLowerCase();
     return rows.filter((row) => (!serviceType || row.service_type === serviceType) && (!query || `${row.display_name} ${row.model_identifier} ${row.service_type}`.toLocaleLowerCase().includes(query)));
   }, [rows, search, serviceType]);
-  const selected = rows.find((row) => row.id === selectedId) ?? null;
+  const selected = visibleRows.find((row) => row.id === selectedId) ?? null;
 
   const select = (row: MediaPriceRow) => {
     setSelectedId(row.id);
