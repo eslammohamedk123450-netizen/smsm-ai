@@ -43,34 +43,45 @@ export function AdminDashboardScreen() {
   const load = useCallback(async (refresh = false) => {
     if (refresh) setRefreshing(true); else setLoading(true);
     setError(null);
-    const since = new Date(Date.now() - 7 * 86400000).toISOString();
-    const hourAgo = new Date(Date.now() - 3600000).toISOString();
-    const [modelsOverview, usersResult, transactionsResult, auditResult, maintenanceResult] = await Promise.all([
-      adminService.getModelsOverview(),
-      supabase.from("suly_profiles").select("id", { count: "exact", head: true }),
-      supabase.from("suly_credit_transactions").select("amount,event_type,created_at").gte("created_at", since).order("created_at", { ascending: true }).limit(2000),
-      supabase.from("admin_audit_logs").select("id,admin_id,action,target_table,target_id,created_at").order("created_at", { ascending: false }).limit(5),
-      supabase.from("system_settings").select("value").eq("key", "maintenance_mode").maybeSingle(),
-    ]);
-    const activeModelRows = modelsOverview.models as Model[];
-    const activeModelIds = activeModelRows.map((model) => Number(model.id));
-    const errorsResult = activeModelIds.length
-      ? await supabase.from("ai_model_attempt_logs").select("id", { count: "exact", head: true }).in("model_id", activeModelIds).gte("created_at", hourAgo).neq("attempt_status", "success")
-      : { count: 0, error: null };
-    if (usersResult.error || errorsResult.error || transactionsResult.error || auditResult.error || maintenanceResult.error) setError("تعذر تحميل بعض مؤشرات التشغيل. اعرض تفاصيل المصدر أو تحقق من صلاحيات قاعدة البيانات.");
-    setModelsAvailable(true);
-    setModelHealthAvailable(true);
-    setTransactionsAvailable(!transactionsResult.error);
-    setAuditAvailable(!auditResult.error);
-    setModels(activeModelRows);
-    setUserCount(usersResult.error ? null : usersResult.count ?? 0);
-    setHourErrors(errorsResult.error ? null : errorsResult.count ?? 0);
-    setTransactions((transactionsResult.data ?? []) as Tx[]);
-    setAudit((auditResult.data ?? []) as Audit[]);
-    setMaintenanceMode(maintenanceResult.error ? null : maintenanceResult.data?.value === "true");
-    // The app has no authoritative live-presence source; avoid presenting online users as zero.
-    setOnlineCount(null);
-    setLoading(false); setRefreshing(false);
+    try {
+      const since = new Date(Date.now() - 7 * 86400000).toISOString();
+      const hourAgo = new Date(Date.now() - 3600000).toISOString();
+      const [modelsOverview, usersResult, transactionsResult, auditResult, maintenanceResult] = await Promise.all([
+        adminService.getModelsOverview(),
+        supabase.from("suly_profiles").select("id", { count: "exact", head: true }),
+        supabase.from("suly_credit_transactions").select("amount,event_type,created_at").gte("created_at", since).order("created_at", { ascending: true }).limit(2000),
+        supabase.from("admin_audit_logs").select("id,admin_id,action,target_table,target_id,created_at").order("created_at", { ascending: false }).limit(5),
+        supabase.from("system_settings").select("value").eq("key", "maintenance_mode").maybeSingle(),
+      ]);
+      const activeModelRows = modelsOverview.models as Model[];
+      const activeModelIds = activeModelRows.map((model) => Number(model.id));
+      const errorsResult = activeModelIds.length
+        ? await supabase.from("ai_model_attempt_logs").select("id", { count: "exact", head: true }).in("model_id", activeModelIds).gte("created_at", hourAgo).neq("attempt_status", "success")
+        : { count: 0, error: null };
+      if (usersResult.error || errorsResult.error || transactionsResult.error || auditResult.error || maintenanceResult.error) {
+        setError("تعذر تحميل بعض مؤشرات التشغيل. اعرض تفاصيل المصدر أو تحقق من صلاحيات قاعدة البيانات.");
+      }
+      setModelsAvailable(true);
+      setModelHealthAvailable(true);
+      setTransactionsAvailable(!transactionsResult.error);
+      setAuditAvailable(!auditResult.error);
+      setModels(activeModelRows);
+      setUserCount(usersResult.error ? null : usersResult.count ?? 0);
+      setHourErrors(errorsResult.error ? null : errorsResult.count ?? 0);
+      setTransactions((transactionsResult.data ?? []) as Tx[]);
+      setAudit((auditResult.data ?? []) as Audit[]);
+      setMaintenanceMode(maintenanceResult.error ? null : maintenanceResult.data?.value === "true");
+      setOnlineCount(null);
+    } catch {
+      setError("تعذر تحميل مؤشرات النماذج أو بعض بيانات لوحة الإدارة.");
+      setModelsAvailable(false);
+      setModelHealthAvailable(false);
+      setHourErrors(null);
+      setModels([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
   useEffect(() => { void load(); }, [load]);
 
