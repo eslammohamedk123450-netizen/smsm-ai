@@ -1,4 +1,5 @@
 const DEFAULT_WEB_ORIGIN = "https://eslammohamedk123450-netizen.github.io";
+const DEFAULT_PRODUCTION_ORIGINS = ["https://suly.cloud"];
 const DEFAULT_ALLOWED_HEADERS = "authorization, x-client-info, apikey, content-type, cache-control";
 const DEFAULT_ALLOWED_METHODS = "POST, OPTIONS";
 
@@ -24,6 +25,7 @@ export function corsHeadersForRequest(
     .map((value) => normalizeOrigin(value))
     .filter((value): value is string => Boolean(value));
   const allowed = requestOrigin === DEFAULT_WEB_ORIGIN
+    || DEFAULT_PRODUCTION_ORIGINS.includes(requestOrigin)
     || configuredOrigins.includes(requestOrigin)
     || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(requestOrigin);
 
