@@ -1,7 +1,5 @@
-export type RequestedRoutingMode = "auto" | "manual" | undefined;
-
 export function resolveRoutingMode(input: {
-  requestedMode: RequestedRoutingMode;
+  requestedMode: unknown;
   hasExplicitModel: boolean;
 }): "auto" | "manual" {
   return input.requestedMode === "manual"
