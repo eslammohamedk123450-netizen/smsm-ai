@@ -53,7 +53,7 @@ export function ModelTierEligibilityAdminCard() {
       const overview = await adminService.getModelsOverview();
       setModels((overview.models ?? []) as ModelRow[]);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "تعذر تحميل أهلية النماذج حسب الباقة.");
+      setError(cause instanceof Error ? cause.message : "تعذر تحميل تكلفة النماذج مستقلة عن الباقات.");
     } finally {
       setLoading(false);
     }
@@ -86,12 +86,12 @@ export function ModelTierEligibilityAdminCard() {
     <View style={styles.header}>
       <View style={styles.copy}>
         <Text style={styles.title}>أهلية النماذج حسب الباقة</Text>
-        <Text style={styles.description}>هذه هي قاعدة الوصول الفعلية للنماذج النصية. اختر أقل باقة تسمح باستخدام النموذج؛ الباقات الأعلى ترث الوصول تلقائيًا.</Text>
+        <Text style={styles.description}>الباقات لا تحدد النماذج المسموح بها. تُحسب تكلفة الاستخدام حسب النموذج الفعلي، بينما تحدد الباقة الرصيد والمميزات والحدود.</Text>
       </View>
       <Pressable onPress={() => void load()}><Ionicons name="refresh-outline" size={19} color={colors.primary}/></Pressable>
     </View>
     <View style={styles.note}>
-      <Text style={styles.noteText}>Free مسموح فقط للنماذج المصنفة في free_race. النماذج الجديدة تبدأ من Max ولا تحصل على وصول مجاني تلقائيًا. تغيير الأهلية لا يفعّل نموذجًا معطلًا ولا يتجاوز اختبارات القدرات.</Text>
+      <Text style={styles.noteText}>لا تستخدم هذه الشاشة لربط النماذج بالباقات. إدارة تكلفة كل نموذج وحالته التشغيلية تتم بشكل مستقل عن الاشتراك.</Text>
     </View>
     <TextInput value={search} onChangeText={setSearch} placeholder="ابحث باسم النموذج أو جزء من المعرف..." placeholderTextColor={colors.textMuted} style={styles.input}/>
     {loading ? <ActivityIndicator color={colors.primary}/> : null}
