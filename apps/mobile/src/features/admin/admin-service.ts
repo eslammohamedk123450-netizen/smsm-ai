@@ -99,6 +99,12 @@ async function requireAdmin(): Promise<void> {
   if (error || data !== true) throw new Error("يتطلب هذا الإجراء صلاحية مشرف موثقة.");
 }
 
+async function listEnabledProvidersForAdmin() {
+  const { data, error } = await supabase.rpc("suly_admin_list_providers");
+  if (error) throw error;
+  return (data ?? []).filter((provider: { enabled?: boolean }) => provider.enabled === true);
+}
+
 function describeFunctionFailure(error: unknown, functionName: string): string {
   const status = (error as { context?: { status?: number } } | null)?.context?.status;
   if (status === 404) return `وظيفة ${functionName} غير منشورة على مشروع Supabase بعد، لذلك لم يُحفظ المزود.`;
@@ -216,9 +222,7 @@ export const adminService = {
   },
   async getProviders() {
     await requireAdmin();
-    const { data, error } = await supabase.rpc("suly_admin_list_providers");
-    if (error) throw error;
-    return (data ?? []).filter((provider: { enabled?: boolean }) => provider.enabled === true);
+    return listEnabledProvidersForAdmin();
   },
 
   async getArchivedProviders() {
@@ -429,7 +433,7 @@ export const adminService = {
         .eq("is_current", true)
         .order("service_type")
         .order("display_name"),
-      this.getProviders(),
+      listEnabledProvidersForAdmin(),
     ]);
     if (error) throw error;
     const providerNames = new Map<number, string>(providers.map((provider: { id: number; name?: string | null }) => [Number(provider.id), String(provider.name ?? "—")]));
