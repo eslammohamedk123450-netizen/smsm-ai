@@ -230,7 +230,7 @@ begin
   select to_jsonb(c) into v_after from public.suly_model_capabilities c
     where c.model_id=p_model_id and c.capability_key=p_capability_key;
   insert into public.suly_model_registry_audit(model_id,capability_key,action,before_state,after_state,actor_id)
-  values(p_model_id,p_capability_key,'capability_upsert',v_before,v_after,v_actor);
+  values(p_model_id,p_capability_key,case when p_review_status='approved' then 'capability_approved' when p_review_status='rejected' then 'capability_rejected' else 'capability_upsert' end,v_before,v_after,v_actor);
 
   -- Compatibility writes keep existing runtime/admin readers coherent during cutover.
   if v_model.service_type='chat' and v_model.legacy_chat_model_id is not null then
@@ -289,6 +289,10 @@ create or replace function public.suly_sync_chat_model_to_registry()
 returns trigger language plpgsql security definer set search_path=public,pg_temp as $
 declare v_registry_id uuid;
 begin
+  if tg_op='UPDATE' and (old.provider_id<>new.provider_id or old.model_identifier<>new.model_identifier) then
+    update public.suly_model_registry set lifecycle_state='archived',legacy_chat_model_id=null,updated_at=now()
+    where legacy_chat_model_id=old.id and provider_id=old.provider_id and service_type='chat' and model_identifier=old.model_identifier;
+  end if;
   insert into public.suly_model_registry
     (provider_id,service_type,model_identifier,display_name,lifecycle_state,legacy_chat_model_id,source_metadata)
   values (new.provider_id,'chat',new.model_identifier,new.name,
@@ -313,6 +317,10 @@ create or replace function public.suly_sync_media_model_to_registry()
 returns trigger language plpgsql security definer set search_path=public,pg_temp as $
 declare v_registry_id uuid; v_capability text;
 begin
+  if tg_op='UPDATE' and (old.provider_id<>new.provider_id or old.service_type<>new.service_type or old.model_identifier<>new.model_identifier) then
+    update public.suly_model_registry set lifecycle_state='archived',legacy_media_model_id=null,updated_at=now()
+    where legacy_media_model_id=old.id and provider_id=old.provider_id and service_type=old.service_type and model_identifier=old.model_identifier;
+  end if;
   insert into public.suly_model_registry
     (provider_id,service_type,model_identifier,display_name,lifecycle_state,legacy_media_model_id,source_metadata)
   values (new.provider_id,new.service_type,new.model_identifier,new.display_name,
