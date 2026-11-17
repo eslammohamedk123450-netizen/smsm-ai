@@ -280,12 +280,32 @@ begin
 end;
 $$;
 
+create or replace function public.suly_admin_list_model_registry_audit()
+returns table (
+  id bigint, model_id uuid, display_name text, capability_key text, action text,
+  before_state jsonb, after_state jsonb, actor_id uuid, created_at timestamptz
+)
+language plpgsql security definer set search_path=public,pg_temp
+as $
+begin
+  if not public.suly_is_admin() then raise exception 'admin_required' using errcode='42501'; end if;
+  return query
+  select a.id,a.model_id,r.display_name,a.capability_key,a.action,a.before_state,a.after_state,a.actor_id,a.created_at
+  from public.suly_model_registry_audit a
+  left join public.suly_model_registry r on r.id=a.model_id
+  order by a.created_at desc,a.id desc
+  limit 100;
+end;
+$;
+
 revoke all on public.suly_model_registry, public.suly_model_capabilities, public.suly_model_registry_audit from anon, authenticated;
 grant select,insert,update,delete on public.suly_model_registry, public.suly_model_capabilities to authenticated;
 grant select on public.suly_model_registry_audit to authenticated;
 revoke all on function public.suly_admin_list_unified_model_capabilities() from public,anon;
+revoke all on function public.suly_admin_list_model_registry_audit() from public,anon;
 revoke all on function public.suly_admin_save_unified_model_capability(uuid,text,text,text,text,text,text,text,text,text) from public,anon;
 grant execute on function public.suly_admin_list_unified_model_capabilities() to authenticated;
+grant execute on function public.suly_admin_list_model_registry_audit() to authenticated;
 grant execute on function public.suly_admin_save_unified_model_capability(uuid,text,text,text,text,text,text,text,text,text) to authenticated;
 
 -- Keep the canonical projection synchronized with legacy runtime writes while
