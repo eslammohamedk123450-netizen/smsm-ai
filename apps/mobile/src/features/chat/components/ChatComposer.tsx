@@ -34,6 +34,7 @@ export interface ChatComposerProps {
   onCancel?(): void;
   creditBalance?: number | null;
   onOpenRecharge?(): void;
+  onOpenConnectors?(): void;
 }
 
 const MIN_INPUT_HEIGHT = 42;
@@ -53,6 +54,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
     onCancel,
     creditBalance = null,
     onOpenRecharge,
+    onOpenConnectors,
   },
   ref
 ) {
@@ -371,17 +373,16 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
           accessibilityLabel={isArabic ? "اسأل Suly" : "Ask SULY"}
         />
 
-        {/* Left side (RTL end): Mic icon + Blue circular button with sound waves */}
+        {/* Connectors shortcut replaces voice input; voice capture is not part of this chat UI. */}
         <View style={styles.leftControls}>
           <TouchableOpacity
-            onPress={() => (voiceActive ? stopVoice() : void requestVoicePermission())}
-            disabled={disabled || isStreaming || !voiceSupported}
+            onPress={onOpenConnectors}
+            disabled={disabled || isStreaming}
             activeOpacity={0.7}
             style={styles.micButton}
-            accessibilityLabel={isArabic ? "تسجيل صوتي" : "Record audio"}
+            accessibilityLabel={isArabic ? "فتح الموصلات" : "Open connectors"}
           >
-            <Ionicons name={voiceActive ? "mic" : "mic-outline"} size={20} color={voiceActive ? colors.error : colors.textMuted} />
-            {voiceActive ? <Animated.View style={styles.recordingPulse} /> : null}
+            <Ionicons name="git-network-outline" size={20} color={colors.textMuted} />
           </TouchableOpacity>
 
           {isStreaming ? (
@@ -390,7 +391,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
             </Pressable>
           ) : (
             <Pressable
-              style={[styles.blueButton, Platform.OS === "web" && styles.webSendButton, (!text.trim() && !attachment && !voiceActive) && styles.blueButtonIdle]}
+              style={[styles.blueButton, Platform.OS === "web" && styles.webSendButton, (!text.trim() && !attachment) && styles.blueButtonIdle]}
               onPress={submit}
               disabled={disabled || (!text.trim() && !attachment)}
               accessibilityLabel={isArabic ? "إرسال" : "Send"}
