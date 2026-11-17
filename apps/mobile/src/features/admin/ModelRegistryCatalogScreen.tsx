@@ -71,15 +71,15 @@ export function ModelRegistryCatalogScreen() {
     try {
       const [registry, providers, chat, media, health] = await Promise.all([
         supabase.rpc("suly_admin_list_unified_model_capabilities"),
-        supabase.from("ai_providers").select("id,name,enabled").limit(500),
+        supabase.from("ai_providers").select("id,name,provider_type,enabled").limit(500),
         supabase.from("ai_models").select("id,enabled,routing_group").limit(1000),
         supabase.from("suly_media_generation_models").select("id,is_active").limit(1000),
         supabase.from("ai_model_health").select("model_id,auto_restricted").limit(1000),
       ]);
       if (registry.error) throw registry.error;
       if (providers.error) throw providers.error;
-      const providerById = new Map<number, { name: string; enabled: boolean }>(
-        (providers.data ?? []).map((item) => [Number(item.id), { name: String(item.name ?? "—"), enabled: item.enabled === true }])
+      const providerById = new Map<number, { name: string; provider_type: string; enabled: boolean }>(
+        (providers.data ?? []).map((item) => [Number(item.id), { name: String(item.name ?? "—"), provider_type: String(item.provider_type ?? "—"), enabled: item.enabled === true }])
       );
       const chatById = new Map<number, { enabled: boolean; routing_group: string }>(
         (chat.data ?? []).map((item) => [Number(item.id), { enabled: item.enabled === true, routing_group: String(item.routing_group ?? "") }])
@@ -102,7 +102,7 @@ export function ModelRegistryCatalogScreen() {
           if (active === false) operational_state = "disabled";
           else if (active === true && provider?.enabled) operational_state = "active";
         } else if (raw.lifecycle_state === "candidate") operational_state = "candidate";
-        const model = { ...raw, provider_name: provider?.name ?? raw.provider_name ?? null, operational_state };
+        const model = { ...raw, provider_name: provider?.name ?? raw.provider_name ?? null, provider_type: provider?.provider_type ?? null, operational_state };
         if (!unique.has(model.model_id)) unique.set(model.model_id, model);
       }
       setRows([...unique.values()].sort((a, b) => a.display_name.localeCompare(b.display_name)));
@@ -160,7 +160,7 @@ export function ModelRegistryCatalogScreen() {
       <View style={styles.modelHeading}>
         <View style={styles.modelCopy}>
           <Text style={styles.modelName}>{model.display_name}</Text>
-          <Text style={styles.meta}>المفتاح/المزود: {model.provider_name ?? `مزود #${model.provider_id}`}</Text>
+          <Text style={styles.meta}>اسم المفتاح: {model.provider_name ?? `مزود #${model.provider_id}`} · المزود: {model.provider_type ?? "—"}</Text>
           <Text style={styles.meta}>المعرّف: {model.model_identifier} · النوع: {model.service_type}</Text>
         </View>
         <View style={[styles.status, model.operational_state === "active" ? styles.statusActive : model.operational_state === "restricted" ? styles.statusRestricted : styles.statusDisabled]}>
