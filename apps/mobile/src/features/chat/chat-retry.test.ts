@@ -1,7 +1,5 @@
-import { randomUUID } from "expo-crypto";
 import type { ChatMessage } from "./chat-service";
 
-jest.mock("expo-crypto", () => ({ randomUUID: jest.fn() }));
 import { buildRetryHistory, createRetryRequestId } from "./chat-retry";
 
 const message = (id: string, role: ChatMessage["role"], content = id): ChatMessage => ({
@@ -42,12 +40,8 @@ describe("buildRetryHistory", () => {
 
 describe("createRetryRequestId", () => {
   it("creates a new UUID for each explicit retry", () => {
-    const uuid = randomUUID as jest.MockedFunction<typeof randomUUID>;
-    uuid.mockReturnValueOnce("11111111-1111-4111-8111-111111111111");
-    uuid.mockReturnValueOnce("22222222-2222-4222-8222-222222222222");
-
-    const first = createRetryRequestId();
-    const second = createRetryRequestId();
+    const first = createRetryRequestId(() => "11111111-1111-4111-8111-111111111111");
+    const second = createRetryRequestId(() => "22222222-2222-4222-8222-222222222222");
 
     expect(first).toBe("11111111-1111-4111-8111-111111111111");
     expect(second).toBe("22222222-2222-4222-8222-222222222222");
