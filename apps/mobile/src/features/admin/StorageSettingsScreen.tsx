@@ -4,6 +4,7 @@ import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { adminService } from "./admin-service";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
+import { AdminMobileBreadcrumb } from "./AdminMobileBreadcrumb";
 
 type Bucket = Awaited<ReturnType<typeof adminService.getStorageBuckets>>[number];
 type StorageObject = Awaited<ReturnType<typeof adminService.listStorageObjects>>[number];
@@ -82,6 +83,7 @@ export function StorageSettingsScreen() {
   const goToSegment = (index: number) => { setSearch(""); setSegments((current) => current.slice(0, index + 1)); };
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <AdminMobileBreadcrumb />
     <View style={styles.heading}>
       <View style={styles.headingCopy}>
         <Text style={styles.eyebrow}>إدارة البنية والملفات</Text>
