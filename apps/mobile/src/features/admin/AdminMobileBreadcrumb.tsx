@@ -9,6 +9,7 @@ import type { ThemePalette } from "../../theme/colors";
 
 const SECTIONS = [
   { prefix: "/admin/models-operations", ar: "القدرات والاختبارات", en: "Capabilities & Tests" },
+  { prefix: "/admin/model-capabilities", ar: "القدرات والاختبارات", en: "Capabilities & Tests" },
   { prefix: "/admin/model-capability", ar: "القدرات والاختبارات", en: "Capabilities & Tests" },
   { prefix: "/admin/api-keys", ar: "المزودون والنماذج", en: "Providers & Models" },
   { prefix: "/admin/models-catalog", ar: "المزودون والنماذج", en: "Providers & Models" },

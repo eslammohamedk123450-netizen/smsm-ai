@@ -38,6 +38,7 @@
 - [x] Extend the responsive mobile breadcrumb to Finance & Profit, Support, and Conversations pages.
 - [x] Extend the responsive mobile breadcrumb to System & Security, Overview, and the model-control landing page.
 - [x] Extend the responsive mobile breadcrumb to the unified capability directory, unified model catalog, and media model catalog.
+- [x] Add mobile breadcrumbs to image-generation model management and map the model-capabilities route to its correct section.
 - [x] Add responsive mobile breadcrumbs to Credits & Wallet, Users & Accounts, published custom pages, Page Builder, Composio, Tavily, and the friction dashboard.
 - [ ] Complete remaining domain-specific filters and consistent loading/empty/error/unknown/no-permission states.
 - [x] Add 7-day and 30-day consumption windows to the Overview chart and show when its 2000-row data cap may make the view partial.
