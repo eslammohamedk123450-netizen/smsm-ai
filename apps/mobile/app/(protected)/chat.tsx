@@ -38,6 +38,7 @@ const DEFAULT_MODEL_PROFILE_OPTIONS: SulyModelProfileOption[] = [
   { profile_key: "lite", display_name: "SULY Lite", tagline: "للاستخدام الشخصي اليومي", is_active: true },
   { profile_key: "pro", display_name: "SULY Pro", tagline: "للاستخدام الجاد والمهام المتقدمة", is_active: false },
   { profile_key: "max", display_name: "SULY Max", tagline: "للمهام المعقدة والتحليل العميق", is_active: false },
+  { profile_key: "x", display_name: "SULY X", tagline: "أعلى مستوى من قدرات النماذج", is_active: false },
 ];
 
 const STREAMING_ID = "local-streaming-assistant";
