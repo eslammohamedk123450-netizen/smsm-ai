@@ -1,2 +1,2 @@
-import { ModelsAdminScreen } from "../../../src/features/admin/AdminScreens";
-export default ModelsAdminScreen;
+import { ModelRegistryCatalogScreen } from "../../../src/features/admin/ModelRegistryCatalogScreen";
+export default ModelRegistryCatalogScreen;
