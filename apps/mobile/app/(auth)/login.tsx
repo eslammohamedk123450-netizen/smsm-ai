@@ -187,7 +187,8 @@ export default function LoginPage() {
       <KeyboardAvoidingView style={styles.safe} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <View style={styles.card}>
-            <Text style={styles.brand}>Suly</Text>
+            <View style={styles.brandLockup}><View style={styles.brandMark}><Text style={styles.brandMarkText}>S</Text></View><Text style={styles.brand}>SULY</Text></View>
+            <Text style={styles.tagline}>More Than AI. Your Intelligent Partner.</Text>
             <Text style={styles.heading}>{isRegister ? "إنشاء حساب" : isVerifyingCode ? "أدخل رمز التحقق" : "تسجيل الدخول"}</Text>
             {isRegister && <TextInput value={fullName} onChangeText={setFullName} placeholder="الاسم الكامل" placeholderTextColor={colors.textMuted} style={styles.input} autoComplete="name" returnKeyType="next" />}
             <TextInput value={email} onChangeText={changeEmail} placeholder="البريد الإلكتروني" placeholderTextColor={colors.textMuted} style={styles.input} keyboardType="email-address" autoCapitalize="none" autoComplete="email" textContentType="emailAddress" returnKeyType="next" />
@@ -247,7 +248,11 @@ function createStyles(colors: ThemePalette) { return StyleSheet.create({
   scrollView: { flex: 1, width: "100%" },
   scroll: { flexGrow: 1, width: "100%", justifyContent: "center", alignItems: "stretch", padding: 20 },
   card: { width: "100%", maxWidth: 480, alignSelf: "center", padding: 28, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider },
-  brand: { color: colors.primary, fontSize: 34, fontWeight: "800", textAlign: "center" },
+  brandLockup: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 4 },
+  brandMark: { width: 42, height: 42, borderRadius: 13, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
+  brandMarkText: { color: colors.onPrimary, fontSize: 25, fontWeight: "900" },
+  brand: { color: colors.textPrimary, fontSize: 30, fontWeight: "900", letterSpacing: 2 },
+  tagline: { color: colors.textMuted, fontSize: 11, textAlign: "center", marginBottom: 24, letterSpacing: 0.2 },
   heading: { color: colors.textPrimary, fontSize: 22, fontWeight: "700", textAlign: "right", marginBottom: 16 },
   input: { width: "100%", height: 52, borderRadius: 12, borderWidth: 1, borderColor: colors.inputBorder, backgroundColor: colors.inputBackground, color: colors.textPrimary, paddingHorizontal: 14, marginBottom: 12, textAlign: "auto" },
   codeInput: { textAlign: "center", fontSize: 24, letterSpacing: 8, fontWeight: "700" },
