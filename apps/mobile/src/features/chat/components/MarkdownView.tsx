@@ -126,14 +126,14 @@ function renderBlock(block: MarkdownBlock, index: number, onCopyCode: ((code: st
   </View>;
   if (block.type === "chart") {
     const maxValue = Math.max(1, ...block.values);
-    return <View key={`chart-index`} style={styles.chartContainer}>
+    return <View key={`chart-${index}`} style={styles.chartContainer}>
       {block.title ? <Text style={styles.chartTitle}>{block.title}</Text> : null}
       {block.labels.map((label, itemIndex) => {
         const value = block.values[itemIndex];
         const width = Math.max(0, Math.min(100, (value / maxValue) * 100));
-        return <View key={`bar-itemIndex`} style={styles.chartRow}>
+        return <View key={`bar-${itemIndex}`} style={styles.chartRow}>
           <Text numberOfLines={2} style={styles.chartLabel}>{label}</Text>
-          <View style={styles.chartTrack}><View style={[styles.chartBar, { width: `width%` }]} /></View>
+          <View style={styles.chartTrack}><View style={[styles.chartBar, { width: `${width}%` }]} /></View>
           <Text style={styles.chartValue}>{value.toLocaleString()}</Text>
         </View>;
       })}
