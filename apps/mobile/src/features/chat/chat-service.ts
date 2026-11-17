@@ -370,7 +370,7 @@ export const chatService = {
   async regenerateAssistant(options: {
     conversationId: string;
     history: ChatMessage[];
-    modelProfileKey?: "auto" | "lite" | "pro" | "max";
+    modelProfileKey?: ChatRequestBody["model_profile_key"];
     requestId?: string;
     signal: AbortSignal;
     onChunk(text: string): void;
@@ -401,7 +401,7 @@ export const chatService = {
   async retryAssistant(options: {
     conversationId: string;
     userMessageId: string;
-    modelProfileKey?: "auto" | "lite" | "pro" | "max";
+    modelProfileKey?: ChatRequestBody["model_profile_key"];
     signal: AbortSignal;
     onChunk(text: string): void;
     onModelInfo?(identifier: string): void;
