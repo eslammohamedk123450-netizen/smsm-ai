@@ -144,6 +144,25 @@ export function ModelRegistryCatalogScreen() {
     }
     router.push(`/admin/media-catalog?kind=${model.service_type}&q=${q}` as never);
   };
+  const openModelPriceHistory = (model: RegistryModel) => {
+    const q = encodeURIComponent(model.model_identifier);
+    if (model.service_type === "chat") {
+      router.push(`/admin/models?q=${q}` as never);
+      return;
+    }
+    if (model.service_type === "audio") {
+      const evidence = capabilitiesByModel.get(model.model_id);
+      if (evidence?.has("transcription")) {
+        router.push(`/admin/media-catalog?kind=transcription&q=${q}` as never);
+      } else if (evidence?.has("audio_output")) {
+        router.push(`/admin/media-catalog?kind=voice&q=${q}` as never);
+      } else {
+        router.push("/admin/model-capability-review");
+      }
+      return;
+    }
+    router.push(`/admin/media-catalog?kind=${model.service_type}&q=${q}` as never);
+  };
   const models = useMemo(() => [...new Map(rows.map((row) => [row.model_id, row])).values()], [rows]);
   const filtered = useMemo(() => {
     const q = search.trim().toLocaleLowerCase();
@@ -277,7 +296,7 @@ export function ModelRegistryCatalogScreen() {
             <View style={styles.detailLinks}>
               <Pressable accessibilityRole="button" onPress={() => { setSelectedModel(null); router.push("/admin/model-capability-review"); }} style={styles.detailLink}><Text style={styles.detailLinkText}>مراجعة أدلة القدرات</Text></Pressable>
               <Pressable accessibilityRole="button" onPress={() => { setSelectedModel(null); router.push("/admin/models-operations"); }} style={styles.detailLink}><Text style={styles.detailLinkText}>التشغيل والصحة</Text></Pressable>
-              <Pressable accessibilityRole="button" onPress={() => { setSelectedModel(null); router.push("/admin/pricing"); }} style={styles.detailLink}><Text style={styles.detailLinkText}>الأسعار والباقات</Text></Pressable>
+              <Pressable accessibilityRole="button" onPress={() => { const model = selectedModel; setSelectedModel(null); openModelPriceHistory(model); }} style={styles.detailLink}><Text style={styles.detailLinkText}>سجل أسعار النموذج</Text></Pressable>
               <Pressable accessibilityRole="button" onPress={() => { setSelectedModel(null); router.push("/admin/audit"); }} style={styles.detailLink}><Text style={styles.detailLinkText}>سجل التدقيق</Text></Pressable>
             </View>
             <Pressable accessibilityRole="button" onPress={() => { const model = selectedModel; setSelectedModel(null); openOperationalRecord(model); }} style={styles.detailPrimaryAction}><Text style={styles.detailPrimaryActionText}>{selectedModel.provider_enabled ? "فتح شاشة إدارة النموذج" : "فتح إدارة المزود"}</Text></Pressable>
