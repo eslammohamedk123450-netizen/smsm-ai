@@ -94,7 +94,7 @@ export function MediaModelsCatalogScreen() {
 
   const getCapabilities = (row: MediaModelRow) => evidence.filter((item) =>
     item.provider_id === row.provider_id && item.service_type === row.service_type
-    && item.model_identifier === row.model_identifier && item.vendor_claim_status === "supported");
+    && item.model_identifier === row.model_identifier && item.vendor_claim_status === "supported" && item.review_status === "approved");
 
   const unitLabel = (row: MediaModelRow) => row.unit_type === "image" ? "صورة" : row.unit_type === "video_second" ? "ثانية فيديو" : row.unit_type === "audio_minute" ? "دقيقة صوت" : row.unit_type;
 
@@ -191,7 +191,7 @@ export function MediaModelsCatalogScreen() {
       {selected.capability.vendor_evidence_url ? <Text selectable style={styles.meta}>وثائق: {selected.capability.vendor_evidence_url}</Text> : null}
     </View> : null}
     <MediaModelPricingAdminCard serviceType={SERVICE_FOR[kind]} capabilityKey={CAPABILITY_FOR[kind] as "transcription" | "audio_output" | undefined} initialRows={rows} initialEvidence={evidence} initialLoading={loading} skipInitialLoad />
-    <View style={styles.footerLinks}><Link href="/admin/models" asChild><Pressable><Text style={styles.link}>مراجعة واعتماد كل قدرات النماذج من المركز الموحد</Text></Pressable></Link></View>
+    <Link href="/admin/models" asChild><Pressable><Text style={styles.link}>مراجعة واعتماد كل قدرات النماذج من المركز الموحد</Text></Pressable></Link>
     <View style={styles.footerLinks}>
       <Link href="/admin/api-keys" asChild><Pressable><Text style={styles.link}>إدارة المزودين ومفاتيح API</Text></Pressable></Link>
       {kind === "image" ? <Link href="/admin/image-generation" asChild><Pressable><Text style={styles.link}>إضافة / تعديل نموذج صور</Text></Pressable></Link> : null}
