@@ -19,6 +19,7 @@ type ModelRow = {
   provider_id: number;
   name: string;
   provider_name: string;
+  provider_type?: string;
   provider_enabled?: boolean;
   model_identifier: string;
   enabled: boolean;
@@ -334,7 +335,7 @@ export function ModelsAdminScreen() {
   const filteredModels = useMemo(() => {
     const query = search.trim().toLowerCase();
     return models.filter((model) => {
-      const matchesQuery = !query || `${model.name} ${model.model_identifier} ${model.provider_name} ${model.routing_group}`.toLowerCase().includes(query);
+      const matchesQuery = !query || `${model.name} ${model.model_identifier} ${model.provider_name} ${model.provider_type ?? ""} ${model.routing_group}`.toLowerCase().includes(query);
       const providerVisible = model.provider_enabled === true;
       const matchesFilter = providerVisible && (
         modelFilter === "all"
@@ -488,7 +489,7 @@ export function ModelsAdminScreen() {
         windowSize={7}
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={<View style={styles.modelListHeader}>
-          <PageHeader title="النماذج والتوجيه" />
+          <PageHeader title="كتالوج النماذج النصية" />
           <Link href="/admin/api-keys" asChild><Pressable accessibilityRole="button"><Text style={styles.link}>إدارة المزودين ومفاتيح API</Text></Pressable></Link>
           <ErrorText>{error}</ErrorText>
           {!loading ? <>
@@ -521,7 +522,7 @@ export function ModelsAdminScreen() {
           const attempts = Number(model.health?.total_attempts ?? 0);
           const successRate = attempts ? `${Math.round(Number(model.health?.successful_attempts ?? 0) / attempts * 100)}%` : "—";
           return <ScrollView horizontal showsHorizontalScrollIndicator nestedScrollEnabled style={styles.modelTableScroller}><View style={styles.modelTableRow}>
-            <View style={styles.modelsTableName}><Text style={styles.cardTitle} numberOfLines={1}>{model.name}</Text><Text style={styles.modelTableSub} numberOfLines={1}>المزود / اسم المفتاح: {model.provider_name}</Text><Text style={styles.modelTableSub} numberOfLines={1}>{model.model_identifier}</Text><Text style={styles.modelTableSub}>مسار: {model.routing_group} · أولوية {model.priority}</Text></View>
+            <View style={styles.modelsTableName}><Text style={styles.cardTitle} numberOfLines={1}>{model.name}</Text><Text style={styles.modelTableSub} numberOfLines={1}>المزود: {model.provider_type ?? "—"} · اسم المفتاح: {model.provider_name}</Text><Text style={styles.modelTableSub} numberOfLines={1}>{model.model_identifier}</Text><Text style={styles.modelTableSub}>مسار: {model.routing_group} · أولوية {model.priority}</Text></View>
             <View style={styles.modelsTableCapabilities}>{MODEL_CAPABILITY_OPTIONS.filter(([key]) => parseModelCapabilityState(model.capabilities_json)[key]).map(([key, label]) => <Pressable key={key} onPress={() => void openModelDetails(model)} accessibilityRole="button" accessibilityLabel={`قدرة ${label} · فتح تفاصيل النموذج`} style={styles.capabilityIconButton}><Ionicons name={MODEL_CAPABILITY_ICONS[key]} size={16} color={colors.textSecondary} /></Pressable>)}</View>
             <View style={styles.modelsTablePrice}><Text style={styles.modelMetricValue}>{formatModelPrice(modelPrices[model.id]?.provider_input_cost_egp_per_million, modelPrices[model.id]?.currency)}</Text><Text style={styles.modelTableSub}>بيع: {formatModelPrice(modelPrices[model.id]?.selling_input_egp_per_million, modelPrices[model.id]?.currency)}</Text></View>
             <View style={styles.modelsTablePrice}><Text style={styles.modelMetricValue}>{formatModelPrice(modelPrices[model.id]?.provider_output_cost_egp_per_million, modelPrices[model.id]?.currency)}</Text><Text style={styles.modelTableSub}>بيع: {formatModelPrice(modelPrices[model.id]?.selling_output_egp_per_million, modelPrices[model.id]?.currency)}</Text></View>
