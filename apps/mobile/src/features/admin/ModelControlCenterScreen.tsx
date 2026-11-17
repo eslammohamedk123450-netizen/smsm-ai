@@ -27,8 +27,10 @@ export function ModelControlCenterScreen() {
       <Text style={styles.title}>إدارة النماذج والقدرات</Text>
       <Text style={styles.subtitle}>اختر القسم المطلوب. كتالوج النماذج منفصل عن دليل القدرات، والربط بينهما لا يغير التفعيل أو الأسعار أو مسارات التوجيه.</Text>
     </View>
-    <HubTile href="/admin/models-catalog" title="نماذج التطبيق" description="كل النماذج المسجلة: المتوفر، المقيّد، المعطّل، والنماذج المرشحة، مع البحث باسم النموذج واسم المفتاح." icon="layers-outline"/>
-    <HubTile href="/admin/model-capabilities" title="قدرات النماذج" description="افتح قدرات التطبيق كأيقونات مستقلة، ثم اعرض النماذج المرتبطة بكل قدرة وأضف نماذج أخرى." icon="grid-outline"/>
+    <View style={styles.grid}>
+      <HubTile href="/admin/models-catalog" title="نماذج التطبيق" description="كل النماذج: المتوفر، المقيّد، المعطّل، مع البحث باسم النموذج والمفتاح." icon="layers-outline"/>
+      <HubTile href="/admin/model-capabilities" title="قدرات النماذج" description="افتح القدرات كأيقونات مستقلة، واعرض النماذج المرتبطة بكل قدرة." icon="grid-outline"/>
+    </View>
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>أدوات الإدارة المتقدمة</Text>
       <View style={styles.links}>
@@ -48,11 +50,12 @@ const createStyles = (c: ThemePalette) => StyleSheet.create({
   eyebrow: { color: c.primary, fontSize: 9, fontWeight: "900", letterSpacing: 1.4 },
   title: { color: c.textPrimary, fontSize: 22, fontWeight: "900", textAlign: "right" },
   subtitle: { color: c.textMuted, fontSize: 10, lineHeight: 17, textAlign: "right" },
-  tile: { flexDirection: "row-reverse", alignItems: "center", gap: 11, borderWidth: 1, borderColor: c.divider, borderRadius: 14, padding: 13, backgroundColor: c.surface, minHeight: 94 },
+  grid: { flexDirection: "row-reverse", flexWrap: "wrap", justifyContent: "space-between", gap: 8 },
+  tile: { width: "48%", alignItems: "center", justifyContent: "center", gap: 10, borderWidth: 1, borderColor: c.divider, borderRadius: 14, padding: 12, backgroundColor: c.surface, minHeight: 154 },
   tileIcon: { width: 48, height: 48, borderRadius: 13, backgroundColor: c.primary + "14", alignItems: "center", justifyContent: "center" },
-  tileCopy: { flex: 1, alignItems: "flex-end", gap: 5 },
-  tileTitle: { color: c.textPrimary, fontSize: 13, fontWeight: "900", textAlign: "right" },
-  tileDescription: { color: c.textMuted, fontSize: 9, lineHeight: 15, textAlign: "right" },
+  tileCopy: { width: "100%", alignItems: "center", gap: 5 },
+  tileTitle: { color: c.textPrimary, fontSize: 12, fontWeight: "900", textAlign: "center" },
+  tileDescription: { color: c.textMuted, fontSize: 8, lineHeight: 14, textAlign: "center" },
   section: { borderTopWidth: 1, borderTopColor: c.divider, paddingTop: 12, gap: 9 },
   sectionTitle: { color: c.textPrimary, fontSize: 11, fontWeight: "900", textAlign: "right" },
   links: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 7 },
