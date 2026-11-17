@@ -98,6 +98,10 @@ export function MainNavigation({ children }: Props) {
                 </Pressable>
               </View>
               <View style={styles.drawerItems}>
+                <Pressable onPress={() => navigate("/chat")} accessibilityRole="button" style={[styles.drawerItem, { flexDirection: isArabic ? "row-reverse" : "row", backgroundColor: colors.surfaceElevated }]}>
+                  <Ionicons name="add-circle-outline" size={20} color={colors.textPrimary} />
+                  <Text style={[styles.drawerItemText, { color: colors.textPrimary, textAlign: isArabic ? "right" : "left" }]}>{isArabic ? "محادثة جديدة" : "New chat"}</Text>
+                </Pressable>
                 {ITEMS.map((item) => {
                   const selected = active === item.key;
                   return (
