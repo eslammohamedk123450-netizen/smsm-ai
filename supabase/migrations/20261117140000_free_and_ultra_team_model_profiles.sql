@@ -22,6 +22,35 @@ alter table public.suly_profiles
   add constraint suly_profiles_subscription_tier_check
   check (subscription_tier in ('free','lite','pro','max','ultra_team'));
 
+-- Extend the tier arrays used by the authoritative text and media routers.
+alter table public.ai_models
+  drop constraint if exists ai_models_allowed_tiers_check;
+alter table public.ai_models
+  add constraint ai_models_allowed_tiers_check
+  check (allowed_tiers <@ ARRAY['free','lite','pro','max','ultra_team']::text[]);
+
+alter table public.suly_media_generation_models
+  drop constraint if exists suly_media_generation_models_allowed_tiers_check;
+alter table public.suly_media_generation_models
+  add constraint suly_media_generation_models_allowed_tiers_check
+  check (allowed_tiers <@ ARRAY['free','lite','pro','max','ultra_team']::text[]);
+
+-- Catalog discovery previously defaulted every disabled model to all tiers.
+-- Remove accidental Free eligibility from every model outside the Free race.
+update public.ai_models
+set allowed_tiers = case
+  when cardinality(array_remove(allowed_tiers, 'free')) = 0 then ARRAY['max']::text[]
+  else array_remove(allowed_tiers, 'free')
+end
+where routing_group <> 'free_race'
+  and 'free' = any(allowed_tiers);
+
+alter table public.ai_models
+  drop constraint if exists ai_models_free_tier_requires_free_race_check;
+alter table public.ai_models
+  add constraint ai_models_free_tier_requires_free_race_check
+  check (not ('free' = any(allowed_tiers)) or routing_group = 'free_race');
+
 alter table public.suly_model_profiles
   drop constraint if exists suly_model_profiles_profile_key_check;
 alter table public.suly_model_profiles
