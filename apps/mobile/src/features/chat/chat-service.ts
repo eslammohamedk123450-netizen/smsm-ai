@@ -360,7 +360,7 @@ export const chatService = {
       messages: history,
       routing_mode: "auto",
       model_profile_key: options.modelProfileKey ?? "auto",
-      execution_mode: options.executionMode ?? "auto",
+      execution_mode: options.executionMode ?? "chat",
       stream: true,
       connector_approval_request_id: options.writeApproval?.requestId,
       connector_approval_original_text: options.writeApproval?.originalText,
@@ -395,7 +395,7 @@ export const chatService = {
       messages,
       routing_mode: "auto",
       model_profile_key: options.modelProfileKey ?? "auto",
-      execution_mode: options.executionMode ?? "auto",
+      execution_mode: options.executionMode ?? "chat",
       stream: true,
     }, { onChunk: options.onChunk, onModelInfo: options.onModelInfo, onTaskUpdate: options.onTaskUpdate, onDone() {} }, options.signal);
   },
