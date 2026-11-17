@@ -534,12 +534,7 @@ export const adminService = {
 
   async getRouteModelAssignments(): Promise<Array<{ route_role: string; model_id: number; priority: number; enabled: boolean }>> {
     await requireAdmin();
-    const { data, error } = await supabase
-      .from("ai_route_model_assignments")
-      .select("route_role,model_id,priority,enabled")
-      .order("route_role")
-      .order("priority")
-      .limit(2500);
+    const { data, error } = await supabase.rpc("suly_admin_list_unified_route_assignments");
     if (error) throw error;
     return (data ?? []) as Array<{ route_role: string; model_id: number; priority: number; enabled: boolean }>;
   },
