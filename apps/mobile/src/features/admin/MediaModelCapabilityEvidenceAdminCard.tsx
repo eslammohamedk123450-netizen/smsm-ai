@@ -23,11 +23,18 @@ const VENDOR = [["unknown","غير معروف"],["supported","مدعوم رسم�
 const TEST = [["not_tested","لم يُختبر"],["passed","نجح"],["failed","فشل"]] as const;
 const keyOf = (m: MediaModel) => `${m.provider_id}:${m.service_type}:${m.model_identifier}`;
 
-export function MediaModelCapabilityEvidenceAdminCard({ serviceType, capabilityKey }: { serviceType?: ServiceType; capabilityKey?: "transcription" | "audio_output" } = {}) {
+export function MediaModelCapabilityEvidenceAdminCard({ serviceType, capabilityKey, initialModels, initialEvidence, initialLoading = false, skipInitialLoad = false }: {
+  serviceType?: ServiceType;
+  capabilityKey?: "transcription" | "audio_output";
+  initialModels?: MediaModel[];
+  initialEvidence?: Evidence[];
+  initialLoading?: boolean;
+  skipInitialLoad?: boolean;
+} = {}) {
   const { colors } = useSulyTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const [models,setModels]=useState<MediaModel[]>([]);
-  const [evidence,setEvidence]=useState<Evidence[]>([]);
+  const [models,setModels]=useState<MediaModel[]>(initialModels ?? []);
+  const [evidence,setEvidence]=useState<Evidence[]>(initialEvidence ?? []);
   const [selectedKey,setSelectedKey]=useState<string>("");
   const [capability,setCapability]=useState(capabilityKey ?? "image_generation");
   const [search,setSearch]=useState("");
@@ -38,7 +45,7 @@ export function MediaModelCapabilityEvidenceAdminCard({ serviceType, capabilityK
   const [suly,setSuly]=useState<Evidence["suly_test_status"]>("not_tested");
   const [sulyUrl,setSulyUrl]=useState("");
   const [notes,setNotes]=useState("");
-  const [loading,setLoading]=useState(true);
+  const [loading,setLoading]=useState(initialLoading);
   const [saving,setSaving]=useState(false);
   const [error,setError]=useState<string|null>(null);
   const [notice,setNotice]=useState<string|null>(null);
@@ -58,7 +65,18 @@ export function MediaModelCapabilityEvidenceAdminCard({ serviceType, capabilityK
     }catch(cause){setError(cause instanceof Error?cause.message:"تعذر تحميل أدلة قدرات نماذج الوسائط.");}
     finally{setLoading(false);}
   };
-  useEffect(()=>{void load();},[serviceType]);
+  useEffect(()=>{
+    if(skipInitialLoad){
+      if(!initialLoading){
+        const list=(initialModels??[]).filter((model)=>!serviceType||model.service_type===serviceType);
+        setModels(list);setEvidence(initialEvidence??[]);
+        setSelectedKey((current)=>current&&list.some((model)=>keyOf(model)===current)?current:(list[0]?keyOf(list[0]):""));
+      }
+      setLoading(initialLoading);
+      return;
+    }
+    void load();
+  },[serviceType,skipInitialLoad,initialLoading,initialModels,initialEvidence]);
   const selected=models.find((m)=>keyOf(m)===selectedKey)??null;
   const capabilities=selected?(capabilityKey?OPTIONS[selected.service_type].filter(([key])=>key===capabilityKey):OPTIONS[selected.service_type]):OPTIONS.image;
   useEffect(()=>{
