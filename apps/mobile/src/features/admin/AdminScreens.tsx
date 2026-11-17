@@ -355,6 +355,7 @@ export function ModelsAdminScreen() {
   const [modelPrices, setModelPrices] = useState<Record<number, ModelPriceSummary>>({});
   const [search, setSearch] = useState(typeof q === "string" ? q : "");
   const [modelFilter, setModelFilter] = useState<"all" | "enabled" | "disabled" | "restricted">("enabled");
+  const [modelViewMode, setModelViewMode] = useState<"table" | "cards">("table");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [testingModelId, setTestingModelId] = useState<number | null>(null);
@@ -539,6 +540,10 @@ export function ModelsAdminScreen() {
               ] as const).map(([filter, label]) => <Pressable key={filter} accessibilityRole="button" accessibilityState={{ selected: modelFilter === filter }} onPress={() => setModelFilter(filter)} style={[styles.filterChip, modelFilter === filter && styles.filterChipSelected]}><Text style={[styles.filterText, modelFilter === filter && styles.filterTextSelected]}>{label}</Text></Pressable>)}
             </ScrollView>
             <Text style={styles.resultsCount}>عرض {filteredModels.length} من {models.length}</Text>
+            <View style={styles.rowWrap}>
+              <Pressable onPress={() => setModelViewMode("table")} style={[styles.filterChip, modelViewMode === "table" && styles.filterChipSelected]}><Text style={[styles.filterText, modelViewMode === "table" && styles.filterTextSelected]}>عرض الجدول</Text></Pressable>
+              <Pressable onPress={() => setModelViewMode("cards")} style={[styles.filterChip, modelViewMode === "cards" && styles.filterChipSelected]}><Text style={[styles.filterText, modelViewMode === "cards" && styles.filterTextSelected]}>عرض البطاقات</Text></Pressable>
+            </View>
             <ScrollView horizontal showsHorizontalScrollIndicator style={styles.modelTableScroller}><View style={styles.modelsTableHeader}><Text style={styles.modelsTableName}>النموذج / حساب المفتاح</Text><Text style={styles.modelsTableCapabilities}>القدرات</Text><Text style={styles.modelsTablePrice}>تكلفة الإدخال / 1M</Text><Text style={styles.modelsTablePrice}>تكلفة الإخراج / 1M</Text><Text style={styles.modelsTableMetric}>الحالة</Text><Text style={styles.modelsTableMetric}>الاستجابة</Text><Text style={styles.modelsTableActions}>إجراءات</Text></View></ScrollView>
             <Card><View style={styles.sectionRow}><View style={styles.batchCopy}><Text style={styles.sectionTitle}>اختبار شامل للنماذج</Text><Text style={styles.detail}>يختبر النماذج الظاهرة بالتوازي حتى 5 نماذج، باستخدام طلب قصير قليل التوكنز.</Text></View><PrimaryButton label={batchTesting ? "جارٍ الاختبار…" : `اختبار ${filteredModels.length} نموذج`} onPress={() => void testFilteredModels()} disabled={batchTesting || testingModelId !== null || filteredModels.length === 0} /></View>{Object.keys(batchResults).length > 0 ? <View style={styles.batchSummary}><Pressable onPress={() => setBatchFilter("success")}><Text style={styles.success}>الناجح: {Object.values(batchResults).filter((result) => result.status === "success").length}</Text></Pressable><Pressable onPress={() => setBatchFilter("error")}><Text style={styles.warning}>الفاشل: {Object.values(batchResults).filter((result) => result.status === "error").length}</Text></Pressable><Pressable onPress={() => setBatchFilter("all")}><Text style={styles.detail}>الكل</Text></Pressable><Text style={styles.detail}>تم اختبار: {Object.keys(batchResults).length}</Text></View> : null}</Card>
 
@@ -555,7 +560,7 @@ export function ModelsAdminScreen() {
           const statusTextStyle = model.health?.auto_restricted ? styles.statusRestrictedText : providerIsOff || isManuallyOff ? styles.statusDisabledText : styles.statusEnabledText;
           const attempts = Number(model.health?.total_attempts ?? 0);
           const successRate = attempts ? `${Math.round(Number(model.health?.successful_attempts ?? 0) / attempts * 100)}%` : "—";
-          return <ScrollView horizontal showsHorizontalScrollIndicator nestedScrollEnabled style={styles.modelTableScroller}><View style={styles.modelTableRow}>
+          return modelViewMode === "table" ? <ScrollView horizontal showsHorizontalScrollIndicator nestedScrollEnabled style={styles.modelTableScroller}><View style={styles.modelTableRow}>
             <View style={styles.modelsTableName}><Text style={styles.cardTitle} numberOfLines={1}>{model.name}</Text><Text style={styles.modelTableSub} numberOfLines={1}>المزود: {model.provider_type ?? "—"} · اسم المفتاح: {model.provider_name}</Text><Text style={styles.modelTableSub} numberOfLines={1}>{model.model_identifier}</Text><Text style={styles.modelTableSub}>مسار: {model.routing_group} · أولوية {model.priority}</Text></View>
             <View style={styles.modelsTableCapabilities}>{MODEL_CAPABILITY_OPTIONS.filter(([key]) => parseModelCapabilityState(model.capabilities_json)[key]).map(([key, label]) => <Pressable key={key} onPress={() => void openModelDetails(model)} accessibilityRole="button" accessibilityLabel={`قدرة ${label} · فتح تفاصيل النموذج`} style={styles.capabilityIconButton}><Ionicons name={MODEL_CAPABILITY_ICONS[key]} size={16} color={colors.textSecondary} /></Pressable>)}</View>
             <View style={styles.modelsTablePrice}><Text style={styles.modelMetricValue}>{formatModelPrice(modelPrices[model.id]?.provider_input_cost_egp_per_million, modelPrices[model.id]?.currency)}</Text><Text style={styles.modelTableSub}>بيع: {formatModelPrice(modelPrices[model.id]?.selling_input_egp_per_million, modelPrices[model.id]?.currency)}</Text></View>
@@ -568,7 +573,31 @@ export function ModelsAdminScreen() {
               {testResults[model.id] ? <Text accessibilityRole="text" style={testResults[model.id].startsWith("نجح الطلب") ? styles.success : styles.warning}>{testResults[model.id]}</Text> : null}
               {model.health?.auto_restricted ? <PrimaryButton label="مراجعة وإعادة تفعيل" onPress={() => void resetHealth(model)} disabled={busy || testingModelId !== null} /> : providerIsOff ? <Link href="/admin/api-keys" asChild><Pressable style={styles.detailsAction}><Text style={styles.link}>اذهب لتفعيل المفتاح</Text></Pressable></Link> : isManuallyOff ? <><PrimaryButton label="تفعيل ضمن سباق مجاني" onPress={() => void assignRoute(model, "free_race")} disabled={busy || testingModelId !== null} /><PrimaryButton label="تفعيل كبديل مدفوع" onPress={() => void assignRoute(model, "paid_fallback")} disabled={busy || testingModelId !== null} /></> : <PrimaryButton label="تعطيل" onPress={() => void disable(model)} disabled={busy || testingModelId !== null} />}
             </View>
-          </View></ScrollView>;
+          </View></ScrollView> : <Card>
+            <View style={styles.providerCardHeader}>
+              <View style={styles.providerHeaderText}>
+                <Text style={styles.cardTitle}>{model.name}</Text>
+                <Text style={styles.detail}>{model.provider_type ?? "—"} · حساب المفتاح: {model.provider_name}</Text>
+                <Text style={styles.modelTableSub}>{model.model_identifier}</Text>
+                <Text style={styles.modelTableSub}>المسار: {model.routing_group} · الأولوية: {model.priority}</Text>
+              </View>
+              <Text style={[styles.statusBadgeText, statusTextStyle]}>{status}</Text>
+            </View>
+            <Text style={styles.sectionTitle}>القدرات</Text>
+            <View style={styles.rowWrap}>
+              {MODEL_CAPABILITY_OPTIONS.filter(([key]) => parseModelCapabilityState(model.capabilities_json)[key]).map(([key, label]) => <View key={key} style={styles.pill}><Text style={styles.pillText}>{label}</Text></View>)}
+              {MODEL_CAPABILITY_OPTIONS.every(([key]) => !parseModelCapabilityState(model.capabilities_json)[key]) ? <Text style={styles.detail}>لا توجد قدرات موثقة</Text> : null}
+            </View>
+            <View style={styles.rowWrap}>
+              <View style={styles.card}><Text style={styles.detail}>تكلفة الإدخال / مليون</Text><Text style={styles.modelMetricValue}>{formatModelPrice(modelPrices[model.id]?.provider_input_cost_egp_per_million, modelPrices[model.id]?.currency)}</Text><Text style={styles.detail}>سعر البيع: {formatModelPrice(modelPrices[model.id]?.selling_input_egp_per_million, modelPrices[model.id]?.currency)}</Text></View>
+              <View style={styles.card}><Text style={styles.detail}>تكلفة الإخراج / مليون</Text><Text style={styles.modelMetricValue}>{formatModelPrice(modelPrices[model.id]?.provider_output_cost_egp_per_million, modelPrices[model.id]?.currency)}</Text><Text style={styles.detail}>سعر البيع: {formatModelPrice(modelPrices[model.id]?.selling_output_egp_per_million, modelPrices[model.id]?.currency)}</Text></View>
+            </View>
+            <Text style={styles.detail}>متوسط الاستجابة: {model.health?.average_latency_ms == null ? "—" : Math.round(model.health.average_latency_ms) + "ms"} · نسبة النجاح: {successRate}</Text>
+            <Pressable accessibilityRole="button" onPress={() => void openModelDetails(model)} style={styles.detailsAction}><Text style={styles.link}>القيود وسجل الفحوص</Text></Pressable>
+            <PrimaryButton label={testingModelId === model.id ? "جارٍ الفحص…" : "اختبار فوري"} onPress={() => void testModel(model)} disabled={busy || testingModelId !== null} />
+            {testResults[model.id] ? <Text style={testResults[model.id].startsWith("نجح الطلب") ? styles.success : styles.warning}>{testResults[model.id]}</Text> : null}
+            {model.health?.auto_restricted ? <PrimaryButton label="مراجعة وإعادة تفعيل" onPress={() => void resetHealth(model)} disabled={busy || testingModelId !== null} /> : isManuallyOff ? <><PrimaryButton label="تفعيل ضمن سباق مجاني" onPress={() => void assignRoute(model, "free_race")} disabled={busy || testingModelId !== null} /><PrimaryButton label="تفعيل كبديل مدفوع" onPress={() => void assignRoute(model, "paid_fallback")} disabled={busy || testingModelId !== null} /></> : <PrimaryButton label="تعطيل" onPress={() => void disable(model)} disabled={busy || testingModelId !== null} />}
+          </Card>;
         }}
       />
     </View>
