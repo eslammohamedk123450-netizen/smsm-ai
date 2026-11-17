@@ -796,6 +796,7 @@ Finance / Profitability / Alerts / Audit
   - إزالة أهلية Free من النماذج الموجودة خارج `free_race`، مع قيد يمنع منح Free لنموذج خارج المجموعة.
   - تحديث `suly_effective_subscription_tier` و`suly_claim_daily_credits` لقبول Ultra Team، وتحديث `brain_reserve_usage` لاستخدام الاستحقاق الفعلي مع مطابقة Ultra Team مؤقتًا لحدود Max حتى إعداد حدود الفريق.
 - نتيجة التدقيق التي تعالجها migration: 240 نموذجًا معطلًا خارج `free_race` كانت تحمل أهلية Free بسبب القيمة الافتراضية القديمة. تُزال أهلية Free عنها؛ لا تتغير حالة تشغيلها.
+- جميع نماذج الصور الأربعة الحالية غير نشطة، وكانت تحمل أهلية Free/Lite/Pro/Max. migration تضبطها على Max فقط حتى يعتمد المدير نموذجًا وسعرًا وتجربة ترحيبية محددة؛ لا يوجد توليد صور فعّال حاليًا.
 - النماذج الثمانية المفعّلة داخل `free_race` تبقى ضمن سياسة Free الحالية؛ لم يتم اختيار نموذج بعينه أو تغيير أولوية النماذج.
 - `supabase/functions/ai-router/index.ts` و`apps/mobile/src/features/chat/chat-service.ts` و`apps/mobile/src/lib/network/sse-transport.ts`: تمرير مفاتيح Free وUltra Team وقبولها كاختيار يدوي صحيح في مسار المحادثة.
 - `supabase/functions/ai-router/agent/suly_profile_routing.ts`:
