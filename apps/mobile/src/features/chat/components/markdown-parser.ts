@@ -7,7 +7,8 @@ export type MarkdownBlock =
   | { type: "table"; headers: string[]; rows: string[][] }
   | { type: "chart"; title?: string; labels: string[]; values: number[] }
   | { type: "flow"; title?: string; steps: string[] }
-  | { type: "dashboard"; title?: string; metrics: Array<{ label: string; value: string | number; change?: string }>; charts: Array<{ title?: string; labels: string[]; values: number[] }> };
+  | { type: "dashboard"; title?: string; metrics: Array<{ label: string; value: string | number; change?: string }>; charts: Array<{ title?: string; labels: string[]; values: number[] }> }
+  | { type: "agent"; title: string; message: string };
 
 function splitTableRow(line: string): string[] {
   return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim());
@@ -44,7 +45,7 @@ export function parseMarkdownBlocks(markdown: string): MarkdownBlock[] {
       if (index < lines.length) index += 1;
       const code = codeLines.join("\n");
       const language = (fence[1] || "").toLowerCase();
-      if (language === "chart" || language === "flow" || language === "diagram" || language === "dashboard") {
+      if (language === "chart" || language === "flow" || language === "diagram" || language === "dashboard" || language === "agent") {
         try {
           const visual = JSON.parse(code) as Record<string, unknown>;
           const safeTitle = typeof visual.title === "string" ? visual.title.slice(0, 120) : undefined;
@@ -59,6 +60,29 @@ export function parseMarkdownBlocks(markdown: string): MarkdownBlock[] {
           };
           if (language === "chart" && visual.type === "bar" && validChart(visual)) {
             blocks.push({ type: "chart", title: safeTitle, labels: visual.labels, values: visual.values });
+            continue;
+          }
+          if (language === "mermaid") {
+            const mermaidLines = code.split("\n").filter((entry) => entry.trim() && !/^\\s*(?:flowchart|graph)\\s+(?:TD|TB|BT|LR|RL)\\s*$/i.test(entry));
+            const nodePattern = /([A-Za-z][\\w]*)\\s*(?:\\[([^\\]]+)\\]|\\(([^)]+)\\)|\\{([^}]+)\\})/g;
+            const steps: string[] = [];
+            for (const entry of mermaidLines) {
+              let node: RegExpExecArray | null;
+              nodePattern.lastIndex = 0;
+              while ((node = nodePattern.exec(entry)) !== null) {
+                const label = (node[2] || node[3] || node[4] || "").trim();
+                if (label && !steps.includes(label)) steps.push(label);
+              }
+            }
+            if (/(?:-->|==>|---)/.test(code) && steps.length >= 2 && steps.length <= 10) {
+              blocks.push({ type: "flow", title: safeTitle, steps });
+              continue;
+            }
+          }
+          if (language === "agent" && typeof visual.title === "string" && visual.title.trim().length > 0
+            && visual.title.length <= 80 && typeof visual.message === "string"
+            && visual.message.trim().length > 0 && visual.message.length <= 240) {
+            blocks.push({ type: "agent", title: visual.title, message: visual.message });
             continue;
           }
           if ((language === "flow" || language === "diagram") && Array.isArray(visual.steps)
