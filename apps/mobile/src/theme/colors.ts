@@ -35,7 +35,7 @@ const lightColors = {
   surfaceElevated: "#F3F3F3",
   textPrimary: "#111111",
   textSecondary: "#555555",
-  textMuted: "#737373",
+  textMuted: "#6B6B6B",
   accent: "#111111",
   success: "#404040",
   warning: "#666666",
