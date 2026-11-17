@@ -3,11 +3,41 @@
 > **Document type:** Product UX, information architecture, interaction, and functional design specification.  
 > **Working branch:** `develop`  
 > **Production branch:** `release/v1` — protected; this document does not authorize production changes.  
-> **Relationship to canonical plans:** This document expands the approved Admin Control Center experience. It is subordinate to `docs/SULY_DEVELOPMENT_MASTER_PLAN.md` for project-wide architecture, phase order, security invariants, and owner decisions, and complements `docs/SULY_ADMIN_CONTROL_CENTER_PLAN.md`, which records implementation and verification evidence. It does not replace either file.  
-> **Implementation status:** Design specification only. A design item is not evidence that its UI, API, database behavior, or test has already been implemented.
+> **Relationship to canonical plans:** This document governs the Admin Control Center experience and follows the existing project roadmap (`plan.md`), the comprehensive acceptance/test master plan (`docs/SULY_COMPREHENSIVE_TEST_MASTER_PLAN.md`), current security invariants, and explicit owner decisions. It does not authorize changes to production or bypass the existing roadmap.  
+> **Implementation status:** In progress on `develop`. The checklist below records code implementation separately from CI, manual, security, and production acceptance.
 
 ---
 
+## 0. Implementation progress — `develop` only
+
+> Status is deliberately evidence-based: `[x] Implemented` means the corresponding source change is present on `develop`; it does not mean CI, manual/device, security, or production acceptance has passed. Tests remain tracked in the comprehensive test master plan.
+
+### Foundation and shared shell
+- [x] Inventory the existing protected admin routes, shared Expo shell, theme provider, server-backed admin service, and currently available section screens.
+- [x] Replace the legacy grouped navigation with the exact 12 approved top-level domains while retaining the existing destinations and the HIMS entry.
+- [x] Add a desktop collapsible sidebar with expanded labels by default, icon-only collapsed mode, accessible labels, hover/focus tooltips, and persisted local preference.
+- [x] Add Web `/` and `Ctrl+K` / `Cmd+K` shortcuts for the global admin search; include published custom admin pages in navigation search.
+- [x] Apply the approved Midnight Gold Luxury palette through the shared theme tokens while retaining Light, Dark, and System theme selection.
+
+### Providers & Models
+- [x] Add a Table / Cards presentation switch to the unified model catalog; both views share the same loaded registry, filters, search, and lifecycle status.
+- [ ] Complete the remaining model detail and five-step Add Model workflow only where existing provider contracts, evidence, pricing, and reviewed server operations support it.
+- [ ] Confirm every capability/test action and model state transition against its existing server authorization and evidence source.
+
+### Remaining admin domains and acceptance
+- [ ] Complete section-level page headers, breadcrumbs, per-domain filters, and consistent loading/empty/error/unknown/no-permission states.
+- [ ] Complete operational Overview metrics, supported date windows, service-health evidence, and real task/alert links without inventing unavailable values.
+- [ ] Review Routing & Agent controls against the single central Agent and existing bounded worker/task execution model.
+- [ ] Review Pricing & Plans, Credits & Wallet, Users & Accounts, Ads & Rewards, and Finance & Profit against existing audited RPCs and immutable financial history.
+- [ ] Review Activity & Audit and HIMS & Content while preserving HIMS as a core entitlement/resource capability.
+- [ ] Complete System & Security, notification availability, exports, localization, keyboard accessibility, and responsive Web/Android/iOS presentation.
+- [ ] Record implementation and acceptance evidence in the appropriate project/test records; do not claim tests have passed until the comprehensive test campaign records results.
+
+### Verification boundary
+- Source review only for this implementation batch. Automated tests, typecheck, lint, SQL regression, live-provider probes, real-user actions, and device acceptance are not run here; keep them `NOT RUN` in the comprehensive test master plan.
+- No production branch, production deployment, production migration, provider activation, real pricing change, wallet adjustment, or real HIMS/user mutation is authorized by this document.
+
+---
 ## 1. Purpose and governing rules
 
 The SULY Admin Control Center is the protected administrative workspace for operating the existing SULY product. Its redesign must make existing capabilities understandable and manageable without creating a parallel admin application, a duplicate data model, or a second authorization system.

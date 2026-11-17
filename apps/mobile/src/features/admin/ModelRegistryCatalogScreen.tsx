@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from "react-native";
 import { Link } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
@@ -61,6 +61,8 @@ function capabilityKeys(rows: RegistryModel[]): Map<string, Set<string>> {
 export function ModelRegistryCatalogScreen() {
   const { colors } = useSulyTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const { width } = useWindowDimensions();
+  const [viewMode, setViewMode] = useState<"table" | "cards">(width >= 900 ? "table" : "cards");
   const [rows, setRows] = useState<RegistryModel[]>([]);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
@@ -136,6 +138,17 @@ export function ModelRegistryCatalogScreen() {
       <Link href="/admin/models-operations" asChild><Pressable style={styles.secondaryButton}><Ionicons name="settings-outline" size={16} color={colors.primary}/><Text style={styles.secondaryText}>إدارة التشغيل والاختبارات</Text></Pressable></Link>
       <Link href="/admin/model-capabilities" asChild><Pressable style={styles.primaryButton}><Ionicons name="grid-outline" size={16} color={colors.onPrimary}/><Text style={styles.primaryText}>إدارة القدرات</Text></Pressable></Link>
     </View>
+    <View style={styles.viewToolbar}>
+      <Text style={styles.label}>طريقة العرض</Text>
+      <View style={styles.viewToggle}>
+        <Pressable accessibilityRole="button" accessibilityState={{ selected: viewMode === "table" }} onPress={() => setViewMode("table")} style={[styles.viewOption, viewMode === "table" && styles.viewOptionActive]}>
+          <Ionicons name="list-outline" size={15} color={viewMode === "table" ? colors.primary : colors.textMuted}/><Text style={[styles.viewOptionText, viewMode === "table" && styles.viewOptionTextActive]}>جدول</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityState={{ selected: viewMode === "cards" }} onPress={() => setViewMode("cards")} style={[styles.viewOption, viewMode === "cards" && styles.viewOptionActive]}>
+          <Ionicons name="grid-outline" size={15} color={viewMode === "cards" ? colors.primary : colors.textMuted}/><Text style={[styles.viewOptionText, viewMode === "cards" && styles.viewOptionTextActive]}>بطاقات</Text>
+        </Pressable>
+      </View>
+    </View>
     <View style={styles.metrics}>
       <Text style={styles.metric}>الكل: {models.length}</Text>
       <Text style={styles.metric}>متوفر: {models.filter((m) => m.operational_state === "active").length}</Text>
@@ -158,7 +171,7 @@ export function ModelRegistryCatalogScreen() {
     <Text style={styles.resultCount}>عرض {filtered.length} من {models.length}</Text>
     {loading ? <ActivityIndicator color={colors.primary}/> : null}
     {error ? <View style={styles.errorBox}><Text style={styles.error}>{error}</Text><Pressable onPress={() => void load()}><Text style={styles.link}>إعادة المحاولة</Text></Pressable></View> : null}
-    {!loading && filtered.map((model) => <View key={model.model_id} style={styles.modelCard}>
+    {!loading && viewMode === "cards" ? filtered.map((model) => <View key={model.model_id} style={styles.modelCard}>
       <View style={styles.modelHeading}>
         <View style={styles.modelCopy}>
           <Text style={styles.modelName}>{model.display_name}</Text>
@@ -173,7 +186,30 @@ export function ModelRegistryCatalogScreen() {
         {(CAPABILITIES.filter(([key]) => capabilitiesByModel.get(model.model_id)?.has(key))).slice(0, 7).map(([key, label, icon]) => <View key={key} style={styles.capabilityBadge}><Ionicons name={icon} size={13} color={colors.textSecondary}/><Text style={styles.capabilityText}>{label}</Text></View>)}
         {!capabilitiesByModel.get(model.model_id)?.size ? <Text style={styles.meta}>لا توجد قدرات مسجلة بعد</Text> : null}
       </View>
-    </View>)}
+    </View>) : null}
+    {!loading && viewMode === "table" ? <View style={styles.tableFrame}>
+      <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={styles.tableScrollContent}>
+        <View style={styles.table}>
+          <View style={styles.tableHeader}>
+            <Text style={[styles.tableHeaderCell, styles.tableNameCell]}>النموذج / المعرّف</Text>
+            <Text style={[styles.tableHeaderCell, styles.tableProviderCell]}>المزود</Text>
+            <Text style={[styles.tableHeaderCell, styles.tableTypeCell]}>النوع</Text>
+            <Text style={[styles.tableHeaderCell, styles.tableCapabilitiesCell]}>القدرات المسجلة</Text>
+            <Text style={[styles.tableHeaderCell, styles.tableStateCell]}>الحالة</Text>
+          </View>
+          {filtered.map((model) => {
+            const modelCapabilities = CAPABILITIES.filter(([key]) => capabilitiesByModel.get(model.model_id)?.has(key)).map(([, label]) => label);
+            return <View key={model.model_id} style={styles.tableRow}>
+              <View style={[styles.tableCell, styles.tableNameCell]}><Text style={styles.tableModelName}>{model.display_name}</Text><Text style={styles.meta}>{model.model_identifier}</Text></View>
+              <View style={[styles.tableCell, styles.tableProviderCell]}><Text style={styles.tableCellText}>{model.provider_name ?? `مزود #${model.provider_id}`}</Text><Text style={styles.meta}>{model.provider_type ?? "—"}</Text></View>
+              <View style={[styles.tableCell, styles.tableTypeCell]}><Text style={styles.tableCellText}>{model.service_type}</Text></View>
+              <View style={[styles.tableCell, styles.tableCapabilitiesCell]}><Text style={styles.tableCellText}>{modelCapabilities.length ? modelCapabilities.join(" · ") : "غير موثقة"}</Text></View>
+              <View style={[styles.tableCell, styles.tableStateCell]}><View style={[styles.status, model.operational_state === "active" ? styles.statusActive : model.operational_state === "restricted" ? styles.statusRestricted : styles.statusDisabled]}><Text style={styles.statusText}>{STATUS_LABEL[model.operational_state]}</Text></View></View>
+            </View>;
+          })}
+        </View>
+      </ScrollView>
+    </View> : null}
     {!loading && filtered.length === 0 ? <Text style={styles.empty}>لا توجد نماذج تطابق البحث والفلاتر.</Text> : null}
   </ScrollView>;
 }
@@ -192,6 +228,12 @@ const createStyles = (c: ThemePalette) => StyleSheet.create({
   secondaryText: { color: c.primary, fontSize: 9, fontWeight: "900" },
   metrics: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 10 },
   metric: { color: c.textSecondary, fontSize: 9 },
+  viewToolbar: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  viewToggle: { flexDirection: "row-reverse", borderWidth: 1, borderColor: c.divider, borderRadius: 10, padding: 3, backgroundColor: c.surface, gap: 3 },
+  viewOption: { minHeight: 32, paddingHorizontal: 10, borderRadius: 7, flexDirection: "row-reverse", alignItems: "center", justifyContent: "center", gap: 5 },
+  viewOptionActive: { backgroundColor: c.primary + "18" },
+  viewOptionText: { color: c.textMuted, fontSize: 9, fontWeight: "700" },
+  viewOptionTextActive: { color: c.primary },
   searchBox: { flexDirection: "row-reverse", alignItems: "center", gap: 8, borderWidth: 1, borderColor: c.divider, borderRadius: 10, paddingHorizontal: 10, backgroundColor: c.surface },
   search: { flex: 1, minWidth: 0, color: c.textPrimary, paddingVertical: 10, textAlign: "right", fontSize: 10 },
   filters: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 6 },
@@ -202,6 +244,16 @@ const createStyles = (c: ThemePalette) => StyleSheet.create({
   chipTextActive: { color: c.primary },
   label: { color: c.textPrimary, fontSize: 10, fontWeight: "800", textAlign: "right" },
   resultCount: { color: c.textMuted, fontSize: 9, textAlign: "right" },
+  tableFrame: { borderWidth: 1, borderColor: c.divider, borderRadius: 12, overflow: "hidden", backgroundColor: c.surface },
+  tableScrollContent: { minWidth: "100%" },
+  table: { minWidth: 770 },
+  tableHeader: { minHeight: 42, flexDirection: "row-reverse", alignItems: "center", backgroundColor: c.surfaceElevated, borderBottomWidth: 1, borderBottomColor: c.divider },
+  tableHeaderCell: { color: c.textSecondary, fontSize: 9, fontWeight: "900", textAlign: "right", paddingHorizontal: 10 },
+  tableRow: { minHeight: 58, flexDirection: "row-reverse", alignItems: "center", borderBottomWidth: 1, borderBottomColor: c.divider },
+  tableCell: { minHeight: 58, paddingHorizontal: 10, paddingVertical: 7, justifyContent: "center", alignItems: "flex-end", gap: 3 },
+  tableNameCell: { width: 205 }, tableProviderCell: { width: 145 }, tableTypeCell: { width: 85 }, tableCapabilitiesCell: { width: 235 }, tableStateCell: { width: 100 },
+  tableModelName: { color: c.textPrimary, fontSize: 10, fontWeight: "900", textAlign: "right" },
+  tableCellText: { color: c.textSecondary, fontSize: 9, textAlign: "right" },
   modelCard: { borderWidth: 1, borderColor: c.divider, borderRadius: 12, backgroundColor: c.surface, padding: 11, gap: 8 },
   modelHeading: { flexDirection: "row-reverse", alignItems: "flex-start", gap: 8 },
   modelCopy: { flex: 1, gap: 3, alignItems: "flex-end" },
