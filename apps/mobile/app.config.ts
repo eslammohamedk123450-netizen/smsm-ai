@@ -3,7 +3,7 @@ import type { ExpoConfig } from "expo/config";
 const easProjectId = process.env.EAS_PROJECT_ID?.trim() || undefined;
 
 const config: ExpoConfig & { splash?: { image: string; resizeMode: "contain"; backgroundColor: string } } = {
-  name: "Suly",
+  name: "SULY",
   icon: "./assets/suly-icon.png",
   owner: "suly-sam100",
   slug: "smsm-ai",
@@ -30,7 +30,7 @@ const config: ExpoConfig & { splash?: { image: string; resizeMode: "contain"; ba
   },
   extra: { eas: { projectId: easProjectId ?? "4eb557a8-8aea-4ea9-a3d7-7ccba99f6c73" } },
   orientation: "portrait",
-  userInterfaceStyle: "dark",
+  userInterfaceStyle: "automatic",
   platforms: ["ios", "android", "web"],
   plugins: [
     "expo-router",
