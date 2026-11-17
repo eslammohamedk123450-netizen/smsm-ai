@@ -300,6 +300,7 @@ export const chatService = {
     conversationId: string;
     content: string;
     modelProfileKey?: ChatRequestBody["model_profile_key"];
+    executionMode?: ChatRequestBody["execution_mode"];
     writeApproval?: { requestId: string; originalText: string };
     mediaAsset?: MediaAsset;
     signal: AbortSignal;
@@ -359,7 +360,7 @@ export const chatService = {
       messages: history,
       routing_mode: "auto",
       model_profile_key: options.modelProfileKey ?? "auto",
-      execution_mode: "auto",
+      execution_mode: options.executionMode ?? "auto",
       stream: true,
       connector_approval_request_id: options.writeApproval?.requestId,
       connector_approval_original_text: options.writeApproval?.originalText,
@@ -371,6 +372,7 @@ export const chatService = {
     conversationId: string;
     history: ChatMessage[];
     modelProfileKey?: ChatRequestBody["model_profile_key"];
+    executionMode?: ChatRequestBody["execution_mode"];
     requestId?: string;
     signal: AbortSignal;
     onChunk(text: string): void;
@@ -393,7 +395,7 @@ export const chatService = {
       messages,
       routing_mode: "auto",
       model_profile_key: options.modelProfileKey ?? "auto",
-      execution_mode: "auto",
+      execution_mode: options.executionMode ?? "auto",
       stream: true,
     }, { onChunk: options.onChunk, onModelInfo: options.onModelInfo, onTaskUpdate: options.onTaskUpdate, onDone() {} }, options.signal);
   },
@@ -402,6 +404,7 @@ export const chatService = {
     conversationId: string;
     userMessageId: string;
     modelProfileKey?: ChatRequestBody["model_profile_key"];
+    executionMode?: ChatRequestBody["execution_mode"];
     signal: AbortSignal;
     onChunk(text: string): void;
     onModelInfo?(identifier: string): void;
@@ -416,6 +419,7 @@ export const chatService = {
       history,
       requestId: retryRequestId(options.userMessageId),
       modelProfileKey: options.modelProfileKey,
+      executionMode: options.executionMode,
       signal: options.signal,
       onChunk: options.onChunk,
       onModelInfo: options.onModelInfo,
