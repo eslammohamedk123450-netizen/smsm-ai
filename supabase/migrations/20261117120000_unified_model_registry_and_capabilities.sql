@@ -289,9 +289,11 @@ create or replace function public.suly_sync_chat_model_to_registry()
 returns trigger language plpgsql security definer set search_path=public,pg_temp as $
 declare v_registry_id uuid;
 begin
-  if tg_op='UPDATE' and (old.provider_id<>new.provider_id or old.model_identifier<>new.model_identifier) then
-    update public.suly_model_registry set lifecycle_state='archived',legacy_chat_model_id=null,updated_at=now()
-    where legacy_chat_model_id=old.id and provider_id=old.provider_id and service_type='chat' and model_identifier=old.model_identifier;
+  if tg_op='UPDATE' then
+    if old.provider_id<>new.provider_id or old.model_identifier<>new.model_identifier then
+      update public.suly_model_registry set lifecycle_state='archived',legacy_chat_model_id=null,updated_at=now()
+      where legacy_chat_model_id=old.id and provider_id=old.provider_id and service_type='chat' and model_identifier=old.model_identifier;
+    end if;
   end if;
   insert into public.suly_model_registry
     (provider_id,service_type,model_identifier,display_name,lifecycle_state,legacy_chat_model_id,source_metadata)
@@ -317,9 +319,11 @@ create or replace function public.suly_sync_media_model_to_registry()
 returns trigger language plpgsql security definer set search_path=public,pg_temp as $
 declare v_registry_id uuid; v_capability text;
 begin
-  if tg_op='UPDATE' and (old.provider_id<>new.provider_id or old.service_type<>new.service_type or old.model_identifier<>new.model_identifier) then
-    update public.suly_model_registry set lifecycle_state='archived',legacy_media_model_id=null,updated_at=now()
-    where legacy_media_model_id=old.id and provider_id=old.provider_id and service_type=old.service_type and model_identifier=old.model_identifier;
+  if tg_op='UPDATE' then
+    if old.provider_id<>new.provider_id or old.service_type<>new.service_type or old.model_identifier<>new.model_identifier then
+      update public.suly_model_registry set lifecycle_state='archived',legacy_media_model_id=null,updated_at=now()
+      where legacy_media_model_id=old.id and provider_id=old.provider_id and service_type=old.service_type and model_identifier=old.model_identifier;
+    end if;
   end if;
   insert into public.suly_model_registry
     (provider_id,service_type,model_identifier,display_name,lifecycle_state,legacy_media_model_id,source_metadata)
