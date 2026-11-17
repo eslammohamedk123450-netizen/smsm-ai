@@ -1147,20 +1147,13 @@ async function handleRequest(req: Request): Promise<Response> {
   };
   const requiredModelRole = executionMode === "agent" ? "planner" : "chat";
   const routeRole: RouteModelAssignment["route_role"] = executionMode === "agent" ? "planner" : "chat";
-  const [profileAssignmentsResult, profileDefinitionResult] = selectedProfileKey
-    ? await Promise.all([
-      supabase.from("suly_model_profile_models")
-        .select("model_id,route_role,priority,enabled")
-        .eq("profile_key", selectedProfileKey)
-        .eq("enabled", true)
-        .limit(500),
-      supabase.from("suly_model_profiles")
-        .select("capabilities_json,is_active,minimum_subscription_tier")
-        .eq("profile_key", selectedProfileKey)
-        .maybeSingle(),
-    ])
-    : [{ data: [], error: null }, { data: null, error: null }];
-  const profileAssignmentsError = profileAssignmentsResult.error ?? profileDefinitionResult.error;
+  const profileDefinitionResult = selectedProfileKey
+    ? await supabase.from("suly_model_profiles")
+      .select("capabilities_json,is_active,minimum_subscription_tier")
+      .eq("profile_key", selectedProfileKey)
+      .maybeSingle()
+    : { data: null, error: null };
+  const profileAssignmentsError = profileDefinitionResult.error;
   if (selectedProfileKey && profileAssignmentsError) {
     console.error("Could not load SULY profile configuration:", profileAssignmentsError.message);
     if (requestedProfileKey === "auto") {
@@ -1170,7 +1163,6 @@ async function handleRequest(req: Request): Promise<Response> {
       return await failedResponse(jsonResponse({ error: "تعذر تحميل إعدادات مستوى SULY المحدد. لم يتم تغيير اختيارك." }, 503, req), "suly_profile_unavailable");
     }
   }
-  const selectedProfileAssignments = profileAssignmentsResult.data ?? [];
   const profileCapabilities = selectedProfileKey
     ? (profileDefinitionResult.data?.capabilities_json ?? {}) as Record<string, unknown>
     : {};
@@ -1188,12 +1180,6 @@ async function handleRequest(req: Request): Promise<Response> {
       required_subscription_tier: typeof configuredMinimumTier === "string" ? configuredMinimumTier : null,
     }, 403, req), "profile_subscription_unavailable");
   }
-  const profileModelIds = selectedProfileKey
-    ? new Set((selectedProfileAssignments ?? []).filter((item: { route_role: string }) => item.route_role === routeRole).map((item: { model_id: number }) => Number(item.model_id)))
-    : null;
-  const workerProfileModelIds = selectedProfileKey
-    ? new Set((selectedProfileAssignments ?? []).filter((item: { route_role: string }) => item.route_role === "worker").map((item: { model_id: number }) => Number(item.model_id)))
-    : null;
   if (selectedProfileKey && requestedProfileKey && requestedProfileKey !== "auto") {
     const needsWebSearch = shouldSearchWeb;
     const needsComplexExecution = profileIntent === "complex_task" && executionMode === "agent";
@@ -1211,9 +1197,10 @@ async function handleRequest(req: Request): Promise<Response> {
       return await failedResponse(jsonResponse({ error: "هذه المهمة تحتاج قدرات أعلى من المتاحة في اشتراكك الحالي. يمكنك الترقية إلى Pro أو Max." }, 403, req), "profile_capability_unavailable");
     }
   }
-  const profileEligibleModels = profileModelIds
-    ? healthyModels.filter((model: ModelRow) => profileModelIds.has(model.id)
-      && (profileCapabilities.extended_context !== true || Number(model.context_window ?? 0) >= 65536))
+  // The central route allowlist is the single model-assignment source. Subscription
+  // profiles only gate entitlements/capabilities; legacy per-profile model maps are ignored.
+  const profileEligibleModels = selectedProfileKey && profileCapabilities.extended_context === true
+    ? healthyModels.filter((model: ModelRow) => Number(model.context_window ?? 0) >= 65536)
     : healthyModels;
   if (selectedProfileKey && profileCapabilities.extended_context === true && profileEligibleModels.length === 0) {
     return await failedResponse(jsonResponse({ error: "لا يوجد نموذج مفعّل في هذا المستوى يدعم السياق الطويل حاليًا. راجع ربط نماذج Max من لوحة الإدارة." }, 503, req), "profile_context_unavailable");
@@ -1234,12 +1221,10 @@ async function handleRequest(req: Request): Promise<Response> {
   }
   let candidatesFrom: ModelRow[] = [];
   if (routingMode === "manual") {
-    candidatesFrom = profileModelIds
-      ? profileEligibleModels.filter((model: ModelRow) => isEligibleModel(model, requiredModelRole))
-      : healthyModels.filter((model: ModelRow) => model.id === modelId && isEligibleModel(model, requiredModelRole));
+    candidatesFrom = healthyModels.filter((model: ModelRow) => model.id === modelId && isEligibleModel(model, requiredModelRole));
   } else {
-    // Auto chooses a SULY profile first, then routes only within that profile.
-    // The user's selected profile is never silently replaced with another one.
+    // Auto applies the selected subscription profile entitlements, then uses the
+    // single central route allowlist. The selected profile is never silently replaced.
     const tierFiltered = profileEligibleModels.filter((model: ModelRow) => isEligibleModel(model, requiredModelRole));
     const assignedRouteModels = restrictModelsToAssignedRoute(tierFiltered, orderedRouteAssignments, routeRole);
     candidatesFrom = orderModelsByRoute(assignedRouteModels.filter(m => m.routing_group === "free_race"), orderedRouteAssignments, routeRole);
@@ -1267,7 +1252,7 @@ async function handleRequest(req: Request): Promise<Response> {
     && !shouldSearchWeb
     ? restrictModelsToAssignedRoute(
       healthyModels.filter((model: ModelRow) =>
-        (!workerProfileModelIds || workerProfileModelIds.has(model.id)) && isEligibleModel(model, "worker", ["free_race"])),
+        isEligibleModel(model, "worker", ["free_race"])),
       orderedRouteAssignments,
       "worker",
     )
@@ -2172,7 +2157,7 @@ async function handleRequest(req: Request): Promise<Response> {
     let paidPlanPool: Candidate[] = [];
     if (routingMode === "auto" && settings.paidFallbackEnabled) {
       const paidModels: ModelRow[] = healthyModels
-        .filter((model) => (!profileModelIds || profileModelIds.has(model.id)) && isEligibleModel(model, "planner", ["paid_fallback"]));
+        .filter((model) => isEligibleModel(model, "planner", ["paid_fallback"]));
       const orderedPaidModels = orderModelsByRoute(paidModels, orderedRouteAssignments, "planner");
       const paidProviderIds = [...new Set(paidModels.map((model) => model.provider_id))];
       await Promise.all(paidProviderIds.map(async (providerId) => {
@@ -2915,7 +2900,7 @@ async function handleRequest(req: Request): Promise<Response> {
 
   if (!winner && routingMode === "auto" && settings.paidFallbackEnabled) {
     const paidModels: ModelRow[] = healthyModels
-      .filter((model: ModelRow) => (!profileModelIds || profileModelIds.has(model.id)) && isEligibleModel(model, "chat", ["paid_fallback"]));
+      .filter((model: ModelRow) => isEligibleModel(model, "chat", ["paid_fallback"]));
     const orderedPaidModels = orderModelsByRoute(paidModels, orderedRouteAssignments, "chat");
     const paidProviderIds: number[] = [...new Set<number>(orderedPaidModels.map((m: ModelRow) => m.provider_id))];
     await Promise.all(paidProviderIds.map(async (providerId) => {
