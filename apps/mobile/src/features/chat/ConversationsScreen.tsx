@@ -25,7 +25,6 @@ export function ConversationsScreen() {
   const [renameTarget, setRenameTarget] = useState<Conversation | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Conversation | null>(null);
-  const [activeTab, setActiveTab] = useState<"chats" | "tasks">("chats");
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -90,23 +89,13 @@ export function ConversationsScreen() {
   return (
     <ScrollView style={[styles.screen, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <View style={styles.headerCopy}><Text style={[styles.title, { color: colors.textPrimary }]}>{isArabic ? "سجل المحادثات" : "History"}</Text><Text style={[styles.subtitle, { color: colors.textSecondary }]}>{activeTab === "chats" ? (isArabic ? "محادثاتك السابقة مرتبة في مكان واحد." : "Your previous conversations in one place.") : (isArabic ? "المهام التي نفذتها وحالتها ونتائجها." : "Your executed tasks, statuses, and results.")}</Text></View>
-        <Pressable accessibilityRole="button" disabled={creating} onPress={() => { if (activeTab === "chats") void create(); else router.push("/tasks"); }} style={[styles.newButton, { backgroundColor: colors.primary }]}>
+        <View style={styles.headerCopy}><Text style={[styles.title, { color: colors.textPrimary }]}>{isArabic ? "السجل" : "History"}</Text><Text style={[styles.subtitle, { color: colors.textSecondary }]}>{isArabic ? "محادثاتك وتنفيذاتك في مكان واحد." : "Your conversations and task activity in one place."}</Text></View>
+        <Pressable accessibilityRole="button" disabled={creating} onPress={() => void create()} style={[styles.newButton, { backgroundColor: colors.primary }]}>
           {creating ? <ActivityIndicator color={colors.onPrimary} /> : <Ionicons name="add" size={18} color={colors.onPrimary} />}
-          <Text style={styles.newButtonText}>{activeTab === "chats" ? (isArabic ? "محادثة جديدة" : "New chat") : (isArabic ? "مهمة جديدة" : "New task")}</Text>
+          <Text style={styles.newButtonText}>{isArabic ? "محادثة جديدة" : "New chat"}</Text>
         </Pressable>
       </View>
-      <View style={[styles.tabs, { backgroundColor: colors.surfaceElevated, borderColor: colors.divider, flexDirection: isArabic ? "row-reverse" : "row" }]}>
-        <Pressable onPress={() => setActiveTab("chats")} style={[styles.tab, activeTab === "chats" && { backgroundColor: colors.surface }]}>
-          <Text style={[styles.tabText, { color: activeTab === "chats" ? colors.textPrimary : colors.textMuted }]}>{isArabic ? "المحادثات" : "Chats"}</Text>
-        </Pressable>
-        <Pressable onPress={() => setActiveTab("tasks")} style={[styles.tab, activeTab === "tasks" && { backgroundColor: colors.surface }]}>
-          <Text style={[styles.tabText, { color: activeTab === "tasks" ? colors.textPrimary : colors.textMuted }]}>{isArabic ? "المهام" : "Tasks"}</Text>
-        </Pressable>
-      </View>
-      {activeTab === "chats" ? (
-        <>
-      <Pressable accessibilityRole="button" onPress={() => router.push("/projects")} style={[styles.projectsButton, { backgroundColor: colors.surface, borderColor: colors.divider, flexDirection: isArabic ? "row-reverse" : "row" }]}>
+      <>      <Pressable accessibilityRole="button" onPress={() => router.push("/projects")} style={[styles.projectsButton, { backgroundColor: colors.surface, borderColor: colors.divider, flexDirection: isArabic ? "row-reverse" : "row" }]}>
         <Ionicons name="folder-open-outline" size={17} color={colors.primary} />
         <Text style={[styles.projectsButtonText, { color: colors.textPrimary }]}>{isArabic ? "إدارة مشاريعي" : "My projects"}</Text>
         <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={15} color={colors.textMuted} />
@@ -154,16 +143,13 @@ export function ConversationsScreen() {
         </View>
       </BottomSheet>
         </>
-      ) : <TaskHistoryPanel />}
+      <TaskHistoryPanel />
     </ScrollView>
   );
 }
 
 const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.create({
   screen: { flex: 1 },
-  tabs: { flexDirection: "row", borderWidth: 1, borderRadius: 12, padding: 4, gap: 4 },
-  tab: { flex: 1, minHeight: 38, alignItems: "center", justifyContent: "center", borderRadius: 9 },
-  tabText: { fontSize: 12, fontWeight: "700" },
   content: { width: "100%", maxWidth: 1040, alignSelf: "center", padding: 20, paddingBottom: 36, gap: 13 },
   header: { flexDirection: isArabic ? "row-reverse" : "row", justifyContent: "space-between", alignItems: "center", gap: 12 },
   headerCopy: { flex: 1, gap: 4 },
