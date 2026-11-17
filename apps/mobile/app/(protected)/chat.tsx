@@ -863,7 +863,7 @@ export default function ChatPage() {
               accessibilityState={{ selected: selectedModelProfile === profile.profile_key, disabled: !profile.is_active }}
             >
               <View style={styles.modelPickerCopy}>
-                <Text style={styles.modelPickerName}>{profile.display_name || "SULY " + profile.profile_key.toUpperCase()}</Text>
+                <Text style={styles.modelPickerName}>SULY {profile.profile_key === "lite" ? "Lite" : profile.profile_key === "pro" ? "Pro" : profile.profile_key === "max" ? "Max" : "X"}</Text>
                 <Text style={styles.modelPickerDescription}>{profile.tagline || profile.display_name}</Text>
               </View>
               {selectedModelProfile === profile.profile_key ? <Ionicons name="checkmark-circle" size={19} color={colors.primary} /> : null}
