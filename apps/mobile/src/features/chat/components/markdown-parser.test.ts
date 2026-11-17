@@ -35,4 +35,19 @@ const answer = 42;
       { type: "code", language: "", code: "code" },
     ]);
   });
+
+  it("parses a bounded bar chart block for inline visualization", () => {
+    const input = "```chart\n{\"type\":\"bar\",\"title\":\"المبيعات\",\"labels\":[\"يناير\",\"فبراير\"],\"values\":[12,18]}\n```";
+    expect(parseMarkdownBlocks(input)).toEqual([
+      { type: "chart", title: "المبيعات", labels: ["يناير", "فبراير"], values: [12, 18] },
+    ]);
+  });
+
+  it("keeps invalid chart payloads visible as code", () => {
+    const input = "```chart\n{\"type\":\"pie\",\"labels\":[\"A\"],\"values\":[1]}\n```";
+    expect(parseMarkdownBlocks(input)).toEqual([
+      { type: "code", language: "chart", code: "{\"type\":\"pie\",\"labels\":[\"A\"],\"values\":[1]}" },
+    ]);
+  });
+
 });
