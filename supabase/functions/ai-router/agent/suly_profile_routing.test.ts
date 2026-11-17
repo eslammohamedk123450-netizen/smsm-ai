@@ -36,7 +36,8 @@ Deno.test("Ultra Team is the highest tier and inherits all lower profile access"
   if (!isSubscriptionTierEligible("ultra_team", "free")) throw new Error("Ultra Team should inherit Free access.");
   if (!isSubscriptionTierEligible("free", "free")) throw new Error("Free should access the Free profile.");
   if (isSubscriptionTierEligible("free", "lite")) throw new Error("Free must not access paid Lite.");
-  if (!isSubscriptionTierEligible("pro", "max")) throw new Error("Pro retains access to the Max profile under the existing entitlement policy.");
+  const proMax = resolveSulyProfileKey({ requestedProfileKey: "max", userTier: "pro", intent: "complex_task" });
+  if (!proMax.allowed) throw new Error("Pro retains access to the Max profile under the existing entitlement policy.");
   if (isSubscriptionTierEligible("unknown", "free")) throw new Error("Unknown user tiers must fail closed.");
   if (isSubscriptionTierEligible("max", "unknown")) throw new Error("Unknown profile tiers must fail closed.");
 });
