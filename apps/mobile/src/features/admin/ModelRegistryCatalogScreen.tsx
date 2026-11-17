@@ -79,7 +79,7 @@ export function ModelRegistryCatalogScreen() {
     try {
       const [registry, providers, chat, media, health] = await Promise.all([
         supabase.rpc("suly_admin_list_unified_model_capabilities"),
-        supabase.from("ai_providers").select("id,name,provider_type,enabled").limit(500),
+        supabase.rpc("suly_admin_list_providers"),
         supabase.from("ai_models").select("id,enabled,routing_group").limit(1000),
         supabase.from("suly_media_generation_models").select("id,is_active").limit(1000),
         supabase.from("ai_model_health").select("model_id,auto_restricted").limit(1000),
@@ -99,7 +99,7 @@ export function ModelRegistryCatalogScreen() {
         const provider = providerById.get(Number(raw.provider_id));
         let operational_state: OperationalState = "unknown";
         if (raw.lifecycle_state === "archived") operational_state = "archived";
-        else if (provider?.enabled === false) operational_state = "disabled";
+        else if (!provider || provider.enabled === false) operational_state = "disabled";
         else if (raw.legacy_chat_model_id !== null) {
           const legacy = chatById.get(Number(raw.legacy_chat_model_id));
           if (legacy && !legacy.enabled || legacy?.routing_group === "disabled") operational_state = "disabled";
