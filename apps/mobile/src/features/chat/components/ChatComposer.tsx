@@ -126,6 +126,16 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
           <Ionicons name="add" size={22} color={colors.textMuted} />
         </TouchableOpacity>
 
+        <TouchableOpacity
+          onPress={() => setAttachVisible(true)}
+          disabled={disabled || isStreaming}
+          activeOpacity={0.7}
+          style={styles.connectorButton}
+          accessibilityLabel={isArabic ? "إرفاق صورة أو ملف" : "Attach an image or file"}
+        >
+          <Ionicons name="attach-outline" size={20} color={colors.textMuted} />
+        </TouchableOpacity>
+
         {/* Center: TextInput with placeholder "اسأل Suly" */}
         <TextInput
           ref={inputRef}
@@ -150,16 +160,6 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
 
         {/* Connectors shortcut replaces voice input; voice capture is not part of this chat UI. */}
         <View style={styles.leftControls}>
-          <TouchableOpacity
-            onPress={() => setAttachVisible(true)}
-            disabled={disabled || isStreaming}
-            activeOpacity={0.7}
-            style={styles.connectorButton}
-            accessibilityLabel={isArabic ? "إرفاق صورة أو ملف" : "Attach an image or file"}
-          >
-            <Ionicons name="attach-outline" size={20} color={colors.textMuted} />
-          </TouchableOpacity>
-
           {isStreaming ? (
             <Pressable style={styles.blueButton} onPress={onCancel} accessibilityLabel={isArabic ? "إيقاف الرد" : "Stop response"}>
               <ActivityIndicator size="small" color={colors.onPrimary} />
