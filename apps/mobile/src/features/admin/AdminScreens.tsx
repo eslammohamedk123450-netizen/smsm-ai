@@ -884,7 +884,7 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
   settingsFields: { gap: 2, paddingVertical: 6 },
   settingsToggles: { borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 6 },
   modelsSectionHeader: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", marginTop: 8, gap: 10 },
-  modelsTableHeader: { minWidth: 780, flexDirection: "row-reverse", alignItems: "center", backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.divider, borderRadius: 7, paddingVertical: 7, marginTop: 5 },
+  modelsTableHeader: { minWidth: 1160, flexDirection: "row-reverse", alignItems: "center", backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.divider, borderRadius: 7, paddingVertical: 7, marginTop: 5 },
   modelTableScroller: { flexGrow: 0 },
   modelTableRow: { minWidth: 1160, flexDirection: "row-reverse", alignItems: "center", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.divider, backgroundColor: colors.surface },
   modelsTableName: { width: 225, paddingHorizontal: 8, alignItems: "flex-end" },
