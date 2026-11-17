@@ -7,7 +7,6 @@ import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
 import { confirmAdminAction } from "./admin-confirm";
 import { AgentTaskQueueCard } from "./AgentTaskQueueCard";
-import { SulyModelProfilesAdminCard } from "./SulyModelProfilesAdminCard";
 import { SulyFinanceOverviewCard } from "./SulyFinanceOverviewCard";
 import { NegativeBalanceSettingsCard } from "./NegativeBalanceSettingsCard";
 import { ModelPricingAdminCard } from "./ModelPricingAdminCard";
@@ -134,7 +133,6 @@ export function AdminDashboardScreen() {
     <AgentTaskQueueCard />
     <SulyFinanceOverviewCard />
     <NegativeBalanceSettingsCard />
-    <SulyModelProfilesAdminCard />
     <ModelPricingAdminCard />
     <MediaModelPricingAdminCard />
     <MediaModelCapabilityEvidenceAdminCard />
