@@ -161,7 +161,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
         <View style={styles.modelRow}>
           <TouchableOpacity
             onPress={onOpenModelPicker}
-            disabled={modelPickerDisabled}
+            disabled={modelPickerDisabled || isListening}
             activeOpacity={0.75}
             accessibilityRole="button"
             accessibilityLabel={isArabic ? "اختيار مستوى SULY" : "Choose SULY model profile"}
@@ -219,7 +219,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
           activeOpacity={0.7}
           style={[styles.agentToggle, isAgentMode && styles.agentToggleActive]}
           accessibilityRole="button"
-          accessibilityState={{ selected: isAgentMode, disabled: disabled || isStreaming || !onToggleAgent }}
+          accessibilityState={{ selected: isAgentMode, disabled: disabled || isStreaming || isListening || !onToggleAgent }}
           accessibilityLabel={isArabic ? (isAgentMode ? "إيقاف وضع الوكيل" : "تفعيل وضع الوكيل") : (isAgentMode ? "Turn Agent mode off" : "Turn Agent mode on")}
         >
           <Ionicons name="sparkles-outline" size={15} color={isAgentMode ? colors.onPrimary : colors.textMuted} />
@@ -230,7 +230,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
         <TextInput
           ref={inputRef}
           value={text}
-          onChangeText={setText}
+          onChangeText={(value) => { setText(value); if (voiceError) setVoiceError(null); }}
           onContentSizeChange={(event) => {
             const measuredHeight = Math.ceil(event.nativeEvent.contentSize.height) + 16;
             setInputHeight(Math.max(MIN_INPUT_HEIGHT, Math.min(MAX_INPUT_HEIGHT, measuredHeight)));
@@ -248,7 +248,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
           accessibilityLabel={isArabic ? "اسأل Suly" : "Ask SULY"}
         />
 
-        {/* Connectors shortcut replaces voice input; voice capture is not part of this chat UI. */}
+        {/* Compact voice, send and stop controls. */}
         <View style={styles.leftControls}>
           {isStreaming ? (
             <Pressable style={styles.blueButton} onPress={onCancel} accessibilityLabel={isArabic ? "إيقاف الرد" : "Stop response"}>
