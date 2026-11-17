@@ -5,6 +5,7 @@ import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { supabase } from "../../lib/supabase";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
+import { confirmAdminAction } from "./admin-confirm";
 
 type WelcomeSettings = { enabled: boolean; welcome_credits: number; max_accounts_per_24h: number };
 
@@ -56,6 +57,8 @@ export function WelcomeTrialSettingsCard() {
       setError("لتفعيل الهدية، يجب تحديد كريدت موجب وحد يومي موجب للحسابات الجديدة.");
       return;
     }
+    const approved = await confirmAdminAction("تأكيد إعدادات الهدية الترحيبية", `الحالة: ${enabled ? "مفعّلة" : "متوقفة"}\nالكريدت لكل حساب: ${parsedCredits}\nالحد خلال 24 ساعة: ${parsedMaxAccounts}\nهذه الإعدادات تؤثر على تكلفة التسجيلات الجديدة.`);
+    if (!approved) return;
     setSaving(true); setError(null); setNotice(null);
     try {
       const { data: authData } = await supabase.auth.getUser();
