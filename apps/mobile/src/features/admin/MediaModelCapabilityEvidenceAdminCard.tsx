@@ -54,7 +54,7 @@ export function MediaModelCapabilityEvidenceAdminCard({ serviceType }: { service
       const list=((priceRows??[]) as MediaModel[]).filter((model) => !serviceType || model.service_type === serviceType);
       setModels(list);
       setEvidence((evidenceResult.data??[]) as Evidence[]);
-      setSelectedKey((current)=>current|| (list[0]?keyOf(list[0]):""));
+      setSelectedKey((current)=>current && list.some((model)=>keyOf(model)===current) ? current : (list[0]?keyOf(list[0]):""));
     }catch(cause){setError(cause instanceof Error?cause.message:"تعذر تحميل أدلة قدرات نماذج الوسائط.");}
     finally{setLoading(false);}
   };
