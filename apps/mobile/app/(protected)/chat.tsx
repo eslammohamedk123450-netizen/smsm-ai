@@ -27,21 +27,18 @@ import { integrationService, type ToolkitStatus } from "../../src/features/integ
 import { randomUUID } from "expo-crypto";
 import { useNavigationMenu, usePlusMenu } from "../../src/components/navigation/MainNavigation";
 
-type SulyModelProfileKey = "free" | "lite" | "pro" | "max" | "ultra_team";
+type SulyModelProfileKey = "lite" | "pro" | "max" | "x";
 type SulyModelProfileOption = {
   profile_key: Exclude<SulyModelProfileKey, "auto">;
   display_name: string;
   tagline: string;
-  minimum_subscription_tier: string;
   is_active: boolean;
 };
-const SUBSCRIPTION_TIER_RANK: Record<string, number> = { free: 0, lite: 1, pro: 2, max: 3, ultra_team: 4 };
 const DEFAULT_MODEL_PROFILE_OPTIONS: SulyModelProfileOption[] = [
-  { profile_key: "free", display_name: "SULY Free", tagline: "للتجربة والمهام البسيطة", minimum_subscription_tier: "free", is_active: true },
-  { profile_key: "lite", display_name: "SULY Lite", tagline: "للاستخدام الشخصي اليومي", minimum_subscription_tier: "lite", is_active: true },
-  { profile_key: "pro", display_name: "SULY Pro", tagline: "للاستخدام الجاد والمهام المتقدمة", minimum_subscription_tier: "pro", is_active: false },
-  { profile_key: "max", display_name: "SULY Max", tagline: "للمهام المعقدة والتحليل العميق", minimum_subscription_tier: "pro", is_active: false },
-  { profile_key: "ultra_team", display_name: "SULY Ultra Team", tagline: "مساحة عمل للفرق", minimum_subscription_tier: "ultra_team", is_active: false },
+  { profile_key: "lite", display_name: "SULY Lite", tagline: "للاستخدام الشخصي اليومي", is_active: true },
+  { profile_key: "pro", display_name: "SULY Pro", tagline: "للاستخدام الجاد والمهام المتقدمة", is_active: false },
+  { profile_key: "max", display_name: "SULY Max", tagline: "للمهام المعقدة والتحليل العميق", is_active: false },
+  { profile_key: "x", display_name: "SULY X", tagline: "أعلى مستوى من قدرات النماذج", is_active: false },
 ];
 
 const STREAMING_ID = "local-streaming-assistant";
@@ -149,7 +146,7 @@ export default function ChatPage() {
   const [ratingSaving, setRatingSaving] = useState(false);
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   // The selected profile is screen-local; the server revalidates subscription eligibility on every request.
-  const [selectedModelProfile, setSelectedModelProfile] = useState<SulyModelProfileKey>("free");
+  const [selectedModelProfile, setSelectedModelProfile] = useState<SulyModelProfileKey>("lite");
   const [currentSubscriptionTier, setCurrentSubscriptionTier] = useState("free");
   const [modelProfileOptions, setModelProfileOptions] = useState<SulyModelProfileOption[]>([]);
   const [modelProfileLoading, setModelProfileLoading] = useState(false);
@@ -160,7 +157,7 @@ export default function ChatPage() {
       setCurrentSubscriptionTier("free");
       setModelProfileOptions(DEFAULT_MODEL_PROFILE_OPTIONS);
       setModelProfileLoading(false);
-      setSelectedModelProfile("free");
+      setSelectedModelProfile("lite");
       return () => { active = false; };
     }
     setModelProfileLoading(true);
@@ -169,7 +166,7 @@ export default function ChatPage() {
         const [{ data: tier, error: tierError }, { data: profiles, error: profilesError }] = await Promise.all([
           supabase.rpc("suly_effective_subscription_tier", { p_user_id: user.id }),
           supabase.from("suly_model_profiles")
-            .select("profile_key,display_name,tagline,minimum_subscription_tier,is_active")
+            .select("profile_key,display_name,tagline,is_active")
             .order("sort_order", { ascending: true }),
         ]);
         if (tierError || profilesError || typeof tier !== "string") throw new Error("profile catalog unavailable");
@@ -177,23 +174,21 @@ export default function ChatPage() {
         const normalizedTier = tier.toLowerCase();
         setCurrentSubscriptionTier(normalizedTier);
         const configuredProfiles = (profiles ?? []) as SulyModelProfileOption[];
-        const mergedProfiles = DEFAULT_MODEL_PROFILE_OPTIONS.map((fallback) => (
-          configuredProfiles.find((profile) => profile.profile_key === fallback.profile_key) ?? fallback
-        ));
+        const mergedProfiles = [
+          ...DEFAULT_MODEL_PROFILE_OPTIONS.map((fallback) => (
+            configuredProfiles.find((profile) => profile.profile_key === fallback.profile_key) ?? fallback
+          )),
+          // Keep newly configured profiles (including SULY X) from the database;
+          // do not resurrect retired, hard-coded fallback placeholders.
+          ...configuredProfiles.filter((profile) => !DEFAULT_MODEL_PROFILE_OPTIONS.some((fallback) => fallback.profile_key === profile.profile_key)),
+        ];
         setModelProfileOptions(mergedProfiles);
-        setSelectedModelProfile((current) => {
-          const currentProfile = mergedProfiles.find((item) => item.profile_key === current);
-          const currentTierRank = SUBSCRIPTION_TIER_RANK[normalizedTier] ?? 0;
-          const currentMinimumRank = currentProfile ? SUBSCRIPTION_TIER_RANK[currentProfile.minimum_subscription_tier] : Number.POSITIVE_INFINITY;
-          if (currentProfile?.is_active && Number.isFinite(currentMinimumRank) && currentTierRank >= currentMinimumRank) return current;
-          const preferred = normalizedTier === "free" ? "free" : "lite";
-          return mergedProfiles.some((item) => item.profile_key === preferred && item.is_active) ? preferred : "free";
-        });
+        setSelectedModelProfile((current) => mergedProfiles.some((item) => item.profile_key === current && item.is_active) ? current : "lite");
       } catch {
         if (active) {
           setCurrentSubscriptionTier("free");
           setModelProfileOptions(DEFAULT_MODEL_PROFILE_OPTIONS);
-          setSelectedModelProfile("free");
+          setSelectedModelProfile("lite");
         }
       } finally {
         if (active) setModelProfileLoading(false);
@@ -202,32 +197,16 @@ export default function ChatPage() {
     return () => { active = false; };
   }, [user?.id]);
 
-  const selectedProfileLabel = `SULY 2.0 ${selectedModelProfile === "free" ? "Free" : selectedModelProfile === "lite" ? "Lite" : selectedModelProfile === "pro" ? "Pro" : selectedModelProfile === "max" ? "Max" : "Ultra Team"}`;
+  const selectedProfileLabel = `SULY ${selectedModelProfile === "lite" ? "Lite" : selectedModelProfile === "pro" ? "Pro" : selectedModelProfile === "max" ? "Max" : "X"}`;
 
   const chooseModelProfile = (profile: SulyModelProfileOption) => {
-    const currentRank = SUBSCRIPTION_TIER_RANK[currentSubscriptionTier] ?? 0;
-    const requiredRank = SUBSCRIPTION_TIER_RANK[profile.minimum_subscription_tier];
     if (!profile.is_active) {
       setModelProfileMenuVisible(false);
       show(isArabic ? "هذا المستوى غير مفعّل حاليًا." : "This model profile is not active yet.", "info");
       return;
     }
-    if (!Number.isFinite(requiredRank) || currentRank < requiredRank) {
-      setModelProfileMenuVisible(false);
-      router.push("/(protected)/upgrade");
-      return;
-    }
     setSelectedModelProfile(profile.profile_key);
     setModelProfileMenuVisible(false);
-  };
-
-  const chooseXProfile = () => {
-    setModelProfileMenuVisible(false);
-    if ((SUBSCRIPTION_TIER_RANK[currentSubscriptionTier] ?? 0) < SUBSCRIPTION_TIER_RANK.max) {
-      router.push("/(protected)/upgrade");
-      return;
-    }
-    show(isArabic ? "SULY X سيُتاح بعد اكتمال اعتماد النموذج ومزود الخدمة." : "SULY X will be available after its model and provider are approved.", "info");
   };
 
   const openNavigationDrawer = useNavigationMenu();
@@ -829,20 +808,13 @@ export default function ChatPage() {
                 accessibilityRole="button"
               >
                 <View style={styles.modelPickerCopy}>
-                  <Text style={styles.modelPickerName}>SULY 2.0 {profile.profile_key === "free" ? "Free" : profile.profile_key === "lite" ? "Lite" : profile.profile_key === "pro" ? "Pro" : profile.profile_key === "max" ? "Max" : "Ultra Team"}</Text>
+                  <Text style={styles.modelPickerName}>SULY {profile.profile_key === "lite" ? "Lite" : profile.profile_key === "pro" ? "Pro" : profile.profile_key === "max" ? "Max" : "X"}</Text>
                   <Text style={styles.modelPickerDescription}>{profile.tagline || profile.display_name}</Text>
                 </View>
                 {selectedModelProfile === profile.profile_key ? <Ionicons name="checkmark-circle" size={19} color={colors.primary} /> : null}
-                {!profile.is_active || (SUBSCRIPTION_TIER_RANK[currentSubscriptionTier] ?? 0) < (SUBSCRIPTION_TIER_RANK[profile.minimum_subscription_tier] ?? Number.POSITIVE_INFINITY) ? <Ionicons name="lock-closed-outline" size={16} color={colors.textMuted} /> : null}
+                {!profile.is_active ? <Ionicons name="lock-closed-outline" size={16} color={colors.textMuted} /> : null}
               </Pressable>
             ))}
-            <Pressable onPress={chooseXProfile} style={[styles.modelPickerOption, styles.modelPickerOptionDisabled]} accessibilityRole="button">
-              <View style={styles.modelPickerCopy}>
-                <Text style={styles.modelPickerName}>SULY 2.0 X</Text>
-                <Text style={styles.modelPickerDescription}>{isArabic ? "مخصص لمشتركي Max — يتطلب اعتماد النموذج ومزود الخدمة." : "For Max subscribers — model and provider approval required."}</Text>
-              </View>
-              <Ionicons name="lock-closed-outline" size={17} color={colors.textMuted} />
-            </Pressable>
             {modelProfileLoading ? <Text style={styles.modelPickerHint}>{isArabic ? "جارٍ تحميل النماذج…" : "Loading models…"}</Text> : null}
           </View>
         ) : null}

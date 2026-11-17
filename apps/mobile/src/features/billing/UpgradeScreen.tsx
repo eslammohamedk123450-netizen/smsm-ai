@@ -59,7 +59,7 @@ export default function UpgradeScreen() {
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     <View style={styles.header}><Pressable onPress={() => router.back()}><Text style={styles.back}>{isArabic ? "رجوع" : "Back"}</Text></Pressable><View style={styles.headerTitle}><Ionicons name="card-outline" size={25} color={colors.primary} /><Text style={styles.title}>{isArabic ? "الباقات والترقية" : "Plans & upgrades"}</Text></View></View>
-    <Text style={styles.subtitle}>{isArabic ? "المجاني يستخدم مستوى Free فقط. الاشتراك يحدد النماذج والقدرات والحدود المتاحة، والكريدت يُستهلك حسب الاستخدام الفعلي. يمكن شحن رصيد إضافي دون شراء باقة." : "Free accounts use the Free profile only. Your subscription controls model access, capabilities and limits; credits are consumed by actual usage. You can also top up without a subscription."}</Text>
+    <Text style={styles.subtitle}>{isArabic ? "الباقة تحدد الرصيد والمميزات والحدود فقط. يمكنك استخدام النماذج المتاحة كلها، ويُحسب الاستهلاك حسب النموذج والاستخدام الفعلي." : "Your plan defines credits, features and limits only. All available models can be used; charges depend on the model and actual usage."}</Text>
     {loading ? <ActivityIndicator color={colors.primary} /> : error ? <Text style={styles.error}>{error}</Text> : plans.map((plan) => {
       const key = plan.tier_key || planKey(plan.name);
       const current = currentTier === key;

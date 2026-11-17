@@ -190,7 +190,7 @@ export function UnifiedModelCapabilitiesAdminCard() {
   const addableModels = useMemo(() => {
     const linkedIds = new Set(linkedModels.map((model) => model.model_id));
     const query = search.trim().toLocaleLowerCase();
-    if (query.length < 2) return [];
+    if (!query) return []; // Start matching immediately from the first typed character.
     return models.filter((model) => {
       if (linkedIds.has(model.model_id)) return false;
       if (model.service_type !== "chat") {

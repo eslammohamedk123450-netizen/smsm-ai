@@ -16,30 +16,16 @@ const base = {
   routingGroup: "free_race" as const,
 };
 
-Deno.test("eligible model passes only when all access and capability constraints pass", () => {
+Deno.test("model eligibility checks operational state and capabilities, not subscription tier", () => {
   assert(isModelEligibleForRequest(base), "eligible model should pass");
+  assert(isModelEligibleForRequest({ ...base, userTier: "free", allowedTiers: ["pro"] }), "Free package must not block an otherwise available model");
+  assert(isModelEligibleForRequest({ ...base, userTier: "lite", allowedTiers: ["max"] }), "Lite package must not block a Max-class model");
+  assert(isModelEligibleForRequest({ ...base, userTier: "pro", allowedTiers: ["lite"] }), "Pro package must not block a Lite-class model");
   assert(!isModelEligibleForRequest({ ...base, enabled: false }), "disabled model must fail");
   assert(!isModelEligibleForRequest({ ...base, healthy: false }), "unhealthy model must fail");
   assert(!isModelEligibleForRequest({ ...base, providerEnabled: false }), "disabled provider must fail");
-  assert(!isModelEligibleForRequest({ ...base, userTier: "free", allowedTiers: ["pro"] }), "plan-ineligible model must fail");
   assert(!isModelEligibleForRequest({ ...base, requiredCapabilities: ["vision", "audio"] }), "missing capability must fail");
   assert(!isModelEligibleForRequest({ ...base, routingGroup: "disabled" }), "disabled routing group must fail");
-});
-
-Deno.test("higher subscription tiers inherit access to lower-tier models", () => {
-  assert(isModelEligibleForRequest({ ...base, userTier: "max", allowedTiers: ["pro"] }), "Max should be able to use a Pro-eligible model");
-  assert(isModelEligibleForRequest({ ...base, userTier: "max", allowedTiers: ["lite"] }), "Max should be able to use a Lite-eligible model");
-  assert(isModelEligibleForRequest({ ...base, userTier: "pro", allowedTiers: ["lite"] }), "Pro should be able to use a Lite-eligible model");
-  assert(!isModelEligibleForRequest({ ...base, userTier: "pro", allowedTiers: ["max"] }), "Pro must not access a Max-only model");
-  assert(!isModelEligibleForRequest({ ...base, userTier: "free", allowedTiers: ["pro"] }), "Free must not access a Pro-only model");
-});
-
-Deno.test("Ultra Team inherits every lower model tier while Free remains isolated", () => {
-  assert(isModelEligibleForRequest({ ...base, userTier: "ultra_team", allowedTiers: ["max"] }), "Ultra Team should inherit Max-eligible models");
-  assert(isModelEligibleForRequest({ ...base, userTier: "ultra_team", allowedTiers: ["pro"] }), "Ultra Team should inherit Pro-eligible models");
-  assert(isModelEligibleForRequest({ ...base, userTier: "ultra_team", allowedTiers: ["lite"] }), "Ultra Team should inherit Lite-eligible models");
-  assert(isModelEligibleForRequest({ ...base, userTier: "ultra_team", allowedTiers: ["free"] }), "Ultra Team should inherit Free-eligible models");
-  assert(!isModelEligibleForRequest({ ...base, userTier: "free", allowedTiers: ["lite"] }), "Free must not access Lite-only models");
 });
 
 Deno.test("role eligibility preserves general and worker/executor compatibility", () => {
@@ -51,7 +37,7 @@ Deno.test("role eligibility preserves general and worker/executor compatibility"
   assert(!isModelEligibleForRequest({ ...base, taskRoles: ["planner"], requiredRole: "reviewer" }), "wrong role should fail");
 });
 
-Deno.test("routing allowlist restricts eligible model pools without changing model priority", () => {
+Deno.test("routing allowlist restricts eligible model pools without changing subscription policy", () => {
   assert(isModelEligibleForRequest({ ...base, routingGroup: "paid_fallback", allowedRoutingGroups: ["paid_fallback"] }), "allowed fallback group should pass");
   assert(!isModelEligibleForRequest({ ...base, routingGroup: "paid_fallback", allowedRoutingGroups: ["free_race"] }), "unlisted routing group should fail");
 });
