@@ -31,7 +31,7 @@ import { isModelEligibleForRequest, modelSupportsRole as supportsModelRole } fro
 import { resolveExecutionMode } from "./execution_mode.ts";
 import { isSubscriptionTierEligible, resolveSulyProfileKey } from "./agent/suly_profile_routing.ts";
 import { getAgentReservationCallCount } from "./agent/agent_budget_policy.ts";
-import { buildAgentRoleGuidance, loadAgentProfiles, prioritizeAgentProfileCandidates, selectAgentProfile } from "./agent/agent_profiles.ts";
+import { buildAgentRoleGuidance, prioritizeAgentProfileCandidates, selectAgentProfile } from "./agent/agent_profiles.ts";
 import { getAgentToolsFromDatabase, getRegisteredTool, validateToolInput } from "./agent/tool_registry.ts";
 
 // Native clients do not require CORS. Browser access is restricted to the
@@ -1710,7 +1710,8 @@ async function handleRequest(req: Request): Promise<Response> {
     if (error) console.error("Could not persist message model log:", error.message);
   };
 
-  const agentProfiles = executionMode === "agent" ? await loadAgentProfiles(supabase) : [];
+  // One central Agent owns every decision. Do not load independent admin-created agent profiles at runtime.
+  const agentProfiles = [];
   const routedWorkerCandidates = prioritizeAgentProfileCandidates(
     workerCandidates,
     [selectAgentProfile(agentProfiles, "worker"), selectAgentProfile(agentProfiles, "thinker")].filter((profile) => profile !== null),
