@@ -286,7 +286,8 @@ alter table public.suly_model_capabilities
    'computer_use','code_interpreter','mcp_tools','gmail','google_drive','github'));
 
 create or replace function public.suly_sync_chat_model_to_registry()
-returns trigger language plpgsql security definer set search_path=public,pg_temp as $$
+returns trigger language plpgsql security definer set search_path=public,pg_temp as $
+declare v_registry_id uuid;
 begin
   insert into public.suly_model_registry
     (provider_id,service_type,model_identifier,display_name,lifecycle_state,legacy_chat_model_id,source_metadata)
@@ -297,12 +298,20 @@ begin
     display_name=excluded.display_name,legacy_chat_model_id=excluded.legacy_chat_model_id,
     lifecycle_state=excluded.lifecycle_state,
     source_metadata=public.suly_model_registry.source_metadata || excluded.source_metadata,
-    updated_at=now();
+    updated_at=now()
+  returning id into v_registry_id;
+  -- Model-list discovery is only a suggestion, never proof or automatic approval.
+  insert into public.suly_model_capabilities(model_id,capability_key,review_status,provenance)
+  values
+    (v_registry_id,'chat','suggested',jsonb_build_object('source','provider_model_discovery')),
+    (v_registry_id,'text','suggested',jsonb_build_object('source','provider_model_discovery'))
+  on conflict(model_id,capability_key) do nothing;
   return new;
-end; $$;
+end; $;
 
 create or replace function public.suly_sync_media_model_to_registry()
-returns trigger language plpgsql security definer set search_path=public,pg_temp as $$
+returns trigger language plpgsql security definer set search_path=public,pg_temp as $
+declare v_registry_id uuid; v_capability text;
 begin
   insert into public.suly_model_registry
     (provider_id,service_type,model_identifier,display_name,lifecycle_state,legacy_media_model_id,source_metadata)
@@ -313,9 +322,15 @@ begin
     display_name=excluded.display_name,legacy_media_model_id=excluded.legacy_media_model_id,
     lifecycle_state=excluded.lifecycle_state,
     source_metadata=public.suly_model_registry.source_metadata || excluded.source_metadata,
-    updated_at=now();
+    updated_at=now()
+  returning id into v_registry_id;
+  v_capability := case when new.service_type='image' then 'image_generation' else 'video_generation' end;
+  -- A configured media service suggests its matching capability for review only.
+  insert into public.suly_model_capabilities(model_id,capability_key,review_status,provenance)
+  values(v_registry_id,v_capability,'suggested',jsonb_build_object('source','media_service_catalog'))
+  on conflict(model_id,capability_key) do nothing;
   return new;
-end; $$;
+end; $;
 
 create or replace function public.suly_sync_legacy_capability_to_registry()
 returns trigger language plpgsql security definer set search_path=public,pg_temp as $$
