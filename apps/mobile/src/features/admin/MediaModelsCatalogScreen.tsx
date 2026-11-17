@@ -75,6 +75,7 @@ export function MediaModelsCatalogScreen() {
     } finally { setLoading(false); }
   }, []);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => { setSelected(null); setSearch(""); }, [kind]);
 
   const visibleRows = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
