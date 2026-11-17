@@ -25,7 +25,7 @@ import { useToast } from "../../src/components/ui/Toast";
 import { supabase } from "../../src/lib/supabase/client";
 import { integrationService, type ToolkitStatus } from "../../src/features/integrations/integration-service";
 import { randomUUID } from "expo-crypto";
-import { useNavigationMenu, usePlusMenu } from "../../src/components/navigation/MainNavigation";
+import { useNavigationMenu } from "../../src/components/navigation/MainNavigation";
 
 type SulyModelProfileKey = "lite" | "pro" | "max" | "x";
 type SulyModelProfileOption = {
@@ -211,7 +211,6 @@ export default function ChatPage() {
   };
 
   const openNavigationDrawer = useNavigationMenu();
-  const openPlusMenu = usePlusMenu();
   const suggestions = isArabic ? TASK_SUGGESTIONS : TASK_SUGGESTIONS_EN;
   const [connectorApproval, setConnectorApproval] = useState<{ content: string; toolkit: ToolkitStatus["toolkit"]; intent: "read" | "write"; connected: boolean; accountExists: boolean; disabled: boolean; writeApproval: ConnectorWriteApproval | null } | null>(null);
   const closeShareSheet = useCallback(() => setShareVisible(false), []);
@@ -789,9 +788,6 @@ export default function ChatPage() {
             <Ionicons name={modelProfileMenuVisible ? "chevron-up" : "chevron-down"} size={16} color={colors.textSecondary} />
           </Pressable>
           <View style={styles.headerActions}>
-            <TouchableOpacity onPress={openPlusMenu} style={styles.headerButton} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={isArabic ? "إضافة ملف أو أداة" : "Add file or tool"}>
-              <Ionicons name="add" size={23} color={colors.textPrimary} />
-            </TouchableOpacity>
             {creditBalance !== null ? (
               <TouchableOpacity onPress={() => router.push("/(protected)/balance")} style={styles.creditPill} accessibilityRole="button" accessibilityLabel={isArabic ? "رصيد Suly" : "SULY credits"}>
                 <Ionicons name="flash-outline" size={14} color={colors.textSecondary} />
@@ -873,7 +869,7 @@ export default function ChatPage() {
         )}
         {isUploadingAttachment ? <View style={styles.uploadStatus}><ActivityIndicator size="small" color={colors.primary} /><Text style={styles.loadingText}>{isArabic ? "جارٍ رفع المرفق…" : "Uploading attachment…"}</Text></View> : null}
         <StreamingStatus isStreaming={isSending && !isUploadingAttachment} taskLabel={activeTaskLabel} onCancel={() => abortRef.current?.abort()} />
-        <ChatComposer ref={composerRef} onSend={handleSend} disabled={isSending || Boolean(connectorApproval)} isStreaming={isSending} onCancel={() => abortRef.current?.abort()} onOpenConnectors={() => router.push("/integrations")} isAgentMode={isAgentMode} onToggleAgent={() => setIsAgentMode((current) => !current)} />
+        <ChatComposer ref={composerRef} onSend={handleSend} disabled={isSending || Boolean(connectorApproval)} isStreaming={isSending} onCancel={() => abortRef.current?.abort()} isAgentMode={isAgentMode} onToggleAgent={() => setIsAgentMode((current) => !current)} />
       </KeyboardAvoidingView>
       <ShareConversationSheet visible={shareVisible} conversationId={conversationId} title={shareTitle} plainText={shareText} onClose={closeShareSheet} />
       <BottomSheet visible={usageVisible} title={isArabic ? "إحصائيات المهمة الحالية" : "Current task usage"} onClose={() => setUsageVisible(false)}>
