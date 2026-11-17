@@ -2,7 +2,9 @@ name: Deploy Suly Production + Development Preview
 
 on:
   push:
-    branches: [release/v1, develop]
+    branches: [release/v1, develop, 'fix/**']
+  pull_request:
+    branches: [release/v1]
   workflow_dispatch:
     inputs:
       deploy_production:
@@ -12,6 +14,7 @@ on:
         type: boolean
 
 permissions:
+  actions: read
   contents: read
   pages: write
   id-token: write
@@ -22,7 +25,7 @@ concurrency:
 
 jobs:
   build:
-    if: (github.event_name == 'push' && (github.ref == 'refs/heads/release/v1' || github.ref == 'refs/heads/develop')) || (github.event_name == 'workflow_dispatch' && inputs.deploy_production == true)
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && (github.ref == 'refs/heads/release/v1' || github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/heads/fix/'))) || (github.event_name == 'workflow_dispatch' && inputs.deploy_production == true)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout stable production source
@@ -78,6 +81,60 @@ jobs:
           cp -R production-source/apps/mobile/dist/. site/
           cp -R preview-source/apps/mobile/dist/. site/preview/
 
+      - name: Verify generated route bundles
+        run: |
+          set -euo pipefail
+          test -n "$(find site/_expo/static/js/web -maxdepth 1 -type f -name 'media-catalog-*.js' -print -quit)"
+          test -n "$(find site/preview/_expo/static/js/web -maxdepth 1 -type f -name 'media-catalog-*.js' -print -quit)"
+
+      # Keep immutable hashed assets from recent deployments so cached HTML
+      # can still load its old route chunks after a new GitHub Pages deploy.
+      - name: Archive current web assets for stale-client recovery
+        uses: actions/upload-artifact@v4
+        with:
+          name: suly-web-assets-${{ github.run_id }}
+          path: |
+            site/_expo/
+            site/preview/_expo/
+          retention-days: 30
+
+      - name: Retain recent hashed web assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/${GITHUB_REPOSITORY}"
+          mkdir -p /tmp/suly-old-assets
+          run_ids=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$api/actions/workflows/deploy-pages.yml/runs?status=success&per_page=20" | python3 -c 'import json,sys; print(" ".join(str(x["id"]) for x in json.load(sys.stdin).get("workflow_runs", [])))')
+          retained=0
+          for run_id in $run_ids; do
+            [ "$run_id" = "$GITHUB_RUN_ID" ] && continue
+            artifact_id=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$api/actions/runs/$run_id/artifacts?per_page=100" | python3 -c 'import json,sys; a=[x for x in json.load(sys.stdin).get("artifacts",[]) if x["name"].startswith("suly-web-assets-") and not x.get("expired",False)]; print(a[0]["id"] if a else "")')
+            [ -n "$artifact_id" ] || continue
+            archive="/tmp/suly-old-assets/$run_id.zip"
+            if ! curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$api/actions/artifacts/$artifact_id/zip" -o "$archive"; then continue; fi
+            python3 - "$archive" site <<'PY'
+          import pathlib, sys, zipfile
+          archive, site = sys.argv[1], pathlib.Path(sys.argv[2])
+          copied = 0
+          with zipfile.ZipFile(archive) as bundle:
+              for item in bundle.infolist():
+                  name = item.filename.replace("\\\\", "/").lstrip("./")
+                  if item.is_dir() or not (name.startswith("_expo/") or name.startswith("preview/_expo/")):
+                      continue
+                  target = (site / name).resolve()
+                  if site.resolve() not in target.parents:
+                      continue
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  if not target.exists():
+                      target.write_bytes(bundle.read(item))
+                      copied += 1
+          print(f"Retained {copied} immutable assets from a previous deployment")
+          PY
+            retained=$((retained + 1))
+            [ "$retained" -ge 8 ] && break
+          done
+          echo "Merged retained assets from $retained previous deployments."
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
         with:
