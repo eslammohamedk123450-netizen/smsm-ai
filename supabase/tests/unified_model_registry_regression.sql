@@ -12,6 +12,7 @@ declare
   v_media_total bigint;
   v_media_registered bigint;
   v_list_fn regprocedure := 'public.suly_admin_list_unified_model_capabilities()'::regprocedure;
+  v_audit_fn regprocedure := 'public.suly_admin_list_model_registry_audit()'::regprocedure;
   v_save_fn regprocedure := 'public.suly_admin_save_unified_model_capability(uuid,text,text,text,text,text,text,text,text,text)'::regprocedure;
 begin
   if not (select relrowsecurity from pg_class where oid='public.suly_model_registry'::regclass) then
@@ -20,10 +21,11 @@ begin
   if not (select relrowsecurity from pg_class where oid='public.suly_model_capabilities'::regclass) then
     raise exception 'RLS must be enabled on suly_model_capabilities';
   end if;
-  if has_function_privilege('anon',v_list_fn,'EXECUTE') or has_function_privilege('anon',v_save_fn,'EXECUTE') then
+  if has_function_privilege('anon',v_list_fn,'EXECUTE') or has_function_privilege('anon',v_audit_fn,'EXECUTE') or has_function_privilege('anon',v_save_fn,'EXECUTE') then
     raise exception 'anon must not execute unified model admin RPCs';
   end if;
   if not has_function_privilege('authenticated',v_list_fn,'EXECUTE')
+     or not has_function_privilege('authenticated',v_audit_fn,'EXECUTE')
      or not has_function_privilege('authenticated',v_save_fn,'EXECUTE') then
     raise exception 'authenticated must be able to call admin-gated RPCs';
   end if;
