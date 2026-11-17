@@ -312,7 +312,7 @@ export const adminService = {
     // that has not yet received the reversible archive/restore migration.
     const { error: capabilityError } = await supabase.rpc("suly_admin_list_archived_providers");
     if (capabilityError) throw new Error("ميزة الأرشفة والاستعادة لم تُفعّل على قاعدة البيانات بعد. لم يتم تغيير حالة المفتاح.");
-    const { data, error } = await supabase.rpc("suly_admin_set_provider_lifecycle", { p_provider_id: providerId, p_enabled: enabled, p_hide_models: hideModels });
+    const { data, error } = await supabase.rpc("suly_admin_set_provider_lifecycle_v2", { p_provider_id: providerId, p_enabled: enabled, p_hide_models: hideModels });
     if (error) throw error;
     if (!data || data.success !== true || Number(data.provider_id) !== providerId) {
       throw new Error("لم تؤكد قاعدة البيانات إيقاف المزود أو استعادته.");
