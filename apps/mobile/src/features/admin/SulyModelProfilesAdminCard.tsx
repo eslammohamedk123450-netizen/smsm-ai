@@ -128,7 +128,6 @@ export function SulyModelProfilesAdminCard() {
         <Text style={{ color: colors.textMuted, fontSize: 9, textAlign: "right" }}>هذه السجلات لا تتحكم في التوجيه الحالي. لا تعدّلها من هنا؛ استخدم مركز إدارة النماذج ← أهلية النماذج حسب الباقة.</Text>
         {visibleModels.map((model) => {
           const linked = profileModels.has(model.id);
-          const busy = busyKey === `${profile.profile_key}:${model.id}`;
           return <View key={model.id} style={{ flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: colors.divider }}>
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={{ color: colors.textPrimary, fontSize: 11, textAlign: "right" }}>{model.name || model.model_identifier}</Text>
