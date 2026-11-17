@@ -123,7 +123,7 @@ export function AdminShell() {
       hint: "صفحات الإدارة المنشورة", hintEn: "Published admin pages",
       items: customPages.map((page) => ({
         path: `/admin/custom/${page.page_key}`,
-        label: page.title, labelEn: page.title, icon: "albums-outline",
+        label: page.title, labelEn: page.title, icon: "albums-outline" as const,
       })),
     }] : []),
   ], [customPages]);
