@@ -44,7 +44,7 @@ type TransactionRow = { id?: string; user_id?: string; event_type: string; amoun
 type ModelCapabilityKey = "chat" | "vision" | "pdf" | "word" | "video" | "gmail" | "google_drive" | "github";
 type ModelCapabilityState = Record<ModelCapabilityKey, boolean>;
 const MODEL_CAPABILITY_OPTIONS: Array<[ModelCapabilityKey, string]> = [["chat", "نص"], ["vision", "قراءة الصور"], ["pdf", "PDF"], ["word", "Word / DOCX"], ["video", "فيديو"], ["gmail", "Gmail"], ["google_drive", "Google Drive"], ["github", "GitHub"]];
-const MODEL_CAPABILITY_ICONS: Record<ModelCapabilityKey, keyof typeof Ionicons.glyphMap> = { chat: "chatbubble-ellipses-outline", vision: "eye-outline", pdf: "document-text-outline", word: "document-outline", video: "videocam-outline", gmail: "mail-outline", google_drive: "logo-google-drive", github: "logo-github" };
+const MODEL_CAPABILITY_ICONS: Record<ModelCapabilityKey, keyof typeof Ionicons.glyphMap> = { chat: "chatbubble-ellipses-outline", vision: "eye-outline", pdf: "document-text-outline", word: "document-outline", video: "videocam-outline", gmail: "mail-outline", google_drive: "cloud-outline", github: "logo-github" };
 const formatModelPrice = (value: number | undefined, currency = "EGP") => value == null || !Number.isFinite(Number(value)) ? "—" : `${Number(value).toLocaleString("en-EG", { maximumFractionDigits: 4 })} ${currency}`;
 const MODEL_TASK_ROLE_OPTIONS: Array<[string, string]> = [["general", "عام (كل الأقسام)"], ["chat", "المحادثة"], ["planner", "التخطيط"], ["worker", "التنفيذ"], ["reviewer", "المراجعة"], ["summarizer", "التلخيص"]];
 function modelSupportsAgentRole(model: ModelRow, role: string): boolean {
