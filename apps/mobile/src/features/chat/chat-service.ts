@@ -299,7 +299,7 @@ export const chatService = {
   async sendMessage(options: {
     conversationId: string;
     content: string;
-    modelProfileKey?: "auto" | "lite" | "pro" | "max";
+    modelProfileKey?: "auto" | "free" | "lite" | "pro" | "max" | "ultra_team";
     writeApproval?: { requestId: string; originalText: string };
     mediaAsset?: MediaAsset;
     signal: AbortSignal;
