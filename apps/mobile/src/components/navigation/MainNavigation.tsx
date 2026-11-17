@@ -110,7 +110,7 @@ export function MainNavigation({ children }: Props) {
         <Modal visible={drawerVisible} transparent animationType="fade" onRequestClose={() => setDrawerVisible(false)}>
           <View style={styles.modalRoot}>
             <Pressable style={styles.scrim} onPress={() => setDrawerVisible(false)} accessibilityRole="button" accessibilityLabel={isArabic ? "إغلاق القائمة" : "Close menu"} />
-            <SafeAreaView edges={["top", "bottom"]} style={[styles.drawer, { alignSelf: isArabic ? "flex-end" : "flex-start", backgroundColor: colors.surface, borderColor: colors.divider }]}>
+            <SafeAreaView edges={["top", "bottom"]} style={[styles.drawer, { alignSelf: isArabic ? "flex-start" : "flex-end", backgroundColor: colors.surface, borderColor: colors.divider }]}>
               <View style={[styles.drawerHeader, { flexDirection: isArabic ? "row-reverse" : "row" }]}>
                 <View style={[styles.brandMark, { backgroundColor: colors.primary }]}><Text style={[styles.brandLetter, { color: colors.onPrimary }]}>S</Text></View>
                 <View style={styles.drawerBrandCopy}>
