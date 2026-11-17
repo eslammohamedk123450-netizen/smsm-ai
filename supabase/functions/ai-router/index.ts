@@ -3134,6 +3134,26 @@ Deno.serve(async (req: Request) => {
   } catch (error) {
     const claim = activeAiClaims.get(req);
     if (claim) {
+      // An unhandled router failure must not strand a credit reservation.
+      // finalize_credits is idempotent: settled/expired holds are untouched,
+      // and a missing hold is a normal case for non-billed/internal requests.
+      const { data: creditRecovery, error: creditRecoveryError } = await claim.supabase.rpc("finalize_credits", {
+        p_user_id: claim.userId,
+        p_task_id: claim.requestId,
+        p_actual_cost: 0,
+        p_input_tokens: 0,
+        p_output_tokens: 0,
+        p_model_id: null,
+        p_source: "ai_router_unhandled_failure",
+      });
+      if (creditRecoveryError) {
+        console.error("Could not release credit hold after unhandled AI request:", creditRecoveryError.message);
+      } else {
+        const recovery = asRecord(creditRecovery);
+        if (recovery.success !== true && recovery.error !== "hold_not_found") {
+          console.error("Credit hold recovery did not complete:", safeOperationalSummary(JSON.stringify(recovery), 240));
+        }
+      }
       const { error } = await claim.supabase.rpc("suly_finish_ai_request", {
         p_request_id: claim.requestId,
         p_user_id: claim.userId,
