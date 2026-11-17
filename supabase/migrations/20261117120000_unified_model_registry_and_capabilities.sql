@@ -213,6 +213,13 @@ begin
   end if;
   select * into v_model from public.suly_model_registry where id=p_model_id for update;
   if not found then raise exception 'model_not_found' using errcode='P0002'; end if;
+  if v_model.service_type='image' and p_capability_key not in ('text','image_generation','vision') then
+    raise exception 'capability_not_applicable_to_image_model' using errcode='22023';
+  elsif v_model.service_type='video' and p_capability_key not in ('text','video_generation','video_input','vision','audio_output') then
+    raise exception 'capability_not_applicable_to_video_model' using errcode='22023';
+  elsif v_model.service_type='audio' and p_capability_key not in ('text','audio_input','audio_output','transcription') then
+    raise exception 'capability_not_applicable_to_audio_model' using errcode='22023';
+  end if;
   select to_jsonb(c) into v_before from public.suly_model_capabilities c
     where c.model_id=p_model_id and c.capability_key=p_capability_key;
   insert into public.suly_model_capabilities
