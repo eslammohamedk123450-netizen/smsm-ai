@@ -14,7 +14,7 @@ create table if not exists public.ai_provider_lifecycle_snapshots (
 alter table public.ai_provider_lifecycle_snapshots enable row level security;
 revoke all on table public.ai_provider_lifecycle_snapshots from public, anon, authenticated;
 
-create or replace function public.suly_admin_set_provider_lifecycle(
+create or replace function public.suly_admin_set_provider_lifecycle_v2(
   p_provider_id integer,
   p_enabled boolean,
   p_hide_models boolean default true
@@ -185,6 +185,23 @@ begin
 end;
 $$;
 
+-- Preserve the legacy void-returning RPC signature for older clients, but route
+-- it through the same reversible implementation.
+create or replace function public.suly_admin_set_provider_lifecycle(
+  p_provider_id integer,
+  p_enabled boolean,
+  p_hide_models boolean default true
+)
+returns void
+language plpgsql
+security definer
+set search_path = pg_catalog, public, auth
+as $
+begin
+  perform public.suly_admin_set_provider_lifecycle_v2(p_provider_id, p_enabled, p_hide_models);
+end;
+$;
+
 -- Active providers are the only providers shown in ordinary admin catalog lists.
 create or replace function public.suly_admin_list_providers()
 returns table (
@@ -235,9 +252,11 @@ end;
 $$;
 
 revoke all on function public.suly_admin_set_provider_lifecycle(integer, boolean, boolean) from public, anon;
+revoke all on function public.suly_admin_set_provider_lifecycle_v2(integer, boolean, boolean) from public, anon;
 revoke all on function public.suly_admin_list_providers() from public, anon;
 revoke all on function public.suly_admin_list_archived_providers() from public, anon;
 grant execute on function public.suly_admin_set_provider_lifecycle(integer, boolean, boolean) to authenticated;
+grant execute on function public.suly_admin_set_provider_lifecycle_v2(integer, boolean, boolean) to authenticated;
 grant execute on function public.suly_admin_list_providers() to authenticated;
 grant execute on function public.suly_admin_list_archived_providers() to authenticated;
 
