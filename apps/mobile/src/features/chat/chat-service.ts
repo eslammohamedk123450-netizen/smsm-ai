@@ -416,7 +416,7 @@ export const chatService = {
     await this.regenerateAssistant({
       conversationId: options.conversationId,
       history,
-      requestId: createRetryRequestId(),
+      requestId: createRetryRequestId(randomUUID),
       modelProfileKey: options.modelProfileKey,
       executionMode: options.executionMode,
       signal: options.signal,
