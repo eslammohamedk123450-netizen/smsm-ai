@@ -21,7 +21,7 @@ type ModelOption = {
 const ROLES: Array<{ key: AgentRole; label: string; description: string; eligibilityRole: "planner" | "worker" | "reviewer" | "summarizer" }> = [
   { key: "coordinator", label: "المدير / المنسق المركزي", description: "ينظم عمل الوكيل الواحد ويتابع الخطة والميزانية.", eligibilityRole: "planner" },
   { key: "planner", label: "المخطط", description: "يحلل الطلب ويقسمه إلى خطوات واعتماديات.", eligibilityRole: "planner" },
-  { key: "thinker", label: "المفكر / المحلل", description: "يدعم التحليل والاستدلال داخل الوكيل المركزي.", eligibilityRole: "planner" },
+  { key: "thinker", label: "المفكر / المحلل", description: "يدعم التحليل والاستدلال داخل مسار التنفيذ.", eligibilityRole: "worker" },
   { key: "worker", label: "المنفذ / العامل", description: "ينفذ خطوة محددة بالأدوات والصلاحيات المسموحة.", eligibilityRole: "worker" },
   { key: "reviewer", label: "المراجع", description: "يراجع جودة التنفيذ والنتائج قبل التسليم.", eligibilityRole: "reviewer" },
   { key: "summarizer", label: "الملخص", description: "يصوغ النتيجة النهائية للمستخدم.", eligibilityRole: "summarizer" },
