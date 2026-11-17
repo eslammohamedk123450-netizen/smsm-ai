@@ -17,14 +17,17 @@ const NAV_GROUPS: readonly NavGroup[] = [
   { key: "overview", label: "نظرة عامة", labelEn: "Overview", hint: "حالة SULY والنشاط التشغيلي", hintEn: "SULY health and operational activity", icon: "home-outline", items: [
     { path: "/admin", label: "لوحة المتابعة", labelEn: "Operational overview", icon: "home-outline" },
   ] },
-  { key: "providers", label: "المزودون والنماذج", labelEn: "Providers & Models", hint: "المزودون وسجل النماذج", hintEn: "Providers and model registry", icon: "layers-outline", items: [
+  { key: "users", label: "المستخدمون والحسابات", labelEn: "Users & Accounts", hint: "الحسابات والاشتراكات", hintEn: "Accounts and subscriptions", icon: "people-outline", items: [
+    { path: "/admin/users", label: "المستخدمون والاشتراكات", labelEn: "Users & subscriptions", icon: "people-outline" },
+  ] },
+  { key: "ai", label: "الذكاء الاصطناعي", labelEn: "AI", hint: "مزودو الخدمة والنماذج وسجل الذكاء الاصطناعي", hintEn: "AI providers, models and registry", icon: "layers-outline", items: [
     { path: "/admin/api-keys", label: "المزودون ومفاتيح API", labelEn: "Providers & API keys", icon: "key-outline" },
     { path: "/admin/models", label: "مركز النماذج", labelEn: "Model center", icon: "grid-outline" },
     { path: "/admin/models-catalog", label: "كتالوج النماذج", labelEn: "Model catalog", icon: "list-outline" },
     { path: "/admin/media-catalog?kind=image", label: "نماذج الوسائط", labelEn: "Media models", icon: "images-outline" },
     { path: "/admin/image-generation", label: "إعدادات توليد الصور", labelEn: "Image generation settings", icon: "image-outline" },
   ] },
-  { key: "capabilities", label: "القدرات والاختبارات", labelEn: "Capabilities & Tests", hint: "الأدلة والاختبارات وحالة الصحة", hintEn: "Evidence, tests and health status", icon: "flask-outline", items: [
+  { key: "capabilities", label: "القدرات", labelEn: "Capabilities", hint: "الأدلة والاختبارات وحالة الصحة", hintEn: "Evidence, tests and health status", icon: "flask-outline", items: [
     { path: "/admin/model-capabilities", label: "قدرات النماذج", labelEn: "Model capabilities", icon: "extension-puzzle-outline" },
     { path: "/admin/model-capability-review", label: "مراجعة أدلة القدرات", labelEn: "Capability evidence review", icon: "clipboard-outline" },
     { path: "/admin/models-operations", label: "التشغيل والاختبارات", labelEn: "Operations & tests", icon: "pulse-outline" },
@@ -32,14 +35,11 @@ const NAV_GROUPS: readonly NavGroup[] = [
   { key: "routing-agent", label: "التوجيه والوكيل المركزي", labelEn: "Routing & Agent", hint: "سياسات التوجيه وأدوار الوكيل الواحد", hintEn: "Routing policies and the single central Agent", icon: "git-network-outline", items: [
     { path: "/admin/agents", label: "إعدادات الوكيل والتوجيه", labelEn: "Agent & routing settings", icon: "git-branch-outline" },
   ] },
-  { key: "pricing", label: "الأسعار والباقات", labelEn: "Pricing & Plans", hint: "إصدارات الأسعار واستحقاقات الباقات", hintEn: "Versioned prices and plan entitlements", icon: "pricetags-outline", items: [
+  { key: "pricing", label: "الباقات والأسعار", labelEn: "Plans & Pricing", hint: "إصدارات الأسعار واستحقاقات الباقات", hintEn: "Versioned prices and plan entitlements", icon: "pricetags-outline", items: [
     { path: "/admin/pricing", label: "الأسعار والباقات", labelEn: "Pricing & plans", icon: "pricetags-outline" },
   ] },
-  { key: "credits", label: "الأرصدة والمحفظة", labelEn: "Credits & Wallet", hint: "الرصيد والحركات والتسوية", hintEn: "Balances, ledger and settlement", icon: "wallet-outline", items: [
+  { key: "credits", label: "الأرصدة والمحافظ", labelEn: "Credits & Wallets", hint: "الرصيد والحركات والتسوية", hintEn: "Balances, ledger and settlement", icon: "wallet-outline", items: [
     { path: "/admin/credit-management", label: "إدارة المحفظة", labelEn: "Wallet management", icon: "wallet-outline" },
-  ] },
-  { key: "users", label: "المستخدمون والحسابات", labelEn: "Users & Accounts", hint: "الحسابات والاشتراكات", hintEn: "Accounts and subscriptions", icon: "people-outline", items: [
-    { path: "/admin/users", label: "المستخدمون والاشتراكات", labelEn: "Users & subscriptions", icon: "people-outline" },
   ] },
   { key: "ads", label: "الإعلانات والمكافآت", labelEn: "Ads & Rewards", hint: "إعدادات الإعلانات ومكافآت المستخدمين", hintEn: "Ad settings and user rewards", icon: "gift-outline", items: [
     { path: "/admin/ads", label: "الإعلانات والمكافآت", labelEn: "Ads & rewards", icon: "gift-outline" },
@@ -47,7 +47,7 @@ const NAV_GROUPS: readonly NavGroup[] = [
   { key: "finance", label: "المالية والربحية", labelEn: "Finance & Profit", hint: "التكاليف والإيرادات والتقارير المالية", hintEn: "Costs, revenue and finance reporting", icon: "calculator-outline", items: [
     { path: "/admin/finance", label: "المالية والربحية", labelEn: "Finance & profitability", icon: "calculator-outline" },
   ] },
-  { key: "activity", label: "النشاط وسجل التدقيق", labelEn: "Activity & Audit", hint: "الأحداث والدعم وملاحظات الاستخدام", hintEn: "Events, support and usage feedback", icon: "time-outline", items: [
+  { key: "activity", label: "السجلات والنشاط", labelEn: "Logs & Activity", hint: "الأحداث والدعم وملاحظات الاستخدام", hintEn: "Events, support and usage feedback", icon: "time-outline", items: [
     { path: "/admin/audit", label: "سجل التدقيق", labelEn: "Audit log", icon: "list-outline" },
     { path: "/admin/conversations", label: "المحادثات", labelEn: "Conversations", icon: "chatbubbles-outline" },
     { path: "/admin/support", label: "الدعم", labelEn: "Support inbox", icon: "help-circle-outline" },
@@ -62,12 +62,12 @@ const NAV_GROUPS: readonly NavGroup[] = [
     { path: "/admin/composio", label: "Composio", labelEn: "Composio connector", icon: "apps-outline" },
     { path: "/admin/tavily", label: "Tavily · بحث الويب", labelEn: "Tavily · web search", icon: "search-outline" },
     { path: "/admin/page-builder", label: "منشئ صفحات الإدارة", labelEn: "Admin page builder", icon: "construct-outline" },
-  ] },
-] as const;
+  ] }
+] as const;;
 
 const WIDE_BREAKPOINT = 900;
 const SIDEBAR_STORAGE_KEY = "suly:admin:sidebar-collapsed";
-const DEFAULT_OPEN_GROUPS = ["overview", "providers"];
+const DEFAULT_OPEN_GROUPS = ["overview", "ai"];
 
 export function AdminShell() {
   const { colors } = useSulyTheme();
