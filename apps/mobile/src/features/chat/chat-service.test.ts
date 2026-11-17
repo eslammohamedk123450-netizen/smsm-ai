@@ -124,7 +124,7 @@ describe("chatService.retryAssistant", () => {
     expect(fromMock).toHaveBeenCalledWith("suly_messages");
     expect(query.insert).not.toHaveBeenCalled();
     const request = streamMock.mock.calls[0][0] as ChatRequestBody;
-    expect(request.execution_mode).toBe("auto");
+    expect(request.execution_mode).toBe("chat");
     expect(request.request_id).toBe("retry-request-id");
     expect(request).not.toHaveProperty("confirmed_connector_action");
     expect(request.messages).toEqual([{ role: "user", content: "Explain this" }]);
