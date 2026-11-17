@@ -127,8 +127,22 @@ export function ModelRegistryCatalogScreen() {
       return;
     }
     const q = encodeURIComponent(model.model_identifier);
-    if (model.service_type === "chat") router.push(`/admin/models?q=${q}` as never);
-    else router.push(`/admin/media-catalog?kind=${model.service_type === "audio" ? "voice" : model.service_type}&q=${q}` as never);
+    if (model.service_type === "chat") {
+      router.push(`/admin/models?q=${q}` as never);
+      return;
+    }
+    if (model.service_type === "audio") {
+      const evidence = capabilitiesByModel.get(model.model_id);
+      if (evidence?.has("transcription")) {
+        router.push(`/admin/media-catalog?kind=transcription&q=${q}` as never);
+      } else if (evidence?.has("audio_output")) {
+        router.push(`/admin/media-catalog?kind=voice&q=${q}` as never);
+      } else {
+        router.push("/admin/model-capability-review");
+      }
+      return;
+    }
+    router.push(`/admin/media-catalog?kind=${model.service_type}&q=${q}` as never);
   };
   const models = useMemo(() => [...new Map(rows.map((row) => [row.model_id, row])).values()], [rows]);
   const filtered = useMemo(() => {
