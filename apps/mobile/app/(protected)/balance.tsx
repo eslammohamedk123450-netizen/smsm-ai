@@ -124,7 +124,7 @@ export default function BalanceScreen() {
     return () => {
       active = false;
     };
-  }, [user]));
+  }, [user, isArabic]));
 
   const monthlySpent = monthlyConsumed ?? 0;
   const isPaidPlan = Boolean(planTier && planTier !== "free");
