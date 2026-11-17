@@ -71,7 +71,9 @@ export function WelcomeTrialSettingsCard() {
           updated_by: authData.user?.id ?? null,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", 1);
+        .eq("id", 1)
+        .select("id")
+        .single();
       if (updateError) throw updateError;
       setNotice("تم حفظ إعدادات الهدية الترحيبية للحسابات الجديدة. الأرصدة الممنوحة سابقًا لا تتغير.");
       await load();
