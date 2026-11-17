@@ -559,7 +559,7 @@ async function handleRequest(req: Request): Promise<Response> {
     console.error("Effective subscription entitlement verification failed.");
     return jsonResponse({ error: "Unable to verify subscription entitlements. Please retry." }, 503, req);
   }
-  const userTier = ["free", "lite", "pro", "max"].includes(effectiveTier) ? effectiveTier : "free";
+  const userTier = ["free", "lite", "pro", "max", "ultra_team"].includes(effectiveTier) ? effectiveTier : "free";
 
   // Text chat is credit-gated, not daily-request-gated. The atomic
   // reserve_credits call below is the single source of truth: users may
@@ -725,8 +725,8 @@ async function handleRequest(req: Request): Promise<Response> {
   const modelId = Number.isSafeInteger(rawModelId) && rawModelId > 0 ? rawModelId : 0;
   const hasExplicitModel = modelId > 0;
   const rawProfileKey = typeof body.model_profile_key === "string" ? body.model_profile_key.trim().toLowerCase() : "";
-  const requestedProfileKey = ["auto", "lite", "pro", "max"].includes(rawProfileKey) ? rawProfileKey : null;
-  const hasManualProfile = requestedProfileKey === "lite" || requestedProfileKey === "pro" || requestedProfileKey === "max";
+  const requestedProfileKey = ["auto", "free", "lite", "pro", "max", "ultra_team"].includes(rawProfileKey) ? rawProfileKey : null;
+  const hasManualProfile = requestedProfileKey !== null && requestedProfileKey !== "auto";
   const routingMode = hasManualProfile || body.routing_mode === "manual" || (hasExplicitModel && body.routing_mode !== "auto") ? "manual" : "auto";
   // New clients select Chat or Agent explicitly. Legacy clients remain Agent
   // compatible so existing connected-app requests do not silently lose tools.
