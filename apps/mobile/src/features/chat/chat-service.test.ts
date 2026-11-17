@@ -83,7 +83,7 @@ describe("chatService.retryAssistant", () => {
       conversationId: "conversation-1",
       content: "Hello",
       modelProfileKey: "lite",
-      executionMode: "agent",
+      executionMode: "chat",
       signal: new AbortController().signal,
       onUserSaved: jest.fn(),
       onChunk: jest.fn(),
@@ -92,7 +92,7 @@ describe("chatService.retryAssistant", () => {
     const request = streamMock.mock.calls[0][0] as ChatRequestBody;
     expect(request.model_profile_key).toBe("lite");
     expect(request.routing_mode).toBe("auto");
-    expect(request.execution_mode).toBe("agent");
+    expect(request.execution_mode).toBe("chat");
   });
 
   it("keeps SULY profile selection in automatic routing when retrying", async () => {
