@@ -35,6 +35,12 @@ alter table public.suly_media_generation_models
   add constraint suly_media_generation_models_allowed_tiers_check
   check (allowed_tiers <@ ARRAY['free','lite','pro','max','ultra_team']::text[]);
 
+-- Media models are currently inactive and have no approved Free trial policy.
+-- Keep them paid-only until the owner configures a specific welcome image allowance.
+update public.suly_media_generation_models
+set allowed_tiers = ARRAY['max']::text[], updated_at = now()
+where is_active = false;
+
 -- Catalog discovery previously defaulted every disabled model to all tiers.
 -- Remove accidental Free eligibility from every model outside the Free race.
 update public.ai_models
