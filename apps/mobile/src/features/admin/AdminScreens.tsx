@@ -518,6 +518,7 @@ export function ModelsAdminScreen() {
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={<View style={styles.modelListHeader}>
           <PageHeader title="النماذج والتوجيه" />
+          <Link href="/admin/api-keys" asChild><Pressable accessibilityRole="button"><Text style={styles.link}>إدارة المزودين ومفاتيح API</Text></Pressable></Link>
           <ErrorText>{error}</ErrorText>
           {!loading ? <>
             <RouteModelChainsCard models={models} />
