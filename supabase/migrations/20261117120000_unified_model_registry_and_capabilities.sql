@@ -132,10 +132,10 @@ on conflict (model_id, capability_key) do nothing;
 
 -- Import all media evidence, including historical identities that are no longer catalogued.
 insert into public.suly_model_capabilities
-  (model_id, capability_key, vendor_claim_status, vendor_evidence_url,
+  (model_id, capability_key, review_status, vendor_claim_status, vendor_evidence_url,
    provider_test_status, provider_evidence_url, provider_tested_at,
    suly_test_status, suly_evidence_url, suly_tested_at, notes, updated_by, updated_at, provenance)
-select r.id, e.capability_key, e.vendor_claim_status, e.vendor_evidence_url,
+select r.id, e.capability_key, 'legacy_unreviewed', e.vendor_claim_status, e.vendor_evidence_url,
        e.provider_test_status, e.provider_evidence_url, e.provider_tested_at,
        e.suly_test_status, e.suly_evidence_url, e.suly_tested_at, e.notes,
        e.updated_by, e.updated_at, jsonb_build_object('source_table','suly_media_model_capability_evidence','provider_id',e.provider_id,'service_type',e.service_type,'model_identifier',e.model_identifier)
@@ -346,10 +346,10 @@ begin
     updated_at=now()
   returning id into v_model_id;
   insert into public.suly_model_capabilities
-    (model_id,capability_key,vendor_claim_status,vendor_evidence_url,provider_test_status,
+    (model_id,capability_key,review_status,vendor_claim_status,vendor_evidence_url,provider_test_status,
      provider_evidence_url,provider_tested_at,suly_test_status,suly_evidence_url,suly_tested_at,
      notes,updated_by,updated_at,provenance)
-  values(v_model_id,new.capability_key,new.vendor_claim_status,new.vendor_evidence_url,
+  values(v_model_id,new.capability_key,'legacy_unreviewed',new.vendor_claim_status,new.vendor_evidence_url,
      new.provider_test_status,new.provider_evidence_url,new.provider_tested_at,
      new.suly_test_status,new.suly_evidence_url,new.suly_tested_at,
      new.notes,new.updated_by,new.updated_at,jsonb_build_object('source_table',tg_table_name))
