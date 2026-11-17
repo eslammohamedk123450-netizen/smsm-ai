@@ -224,6 +224,8 @@ export const adminService = {
   async getArchivedProviders() {
     await requireAdmin();
     const { data, error } = await supabase.rpc("suly_admin_list_archived_providers");
+    // Keep the provider page usable on preview until its additive DB migration is applied.
+    if (error && (error as { code?: string }).code === "PGRST202") return [];
     if (error) throw error;
     return data ?? [];
   },
@@ -306,6 +308,10 @@ export const adminService = {
 
   async setProviderLifecycle(providerId: number, enabled: boolean, hideModels = true) {
     await requireAdmin();
+    // Guard against calling the legacy destructive/one-way lifecycle RPC on a DB
+    // that has not yet received the reversible archive/restore migration.
+    const { error: capabilityError } = await supabase.rpc("suly_admin_list_archived_providers");
+    if (capabilityError) throw new Error("ميزة الأرشفة والاستعادة لم تُفعّل على قاعدة البيانات بعد. لم يتم تغيير حالة المفتاح.");
     const { data, error } = await supabase.rpc("suly_admin_set_provider_lifecycle", { p_provider_id: providerId, p_enabled: enabled, p_hide_models: hideModels });
     if (error) throw error;
     if (!data || data.success !== true || Number(data.provider_id) !== providerId) {
