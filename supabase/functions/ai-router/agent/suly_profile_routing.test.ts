@@ -23,10 +23,11 @@ Deno.test("manual profile selection is never silently downgraded", () => {
   if (result.profileKey !== "pro" || result.mode !== "manual" || !result.allowed) throw new Error("Manual Pro selection must remain Pro.");
 });
 
-Deno.test("Free cannot manually select paid Lite, while Pro retains the existing Max-profile entitlement", () => {
-  const freeLite = resolveSulyProfileKey({ requestedProfileKey: "lite", userTier: "free", intent: "chat" });
+Deno.test("legacy Free clients requesting the old Lite default remain on Free, while Pro retains Max-profile access", () => {
+  const legacyFree = resolveSulyProfileKey({ requestedProfileKey: "lite", userTier: "free", intent: "chat" });
   const proMax = resolveSulyProfileKey({ requestedProfileKey: "max", userTier: "pro", intent: "complex_task" });
-  if (freeLite.allowed || !proMax.allowed) throw new Error("Manual selection must respect the configured profile minimum tier.");
+  if (legacyFree.profileKey !== "free" || !legacyFree.allowed) throw new Error("Legacy Free clients must be safely routed to the Free profile.");
+  if (!proMax.allowed) throw new Error("Pro retains access to the Max profile under the existing entitlement policy.");
 });
 
 Deno.test("Ultra Team is the highest tier and inherits all lower profile access", () => {
