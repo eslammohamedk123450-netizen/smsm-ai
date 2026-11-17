@@ -45,8 +45,21 @@ export function parseMarkdownBlocks(markdown: string): MarkdownBlock[] {
       if (index < lines.length) index += 1;
       const code = codeLines.join("\n");
       const language = (fence[1] || "").toLowerCase();
-      if (language === "chart" || language === "flow" || language === "diagram" || language === "dashboard" || language === "agent") {
+      if (language === "chart" || language === "flow" || language === "diagram" || language === "dashboard" || language === "agent" || language === "mermaid") {
         try {
+          if (language === "mermaid") {
+            const nodePattern = /([A-Za-z][\w]*)\s*(?:\[([^\]]+)\]|\(([^)]+)\)|\{([^}]+)\})/g;
+            const steps: string[] = [];
+            let node: RegExpExecArray | null;
+            while ((node = nodePattern.exec(code)) !== null) {
+              const label = (node[2] || node[3] || node[4] || "").trim();
+              if (label && !steps.includes(label)) steps.push(label);
+            }
+            if (/(?:-->|==>|---)/.test(code) && steps.length >= 2 && steps.length <= 10) {
+              blocks.push({ type: "flow", steps });
+              continue;
+            }
+          }
           const visual = JSON.parse(code) as Record<string, unknown>;
           const safeTitle = typeof visual.title === "string" ? visual.title.slice(0, 120) : undefined;
           const validChart = (value: unknown, maxItems = 12): value is { title?: string; labels: string[]; values: number[] } => {
@@ -60,29 +73,6 @@ export function parseMarkdownBlocks(markdown: string): MarkdownBlock[] {
           };
           if (language === "chart" && visual.type === "bar" && validChart(visual)) {
             blocks.push({ type: "chart", title: safeTitle, labels: visual.labels, values: visual.values });
-            continue;
-          }
-          if (language === "mermaid") {
-            const mermaidLines = code.split("\n").filter((entry) => entry.trim() && !/^\\s*(?:flowchart|graph)\\s+(?:TD|TB|BT|LR|RL)\\s*$/i.test(entry));
-            const nodePattern = /([A-Za-z][\\w]*)\\s*(?:\\[([^\\]]+)\\]|\\(([^)]+)\\)|\\{([^}]+)\\})/g;
-            const steps: string[] = [];
-            for (const entry of mermaidLines) {
-              let node: RegExpExecArray | null;
-              nodePattern.lastIndex = 0;
-              while ((node = nodePattern.exec(entry)) !== null) {
-                const label = (node[2] || node[3] || node[4] || "").trim();
-                if (label && !steps.includes(label)) steps.push(label);
-              }
-            }
-            if (/(?:-->|==>|---)/.test(code) && steps.length >= 2 && steps.length <= 10) {
-              blocks.push({ type: "flow", title: safeTitle, steps });
-              continue;
-            }
-          }
-          if (language === "agent" && typeof visual.title === "string" && visual.title.trim().length > 0
-            && visual.title.length <= 80 && typeof visual.message === "string"
-            && visual.message.trim().length > 0 && visual.message.length <= 240) {
-            blocks.push({ type: "agent", title: visual.title, message: visual.message });
             continue;
           }
           if ((language === "flow" || language === "diagram") && Array.isArray(visual.steps)
