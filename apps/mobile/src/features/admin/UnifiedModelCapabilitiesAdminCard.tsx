@@ -189,7 +189,7 @@ export function UnifiedModelCapabilitiesAdminCard() {
       <Text style={styles.label}>سجل التغييرات والمراجعات</Text>
       {audit.length ? audit.slice(0,8).map(item=><View key={item.id} style={styles.auditRow}>
         <Text style={styles.auditTitle}>{item.display_name ?? "نموذج"} · {item.capability_key ?? "—"}</Text>
-        <Text style={styles.hint}>{item.action==="capability_approved"?"اعتماد قدرة":item.action==="capability_rejected"?"رفض قدرة":"تحديث قدرة"} · {new Date(item.created_at).toLocaleString("ar-EG")}</Text>
+        <Text style={styles.hint}>{item.action==="capability_approved"?"اعتماد قدرة":item.action==="capability_rejected"?"رفض قدرة":item.action==="route_assignment_added"?"إضافة تعيين مسار":item.action==="route_assignment_removed"?"إزالة تعيين مسار":item.action==="route_assignment_updated"?"تحديث تعيين مسار":"تحديث قدرة"} · {new Date(item.created_at).toLocaleString("ar-EG")}</Text>
       </View>):<Text style={styles.hint}>لا توجد عمليات مراجعة مسجلة بعد.</Text>}
     </View>
   </View>;
