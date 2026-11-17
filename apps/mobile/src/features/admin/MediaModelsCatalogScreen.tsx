@@ -107,7 +107,7 @@ export function MediaModelsCatalogScreen() {
       {(["image", "video", "transcription", "voice"] as Kind[]).map((item) => <Link key={item} href={`/admin/media-catalog?kind=${item}`} asChild><Pressable style={[styles.tab, item === kind && styles.tabActive]}><Text style={[styles.tabText, item === kind && styles.tabTextActive]}>{TITLES[item]}</Text></Pressable></Link>)}
     </View>
     <TextInput value={search} onChangeText={setSearch} placeholder="ابحث باسم النموذج أو المزود أو المعرّف" placeholderTextColor={colors.textMuted} style={styles.search} />
-    {error ? <Text style={styles.error}>{error}</Text> : null}
+    {error ? <Text style={styles.errorText}>{error}</Text> : null}
     {loading ? <ActivityIndicator color={colors.primary} /> : <Text style={styles.count}>{visibleRows.length} نموذج ضمن هذا القسم</Text>}
     <View style={styles.tableHeader}>
       <Text style={[styles.headerCell, styles.nameCell]}>النموذج · المزود · اسم المفتاح</Text>
@@ -160,7 +160,7 @@ export function MediaModelsCatalogScreen() {
 }
 
 const createStyles = (c: ThemePalette) => StyleSheet.create({
-  screen: { flex: 1, backgroundColor: c.background }, content: { padding: 14, gap: 10, maxWidth: 1200, width: "100%", alignSelf: "center" },
+  screen: { flex: 1, backgroundColor: c.background }, content: { padding: 14, gap: 10, maxWidth: 1200, width: "100%", alignSelf: "center" }, errorText: { color: c.error, fontSize: 10, textAlign: "right" },
   header: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", gap: 10 }, headerCopy: { flex: 1, alignItems: "flex-end", gap: 3 },
   title: { color: c.textPrimary, fontSize: 19, fontWeight: "900", textAlign: "right" }, subtitle: { color: c.textMuted, fontSize: 9, textAlign: "right" }, link: { color: c.primary, fontSize: 10, fontWeight: "800" },
   tabs: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 6 }, tab: { borderWidth: 1, borderColor: c.divider, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 8 }, tabActive: { borderColor: c.primary, backgroundColor: c.surfaceElevated }, tabText: { color: c.textSecondary, fontSize: 9 }, tabTextActive: { color: c.primary, fontWeight: "800" },
