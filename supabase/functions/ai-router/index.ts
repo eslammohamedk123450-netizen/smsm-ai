@@ -2863,7 +2863,7 @@ async function handleRequest(req: Request): Promise<Response> {
         userId: user.id,
         name: makeSkillTitle(latestUserMessage),
         description: "طريقة عمل استُخلصت من مهمة Agent ناجحة. هذه مسودة قابلة للمراجعة، وليست إذنًا تلقائيًا لتنفيذ الأدوات أو الإجراءات الخارجية.",
-        triggerExamples: [latestUserMessage],
+        triggerExamples: [makeSkillTitle(latestUserMessage)],
         steps: completedSkillSteps.map((step) => ({ order: step.index + 1, tool: step.tool, label: getRegisteredTool(step.tool!)?.description ?? step.tool })),
         sourceKind: "agent_task",
         sourceRef: billingTaskId,
