@@ -1,4 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition";
 import { useSulyTheme } from "../../../theme/ThemeProvider";
 import type { ThemePalette } from "../../../theme/colors";
 import type { ElementRef } from "react";
@@ -64,6 +65,9 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
   const [attachmentPreviewUri, setAttachmentPreviewUri] = useState<string | null>(null);
   const [previewVisible, setPreviewVisible] = useState(false);
   const [attachVisible, setAttachVisible] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const voiceBaseTextRef = useRef("");
   const inputRef = useRef<ElementRef<typeof TextInput>>(null);
   useImperativeHandle(ref, () => ({
     editMessage(content: string) {
@@ -87,6 +91,61 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
     setPreviewVisible(false);
     return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [attachment]);
+
+
+  useSpeechRecognitionEvent("start", () => {
+    setIsListening(true);
+    setVoiceError(null);
+  });
+  useSpeechRecognitionEvent("end", () => setIsListening(false));
+  useSpeechRecognitionEvent("result", (event) => {
+    const transcript = event.results?.[0]?.transcript?.trim();
+    if (!transcript) return;
+    const nextText = [voiceBaseTextRef.current, transcript].filter(Boolean).join(" ");
+    setText(nextText);
+    if (event.isFinal) voiceBaseTextRef.current = nextText;
+  });
+  useSpeechRecognitionEvent("error", (event) => {
+    setIsListening(false);
+    if (event.error === "aborted") return;
+    setVoiceError(event.error === "not-allowed"
+      ? (isArabic ? "اسمح لـ SULY باستخدام الميكروفون والتعرّف على الكلام." : "Allow microphone and speech recognition access for SULY.")
+      : event.error === "service-not-allowed" || event.error === "language-not-supported"
+        ? (isArabic ? "التعرّف الصوتي غير متاح لهذا الجهاز أو اللغة." : "Speech recognition is unavailable for this device or language.")
+        : event.error === "no-speech"
+          ? (isArabic ? "لم أسمع كلامًا واضحًا. حاول مرة أخرى." : "No clear speech was detected. Try again.")
+          : (isArabic ? "تعذّر التعرّف على الكلام. حاول مرة أخرى." : "Speech recognition failed. Please try again."));
+  });
+
+  const handleVoicePress = async () => {
+    if (isListening) {
+      ExpoSpeechRecognitionModule.stop();
+      return;
+    }
+    if (disabled || isStreaming) return;
+    setVoiceError(null);
+    try {
+      if (!ExpoSpeechRecognitionModule.isRecognitionAvailable()) {
+        setVoiceError(isArabic ? "التعرّف الصوتي غير متاح حاليًا على هذا الجهاز أو المتصفح." : "Speech recognition is not available on this device or browser.");
+        return;
+      }
+      const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      if (!permission.granted) {
+        setVoiceError(isArabic ? "لم يتم منح إذن الميكروفون والتعرّف على الكلام." : "Microphone and speech recognition permission was not granted.");
+        return;
+      }
+      voiceBaseTextRef.current = text.trim();
+      ExpoSpeechRecognitionModule.start({
+        lang: isArabic ? "ar-EG" : "en-US",
+        interimResults: true,
+        continuous: false,
+        addsPunctuation: true,
+      });
+    } catch {
+      setIsListening(false);
+      setVoiceError(isArabic ? "تعذّر تشغيل الميكروفون. تحقق من الأذونات وحاول مرة أخرى." : "Could not start the microphone. Check permissions and try again.");
+    }
+  };
 
   const submit = () => {
     const content = text.trim();
@@ -116,6 +175,8 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
         </View>
       ) : null}
 
+      {voiceError ? <Text accessibilityRole="alert" style={styles.voiceError}>{voiceError}</Text> : null}
+
       {attachment ? attachment.kind === "image" && attachmentPreviewUri ? (
         <View style={styles.imageAttachmentPreview}>
           <Pressable onPress={() => setPreviewVisible(true)} accessibilityRole="button" accessibilityLabel={isArabic ? "عرض معاينة الصورة" : "Preview image"}>
@@ -143,7 +204,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
         {/* Right side (RTL start): + Button */}
         <TouchableOpacity
           onPress={() => setAttachVisible(true)}
-          disabled={disabled || isStreaming}
+          disabled={disabled || isStreaming || isListening}
           activeOpacity={0.7}
           style={styles.plusButton}
           accessibilityRole="button"
@@ -154,7 +215,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
 
         <TouchableOpacity
           onPress={onToggleAgent}
-          disabled={disabled || isStreaming || !onToggleAgent}
+          disabled={disabled || isStreaming || isListening || !onToggleAgent}
           activeOpacity={0.7}
           style={[styles.agentToggle, isAgentMode && styles.agentToggleActive]}
           accessibilityRole="button"
@@ -176,7 +237,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
           }}
           selection={selection}
           onSelectionChange={(event) => setSelection(event.nativeEvent.selection)}
-          editable={!disabled && !isStreaming}
+          editable={!disabled && !isStreaming && !isListening}
           placeholder={isArabic ? "اسأل Suly" : "Ask SULY"}
           placeholderTextColor={colors.textMuted}
           style={[styles.input, { height: inputHeight }]}
@@ -193,18 +254,34 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
             <Pressable style={styles.blueButton} onPress={onCancel} accessibilityLabel={isArabic ? "إيقاف الرد" : "Stop response"}>
               <ActivityIndicator size="small" color={colors.onPrimary} />
             </Pressable>
-          ) : (
+          ) : isListening ? (
             <Pressable
-              style={[styles.blueButton, Platform.OS === "web" && styles.webSendButton, (!text.trim() && !attachment) && styles.blueButtonIdle]}
+              style={[styles.micButton, styles.micButtonActive]}
+              onPress={() => void handleVoicePress()}
+              accessibilityRole="button"
+              accessibilityLabel={isArabic ? "إيقاف الإملاء الصوتي" : "Stop voice dictation"}
+            >
+              <Ionicons name="stop" size={17} color={colors.onPrimary} />
+            </Pressable>
+          ) : text.trim() || attachment ? (
+            <Pressable
+              style={[styles.blueButton, Platform.OS === "web" && styles.webSendButton]}
               onPress={submit}
-              disabled={disabled || (!text.trim() && !attachment)}
+              disabled={disabled}
+              accessibilityRole="button"
               accessibilityLabel={isArabic ? "إرسال" : "Send"}
             >
-              {text.trim() || attachment ? (
-                <><Ionicons name="arrow-up" size={18} color={colors.onPrimary} />{Platform.OS === "web" ? <Text style={styles.webSendLabel}>{isArabic ? "إرسال" : "Send"}</Text> : null}</>
-              ) : (
-                <Ionicons name="radio-outline" size={18} color={colors.onPrimary} />
-              )}
+              <><Ionicons name="arrow-up" size={18} color={colors.onPrimary} />{Platform.OS === "web" ? <Text style={styles.webSendLabel}>{isArabic ? "إرسال" : "Send"}</Text> : null}</>
+            </Pressable>
+          ) : (
+            <Pressable
+              style={[styles.micButton, disabled && styles.controlDisabled]}
+              onPress={() => void handleVoicePress()}
+              disabled={disabled}
+              accessibilityRole="button"
+              accessibilityLabel={isArabic ? "إملاء رسالة صوتيًا" : "Dictate a message"}
+            >
+              <Ionicons name="mic-outline" size={19} color={colors.textPrimary} />
             </Pressable>
           )}
         </View>
@@ -230,6 +307,7 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
     paddingBottom: 10,
     backgroundColor: colors.background,
   },
+  voiceError: { color: colors.error, fontSize: 10, lineHeight: 15, textAlign: isArabic ? "right" : "left", paddingHorizontal: 4, marginBottom: 5 },
   modelRow: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", marginBottom: 7 },
   modelPickerButton: { minHeight: 30, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 6, paddingHorizontal: 10, borderRadius: 16, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
   modelPickerText: { color: colors.textSecondary, fontSize: 11, fontWeight: "700" },
@@ -295,6 +373,8 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
     backgroundColor: colors.primary,
   },
   blueButtonIdle: { backgroundColor: colors.primary, opacity: 0.9 },
+  micButton: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
+  micButtonActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   webSendButton: { width: "auto", minWidth: 72, paddingHorizontal: 12, flexDirection: "row", gap: 5, borderRadius: 20 },
   webSendLabel: { color: colors.onPrimary, fontSize: 12, fontWeight: "700" },
   attachmentChip: {
