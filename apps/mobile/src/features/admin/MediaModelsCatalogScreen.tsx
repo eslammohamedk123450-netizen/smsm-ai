@@ -56,6 +56,7 @@ export function MediaModelsCatalogScreen() {
   const [rows, setRows] = useState<MediaModelRow[]>([]);
   const [evidence, setEvidence] = useState<CapabilityEvidence[]>([]);
   const [search, setSearch] = useState("");
+  const [viewMode, setViewMode] = useState<"table" | "cards">("table");
   const [selected, setSelected] = useState<{ row: MediaModelRow; capability: CapabilityEvidence } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -109,6 +110,12 @@ export function MediaModelsCatalogScreen() {
     <TextInput value={search} onChangeText={setSearch} placeholder="ابحث باسم النموذج أو المزود أو المعرّف" placeholderTextColor={colors.textMuted} style={styles.search} />
     {error ? <Text style={styles.errorText}>{error}</Text> : null}
     {loading ? <ActivityIndicator color={colors.primary} /> : <Text style={styles.count}>{visibleRows.length} نموذج ضمن هذا القسم</Text>}
+    <View style={styles.viewControls}>
+      <Text style={styles.count}>طريقة العرض</Text>
+      <Pressable onPress={() => setViewMode("table")} style={[styles.viewButton, viewMode === "table" && styles.viewButtonActive]}><Text style={[styles.viewButtonText, viewMode === "table" && styles.viewButtonTextActive]}>جدول</Text></Pressable>
+      <Pressable onPress={() => setViewMode("cards")} style={[styles.viewButton, viewMode === "cards" && styles.viewButtonActive]}><Text style={[styles.viewButtonText, viewMode === "cards" && styles.viewButtonTextActive]}>بطاقات</Text></Pressable>
+    </View>
+    {viewMode === "table" ? <>
     <View style={styles.tableHeader}>
       <Text style={[styles.headerCell, styles.nameCell]}>النموذج · المزود · اسم المفتاح</Text>
       <Text style={[styles.headerCell, styles.capCell]}>القدرات</Text>
@@ -140,6 +147,41 @@ export function MediaModelsCatalogScreen() {
         </View>
       </View>;
     })}
+    </> : <View style={styles.cardsList}>
+      {visibleRows.map((row) => {
+        const caps = getCapabilities(row);
+        return <View key={row.id} style={styles.modelCard}>
+          <View style={styles.cardHeading}>
+            <Text style={styles.modelName}>{row.display_name}</Text>
+            <Text style={styles.meta}>{row.provider_name} · {row.provider_type}</Text>
+          </View>
+          <Text style={styles.meta}>اسم المفتاح: {row.provider_name}</Text>
+          <Text style={styles.modelId} selectable>{row.model_identifier}</Text>
+          <Text style={styles.cardSectionTitle}>القدرات الموثقة</Text>
+          <View style={styles.cardCapabilities}>
+            {caps.map((cap) => <Pressable key={cap.capability_key} onPress={() => setSelected({ row, capability: cap })} style={styles.capButton}>
+              <Ionicons name={ICONS[cap.capability_key] ?? "checkmark-circle-outline"} size={17} color={cap.suly_test_status === "passed" ? colors.success : cap.provider_test_status === "passed" ? colors.primary : colors.textMuted} />
+              <Text style={styles.capLabel}>{LABELS[cap.capability_key] ?? cap.capability_key}</Text>
+            </Pressable>)}
+            {caps.length === 0 ? <Text style={styles.meta}>لا توجد قدرات موثقة لهذا النموذج.</Text> : null}
+          </View>
+          <View style={styles.cardPrices}>
+            <View style={styles.cardPriceCell}>
+              <Text style={styles.meta}>التكلفة الحقيقية</Text>
+              <Text style={styles.priceText}>{money(row.provider_cost_egp_per_unit, unitLabel(row))}</Text>
+            </View>
+            <View style={styles.cardPriceCell}>
+              <Text style={styles.meta}>سعر البيع</Text>
+              <Text style={styles.priceText}>{money(row.selling_price_egp_per_unit, unitLabel(row))}</Text>
+            </View>
+          </View>
+          <View style={styles.statusCell}>
+            <Text style={row.provider_tested ? styles.good : styles.pending}>المزود: {row.provider_tested ? "اختُبر" : "غير مختبر"}</Text>
+            <Text style={row.suly_integration_verified ? styles.good : styles.pending}>SULY: {row.suly_integration_verified ? "متحقق" : "غير متحقق"}</Text>
+          </View>
+        </View>;
+      })}
+    </View>}
     {!loading && visibleRows.length === 0 ? <View style={styles.empty}><Text style={styles.emptyText}>{kind === "transcription" || kind === "voice" ? "لا توجد نماذج لديها قدرة موثقة رسميًا لهذا الاستخدام بعد. لم نعرض نماذج غير مثبتة على أنها تدعم هذه الوظيفة." : "لا توجد نماذج مسجلة في هذا القسم حاليًا."}</Text></View> : null}
     {selected ? <View style={styles.detail}>
       <View style={styles.detailHeader}><Text style={styles.detailTitle}>{LABELS[selected.capability.capability_key] ?? selected.capability.capability_key} · {selected.row.display_name}</Text><Pressable onPress={() => setSelected(null)}><Ionicons name="close-circle-outline" size={21} color={colors.textMuted} /></Pressable></View>
@@ -165,6 +207,8 @@ const createStyles = (c: ThemePalette) => StyleSheet.create({
   title: { color: c.textPrimary, fontSize: 19, fontWeight: "900", textAlign: "right" }, subtitle: { color: c.textMuted, fontSize: 9, textAlign: "right" }, link: { color: c.primary, fontSize: 10, fontWeight: "800" },
   tabs: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 6 }, tab: { borderWidth: 1, borderColor: c.divider, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 8 }, tabActive: { borderColor: c.primary, backgroundColor: c.surfaceElevated }, tabText: { color: c.textSecondary, fontSize: 9 }, tabTextActive: { color: c.primary, fontWeight: "800" },
   search: { backgroundColor: c.surface, borderWidth: 1, borderColor: c.divider, borderRadius: 8, color: c.textPrimary, padding: 10, textAlign: "right", fontSize: 11 }, count: { color: c.textMuted, fontSize: 9, textAlign: "right" },
+  viewControls: { flexDirection: "row-reverse", alignItems: "center", gap: 7 }, viewButton: { borderWidth: 1, borderColor: c.divider, borderRadius: 7, paddingHorizontal: 12, paddingVertical: 7 }, viewButtonActive: { borderColor: c.primary, backgroundColor: c.surfaceElevated }, viewButtonText: { color: c.textSecondary, fontSize: 9 }, viewButtonTextActive: { color: c.primary, fontWeight: "800" },
+  cardsList: { gap: 8 }, modelCard: { borderWidth: 1, borderColor: c.divider, borderRadius: 10, backgroundColor: c.surface, padding: 12, gap: 8 }, cardHeading: { alignItems: "flex-end", gap: 3 }, modelId: { color: c.textMuted, fontSize: 9, textAlign: "left" }, cardSectionTitle: { color: c.textSecondary, fontSize: 9, fontWeight: "800", textAlign: "right" }, cardCapabilities: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 6 }, capLabel: { color: c.textSecondary, fontSize: 8 }, cardPrices: { flexDirection: "row-reverse", gap: 8 }, cardPriceCell: { flex: 1, borderWidth: 1, borderColor: c.divider, borderRadius: 8, padding: 8, gap: 4, alignItems: "center" },
   tableHeader: { flexDirection: "row-reverse", alignItems: "center", backgroundColor: c.surfaceElevated, borderWidth: 1, borderColor: c.divider, borderRadius: 8, paddingVertical: 8 },
   headerCell: { color: c.textSecondary, fontSize: 8, fontWeight: "800", textAlign: "center" }, nameCell: { width: 225, paddingHorizontal: 7, alignItems: "flex-end" }, capCell: { width: 120, flexDirection: "row-reverse", flexWrap: "wrap", justifyContent: "center", alignItems: "center", gap: 4, paddingHorizontal: 4 }, priceCell: { width: 150, alignItems: "center", gap: 3, paddingHorizontal: 5 }, statusCell: { width: 125, alignItems: "flex-end", gap: 4, paddingHorizontal: 7 },
   row: { flexDirection: "row-reverse", alignItems: "center", backgroundColor: c.surface, borderWidth: 1, borderColor: c.divider, borderRadius: 8, paddingVertical: 9, marginTop: 5, minHeight: 76 },
