@@ -7,7 +7,7 @@ const ART_IMPERATIVE = /^(?:ارسم|صمّم|صمم|ولّد|ولد)(?=\s|$)|^(
 /** Return the user's original prompt only for explicit image-creation requests. */
 export function getImageGenerationPrompt(message: string): string | null {
   const prompt = message.trim();
-  if (!prompt || prompt.length > 16000 || CHAT_VISUAL_REQUEST.test(prompt)) return null;
+  const classificationText = prompt.normalize("NFKC").replace(/[\\u064B-\\u0652\\u0640\\u0670]/g, "");\n  if (!prompt || prompt.length > 16000 || CHAT_VISUAL_REQUEST.test(classificationText)) return null;
   const hasImageWord = IMAGE_WORD.test(prompt);
   if ((GENERATION_VERB.test(prompt) && hasImageWord) || WANT_IMAGE.test(prompt) || ART_IMPERATIVE.test(prompt)) {
     return prompt;
