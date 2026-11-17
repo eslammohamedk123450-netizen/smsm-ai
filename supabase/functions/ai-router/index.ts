@@ -5,7 +5,8 @@ import { prepareAgentMemory, saveAgentMemory } from "./agent/memory.ts";
 import { activationOutcomeMessage, parseActivationCommand, shouldReportActivationFailure } from "../_shared/activation_command.ts";
 import { activateFeatureByCode, checkFeatureActivationRateLimit, getFeatureContext } from "../_shared/feature_flags.ts";
 import { buildFeatureSystemContext, isFeatureResourceRequest, shouldSearchWebForMessage } from "../_shared/feature_resource_context.ts";
-import { buildSulyIdentityContext, containsHimsReference, getIdentityAnswer, INACTIVE_UNKNOWN_ANSWER, sanitizeContextText } from "../_shared/identity_context.ts";
+import { buildSulyIdentityContext, containsHimsReference, getIdentityAnswer, getSulyProductAnswer, INACTIVE_UNKNOWN_ANSWER, sanitizeContextText } from "../_shared/identity_context.ts";
+import { buildLearnedSkillsContext, extractExplicitSkillLearningRequest, makeSkillTitle, searchLearnedSkills, storeLearnedSkillCandidate } from "../_shared/learned_skills.ts";
 import { normalizeFeatureKey } from "../_shared/prompt_keys.ts";
 import { capabilityForMime, supportsModelCapabilities, type ModelCapability } from "../_shared/model_capabilities.ts";
 import { extractDocxText, extractPdfText, fetchCloudinaryBytes, MAX_EXTRACTED_DOCUMENT_CHARS, MediaProcessingError } from "../_shared/media_content.ts";
@@ -840,6 +841,7 @@ async function handleRequest(req: Request): Promise<Response> {
   ];
   const uniqueRequiredCapabilities = [...new Set(requiredCapabilities)];
   let latestUserMessage = originalUserInstruction;
+  const recentUserMessagesForFeature = messages.filter((message) => message.role === "user").slice(-3).map((message) => message.content);
   // "The mind thinks first": a zero-token internal decision made before any
   // response or orchestration. It is never surfaced to the user.
   // Internal Brain jobs use the same intent classifier as every other request;
@@ -866,7 +868,8 @@ async function handleRequest(req: Request): Promise<Response> {
   const maxOutputChars = outputLimitForRequest(mind.intent, latestUserMessage, maxTokens);
   const streamRequested = body.stream === true;
   let himsActivated = profile.hims_activated === true;
-  let identityContext = buildSulyIdentityContext(himsActivated);
+  let himsContextAllowed = himsActivated && recentUserMessagesForFeature.some(containsHimsReference);
+  let identityContext = buildSulyIdentityContext(himsActivated, himsContextAllowed);
   let userMetadata = identityContext.userMetadata;
   let systemPrompt = identityContext.systemPrompt;
   let workspaceId: string | null = null;
@@ -999,7 +1002,7 @@ async function handleRequest(req: Request): Promise<Response> {
       const text = activationOutcomeMessage(activation.outcome, activation.label, activation.activationMessage);
       if (activationSucceeded && activation.featureKey?.toLowerCase() === "hims") {
         himsActivated = true;
-        identityContext = buildSulyIdentityContext(true);
+        identityContext = buildSulyIdentityContext(true, himsContextAllowed);
         userMetadata = identityContext.userMetadata;
         systemPrompt = identityContext.systemPrompt;
       }
@@ -1018,7 +1021,10 @@ async function handleRequest(req: Request): Promise<Response> {
   // Study questions remain ordinary SULY conversations. Access to private course
   // resources is still enforced server-side: getFeatureContext only returns
   // resources for features activated by this authenticated user.
-  const identityAnswer = !internalBrainCall && executionMode !== "agent" && trustedAttachments.length === 0 ? getIdentityAnswer(latestUserMessage) : null;
+  const productAnswer = !internalBrainCall && trustedAttachments.length === 0 ? getSulyProductAnswer(latestUserMessage) : null;
+  if (productAnswer) return respondDeterministically(productAnswer, { billing: null }, "verified_product_knowledge");
+
+  const identityAnswer = !internalBrainCall && trustedAttachments.length === 0 ? getIdentityAnswer(latestUserMessage) : null;
   if (identityAnswer) {
     return respondDeterministically(identityAnswer, { billing: null }, "identity_question");
   }
@@ -1034,7 +1040,7 @@ async function handleRequest(req: Request): Promise<Response> {
     }, "quick_reply_cache");
   }
 
-  for (const message of messages) message.content = sanitizeContextText(message.content, himsActivated);
+  for (const message of messages) message.content = sanitizeContextText(message.content, himsContextAllowed);
   latestUserMessage = originalUserInstruction;
   // The mind's internal policy rides along with the system prompt; the user
   // never sees it in the conversation bubbles.
@@ -1045,7 +1051,7 @@ async function handleRequest(req: Request): Promise<Response> {
 
   // Every feature namespaces its cache and memory through this key. Unknown or
   // malformed values fall back to `general`, so no caller can escape its scope.
-  const featureKey = !himsActivated && requestedFeatureKey === "hims" ? "general" : requestedFeatureKey;
+  const featureKey = !himsContextAllowed && requestedFeatureKey === "hims" ? "general" : requestedFeatureKey;
 
 
   const { data: pricingRow, error: pricingError } = await supabase
@@ -1480,15 +1486,17 @@ async function handleRequest(req: Request): Promise<Response> {
     matchCount: 4,
     embedding: memoryState.embedding,
   });
+  const learnedSkills = internalBrainCall ? [] : await searchLearnedSkills(supabase, user.id, latestUserMessage);
+  const learnedSkillsContext = buildLearnedSkillsContext(learnedSkills);
   const recentUserMessages = messages.filter((message) => message.role === "user").slice(-3).map((message) => message.content);
   const needsFeatureResources = isFeatureResourceRequest(latestUserMessage, recentUserMessages);
-  const featureContext = himsActivated && needsFeatureResources
+  const featureContext = himsContextAllowed && needsFeatureResources
     ? await getFeatureContext(supabase, user.id)
     : { features: {} };
-  const safeTaskMemories = himsActivated
+  const safeTaskMemories = himsContextAllowed
     ? taskMemory.memories
     : taskMemory.memories.filter((memory) => !containsHimsReference(JSON.stringify(memory)));
-  const safeAgentMemories = himsActivated
+  const safeAgentMemories = himsContextAllowed
     ? memoryState.memories
     : memoryState.memories.filter((memory) => !containsHimsReference(memory));
   const safeFeatureContext = himsActivated
@@ -1508,7 +1516,8 @@ async function handleRequest(req: Request): Promise<Response> {
         "Use these memories only when relevant to the current request.",
       ].join("\n")
       : null,
-    !himsActivated && featureSystemContext && containsHimsReference(featureSystemContext) ? null : featureSystemContext,
+    learnedSkillsContext,
+    !himsContextAllowed && featureSystemContext && containsHimsReference(featureSystemContext) ? null : featureSystemContext,
   ].filter((block): block is string => typeof block === "string" && block.length > 0);
   if (contextBlocks.length > 0) {
     const context = contextBlocks.join("\n\n");
@@ -2840,6 +2849,20 @@ async function handleRequest(req: Request): Promise<Response> {
       ? { ...selected, inputTokens: plannerInputTokens + summarizerInputTokens, outputTokens: plannerOutputTokens + summarizerOutputTokens }
       : null;
     const messageId = await persistAssistantText(supabase, conversationId, user.id, billingTaskId, selected?.model.id ?? null, content);
+    const completedSkillSteps = loopResult.steps.filter((step) => step.kind === "tool" && step.status === "completed" && typeof step.tool === "string");
+    if (!internalBrainCall && loopResult.status === "completed" && reviewVerdict !== "rejected" && !agentCancellationObserved && completedSkillSteps.length > 0) {
+      await storeLearnedSkillCandidate({
+        supabase,
+        userId: user.id,
+        name: makeSkillTitle(latestUserMessage),
+        description: "طريقة عمل استُخلصت من مهمة Agent ناجحة. هذه مسودة قابلة للمراجعة، وليست إذنًا تلقائيًا لتنفيذ الأدوات أو الإجراءات الخارجية.",
+        triggerExamples: [latestUserMessage],
+        steps: completedSkillSteps.map((step) => ({ order: step.index + 1, tool: step.tool, label: getRegisteredTool(step.tool!)?.description ?? step.tool })),
+        sourceKind: "agent_task",
+        sourceRef: billingTaskId,
+        confidence: 0.75,
+      });
+    }
     if (selected) {
       await logMessageModel({
         messageId,
@@ -2950,6 +2973,10 @@ async function handleRequest(req: Request): Promise<Response> {
     if (answer.length === 0 || internalBrainCall) return;
     if (trustedAttachments.length) return;
     await saveAgentMemory(supabase, user.id, latestUserMessage, memoryState.embedding);
+    const explicitSkill = extractExplicitSkillLearningRequest(latestUserMessage, answer);
+    if (explicitSkill) await storeLearnedSkillCandidate({
+      supabase, userId: user.id, ...explicitSkill, sourceKind: "conversation", sourceRef: conversationId, confidence: 0.9,
+    });
     // Chat turns answered by the mind join quick-replies-cache, so the next
     // identical ask is served with zero model calls.
     if (mind.intent === "chat") {
