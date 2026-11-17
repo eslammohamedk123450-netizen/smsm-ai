@@ -40,7 +40,8 @@ function activeSection(pathname: string): string {
   if (pathname.startsWith("/projects")) return "projects";
   if (pathname.startsWith("/studio") || pathname.startsWith("/image-studio") || pathname.startsWith("/video-studio")) return "studio";
   if (pathname.startsWith("/media") || pathname.startsWith("/hims")) return "library";
-  if (pathname.startsWith("/settings") || pathname.startsWith("/support") || pathname.startsWith("/upgrade") || pathname.startsWith("/balance") || pathname.startsWith("/integrations")) return "account";
+  if (pathname.startsWith("/integrations")) return "tools";
+  if (pathname.startsWith("/settings") || pathname.startsWith("/support") || pathname.startsWith("/upgrade") || pathname.startsWith("/balance")) return "account";
   return "conversations";
 }
 
