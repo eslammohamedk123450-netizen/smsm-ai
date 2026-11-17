@@ -218,14 +218,19 @@ export const adminService = {
     await requireAdmin();
     const { data, error } = await supabase.rpc("suly_admin_list_providers");
     if (error) throw error;
-    return data ?? [];
+    return (data ?? []).filter((provider: { enabled?: boolean }) => provider.enabled === true);
   },
 
   async getArchivedProviders() {
     await requireAdmin();
     const { data, error } = await supabase.rpc("suly_admin_list_archived_providers");
-    // Keep the provider page usable on preview until its additive DB migration is applied.
-    if (error && (error as { code?: string }).code === "PGRST202") return [];
+    // Before the additive migration, use the legacy safe list only to identify
+    // disabled rows; restore remains guarded until the reversible RPC exists.
+    if (error && (error as { code?: string }).code === "PGRST202") {
+      const legacy = await supabase.rpc("suly_admin_list_providers");
+      if (legacy.error) throw legacy.error;
+      return (legacy.data ?? []).filter((provider: { enabled?: boolean }) => provider.enabled === false);
+    }
     if (error) throw error;
     return data ?? [];
   },
