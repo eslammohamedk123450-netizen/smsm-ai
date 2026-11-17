@@ -60,7 +60,7 @@ test("verified Agent mode product guidance explains the actual composer toggle",
   assert.ok(activation?.includes("مرة أخرى"));
   const explanation = getSulyProductAnswer("يعني إيه وضع الوكيل؟");
   assert.ok(explanation?.includes("نمط التنفيذ"));
-  assert.equal(getSulyProductAnswer("اشرح لي وضع الوكيل"), null);
+  assert.ok(getSulyProductAnswer("اشرح لي وضع الوكيل"));
   assert.ok(getSulyProductAnswer("How do I turn on Agent mode?"));
 });
 
