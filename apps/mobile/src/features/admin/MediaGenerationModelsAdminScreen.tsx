@@ -33,7 +33,7 @@ export function MediaGenerationModelsAdminScreen() {
   const [prices, setPrices] = useState<Price[]>(emptyPrices());
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [providerId, setProviderId] = useState<number | null>(null);
-  const [allowedTiers, setAllowedTiers] = useState<string[]>(["free","lite","pro","max"]);
+  const [allowedTiers, setAllowedTiers] = useState<string[]>(["max"]);
   const [displayName, setDisplayName] = useState("");
   const [modelIdentifier, setModelIdentifier] = useState("");
   const [endpointUrl, setEndpointUrl] = useState("");
@@ -150,7 +150,7 @@ export function MediaGenerationModelsAdminScreen() {
 
   const reset = () => {
     setSelectedId(null); setProviderId(null); setDisplayName(""); setModelIdentifier(""); setEndpointUrl("");
-    setIsActive(false); setIsDefault(false); setAllowedTiers(["free","lite","pro","max"]); setPrices(emptyPrices()); setError(null); setNotice(null);
+    setIsActive(false); setIsDefault(false); setAllowedTiers(["max"]); setPrices(emptyPrices()); setError(null); setNotice(null);
   };
 
   return <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: 16, gap: 13, maxWidth: 950, width: "100%", alignSelf: "center" }} keyboardShouldPersistTaps="handled">
@@ -187,7 +187,7 @@ export function MediaGenerationModelsAdminScreen() {
       </View>)}
       <Text style={{ color: colors.textSecondary, textAlign: "right", fontSize: 11, fontWeight: "700" }}>الاشتراكات التي يمكنها استخدام النموذج</Text>
       <View style={{ flexDirection: "row-reverse", flexWrap: "wrap", gap: 7 }}>
-        {([["free","مجاني"],["lite","Lite"],["pro","Pro"],["max","Max"]] as const).map(([tier,label]) => <Pressable key={tier} onPress={() => setAllowedTiers((current) => current.includes(tier) ? current.filter((item) => item !== tier) : [...current,tier])} style={{ paddingHorizontal: 11, paddingVertical: 7, borderRadius: 18, borderWidth: 1, borderColor: allowedTiers.includes(tier) ? colors.primary : colors.divider }}>
+        {([["free","Free"],["lite","Lite"],["pro","Pro"],["max","Max"],["ultra_team","Ultra Team"]] as const).map(([tier,label]) => <Pressable key={tier} onPress={() => setAllowedTiers((current) => current.includes(tier) ? current.filter((item) => item !== tier) : [...current,tier])} style={{ paddingHorizontal: 11, paddingVertical: 7, borderRadius: 18, borderWidth: 1, borderColor: allowedTiers.includes(tier) ? colors.primary : colors.divider }}>
           <Text style={{ color: allowedTiers.includes(tier) ? colors.primary : colors.textMuted, fontSize: 11 }}>{label}</Text>
         </Pressable>)}
       </View>

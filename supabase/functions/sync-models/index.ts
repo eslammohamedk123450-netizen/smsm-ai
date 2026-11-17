@@ -159,7 +159,7 @@ async function insertMissingModels(
     priority: 50,
     fallback_eligible: false,
     routing_group: "disabled",
-    allowed_tiers: ["free", "lite", "pro", "max"],
+    allowed_tiers: ["max"],
   }));
   const { error: insertError } = await supabase.from("ai_models").upsert(rows, {
     onConflict: "provider_id,model_identifier",

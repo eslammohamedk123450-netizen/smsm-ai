@@ -6,7 +6,7 @@ import { adminService } from "./admin-service";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 
 type Profile = {
-  profile_key: "lite" | "pro" | "max";
+  profile_key: "free" | "lite" | "pro" | "max" | "ultra_team";
   display_name: string;
   tagline: string;
   description: string;
@@ -18,25 +18,6 @@ type Profile = {
 };
 type Model = { id: number; name: string; model_identifier: string; provider_id: number; enabled: boolean; routing_group: string; task_roles: string[] | null; allowed_tiers: string[] | null; capabilities_json: Record<string, boolean> | string | null; context_window: number | null };
 type Mapping = { profile_key: string; model_id: number; route_role: string; enabled: boolean };
-
-function rolesForModel(model: Model): string[] {
-  const roles = model.task_roles?.length ? model.task_roles : ["general"];
-  let capabilities: Record<string, unknown> = {};
-  if (typeof model.capabilities_json === "string") {
-    try { const parsed: unknown = JSON.parse(model.capabilities_json); if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) capabilities = parsed as Record<string, unknown>; }
-    catch { capabilities = { chat: false }; }
-  } else if (model.capabilities_json && typeof model.capabilities_json === "object") {
-    capabilities = model.capabilities_json;
-  }
-  const general = roles.includes("general");
-  return [
-    ...((general || roles.includes("chat")) && capabilities.chat !== false && !/(embed|embedding|whisper|tts|speech|audio|image|imagen|dall-e|flux|stable-diffusion|kling|seedance|seedream|ideogram|nano-banana|minimax|lyria|transcrib|robotics|deep-research|computer-use|guard|moderation|rerank)/i.test(model.model_identifier) ? ["chat"] : []),
-    ...(general || roles.includes("planner") ? ["planner"] : []),
-    ...(general || roles.includes("worker") || roles.includes("executor") ? ["worker"] : []),
-    ...(general || roles.includes("reviewer") ? ["reviewer"] : []),
-    ...(general || roles.includes("summarizer") ? ["summarizer"] : []),
-  ];
-}
 
 export function SulyModelProfilesAdminCard() {
   const { colors } = useSulyTheme();
@@ -95,36 +76,11 @@ export function SulyModelProfilesAdminCard() {
     setBusyKey(null);
   };
 
-  const toggleMapping = async (profile: Profile, model: Model, enabled: boolean) => {
-    const key = `${profile.profile_key}:${model.id}`;
-    setBusyKey(key); setError(null); setNotice(null);
-    const existingRoles = mappings.filter((item) => item.profile_key === profile.profile_key && item.model_id === model.id);
-    let writeError: { message: string } | null = null;
-    if (enabled) {
-      const rows = rolesForModel(model).map((route_role, index) => ({
-        profile_key: profile.profile_key, model_id: model.id, route_role, priority: (index + 1) * 100, enabled: true,
-      }));
-      const result = await supabase.from("suly_model_profile_models").upsert(rows, { onConflict: "profile_key,model_id,route_role" });
-      writeError = result.error;
-    } else if (existingRoles.length) {
-      const result = await supabase.from("suly_model_profile_models").delete().eq("profile_key", profile.profile_key).eq("model_id", model.id);
-      writeError = result.error;
-    }
-    if (writeError) setError("تعذر تحديث ربط النموذج بالمستوى.");
-    else {
-      setMappings((current) => enabled
-        ? [...current.filter((item) => !(item.profile_key === profile.profile_key && item.model_id === model.id)), ...rolesForModel(model).map((route_role) => ({ profile_key: profile.profile_key, model_id: model.id, route_role, enabled: true }))]
-        : current.filter((item) => !(item.profile_key === profile.profile_key && item.model_id === model.id)));
-      setNotice(enabled ? "تم ربط النموذج بالمستوى." : "تم إلغاء ربط النموذج بالمستوى.");
-    }
-    setBusyKey(null);
-  };
-
   return <View style={{ backgroundColor: colors.surface, borderColor: colors.divider, borderWidth: 1, borderRadius: 16, padding: 14, gap: 12 }}>
     <View style={{ flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between" }}>
       <View style={{ gap: 3, flex: 1 }}>
-        <Text style={{ color: colors.textPrimary, fontSize: 15, fontWeight: "900", textAlign: "right" }}>مستويات ونماذج SULY</Text>
-        <Text style={{ color: colors.textMuted, fontSize: 10, textAlign: "right" }}>تحكم في الاسم والوصف والنماذج الداخلية المرتبطة بكل مستوى.</Text>
+        <Text style={{ color: colors.textPrimary, fontSize: 15, fontWeight: "900", textAlign: "right" }}>ملفات قدرات مستويات SULY</Text>
+        <Text style={{ color: colors.textMuted, fontSize: 10, textAlign: "right" }}>تحكم في اسم المستوى وقدراته. أهلية النماذج الفعلية تُدار من مركز النماذج عبر allowed_tiers وسلاسل التوجيه.</Text>
       </View>
       <Pressable onPress={() => void load()}><Text style={{ color: colors.primary, fontWeight: "800" }}>تحديث</Text></Pressable>
     </View>
@@ -168,16 +124,16 @@ export function SulyModelProfilesAdminCard() {
         <Pressable disabled={busyKey === `profile:${profile.profile_key}`} onPress={() => void saveProfile(profile)} style={{ alignSelf: "flex-start", backgroundColor: colors.primary, borderRadius: 9, paddingHorizontal: 14, paddingVertical: 8, opacity: busyKey === `profile:${profile.profile_key}` ? 0.5 : 1 }}>
           <Text style={{ color: colors.onPrimary, fontWeight: "800" }}>{busyKey === `profile:${profile.profile_key}` ? "جارٍ الحفظ…" : "حفظ بيانات المستوى"}</Text>
         </Pressable>
-        <Text style={{ color: colors.textSecondary, fontSize: 11, textAlign: "right" }}>النماذج المرتبطة ({profileModels.size})</Text>
+        <Text style={{ color: colors.textSecondary, fontSize: 11, textAlign: "right" }}>التعيينات القديمة للمرجعية فقط ({profileModels.size})</Text>
+        <Text style={{ color: colors.textMuted, fontSize: 9, textAlign: "right" }}>هذه السجلات لا تتحكم في التوجيه الحالي. لا تعدّلها من هنا؛ استخدم مركز إدارة النماذج ← أهلية النماذج حسب الباقة.</Text>
         {visibleModels.map((model) => {
           const linked = profileModels.has(model.id);
-          const busy = busyKey === `${profile.profile_key}:${model.id}`;
           return <View key={model.id} style={{ flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: colors.divider }}>
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={{ color: colors.textPrimary, fontSize: 11, textAlign: "right" }}>{model.name || model.model_identifier}</Text>
               <Text style={{ color: colors.textMuted, fontSize: 9, textAlign: "right" }}>{model.model_identifier} · Provider #{model.provider_id} · {Number(model.context_window ?? 0).toLocaleString("en-US")} context</Text>
             </View>
-            <Switch value={linked} disabled={busy} onValueChange={(value) => void toggleMapping(profile, model, value)} />
+            <Switch value={linked} disabled />
           </View>;
         })}
       </View>;

@@ -103,7 +103,7 @@ export default function BalanceScreen() {
         setPlanTier(tier);
         if (!tier || tier === "free") setMonthlyAllowance(null);
         else {
-          const { data: plan } = await supabase.from("subscription_plans").select("monthly_credits,daily_credits").eq("id", tier === "lite" ? 2 : tier === "pro" ? 3 : tier === "max" ? 4 : tier === "ultra" ? 5 : 1).maybeSingle();
+          const { data: plan } = await supabase.from("subscription_plans").select("monthly_credits,daily_credits").eq("tier_key", tier).eq("is_active", true).order("id", { ascending: false }).limit(1).maybeSingle();
           const monthly = Number(plan?.monthly_credits ?? 0) || Number(plan?.daily_credits ?? 0) * 30;
           setMonthlyAllowance(monthly > 0 ? monthly : null);
         }
@@ -130,7 +130,7 @@ export default function BalanceScreen() {
   const isPaidPlan = Boolean(planTier && planTier !== "free");
   const monthlyTotal = monthlyAllowance ?? 0;
   const percentage = monthlyTotal > 0 ? Math.min(100, Math.round((monthlySpent / monthlyTotal) * 100)) : 0;
-  const planName = planTier ? planTier.charAt(0).toUpperCase() + planTier.slice(1) : "—";
+  const planName = planTier ? planTier === "ultra_team" ? "Ultra Team" : planTier.charAt(0).toUpperCase() + planTier.slice(1) : "—";
 
   // Group transactions by date
   const grouped = transactions.reduce<Record<string, TransactionItem[]>>((acc, item) => {
@@ -205,7 +205,7 @@ export default function BalanceScreen() {
               </Text>
             )}
             <Text style={styles.balanceNotice}>
-              {isArabic ? "يتم تحديث الرصيد يوميًا · 30" : "Daily credits refresh · 30"}
+              {isPaidPlan ? (isArabic ? "رصيد الاشتراك يتجدد شهريًا" : "Subscription credits renew monthly") : (isArabic ? "الرصيد المجاني وفق الحد اليومي" : "Free balance follows the daily limit")}
             </Text>
           </View>
 

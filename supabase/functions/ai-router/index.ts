@@ -559,7 +559,7 @@ async function handleRequest(req: Request): Promise<Response> {
     console.error("Effective subscription entitlement verification failed.");
     return jsonResponse({ error: "Unable to verify subscription entitlements. Please retry." }, 503, req);
   }
-  const userTier = ["free", "lite", "pro", "max"].includes(effectiveTier) ? effectiveTier : "free";
+  const userTier = ["free", "lite", "pro", "max", "ultra_team"].includes(effectiveTier) ? effectiveTier : "free";
 
   // Text chat is credit-gated, not daily-request-gated. The atomic
   // reserve_credits call below is the single source of truth: users may
@@ -725,8 +725,8 @@ async function handleRequest(req: Request): Promise<Response> {
   const modelId = Number.isSafeInteger(rawModelId) && rawModelId > 0 ? rawModelId : 0;
   const hasExplicitModel = modelId > 0;
   const rawProfileKey = typeof body.model_profile_key === "string" ? body.model_profile_key.trim().toLowerCase() : "";
-  const requestedProfileKey = ["auto", "lite", "pro", "max"].includes(rawProfileKey) ? rawProfileKey : null;
-  const hasManualProfile = requestedProfileKey === "lite" || requestedProfileKey === "pro" || requestedProfileKey === "max";
+  const requestedProfileKey = ["auto", "free", "lite", "pro", "max", "ultra_team"].includes(rawProfileKey) ? rawProfileKey : null;
+  const hasManualProfile = requestedProfileKey !== null && requestedProfileKey !== "auto";
   const routingMode = hasManualProfile || body.routing_mode === "manual" || (hasExplicitModel && body.routing_mode !== "auto") ? "manual" : "auto";
   // New clients select Chat or Agent explicitly. Legacy clients remain Agent
   // compatible so existing connected-app requests do not silently lose tools.
@@ -1163,13 +1163,33 @@ async function handleRequest(req: Request): Promise<Response> {
       return await failedResponse(jsonResponse({ error: "تعذر تحميل إعدادات مستوى SULY المحدد. لم يتم تغيير اختيارك." }, 503, req), "suly_profile_unavailable");
     }
   }
+  // During a coordinated rollout the new Edge Function can reach production
+  // before the additive Free-profile migration. The existing model allowlist
+  // still restricts this fallback to Free-eligible free_race models.
+  const freeProfileFallback = !profileAssignmentsError
+    && selectedProfileKey === "free"
+    && userTier === "free"
+    && !profileDefinitionResult.data
+    ? {
+        capabilities_json: {
+          chat: true,
+          web_search: false,
+          quick_tasks: true,
+          multi_step_agent: false,
+          advanced_reasoning: false,
+        },
+        is_active: true,
+        minimum_subscription_tier: "free",
+      }
+    : null;
+  const profileDefinition = profileDefinitionResult.data ?? freeProfileFallback;
   const profileCapabilities = selectedProfileKey
-    ? (profileDefinitionResult.data?.capabilities_json ?? {}) as Record<string, unknown>
+    ? (profileDefinition?.capabilities_json ?? {}) as Record<string, unknown>
     : {};
-  if (selectedProfileKey && profileDefinitionResult.data?.is_active !== true) {
+  if (selectedProfileKey && profileDefinition?.is_active !== true) {
     return await failedResponse(jsonResponse({ error: "مستوى SULY المحدد غير مفعّل حاليًا. لم يتم اختيار مستوى بديل تلقائيًا." }, 503, req), "suly_profile_disabled");
   }
-  const configuredMinimumTier = profileDefinitionResult.data?.minimum_subscription_tier;
+  const configuredMinimumTier = profileDefinition?.minimum_subscription_tier;
   if (selectedProfileKey && (
     typeof configuredMinimumTier !== "string"
     || !isSubscriptionTierEligible(userTier, configuredMinimumTier)

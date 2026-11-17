@@ -17,7 +17,7 @@ export interface ChatRequestBody {
   request_id: string;
   messages: Array<{ role: "user" | "assistant"; content: string }>;
   routing_mode: "auto" | "manual";
-  model_profile_key?: "auto" | "lite" | "pro" | "max";
+  model_profile_key?: "auto" | "free" | "lite" | "pro" | "max" | "ultra_team";
   execution_mode: "auto" | "chat" | "agent";
   stream: true;
   connector_approval_request_id?: string;
