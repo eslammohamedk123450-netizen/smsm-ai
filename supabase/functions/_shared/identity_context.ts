@@ -36,10 +36,14 @@ export function sanitizeContextText(text: string, himsActivated: boolean): strin
   return !himsActivated && containsHimsReference(text) ? INACTIVE_HISTORY_REDACTION : text;
 }
 
-export function buildSulyIdentityContext(himsActivated: boolean): SulyIdentityContext {
+export function buildSulyIdentityContext(himsActivated: boolean, agentModeActive = false): SulyIdentityContext {
   const userMetadata = { badges: himsActivated ? ["HIMS"] : [] };
   const instructions = [
     BASE_IDENTITY,
+    agentModeActive
+      ? "وضع الوكيل نشط في هذه الرسالة. نفّذ المهمة باستخدام الأدوات المتاحة فعليًا، وخطط للخطوات وتحقق من النتائج. لا تعرض زر تفعيل الوكيل مرة أخرى."
+      : "إذا كانت المهمة تحتاج إلى تنفيذ متعدد الخطوات أو أدوات الوكيل، فلا ترفضها ولا تدّعِ تنفيذها في وضع المحادثة العادية. اعرض بطاقة تفعيل داخل الرد باستخدام كتلة agent بهذا الشكل: ```agent ثم JSON {\"title\":\"تفعيل وضع الوكيل\",\"message\":\"هذه المهمة تحتاج إلى تنفيذ عدة خطوات. فعّل وضع الوكيل للمتابعة، ثم اكتب ابدأ.\"} ثم ```. لا تعرض البطاقة للأسئلة العادية أو المهام التي يمكن إنجازها مباشرة في المحادثة.",
+
     `قواعد الهوية الصارمة (تظهر فقط عند السؤال الصريح عنها):
 - إذا سأل المستخدم «من أنت؟» أو «انت مين؟» أو «عرف بنفسك»، أجب حرفياً بهذه العبارة: «${IDENTITY_ANSWER}»
 - إذا سأل المستخدم «مين اللي عملك؟» أو «مين طورك؟»، أجب حرفياً بهذه العبارة: «${CREATOR_ANSWER}»
