@@ -29,7 +29,7 @@ import { parseAgentDecision, runAgentLoop, type AgentLoopResumeStep, type AgentL
 import { hasCapabilityEvidenceConflict, prioritizeModelCandidate, restrictModelsToAssignedRoute, type ModelCapabilityEvidence } from "./agent/model_routing.ts";
 import { isModelEligibleForRequest, modelSupportsRole as supportsModelRole } from "./agent/model_eligibility.ts";
 import { resolveExecutionMode } from "./execution_mode.ts";
-import { isSubscriptionTierEligible, resolveSulyProfileKey } from "./agent/suly_profile_routing.ts";
+import { resolveSulyProfileKey } from "./agent/suly_profile_routing.ts";
 import { getAgentReservationCallCount } from "./agent/agent_budget_policy.ts";
 import { buildAgentRoleGuidance, prioritizeAgentProfileCandidates, selectAgentProfile, type AgentProfile } from "./agent/agent_profiles.ts";
 import { getAgentToolsFromDatabase, getRegisteredTool, validateToolInput } from "./agent/tool_registry.ts";
@@ -725,7 +725,7 @@ async function handleRequest(req: Request): Promise<Response> {
   const modelId = Number.isSafeInteger(rawModelId) && rawModelId > 0 ? rawModelId : 0;
   const hasExplicitModel = modelId > 0;
   const rawProfileKey = typeof body.model_profile_key === "string" ? body.model_profile_key.trim().toLowerCase() : "";
-  const requestedProfileKey = ["auto", "free", "lite", "pro", "max", "ultra_team"].includes(rawProfileKey) ? rawProfileKey : null;
+  const requestedProfileKey = ["auto", "lite", "pro", "max", "x"].includes(rawProfileKey) ? rawProfileKey : null;
   const hasManualProfile = requestedProfileKey !== null && requestedProfileKey !== "auto";
   const routingMode = hasManualProfile || body.routing_mode === "manual" || (hasExplicitModel && body.routing_mode !== "auto") ? "manual" : "auto";
   // New clients select Chat or Agent explicitly. Legacy clients remain Agent
@@ -1149,7 +1149,7 @@ async function handleRequest(req: Request): Promise<Response> {
   const routeRole: RouteModelAssignment["route_role"] = executionMode === "agent" ? "planner" : "chat";
   const profileDefinitionResult = selectedProfileKey
     ? await supabase.from("suly_model_profiles")
-      .select("capabilities_json,is_active,minimum_subscription_tier")
+      .select("capabilities_json,is_active")
       .eq("profile_key", selectedProfileKey)
       .maybeSingle()
     : { data: null, error: null };
@@ -1163,12 +1163,9 @@ async function handleRequest(req: Request): Promise<Response> {
       return await failedResponse(jsonResponse({ error: "تعذر تحميل إعدادات مستوى SULY المحدد. لم يتم تغيير اختيارك." }, 503, req), "suly_profile_unavailable");
     }
   }
-  // During a coordinated rollout the new Edge Function can reach production
-  // before the additive Free-profile migration. The existing model allowlist
-  // still restricts this fallback to Free-eligible free_race models.
-  const freeProfileFallback = !profileAssignmentsError
-    && selectedProfileKey === "free"
-    && userTier === "free"
+  // Compatibility fallback for legacy installations missing the Lite profile row.
+  const liteProfileFallback = !profileAssignmentsError
+    && selectedProfileKey === "lite"
     && !profileDefinitionResult.data
     ? {
         capabilities_json: {
@@ -1179,27 +1176,17 @@ async function handleRequest(req: Request): Promise<Response> {
           advanced_reasoning: false,
         },
         is_active: true,
-        minimum_subscription_tier: "free",
       }
     : null;
-  const profileDefinition = profileDefinitionResult.data ?? freeProfileFallback;
+  const profileDefinition = profileDefinitionResult.data ?? liteProfileFallback;
   const profileCapabilities = selectedProfileKey
     ? (profileDefinition?.capabilities_json ?? {}) as Record<string, unknown>
     : {};
   if (selectedProfileKey && profileDefinition?.is_active !== true) {
     return await failedResponse(jsonResponse({ error: "مستوى SULY المحدد غير مفعّل حاليًا. لم يتم اختيار مستوى بديل تلقائيًا." }, 503, req), "suly_profile_disabled");
   }
-  const configuredMinimumTier = profileDefinition?.minimum_subscription_tier;
-  if (selectedProfileKey && (
-    typeof configuredMinimumTier !== "string"
-    || !isSubscriptionTierEligible(userTier, configuredMinimumTier)
-  )) {
-    return await failedResponse(jsonResponse({
-      error: `اشتراكك الحالي لا يتيح مستوى ${selectedProfileKey.toUpperCase()} وفق إعدادات الباقة. لم يتم تغيير اختيارك.`,
-      selected_profile: selectedProfileKey,
-      required_subscription_tier: typeof configuredMinimumTier === "string" ? configuredMinimumTier : null,
-    }, 403, req), "profile_subscription_unavailable");
-  }
+  // Model profiles are independent of subscription packages. Packages control
+  // credits and product limits; the selected model is charged by actual usage.
   if (selectedProfileKey && requestedProfileKey && requestedProfileKey !== "auto") {
     const needsWebSearch = shouldSearchWeb;
     const needsComplexExecution = profileIntent === "complex_task" && executionMode === "agent";

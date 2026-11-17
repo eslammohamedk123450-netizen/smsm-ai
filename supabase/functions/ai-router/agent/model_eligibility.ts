@@ -25,12 +25,7 @@ export function isModelEligibleForRequest(input: ModelEligibilityInput): boolean
   if (!input.enabled || !input.healthy || input.providerEnabled === false) return false;
   if (input.routingGroup === "disabled") return false;
   if (input.allowedRoutingGroups && !input.allowedRoutingGroups.includes(input.routingGroup)) return false;
-  const tierRank: Record<string, number> = { free: 0, lite: 1, pro: 2, max: 3, ultra_team: 4 };
-  const userTierRank = tierRank[input.userTier];
-  const hasTierAccess = userTierRank === undefined
-    ? input.allowedTiers.includes(input.userTier)
-    : input.allowedTiers.some((tier) => tierRank[tier] !== undefined && tierRank[tier] <= userTierRank);
-  if (!hasTierAccess) return false;
+  // Subscription tiers govern credits and product limits, never model eligibility.
   if (!supportsModelCapabilities(input.capabilities, input.requiredCapabilities)) return false;
   if (input.requiredRole && !modelSupportsRole(input.taskRoles, input.requiredRole)) return false;
   return true;
