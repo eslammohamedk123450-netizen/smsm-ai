@@ -2,13 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useLocalSearchParams } from "expo-router";
 import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, StyleSheet, Switch, TextInput, TouchableOpacity, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
-import { adminService, type AgentConfig, type PricingPlan, type PricingFeature } from "./admin-service";
+import { adminService, type PricingPlan, type PricingFeature } from "./admin-service";
 import { providerPresets, findPreset, type ProviderPreset } from "./provider-presets";
 import { confirmAdminAction } from "./admin-confirm";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
 import { GmailModelPickerCard } from "./GmailModelPickerCard";
-import { AgentModelPickerCard } from "./AgentModelPickerCard";
 import { RouteModelChainsCard } from "./RouteModelChainsCard";
 import { ModelCapabilityEvidenceAdminCard } from "./ModelCapabilityEvidenceAdminCard";
 
@@ -317,8 +316,6 @@ export function ModelsAdminScreen() {
   const [modelFilter, setModelFilter] = useState<"all" | "enabled" | "disabled" | "restricted">("enabled");
   const [settings, setSettings] = useState<Record<string, unknown> | null>(null);
   const [gmailModelId, setGmailModelId] = useState<number | null>(null);
-  const [plannerModelId, setPlannerModelId] = useState<number | null>(null);
-  const [summarizerModelId, setSummarizerModelId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [testingModelId, setTestingModelId] = useState<number | null>(null);
@@ -374,10 +371,6 @@ export function ModelsAdminScreen() {
       if (config) {
         const configuredGmailModelId = Number(config.gmail_task_model_id);
         setGmailModelId(Number.isSafeInteger(configuredGmailModelId) && configuredGmailModelId > 0 ? configuredGmailModelId : null);
-        const configuredPlannerModelId = Number(config.agent_planner_model_id);
-        setPlannerModelId(Number.isSafeInteger(configuredPlannerModelId) && configuredPlannerModelId > 0 ? configuredPlannerModelId : null);
-        const configuredSummarizerModelId = Number(config.agent_summarizer_model_id);
-        setSummarizerModelId(Number.isSafeInteger(configuredSummarizerModelId) && configuredSummarizerModelId > 0 ? configuredSummarizerModelId : null);
         setFreeTimeout(String(config.free_race_timeout_ms ?? 5000));
         setFallbackTimeout(String(config.paid_fallback_timeout_ms ?? 30000));
         setParallel(String(config.max_parallel_free_models ?? 10));
@@ -461,15 +454,6 @@ export function ModelsAdminScreen() {
     finally { setBusy(false); }
   };
 
-  const saveAgentModels = async () => {
-    setBusy(true); setError(null);
-    try {
-      await adminService.updateAgentModels(plannerModelId, summarizerModelId);
-      await load();
-    } catch { setError("تعذر حفظ نموذجي Planner وSummarizer. تحقق من تطبيق هجرة إعداداتهما وصلاحيات الإدارة."); }
-    finally { setBusy(false); }
-  };
-
   const disable = async (model: ModelRow) => {
     if (!await confirmAdminAction("تعطيل النموذج؟", `سيُزال ${model.name} من التوجيه.`, "تعطيل النموذج")) return;
     setBusy(true);
@@ -538,7 +522,6 @@ export function ModelsAdminScreen() {
           {!loading ? <>
             <RouteModelChainsCard models={models} />
             {settings && <GmailModelPickerCard models={models} selectedModelId={gmailModelId} onSelect={setGmailModelId} onSave={() => void saveGmailModel()} busy={busy} />}
-            {settings && <Card><View style={styles.settingsHeading}><View style={styles.sectionIcon}><Text style={styles.sectionIconText}>✦</Text></View><View style={styles.settingsHeadingText}><Text style={styles.sectionTitle}>نماذج أدوار Agent</Text><Text style={styles.detail}>اختيار مستقل؛ تغيير هذه القيم لا يغيّر نماذج الدردشة أو اختيار Gmail.</Text></View></View><AgentModelPickerCard role="planner" models={models} selectedModelId={plannerModelId} onSelect={setPlannerModelId} busy={busy} /><AgentModelPickerCard role="summarizer" models={models} selectedModelId={summarizerModelId} onSelect={setSummarizerModelId} busy={busy} /><PrimaryButton label={busy ? "جارٍ الحفظ…" : "حفظ نموذجي Agent"} onPress={() => void saveAgentModels()} disabled={busy} /></Card>}
             <ModelCapabilityEvidenceAdminCard models={models} />
             <View style={styles.modelsSectionHeader}><View style={styles.modelsHeadingCopy}><Text style={styles.sectionTitle}>كتالوج النماذج</Text><Text style={styles.detail}>إدارة الحالة ومسار التوجيه والقيود وسجل الصحة</Text></View><View style={styles.totalBadge}><Text style={styles.totalBadgeText}>{models.length} نموذج</Text></View></View>
             <View style={styles.searchWrap}><Text style={styles.searchGlyph}>⌕</Text><TextInput style={[styles.input, styles.modelSearchInput]} value={search} onChangeText={setSearch} placeholder="ابحث بالاسم أو المزود أو المسار" placeholderTextColor={colors.textMuted} autoCapitalize="none" /><Pressable accessibilityRole="button" onPress={() => setSearch("")}><Text style={styles.link}>مسح</Text></Pressable></View>
@@ -798,44 +781,14 @@ export function CircuitBreakerAdminScreen() {
 export function AgentsAdminScreen() {
   const { colors } = useSulyTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const [agents, setAgents] = useState<AgentConfig[]>([]);
-  const [models, setModels] = useState<ModelRow[]>([]);
-  const [name, setName] = useState("");
-  const [prompt, setPrompt] = useState("");
-  const [chain, setChain] = useState<string[]>([]);
-  const [role, setRole] = useState<"planner" | "thinker" | "worker" | "reviewer" | "summarizer" | "coordinator">("worker");
-  const [modelSearch, setModelSearch] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const load = async () => {
-    setLoading(true); setError(null);
-    try { const [nextAgents, overview] = await Promise.all([adminService.getAgents(), adminService.getModelsOverview()]); setAgents(nextAgents); setModels(overview.models as ModelRow[]); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر تحميل المساعدين."); }
-    finally { setLoading(false); }
-  };
-  useEffect(() => { void load(); }, []);
-  const addAgent = async () => {
-    setBusy(true); setError(null); setNotice(null);
-    try {
-      const fixed = role !== "worker" ? agents.find((agent) => agent.role === role) : null;
-      if (fixed) await adminService.updateAgent(fixed.id, { name: fixed.name, systemPrompt: fixed.system_prompt, modelFallbackChain: chain, isActive: fixed.is_active });
-      else await adminService.createAgent({ name: name.trim(), role, systemPrompt: prompt, modelFallbackChain: chain });
-      setName(""); setPrompt(""); setChain([]); setRole("worker"); setNotice(fixed ? "تم تحديث نماذج الوظيفة الثابتة." : "تمت إضافة العامل."); await load();
-    }
-    catch (cause) { setError(cause instanceof Error ? cause.message : "تعذرت إضافة المساعد."); }
-    finally { setBusy(false); }
-  };
-  const toggleModel = (id: string) => setChain((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
-  const roleLabel = role === "planner" ? "العقل المخطط" : role === "thinker" ? "العقل المفكر" : role === "reviewer" ? "المراجع" : role === "summarizer" ? "الملخّص" : role === "coordinator" ? "المنسق" : "عامل متخصص";
-  return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-    <PageHeader title="إدارة المساعدين" />
-    <Text style={styles.explainer}>أضف العقل والمراجع والمساعدين المتخصصين وحدد تعليماتهم وسلسلة نماذج غير محدودة عملياً حسب الأولوية.</Text>
-    <ErrorText>{error}</ErrorText>{notice && <Text style={styles.success}>{notice}</Text>}
-    <Card><Text style={styles.sectionTitle}>إضافة مكوّن</Text><View style={styles.filterRow}>{([['planner','العقل المخطط'],['thinker','العقل المفكر'],['reviewer','المراجع'],['summarizer','الملخّص'],['coordinator','المنسق'],['worker','عامل متخصص']] as const).map(([value, label]) => <Pressable key={value} onPress={() => setRole(value)} style={[styles.filterChip, role === value && styles.filterChipSelected]}><Text style={[styles.filterText, role === value && styles.filterTextSelected]}>{label}</Text></Pressable>)}</View><TextInput style={styles.input} value={name} onChangeText={setName} placeholder={role === "planner" ? "العقل المفكر" : role === "reviewer" ? "المراجع والمنسق" : "اسم المساعد"} placeholderTextColor={colors.textMuted} /><TextInput style={[styles.input, { minHeight: 130 }]} value={prompt} onChangeText={setPrompt} placeholder="وظيفة المساعد وتعليماته" placeholderTextColor={colors.textMuted} multiline textAlignVertical="top" /><Text style={styles.label}>النماذج حسب الأولوية (اضغط بالترتيب)</Text><TextInput style={styles.input} placeholder="ابحث عن نموذج بالاسم" placeholderTextColor={colors.textMuted} onChangeText={setModelSearch} value={modelSearch} /><View style={styles.filterRow}>{models.filter((model) => model.enabled && model.provider_enabled === true && model.routing_group === "free_race" && modelSupportsAgentRole(model, role) && `${model.name} ${model.model_identifier}`.toLowerCase().includes(modelSearch.trim().toLowerCase())).map((model) => <Pressable key={String(model.id)} onPress={() => toggleModel(String(model.id))} style={[styles.filterChip, chain.includes(String(model.id)) && styles.filterChipSelected]}><Text style={[styles.filterText, chain.includes(String(model.id)) && styles.filterTextSelected]}>{chain.includes(String(model.id)) ? `${chain.indexOf(String(model.id)) + 1}. ` : ""}{model.name}</Text></Pressable>)}</View><PrimaryButton label={busy ? "جارٍ الحفظ…" : "إضافة المكوّن"} onPress={() => void addAgent()} disabled={busy} /></Card>
-    <Text style={styles.sectionTitle}>المساعدون الحاليون · {agents.length}</Text>
-    {loading ? <ActivityIndicator color={colors.primary} /> : <ScrollView horizontal style={styles.agentsTable}><View><View style={styles.agentsTableHeader}><Text style={styles.agentNameCell}>الاسم / التعليمات</Text><Text style={styles.agentRoleCell}>الدور</Text><Text style={styles.agentModelsCell}>النماذج الاحتياطية</Text><Text style={styles.agentActionCell}>إجراء</Text></View>{agents.map((agent) => <View key={agent.id} style={styles.agentRow}><View style={styles.agentNameCell}><Text style={styles.cardTitle} numberOfLines={1}>{agent.name}</Text><Text style={styles.modelTableSub} numberOfLines={2}>{agent.system_prompt}</Text></View><Text style={[styles.agentRoleCell, styles.detail]}>{agent.role}</Text><Text style={[styles.agentModelsCell, styles.detail]} numberOfLines={2}>{agent.model_fallback_chain.join(" → ") || "التوجيه العام"}</Text><View style={styles.agentActionCell}><Pressable onPress={async () => { if (!await confirmAdminAction("حذف المساعد؟", `سيُحذف ${agent.name} نهائيًا.`, "حذف")) return; void adminService.deleteAgent(agent.id).then(() => load()).catch((cause) => setError(cause instanceof Error ? cause.message : "تعذر حذف المساعد.")); }}><Text style={styles.deleteFeature}>حذف</Text></Pressable></View></View>)}</View></ScrollView>}
+  return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <PageHeader title="الوكيل المركزي" />
+    <Card>
+      <Text style={styles.sectionTitle}>عقل تنفيذي واحد لـ SULY</Text>
+      <Text style={styles.detail}>كل الطلبات تبدأ من الوكيل المركزي. التخطيط والتنفيذ والمراجعة والتلخيص وظائف داخلية يستدعيها عند الحاجة، وليست مساعدين مستقلين أو أنظمة تتخذ قرارات متنافسة.</Text>
+      <Text style={styles.detail}>لإدارة النماذج وترتيبها لكل وظيفة داخلية، استخدم صفحة «النماذج والمزودون». لن تُنشأ هنا ملفات وكلاء منفصلة أو تعليمات متعارضة.</Text>
+      <Link href="/admin/models" asChild><Pressable><Text style={styles.link}>إدارة نماذج الوكيل المركزي</Text></Pressable></Link>
+    </Card>
   </ScrollView>;
 }
 
