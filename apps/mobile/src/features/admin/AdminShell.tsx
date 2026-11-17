@@ -145,18 +145,21 @@ export function AdminShell() {
     return () => { active = false; };
   }, []);
 
-  const navGroups = useMemo<readonly NavGroup[]>(() => [
-    ...NAV_GROUPS,
-    ...(customPages.length ? [{
-      key: "custom-pages",
-      label: "صفحات مخصصة", labelEn: "Custom pages",
-      hint: "صفحات الإدارة المنشورة", hintEn: "Published admin pages",
-      items: customPages.map((page) => ({
-        path: `/admin/custom/${page.page_key}`,
-        label: page.title, labelEn: page.title, icon: "albums-outline" as const,
-      })),
-    }] : []),
-  ], [customPages]);
+  const navGroups = useMemo<readonly NavGroup[]>(() => NAV_GROUPS.map((group) => {
+    if (group.key !== "system" || customPages.length === 0) return group;
+    return {
+      ...group,
+      items: [
+        ...group.items,
+        ...customPages.map((page) => ({
+          path: `/admin/custom/${page.page_key}`,
+          label: page.title,
+          labelEn: page.title,
+          icon: "albums-outline" as const,
+        })),
+      ],
+    };
+  }), [customPages]);
 
   const refreshHealth = async () => {
     setChecking(true);

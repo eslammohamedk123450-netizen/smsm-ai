@@ -16,7 +16,7 @@
 - [x] Inventory the existing protected admin routes, shared Expo shell, theme provider, server-backed admin service, and currently available section screens.
 - [x] Replace the legacy grouped navigation with the exact 12 approved top-level domains while retaining the existing destinations and the HIMS entry.
 - [x] Add a desktop collapsible sidebar with expanded labels by default, icon-only collapsed mode, accessible labels, hover/focus tooltips, and persisted local preference.
-- [x] Add Web `/` and `Ctrl+K` / `Cmd+K` shortcuts for the global admin search; include published custom admin pages in navigation search.
+- [x] Add Web `/` and `Ctrl+K` / `Cmd+K` shortcuts for the navigation search; include published custom admin pages in search and keep their links nested under System & Security so the shell retains exactly 12 top-level domains.
 - [x] Apply the approved Midnight Gold Luxury palette through the shared theme tokens while retaining Light, Dark, and System theme selection.
 
 ### Providers & Models
