@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   build:
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/release/v1') || (github.event_name == 'workflow_dispatch' && inputs.deploy_production == true)
+    if: (github.event_name == 'push' && (github.ref == 'refs/heads/release/v1' || github.ref == 'refs/heads/develop')) || (github.event_name == 'workflow_dispatch' && inputs.deploy_production == true)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout stable production source
@@ -89,7 +89,7 @@ jobs:
           path: site
 
   deploy:
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/release/v1') || (github.event_name == 'workflow_dispatch' && inputs.deploy_production == true)
+    if: (github.event_name == 'push' && (github.ref == 'refs/heads/release/v1' || github.ref == 'refs/heads/develop')) || (github.event_name == 'workflow_dispatch' && inputs.deploy_production == true)
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
