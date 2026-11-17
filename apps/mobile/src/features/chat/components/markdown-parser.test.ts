@@ -65,6 +65,20 @@ const answer = 42;
     ]);
   });
 
+  it("converts Mermaid flowcharts into native chat flow diagrams", () => {
+    const input = "```mermaid\nflowchart TD\nA[فتح التطبيق] --> B[تسجيل الدخول]\nB --> C[إرسال رسالة]\n```";
+    expect(parseMarkdownBlocks(input)).toEqual([
+      { type: "flow", steps: ["فتح التطبيق", "تسجيل الدخول", "إرسال رسالة"] },
+    ]);
+  });
+
+  it("parses an actionable Agent activation card", () => {
+    const input = "```agent\n{\"title\":\"تفعيل وضع الوكيل\",\"message\":\"هذه المهمة تحتاج إلى تنفيذ عدة خطوات.\"}\n```";
+    expect(parseMarkdownBlocks(input)).toEqual([
+      { type: "agent", title: "تفعيل وضع الوكيل", message: "هذه المهمة تحتاج إلى تنفيذ عدة خطوات." },
+    ]);
+  });
+
   it("keeps malformed flowchart and dashboard payloads as code", () => {
     expect(parseMarkdownBlocks("```flow\n{\"steps\":[\"واحد\"]}\n```")[0].type).toBe("code");
     expect(parseMarkdownBlocks("```dashboard\n{\"metrics\":[]}\n```")[0].type).toBe("code");
