@@ -59,7 +59,7 @@ export default function UpgradeScreen() {
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     <View style={styles.header}><Pressable onPress={() => router.back()}><Text style={styles.back}>{isArabic ? "رجوع" : "Back"}</Text></Pressable><View style={styles.headerTitle}><Ionicons name="card-outline" size={25} color={colors.primary} /><Text style={styles.title}>{isArabic ? "الباقات والترقية" : "Plans & upgrades"}</Text></View></View>
-    <Text style={styles.subtitle}>{isArabic ? "كل مستويات SULY ظاهرة للجميع. باقة Pro تفتح Lite وPro وMax، وباقة Max تفتحها جميعًا بالإضافة إلى SULY X عند اعتماده." : "All SULY models are visible to everyone. Pro unlocks Lite, Pro, and Max; Max also unlocks SULY X once it is approved."}</Text>
+    <Text style={styles.subtitle}>{isArabic ? "المجاني يستخدم مستوى Free فقط. الاشتراك يحدد النماذج والقدرات والحدود المتاحة، والكريدت يُستهلك حسب الاستخدام الفعلي. يمكن شحن رصيد إضافي دون شراء باقة." : "Free accounts use the Free profile only. Your subscription controls model access, capabilities and limits; credits are consumed by actual usage. You can also top up without a subscription."}</Text>
     {loading ? <ActivityIndicator color={colors.primary} /> : error ? <Text style={styles.error}>{error}</Text> : plans.map((plan) => {
       const key = plan.tier_key || planKey(plan.name);
       const current = currentTier === key;
