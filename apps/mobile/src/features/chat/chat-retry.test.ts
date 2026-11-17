@@ -1,5 +1,5 @@
 import type { ChatMessage } from "./chat-service";
-import { buildRetryHistory } from "./chat-retry";
+import { buildRetryHistory, createRetryRequestId } from "./chat-retry";
 
 const message = (id: string, role: ChatMessage["role"], content = id): ChatMessage => ({
   id,
@@ -34,5 +34,16 @@ describe("buildRetryHistory", () => {
       .toThrow("تعذر العثور على رسالة المستخدم المحفوظة لإعادة المحاولة.");
     expect(() => buildRetryHistory([message("saved-assistant", "assistant")], "saved-assistant"))
       .toThrow("تعذر العثور على رسالة المستخدم المحفوظة لإعادة المحاولة.");
+  });
+});
+
+describe("createRetryRequestId", () => {
+  it("creates a new UUID for each explicit retry", () => {
+    const first = createRetryRequestId();
+    const second = createRetryRequestId();
+
+    expect(first).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+    expect(second).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+    expect(second).not.toBe(first);
   });
 });
