@@ -397,7 +397,7 @@ export function ModelsAdminScreen() {
 
   const openModelDetails = async (model: ModelRow) => {
     setSelectedModel(model);
-    setEditTiers(model.allowed_tiers ?? ["free", "lite", "pro", "max"]);
+    setEditTiers(model.allowed_tiers ?? ["max"]);
     setEditTimeout(String(model.response_timeout_ms ?? 30000));
     setEditThreshold(String(model.restriction_failure_threshold ?? 3));
     setEditWindow(String(model.restriction_window_minutes ?? 15));
@@ -596,7 +596,7 @@ export function ModelsAdminScreen() {
           <View style={styles.modalHeading}><View style={styles.sectionIcon}><Text style={styles.sectionIconText}>◈</Text></View><View style={styles.modalHeadingText}><Text style={styles.sectionTitle}>إعدادات النموذج</Text><Text style={styles.detail}>{selectedModel?.name}</Text></View></View>
           <Text style={styles.detail}>الشرائح المسموحة allowed_tiers:</Text>
           <View style={styles.rowWrap}>
-            {["free", "lite", "pro", "max"].map((tier) => (
+            {["free", "lite", "pro", "max", "ultra_team"].map((tier) => (
               <Pressable key={tier} onPress={() => toggleTier(tier)} style={[styles.pill, editTiers.includes(tier) && styles.pillSelected]}>
                 <Text style={styles.pillText}>{tier}</Text>
               </Pressable>
