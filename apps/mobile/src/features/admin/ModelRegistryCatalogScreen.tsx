@@ -13,6 +13,7 @@ type RegistryModel = {
   model_id: string;
   provider_id: number;
   provider_name: string | null;
+  provider_type?: string | null;
   service_type: ServiceType;
   model_identifier: string;
   display_name: string;
