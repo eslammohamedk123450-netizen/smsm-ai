@@ -9,6 +9,7 @@ import { confirmAdminAction } from "./admin-confirm";
 import { AgentTaskQueueCard } from "./AgentTaskQueueCard";
 import { SulyFinanceOverviewCard } from "./SulyFinanceOverviewCard";
 import { NegativeBalanceSettingsCard } from "./NegativeBalanceSettingsCard";
+import { adminService } from "./admin-service";
 
 type Model = { id: number; enabled: boolean; health?: { auto_restricted?: boolean; last_status?: string | null; total_attempts?: number; successful_attempts?: number; average_latency_ms?: number | null } | null };
 type Tx = { amount: number | null; event_type: string; created_at: string };
@@ -44,22 +45,24 @@ export function AdminDashboardScreen() {
     setError(null);
     const since = new Date(Date.now() - 7 * 86400000).toISOString();
     const hourAgo = new Date(Date.now() - 3600000).toISOString();
-    const [modelsResult, modelHealthResult, usersResult, errorsResult, transactionsResult, auditResult, maintenanceResult] = await Promise.all([
-      supabase.from("ai_models").select("id,enabled").limit(500),
-      supabase.from("ai_model_health").select("model_id,last_status,auto_restricted,total_attempts,successful_attempts,average_latency_ms").limit(1000),
+    const [modelsOverview, usersResult, transactionsResult, auditResult, maintenanceResult] = await Promise.all([
+      adminService.getModelsOverview(),
       supabase.from("suly_profiles").select("id", { count: "exact", head: true }),
-      supabase.from("ai_model_attempt_logs").select("id", { count: "exact", head: true }).gte("created_at", hourAgo).neq("attempt_status", "success"),
       supabase.from("suly_credit_transactions").select("amount,event_type,created_at").gte("created_at", since).order("created_at", { ascending: true }).limit(2000),
       supabase.from("admin_audit_logs").select("id,admin_id,action,target_table,target_id,created_at").order("created_at", { ascending: false }).limit(5),
       supabase.from("system_settings").select("value").eq("key", "maintenance_mode").maybeSingle(),
     ]);
-    if (modelsResult.error || modelHealthResult.error || usersResult.error || errorsResult.error || transactionsResult.error || auditResult.error || maintenanceResult.error) setError("تعذر تحميل بعض مؤشرات التشغيل. اعرض تفاصيل المصدر أو تحقق من صلاحيات قاعدة البيانات.");
-    setModelsAvailable(!modelsResult.error);
-    setModelHealthAvailable(!modelHealthResult.error);
+    const activeModelRows = modelsOverview.models as Model[];
+    const activeModelIds = activeModelRows.map((model) => Number(model.id));
+    const errorsResult = activeModelIds.length
+      ? await supabase.from("ai_model_attempt_logs").select("id", { count: "exact", head: true }).in("model_id", activeModelIds).gte("created_at", hourAgo).neq("attempt_status", "success")
+      : { count: 0, error: null };
+    if (usersResult.error || errorsResult.error || transactionsResult.error || auditResult.error || maintenanceResult.error) setError("تعذر تحميل بعض مؤشرات التشغيل. اعرض تفاصيل المصدر أو تحقق من صلاحيات قاعدة البيانات.");
+    setModelsAvailable(true);
+    setModelHealthAvailable(true);
     setTransactionsAvailable(!transactionsResult.error);
     setAuditAvailable(!auditResult.error);
-    const healthById = new Map((modelHealthResult.data ?? []).map((row) => [Number(row.model_id), row]));
-    setModels(((modelsResult.data ?? []) as Model[]).map((model) => ({ ...model, health: healthById.get(Number(model.id)) ?? null })));
+    setModels(activeModelRows);
     setUserCount(usersResult.error ? null : usersResult.count ?? 0);
     setHourErrors(errorsResult.error ? null : errorsResult.count ?? 0);
     setTransactions((transactionsResult.data ?? []) as Tx[]);
