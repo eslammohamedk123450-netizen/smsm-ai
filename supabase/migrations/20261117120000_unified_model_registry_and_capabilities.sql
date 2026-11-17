@@ -453,3 +453,80 @@ create trigger suly_sync_media_capability_registry after insert or update
 revoke all on function public.suly_sync_chat_model_to_registry() from public,anon,authenticated;
 revoke all on function public.suly_sync_media_model_to_registry() from public,anon,authenticated;
 revoke all on function public.suly_sync_legacy_capability_to_registry() from public,anon,authenticated;
+
+-- Canonical route assignments reference the same unified model identity.
+create table if not exists public.suly_model_route_assignments (
+  id uuid primary key default gen_random_uuid(),
+  model_id uuid not null references public.suly_model_registry(id) on delete cascade,
+  route_role text not null check (route_role in ('chat','planner','worker','reviewer','summarizer')),
+  priority integer not null check (priority between 1 and 500),
+  enabled boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique(route_role,model_id)
+);
+create index if not exists suly_model_route_assignments_role_idx
+  on public.suly_model_route_assignments(route_role,enabled,priority);
+alter table public.suly_model_route_assignments enable row level security;
+drop policy if exists suly_model_route_assignments_admin_all on public.suly_model_route_assignments;
+create policy suly_model_route_assignments_admin_all on public.suly_model_route_assignments
+  for all to authenticated using (public.suly_is_admin()) with check (public.suly_is_admin());
+
+insert into public.suly_model_route_assignments(model_id,route_role,priority,enabled)
+select r.id,a.route_role,a.priority,a.enabled
+from public.ai_route_model_assignments a
+join public.ai_models m on m.id=a.model_id
+join public.suly_model_registry r on r.provider_id=m.provider_id and r.service_type='chat' and r.model_identifier=m.model_identifier
+on conflict(route_role,model_id) do update set priority=excluded.priority,enabled=excluded.enabled,updated_at=now();
+
+create or replace function public.suly_sync_legacy_route_assignment()
+returns trigger language plpgsql security definer set search_path=public,pg_temp
+as $$
+declare v_registry_id uuid;
+begin
+  if tg_op='DELETE' then
+    select id into v_registry_id from public.suly_model_registry where legacy_chat_model_id=old.model_id;
+    if v_registry_id is not null then
+      delete from public.suly_model_route_assignments where model_id=v_registry_id and route_role=old.route_role;
+      insert into public.suly_model_registry_audit(model_id,capability_key,action,before_state,after_state,actor_id)
+      values(v_registry_id,'route:'||old.route_role,'route_assignment_removed',to_jsonb(old),null,auth.uid());
+    end if;
+    return old;
+  end if;
+  select id into v_registry_id from public.suly_model_registry where legacy_chat_model_id=new.model_id;
+  if v_registry_id is null then return new; end if;
+  insert into public.suly_model_route_assignments(model_id,route_role,priority,enabled)
+  values(v_registry_id,new.route_role,new.priority,new.enabled)
+  on conflict(route_role,model_id) do update set priority=excluded.priority,enabled=excluded.enabled,updated_at=now();
+  insert into public.suly_model_registry_audit(model_id,capability_key,action,before_state,after_state,actor_id)
+  values(v_registry_id,'route:'||new.route_role,case when tg_op='INSERT' then 'route_assignment_added' else 'route_assignment_updated' end,
+    case when tg_op='UPDATE' then to_jsonb(old) else null end,to_jsonb(new),auth.uid());
+  return new;
+end;
+$$;
+
+drop trigger if exists suly_sync_legacy_route_assignment on public.ai_route_model_assignments;
+create trigger suly_sync_legacy_route_assignment
+after insert or update or delete on public.ai_route_model_assignments
+for each row execute function public.suly_sync_legacy_route_assignment();
+
+create or replace function public.suly_admin_list_unified_route_assignments()
+returns table(route_role text,model_id integer,priority integer,enabled boolean)
+language plpgsql security definer set search_path=public,pg_temp
+as $$
+begin
+  if not public.suly_is_admin() then raise exception 'admin_required' using errcode='42501'; end if;
+  return query
+  select a.route_role,r.legacy_chat_model_id,a.priority,a.enabled
+  from public.suly_model_route_assignments a
+  join public.suly_model_registry r on r.id=a.model_id
+  where r.legacy_chat_model_id is not null
+  order by a.route_role,a.priority,a.id;
+end;
+$$;
+
+revoke all on public.suly_model_route_assignments from anon,authenticated;
+grant select,insert,update,delete on public.suly_model_route_assignments to authenticated;
+revoke all on function public.suly_sync_legacy_route_assignment() from public,anon,authenticated;
+revoke all on function public.suly_admin_list_unified_route_assignments() from public,anon;
+grant execute on function public.suly_admin_list_unified_route_assignments() to authenticated;
