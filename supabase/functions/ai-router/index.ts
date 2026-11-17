@@ -29,7 +29,7 @@ import { parseAgentDecision, runAgentLoop, type AgentLoopResumeStep, type AgentL
 import { hasCapabilityEvidenceConflict, prioritizeModelCandidate, restrictModelsToAssignedRoute, type ModelCapabilityEvidence } from "./agent/model_routing.ts";
 import { isModelEligibleForRequest, modelSupportsRole as supportsModelRole } from "./agent/model_eligibility.ts";
 import { resolveExecutionMode } from "./execution_mode.ts";
-import { isSubscriptionTierEligible, resolveSulyProfileKey } from "./agent/suly_profile_routing.ts";
+import { resolveSulyProfileKey } from "./agent/suly_profile_routing.ts";
 import { getAgentReservationCallCount } from "./agent/agent_budget_policy.ts";
 import { buildAgentRoleGuidance, prioritizeAgentProfileCandidates, selectAgentProfile, type AgentProfile } from "./agent/agent_profiles.ts";
 import { getAgentToolsFromDatabase, getRegisteredTool, validateToolInput } from "./agent/tool_registry.ts";
@@ -1149,7 +1149,7 @@ async function handleRequest(req: Request): Promise<Response> {
   const routeRole: RouteModelAssignment["route_role"] = executionMode === "agent" ? "planner" : "chat";
   const profileDefinitionResult = selectedProfileKey
     ? await supabase.from("suly_model_profiles")
-      .select("capabilities_json,is_active,minimum_subscription_tier")
+      .select("capabilities_json,is_active")
       .eq("profile_key", selectedProfileKey)
       .maybeSingle()
     : { data: null, error: null };
@@ -1179,7 +1179,6 @@ async function handleRequest(req: Request): Promise<Response> {
           advanced_reasoning: false,
         },
         is_active: true,
-        minimum_subscription_tier: "free",
       }
     : null;
   const profileDefinition = profileDefinitionResult.data ?? freeProfileFallback;
@@ -1189,17 +1188,8 @@ async function handleRequest(req: Request): Promise<Response> {
   if (selectedProfileKey && profileDefinition?.is_active !== true) {
     return await failedResponse(jsonResponse({ error: "مستوى SULY المحدد غير مفعّل حاليًا. لم يتم اختيار مستوى بديل تلقائيًا." }, 503, req), "suly_profile_disabled");
   }
-  const configuredMinimumTier = profileDefinition?.minimum_subscription_tier;
-  if (selectedProfileKey && (
-    typeof configuredMinimumTier !== "string"
-    || !isSubscriptionTierEligible(userTier, configuredMinimumTier)
-  )) {
-    return await failedResponse(jsonResponse({
-      error: `اشتراكك الحالي لا يتيح مستوى ${selectedProfileKey.toUpperCase()} وفق إعدادات الباقة. لم يتم تغيير اختيارك.`,
-      selected_profile: selectedProfileKey,
-      required_subscription_tier: typeof configuredMinimumTier === "string" ? configuredMinimumTier : null,
-    }, 403, req), "profile_subscription_unavailable");
-  }
+  // Model profiles are independent of subscription packages. Packages control
+  // credits and product limits; the selected model is charged by actual usage.
   if (selectedProfileKey && requestedProfileKey && requestedProfileKey !== "auto") {
     const needsWebSearch = shouldSearchWeb;
     const needsComplexExecution = profileIntent === "complex_task" && executionMode === "agent";
