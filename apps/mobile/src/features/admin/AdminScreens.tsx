@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocalSearchParams } from "expo-router";
 import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, StyleSheet, Switch, TextInput, TouchableOpacity, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { adminService, type PricingPlan, type PricingFeature } from "./admin-service";
 import { providerPresets, findPreset, type ProviderPreset } from "./provider-presets";
@@ -32,6 +33,7 @@ type ModelRow = {
   health: { auto_restricted?: boolean; consecutive_failures?: number; restriction_reason?: string | null; last_status?: string | null; total_attempts?: number; successful_attempts?: number; average_latency_ms?: number | null } | null;
   probe: { consecutive_scheduled_failures?: number; consecutive_scheduled_successes?: number; last_scheduled_status?: string | null; last_scheduled_at?: string | null; last_error_code?: string | null } | null;
 };
+type ModelPriceSummary = { provider_input_cost_egp_per_million: number; provider_output_cost_egp_per_million: number; selling_input_egp_per_million: number; selling_output_egp_per_million: number; currency: string; price_version: number };
 type AttemptRow = { attempt_status: string; duration_ms: number | null; error_code: string | null; error_reason: string | null; created_at: string };
 type ProbeLogRow = { run_type: "manual" | "scheduled"; status: "success" | "error" | "skipped"; duration_ms: number; error_code: string | null; checked_at: string; model_name: string; provider_name: string };
 type UserRow = { id: string; email: string; full_name: string | null; subscription_tier: string | null; is_banned: boolean; balance: number; reserved_balance: number };
@@ -40,6 +42,8 @@ type TransactionRow = { id?: string; user_id?: string; event_type: string; amoun
 type ModelCapabilityKey = "chat" | "vision" | "pdf" | "word" | "video" | "gmail" | "google_drive" | "github";
 type ModelCapabilityState = Record<ModelCapabilityKey, boolean>;
 const MODEL_CAPABILITY_OPTIONS: Array<[ModelCapabilityKey, string]> = [["chat", "نص"], ["vision", "قراءة الصور"], ["pdf", "PDF"], ["word", "Word / DOCX"], ["video", "فيديو"], ["gmail", "Gmail"], ["google_drive", "Google Drive"], ["github", "GitHub"]];
+const MODEL_CAPABILITY_ICONS: Record<ModelCapabilityKey, keyof typeof Ionicons.glyphMap> = { chat: "chatbubble-ellipses-outline", vision: "eye-outline", pdf: "document-text-outline", word: "document-outline", video: "videocam-outline", gmail: "mail-outline", google_drive: "logo-google-drive", github: "logo-github" };
+const formatModelPrice = (value: number | undefined, currency = "EGP") => value == null || !Number.isFinite(Number(value)) ? "—" : `${Number(value).toLocaleString("en-EG", { maximumFractionDigits: 4 })} ${currency}`;
 const MODEL_TASK_ROLE_OPTIONS: Array<[string, string]> = [["general", "عام (كل الأقسام)"], ["chat", "المحادثة"], ["planner", "التخطيط"], ["worker", "التنفيذ"], ["reviewer", "المراجعة"], ["summarizer", "التلخيص"]];
 function modelSupportsAgentRole(model: ModelRow, role: string): boolean {
   const roles = model.task_roles?.length ? model.task_roles : ["general"];
@@ -312,6 +316,7 @@ export function ModelsAdminScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { q } = useLocalSearchParams<{ q?: string }>();
   const [models, setModels] = useState<ModelRow[]>([]);
+  const [modelPrices, setModelPrices] = useState<Record<number, ModelPriceSummary>>({});
   const [search, setSearch] = useState(typeof q === "string" ? q : "");
   const [modelFilter, setModelFilter] = useState<"all" | "enabled" | "disabled" | "restricted">("enabled");
   const [settings, setSettings] = useState<Record<string, unknown> | null>(null);
@@ -364,8 +369,9 @@ export function ModelsAdminScreen() {
     if (showInitialLoader) setLoading(true);
     setError(null);
     try {
-      const result = await adminService.getModelsOverview();
+      const [result, priceRows] = await Promise.all([adminService.getModelsOverview(), adminService.getModelPriceVersions()]);
       setModels(result.models as ModelRow[]);
+      setModelPrices(Object.fromEntries((priceRows as Array<ModelPriceSummary & { model_id: number }>).map((row) => [Number(row.model_id), row])));
       const config = result.settings as Record<string, unknown> | null;
       setSettings(config);
       if (config) {
@@ -535,7 +541,7 @@ export function ModelsAdminScreen() {
               ] as const).map(([filter, label]) => <Pressable key={filter} accessibilityRole="button" accessibilityState={{ selected: modelFilter === filter }} onPress={() => setModelFilter(filter)} style={[styles.filterChip, modelFilter === filter && styles.filterChipSelected]}><Text style={[styles.filterText, modelFilter === filter && styles.filterTextSelected]}>{label}</Text></Pressable>)}
             </ScrollView>
             <Text style={styles.resultsCount}>عرض {filteredModels.length} من {models.length}</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator style={styles.modelTableScroller}><View style={styles.modelsTableHeader}><Text style={styles.modelsTableName}>النموذج / المزود</Text><Text style={styles.modelsTableMetric}>الحالة</Text><Text style={styles.modelsTableMetric}>الاستجابة</Text><Text style={styles.modelsTableMetric}>النجاح</Text><Text style={styles.modelsTableActions}>إجراءات</Text></View></ScrollView>
+            <ScrollView horizontal showsHorizontalScrollIndicator style={styles.modelTableScroller}><View style={styles.modelsTableHeader}><Text style={styles.modelsTableName}>النموذج / حساب المفتاح</Text><Text style={styles.modelsTableCapabilities}>القدرات</Text><Text style={styles.modelsTablePrice}>تكلفة الإدخال / 1M</Text><Text style={styles.modelsTablePrice}>تكلفة الإخراج / 1M</Text><Text style={styles.modelsTableMetric}>الحالة</Text><Text style={styles.modelsTableMetric}>الاستجابة</Text><Text style={styles.modelsTableActions}>إجراءات</Text></View></ScrollView>
             <Card><View style={styles.sectionRow}><View style={styles.batchCopy}><Text style={styles.sectionTitle}>اختبار شامل للنماذج</Text><Text style={styles.detail}>يختبر النماذج الظاهرة بالتوازي حتى 5 نماذج، باستخدام طلب قصير قليل التوكنز.</Text></View><PrimaryButton label={batchTesting ? "جارٍ الاختبار…" : `اختبار ${filteredModels.length} نموذج`} onPress={() => void testFilteredModels()} disabled={batchTesting || testingModelId !== null || filteredModels.length === 0} /></View>{Object.keys(batchResults).length > 0 ? <View style={styles.batchSummary}><Pressable onPress={() => setBatchFilter("success")}><Text style={styles.success}>الناجح: {Object.values(batchResults).filter((result) => result.status === "success").length}</Text></Pressable><Pressable onPress={() => setBatchFilter("error")}><Text style={styles.warning}>الفاشل: {Object.values(batchResults).filter((result) => result.status === "error").length}</Text></Pressable><Pressable onPress={() => setBatchFilter("all")}><Text style={styles.detail}>الكل</Text></Pressable><Text style={styles.detail}>تم اختبار: {Object.keys(batchResults).length}</Text></View> : null}</Card>
 
             <Card><View style={styles.healthProbeHeading}><View style={styles.sectionIcon}><Text style={styles.sectionIconText}>ϟ</Text></View><View style={styles.settingsHeadingText}><Text style={styles.sectionTitle}>مراقبة صحة النماذج</Text><Text style={styles.detail}>فحص تلقائي يوميًا الساعة 02:00 UTC لكل نموذج مفعّل ولكل مفتاح مرتبط به. يستخدم طلبًا قصيرًا بحد أقصى 16 token، ولا يخصم رصيد المستخدم؛ قد يستهلك استخدامًا لدى مزود الخدمة.</Text></View></View><Text style={styles.detail}>بعد 3 إخفاقات فحص متتالية يُستبعد النموذج آليًا من التوجيه، ويعود بعد نجاح فحصين متتاليين. الإيقاف اليدوي لا يُلغى بالفحص.</Text></Card>
@@ -551,10 +557,12 @@ export function ModelsAdminScreen() {
           const attempts = Number(model.health?.total_attempts ?? 0);
           const successRate = attempts ? `${Math.round(Number(model.health?.successful_attempts ?? 0) / attempts * 100)}%` : "—";
           return <ScrollView horizontal showsHorizontalScrollIndicator nestedScrollEnabled style={styles.modelTableScroller}><View style={styles.modelTableRow}>
-            <View style={styles.modelsTableName}><Text style={styles.cardTitle} numberOfLines={1}>{model.name}</Text><Text style={styles.modelTableSub} numberOfLines={1}>{model.provider_name} · {model.model_identifier}</Text><Text style={styles.modelTableSub}>مسار: {model.routing_group} · أولوية {model.priority}</Text><Text style={styles.modelTableSub}>القدرات: {MODEL_CAPABILITY_OPTIONS.filter(([key]) => parseModelCapabilityState(model.capabilities_json)[key]).map(([, label]) => label).join(" · ") || "غير محددة"}</Text></View>
+            <View style={styles.modelsTableName}><Text style={styles.cardTitle} numberOfLines={1}>{model.name}</Text><Text style={styles.modelTableSub} numberOfLines={1}>المزود / اسم المفتاح: {model.provider_name}</Text><Text style={styles.modelTableSub} numberOfLines={1}>{model.model_identifier}</Text><Text style={styles.modelTableSub}>مسار: {model.routing_group} · أولوية {model.priority}</Text></View>
+            <View style={styles.modelsTableCapabilities}>{MODEL_CAPABILITY_OPTIONS.filter(([key]) => parseModelCapabilityState(model.capabilities_json)[key]).map(([key, label]) => <Pressable key={key} onPress={() => void openModelDetails(model)} accessibilityRole="button" accessibilityLabel={`قدرة ${label} · فتح تفاصيل النموذج`} style={styles.capabilityIconButton}><Ionicons name={MODEL_CAPABILITY_ICONS[key]} size={16} color={colors.textSecondary} /></Pressable>)}</View>
+            <View style={styles.modelsTablePrice}><Text style={styles.modelMetricValue}>{formatModelPrice(modelPrices[model.id]?.provider_input_cost_egp_per_million, modelPrices[model.id]?.currency)}</Text><Text style={styles.modelTableSub}>بيع: {formatModelPrice(modelPrices[model.id]?.selling_input_egp_per_million, modelPrices[model.id]?.currency)}</Text></View>
+            <View style={styles.modelsTablePrice}><Text style={styles.modelMetricValue}>{formatModelPrice(modelPrices[model.id]?.provider_output_cost_egp_per_million, modelPrices[model.id]?.currency)}</Text><Text style={styles.modelTableSub}>بيع: {formatModelPrice(modelPrices[model.id]?.selling_output_egp_per_million, modelPrices[model.id]?.currency)}</Text></View>
             <View style={styles.modelsTableMetric}><Text style={[styles.statusBadgeText, statusTextStyle]}>{status}</Text></View>
             <View style={styles.modelsTableMetric}><Text style={styles.modelMetricValue}>{model.health?.average_latency_ms == null ? "—" : `${Math.round(model.health.average_latency_ms)}ms`}</Text></View>
-            <View style={styles.modelsTableMetric}><Text style={styles.modelMetricValue}>{batchResults[model.id] ? (batchResults[model.id].status === "success" ? "100%" : "0%") : successRate}</Text><Text style={styles.modelTableSub}>{attempts ? `${attempts} طلب` : "لا بيانات"}</Text></View>
             <View style={styles.modelsTableActions}>
               <Pressable accessibilityRole="button" onPress={() => void openModelDetails(model)} style={styles.detailsAction}><Text style={styles.link}>⚙  القيود وسجل الفحوص</Text></Pressable>
               <PrimaryButton label={testingModelId === model.id ? "جارٍ الفحص…" : "اختبار فوري"} onPress={() => void testModel(model)} disabled={busy || testingModelId !== null} />
@@ -845,9 +853,12 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
   modelsSectionHeader: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", marginTop: 8, gap: 10 },
   modelsTableHeader: { minWidth: 780, flexDirection: "row-reverse", alignItems: "center", backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.divider, borderRadius: 7, paddingVertical: 7, marginTop: 5 },
   modelTableScroller: { flexGrow: 0 },
-  modelTableRow: { minWidth: 780, flexDirection: "row-reverse", alignItems: "center", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.divider, backgroundColor: colors.surface },
-  modelsTableName: { width: 220, paddingHorizontal: 8, alignItems: "flex-end" },
-  modelsTableMetric: { width: 95, alignItems: "center", justifyContent: "center", paddingHorizontal: 5 },
+  modelTableRow: { minWidth: 1160, flexDirection: "row-reverse", alignItems: "center", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.divider, backgroundColor: colors.surface },
+  modelsTableName: { width: 225, paddingHorizontal: 8, alignItems: "flex-end" },
+  modelsTableCapabilities: { width: 125, flexDirection: "row-reverse", flexWrap: "wrap", gap: 5, alignItems: "center", justifyContent: "center", paddingHorizontal: 5 },
+  capabilityIconButton: { width: 25, height: 25, borderWidth: 1, borderColor: colors.divider, borderRadius: 7, alignItems: "center", justifyContent: "center" },
+  modelsTablePrice: { width: 135, alignItems: "center", justifyContent: "center", paddingHorizontal: 5, gap: 2 },
+  modelsTableMetric: { width: 90, alignItems: "center", justifyContent: "center", paddingHorizontal: 5 },
   modelsTableActions: { width: 275, flexDirection: "row-reverse", flexWrap: "wrap", gap: 4, alignItems: "center", paddingHorizontal: 5 },
   modelTableSub: { color: colors.textMuted, fontSize: 8, textAlign: "right", maxWidth: 205 },
   modelMetricValue: { color: colors.textPrimary, fontSize: 10, fontWeight: "800" },
