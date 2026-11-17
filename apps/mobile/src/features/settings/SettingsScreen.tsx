@@ -20,8 +20,8 @@ export default function SettingsScreen() {
   const { show } = useToast();
   const router = useRouter();
   const { colors, mode, effectiveMode, setMode } = useSulyTheme();
-  const styles = useMemo(() => createStyles(colors, isArabic), [colors, isArabic]);
   const { language, isArabic, setLanguage } = useAppLocale();
+  const styles = useMemo(() => createStyles(colors, isArabic), [colors, isArabic]);
   const [adminAccess, setAdminAccess] = useState<{ userId: string | null; state: "checking" | "allowed" | "denied" | "error" }>({ userId: null, state: "checking" });
   const [savedProfileName, setSavedProfileName] = useState<string | null>(null);
   const [profileEditVisible, setProfileEditVisible] = useState(false);
