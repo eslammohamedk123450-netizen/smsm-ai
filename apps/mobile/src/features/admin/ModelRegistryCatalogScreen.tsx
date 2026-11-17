@@ -87,7 +87,7 @@ export function ModelRegistryCatalogScreen() {
       if (registry.error) throw registry.error;
       if (providers.error) throw providers.error;
       const providerById = new Map<number, { name: string; provider_type: string; enabled: boolean }>(
-        (providers.data ?? []).map((item) => [Number(item.id), { name: String(item.name ?? "—"), provider_type: String(item.provider_type ?? "—"), enabled: item.enabled === true }])
+        ((providers.data ?? []) as Array<{ id: number; name: string; provider_type: string; enabled: boolean }>).map((item) => [Number(item.id), { name: String(item.name ?? "—"), provider_type: String(item.provider_type ?? "—"), enabled: item.enabled === true }])
       );
       const chatById = new Map<number, { enabled: boolean; routing_group: string }>(
         (chat.data ?? []).map((item) => [Number(item.id), { enabled: item.enabled === true, routing_group: String(item.routing_group ?? "") }])
