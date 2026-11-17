@@ -391,7 +391,9 @@ export default function ChatPage() {
           id = conversation.id;
           setConversationId(id);
           internalConversationTransitionRef.current = id;
-          router.replace({ pathname: "/(protected)/chat", params: { conversationId: id } });
+          // Update the current route params without replacing/remounting the chat screen.
+          // The active message list and in-flight stream must survive first-send navigation.
+          router.setParams({ conversationId: id });
         }
         const conversationKey = id;
         streamedTextRef.current = "";
