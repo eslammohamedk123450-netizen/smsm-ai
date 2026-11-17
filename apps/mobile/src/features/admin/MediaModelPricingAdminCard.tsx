@@ -22,7 +22,7 @@ type MediaPriceRow = {
 const money = (value: number) => Number(value).toLocaleString("en-EG", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
 const serviceLabel: Record<MediaPriceRow["service_type"], string> = { image: "صورة", video: "ثانية فيديو", audio: "دقيقة صوت" };
 
-export function MediaModelPricingAdminCard() {
+export function MediaModelPricingAdminCard({ serviceType }: { serviceType?: "image" | "video" | "audio" } = {}) {
   const { colors } = useSulyTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [rows, setRows] = useState<MediaPriceRow[]>([]);
@@ -52,8 +52,8 @@ export function MediaModelPricingAdminCard() {
 
   const visibleRows = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
-    return rows.filter((row) => !query || `${row.display_name} ${row.model_identifier} ${row.service_type}`.toLocaleLowerCase().includes(query));
-  }, [rows, search]);
+    return rows.filter((row) => (!serviceType || row.service_type === serviceType) && (!query || `${row.display_name} ${row.model_identifier} ${row.service_type}`.toLocaleLowerCase().includes(query)));
+  }, [rows, search, serviceType]);
   const selected = rows.find((row) => row.id === selectedId) ?? null;
 
   const select = (row: MediaPriceRow) => {
@@ -100,7 +100,7 @@ export function MediaModelPricingAdminCard() {
   return <View style={styles.card}>
     <View style={styles.header}>
       <View style={styles.headerCopy}>
-        <Text style={styles.title}>أسعار الصور والفيديو والصوت</Text>
+        <Text style={styles.title}>{serviceType === "image" ? "أسعار نماذج الصور" : serviceType === "video" ? "أسعار نماذج الفيديو" : serviceType === "audio" ? "أسعار نماذج الصوت" : "أسعار الصور والفيديو والصوت"}</Text>
         <Text style={styles.subtitle}>22 نموذجًا · تكلفة المزود وسعر البيع بالجنيه · زيادة ثابتة 40%</Text>
       </View>
       <Pressable onPress={() => void load()} style={styles.refresh}><Text style={styles.refreshText}>تحديث</Text></Pressable>
