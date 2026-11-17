@@ -79,15 +79,15 @@ const answer = 42;
     ]);
   });
 
-  it("keeps malformed flowchart and dashboard payloads as code", () => {
-    expect(parseMarkdownBlocks("```flow\n{\"steps\":[\"واحد\"]}\n```")[0].type).toBe("code");
-    expect(parseMarkdownBlocks("```dashboard\n{\"metrics\":[]}\n```")[0].type).toBe("code");
+  it("shows a readable fallback for malformed flowchart and dashboard payloads", () => {
+    expect(parseMarkdownBlocks("```flow\n{\"steps\":[\"واحد\"]}\n```")[0]).toEqual({ type: "paragraph", text: "تعذر إنشاء العنصر المرئي بتنسيق صالح. أعد طلب الرسم أو المخطط وسأحاول إنشاءه من جديد." });
+    expect(parseMarkdownBlocks("```dashboard\n{\"metrics\":[]}\n```")[0]).toEqual({ type: "paragraph", text: "تعذر إنشاء العنصر المرئي بتنسيق صالح. أعد طلب الرسم أو المخطط وسأحاول إنشاءه من جديد." });
   });
 
-  it("keeps invalid chart payloads visible as code", () => {
+  it("shows a readable fallback for invalid chart payloads", () => {
     const input = "```chart\n{\"type\":\"pie\",\"labels\":[\"A\"],\"values\":[1]}\n```";
     expect(parseMarkdownBlocks(input)).toEqual([
-      { type: "code", language: "chart", code: "{\"type\":\"pie\",\"labels\":[\"A\"],\"values\":[1]}" },
+      { type: "paragraph", text: "تعذر إنشاء العنصر المرئي بتنسيق صالح. أعد طلب الرسم أو المخطط وسأحاول إنشاءه من جديد." },
     ]);
   });
 
