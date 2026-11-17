@@ -93,14 +93,14 @@ const styles = StyleSheet.create({
     height: 120,
     borderRadius: 30,
     backgroundColor: "#000000",
-    shadowColor: "#00E5FF",
+    shadowColor: "#FFFFFF",
     shadowRadius: 28,
-    shadowOpacity: 0.75,
+    shadowOpacity: 0.16,
     shadowOffset: { width: 0, height: 0 },
     elevation: 20,
     ...Platform.select({
       web: {
-        filter: "drop-shadow(0 0 28px rgba(0, 229, 255, 0.75))",
+        filter: "drop-shadow(0 0 24px rgba(255, 255, 255, 0.16))",
       },
     }),
   },
