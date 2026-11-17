@@ -58,16 +58,9 @@ function InlineFlow({ text, styles }: { text: string; styles: ReturnType<typeof 
       ? <Image key={`image-${index}`} source={{ uri: token.url }} style={styles.image} resizeMode="contain" accessibilityLabel={token.text || "صورة في الرسالة"} />
       : token.type === "link" && token.url
         ? <Pressable key={`link-${index}`} onPress={() => { void Linking.openURL(token.url!).catch(() => undefined); }} accessibilityRole="link"><Text style={[styles.body, styles.link]}>{token.text}</Text></Pressable>
-        : <Text key={`token.type-index`} style={[styles.body, tokenStyle(token, styles)]}>{token.text}</Text>)}
+        : <Text key={`${token.type}-${index}`} style={[styles.body, tokenStyle(token, styles)]}>{token.text}</Text>)}
   </View>;
 }
-
-function TokenRun({ tokens, style, styles }: { tokens: InlineToken[]; style?: object; styles: ReturnType<typeof createStyles> }) {
-  return <Text style={[styles.body, style]}>{tokens.map((token, index) => (
-    <Text key={`token.type-index`} style={tokenStyle(token, styles)} onPress={token.type === "link" && token.url ? () => { void Linking.openURL(token.url!).catch(() => undefined); } : undefined}>{token.text}</Text>
-  ))}</Text>;
-}
-
 
 function toArabicDigits(value: number): string {
   return String(value).replace(/\d/g, (digit) => "٠١٢٣٤٥٦٧٨٩"[Number(digit)]);
@@ -75,7 +68,7 @@ function toArabicDigits(value: number): string {
 
 function TokenRun({ tokens, style, styles }: { tokens: InlineToken[]; style?: object; styles: ReturnType<typeof createStyles> }) {
   return <Text style={[styles.body, style]}>{tokens.map((token, index) => (
-    <Text key={`${token.type}-${index}`} style={tokenStyle(token, styles)}>{token.text}</Text>
+    <Text key={`${token.type}-${index}`} style={tokenStyle(token, styles)} onPress={token.type === "link" && token.url ? () => { void Linking.openURL(token.url!).catch(() => undefined); } : undefined}>{token.text}</Text>
   ))}</Text>;
 }
 
