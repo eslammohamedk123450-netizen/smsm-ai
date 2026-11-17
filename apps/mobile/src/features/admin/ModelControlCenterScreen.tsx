@@ -8,6 +8,7 @@ import { adminService } from "./admin-service";
 import { UnifiedModelCapabilitiesAdminCard } from "./UnifiedModelCapabilitiesAdminCard";
 import { MediaModelPricingAdminCard } from "./MediaModelPricingAdminCard";
 import { RouteModelChainsCard } from "./RouteModelChainsCard";
+import { AgentRoleProfilesAdminCard } from "./AgentRoleProfilesAdminCard";
 
 type ModelRow = {
   id: number; name: string; model_identifier: string; provider_name: string;
@@ -80,8 +81,12 @@ export function ModelControlCenterScreen() {
       <UnifiedModelCapabilitiesAdminCard />
     </Section>
 
-    <Section title="تعيينات Brain وسلاسل النماذج" description="تحديد ترتيب النماذج لوظائف الدردشة والتخطيط والتنفيذ والمراجعة والتلخيص.">
+    <Section title="توجيه النماذج داخل الوكيل المركزي" description="تحديد النماذج الأساسية والاحتياطية المؤهلة لكل مسار، دون إنشاء وكلاء أو عقول مستقلة.">
       {!loading ? <RouteModelChainsCard models={models} /> : null}
+    </Section>
+
+    <Section title="أدوار الوكيل المركزي" description="إدارة تفضيلات نماذج المدير/المنسق والمخطط والمفكر والمنفذ والمراجع والملخص. تظل جميع الأدوار تحت قرار الوكيل المركزي الواحد.">
+      <AgentRoleProfilesAdminCard />
     </Section>
 
     <Section title="تسعير خدمات الوسائط" description="إعدادات التكلفة وسعر البيع محفوظة كما هي، ولا تتغير بسبب توحيد واجهة الإدارة.">
