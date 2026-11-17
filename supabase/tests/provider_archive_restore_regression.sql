@@ -21,6 +21,18 @@ begin
     raise exception 'provider lifecycle snapshots must have an explicit deny policy for client roles';
   end if;
 
+  if not exists (
+    select 1 from pg_policies
+    where schemaname='public' and tablename='suly_admin_custom_pages'
+      and policyname='suly_admin_custom_pages_no_client_access'
+  ) or not exists (
+    select 1 from pg_policies
+    where schemaname='public' and tablename='suly_admin_custom_page_versions'
+      and policyname='suly_admin_custom_page_versions_no_client_access'
+  ) then
+    raise exception 'custom admin page tables must have explicit deny policies for client roles';
+  end if;
+
   if has_table_privilege('anon','public.ai_provider_lifecycle_snapshots','select')
      or has_table_privilege('authenticated','public.ai_provider_lifecycle_snapshots','select') then
     raise exception 'client roles must not read provider lifecycle snapshots';
