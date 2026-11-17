@@ -105,7 +105,7 @@ export function MediaModelsCatalogScreen() {
       <View style={styles.headerCopy}><Text style={styles.title}>{TITLES[kind]}</Text><Text style={styles.subtitle}>كتالوج موحد · الأسعار الفعلية المسجلة · القدرات الموثقة</Text></View>
     </View>
     <View style={styles.tabs}>
-      {(["image", "video", "transcription", "voice"] as Kind[]).map((item) => <Link key={item} href={`/admin/media-catalog?kind=${item}`} asChild><Pressable style={[styles.tab, item === kind && styles.tabActive]}><Text style={[styles.tabText, item === kind && styles.tabTextActive]}>{TITLES[item]}</Text></Pressable></Link>)}
+      {(["image", "video", "transcription", "voice"] as Kind[]).map((item) => <Link key={item} href={`/admin/media-catalog?kind=${item}`} asChild><Pressable style={StyleSheet.flatten([styles.tab, item === kind && styles.tabActive])}><Text style={[styles.tabText, item === kind && styles.tabTextActive]}>{TITLES[item]}</Text></Pressable></Link>)}
     </View>
     <TextInput value={search} onChangeText={setSearch} placeholder="ابحث باسم النموذج أو المزود أو المعرّف" placeholderTextColor={colors.textMuted} style={styles.search} />
     {error ? <View style={styles.errorBox}><Text style={styles.errorText}>{error}</Text><Pressable onPress={() => void load()} style={styles.retryButton}><Text style={styles.retryText}>إعادة المحاولة</Text></Pressable></View> : null}
