@@ -1163,13 +1163,33 @@ async function handleRequest(req: Request): Promise<Response> {
       return await failedResponse(jsonResponse({ error: "تعذر تحميل إعدادات مستوى SULY المحدد. لم يتم تغيير اختيارك." }, 503, req), "suly_profile_unavailable");
     }
   }
+  // During a coordinated rollout the new Edge Function can reach production
+  // before the additive Free-profile migration. The existing model allowlist
+  // still restricts this fallback to Free-eligible free_race models.
+  const freeProfileFallback = !profileAssignmentsError
+    && selectedProfileKey === "free"
+    && userTier === "free"
+    && !profileDefinitionResult.data
+    ? {
+        capabilities_json: {
+          chat: true,
+          web_search: false,
+          quick_tasks: true,
+          multi_step_agent: false,
+          advanced_reasoning: false,
+        },
+        is_active: true,
+        minimum_subscription_tier: "free",
+      }
+    : null;
+  const profileDefinition = profileDefinitionResult.data ?? freeProfileFallback;
   const profileCapabilities = selectedProfileKey
-    ? (profileDefinitionResult.data?.capabilities_json ?? {}) as Record<string, unknown>
+    ? (profileDefinition?.capabilities_json ?? {}) as Record<string, unknown>
     : {};
-  if (selectedProfileKey && profileDefinitionResult.data?.is_active !== true) {
+  if (selectedProfileKey && profileDefinition?.is_active !== true) {
     return await failedResponse(jsonResponse({ error: "مستوى SULY المحدد غير مفعّل حاليًا. لم يتم اختيار مستوى بديل تلقائيًا." }, 503, req), "suly_profile_disabled");
   }
-  const configuredMinimumTier = profileDefinitionResult.data?.minimum_subscription_tier;
+  const configuredMinimumTier = profileDefinition?.minimum_subscription_tier;
   if (selectedProfileKey && (
     typeof configuredMinimumTier !== "string"
     || !isSubscriptionTierEligible(userTier, configuredMinimumTier)
