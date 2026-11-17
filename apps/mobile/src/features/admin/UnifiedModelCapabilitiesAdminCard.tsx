@@ -33,6 +33,11 @@ const TEST: Array<[string,string]> = [["not_tested","لم يُختبر"],["passe
 const REVIEW: Record<ReviewStatus,string> = {
   suggested:"اقتراح جديد", legacy_unreviewed:"قديم - يحتاج مراجعة", approved:"معتمد", rejected:"مرفوض",
 };
+const MEDIA_CAPABILITIES: Record<Exclude<ServiceType,"chat">, string[]> = {
+  image:["text","image_generation","vision"],
+  video:["text","video_generation","video_input","vision","audio_output"],
+  audio:["text","audio_input","audio_output","transcription"],
+};
 
 export function UnifiedModelCapabilitiesAdminCard() {
   const { colors } = useSulyTheme();
@@ -79,7 +84,15 @@ export function UnifiedModelCapabilitiesAdminCard() {
     return models.filter(m => !q || `${m.display_name} ${m.model_identifier} ${m.service_type}`.toLocaleLowerCase().includes(q)).slice(0,60);
   },[models,search]);
   const selected = models.find(m=>m.model_id===selectedId) ?? null;
+  const availableCapabilities = selected && selected.service_type!=="chat"
+    ? CAPABILITIES.filter(([key])=>MEDIA_CAPABILITIES[selected.service_type as Exclude<ServiceType,"chat">].includes(key))
+    : CAPABILITIES;
   const current = rows.find(r=>r.model_id===selectedId && r.capability_key===capability) ?? null;
+  useEffect(() => {
+    if(availableCapabilities.length && !availableCapabilities.some(([key])=>key===capability)) {
+      setCapability(availableCapabilities[0][0]);
+    }
+  },[selectedId]);
 
   useEffect(() => {
     setVendor(current?.vendor_claim_status ?? "unknown");
@@ -144,7 +157,7 @@ export function UnifiedModelCapabilitiesAdminCard() {
     <View style={styles.wrap}>{visibleModels.map(m=><Pressable key={m.model_id} onPress={()=>setSelectedId(m.model_id)} style={[styles.chip,selectedId===m.model_id&&styles.selected]}><Text style={styles.chipText}>{m.display_name} · {m.service_type}</Text></Pressable>)}</View>
     {models.length>60?<Text style={styles.hint}>يتم عرض أول 60 نتيجة؛ استخدم البحث لتضييق القائمة.</Text>:null}
     {selected?<Text style={styles.selectedName}>{selected.display_name} · {selected.model_identifier} · المزود #{selected.provider_id} · {selected.lifecycle_state==="active"?"مفعّل في الكتالوج":selected.lifecycle_state==="archived"?"مؤرشف":"مرشح للمراجعة"}</Text>:null}
-    <View style={styles.wrap}>{CAPABILITIES.map(([key,label])=><Pressable key={key} onPress={()=>setCapability(key)} style={[styles.chip,capability===key&&styles.selected]}><Text style={styles.chipText}>{label}</Text></Pressable>)}</View>
+    <View style={styles.wrap}>{availableCapabilities.map(([key,label])=><Pressable key={key} onPress={()=>setCapability(key)} style={[styles.chip,capability===key&&styles.selected]}><Text style={styles.chipText}>{label}</Text></Pressable>)}</View>
     {current?<Text style={styles.review}>حالة المراجعة الحالية: {REVIEW[current.review_status ?? "suggested"]}</Text>:<Text style={styles.hint}>لا يوجد سجل لهذه القدرة بعد. حفظها ينشئ سجلًا جديدًا.</Text>}
     {capability==="text" && selected?.legacy_chat_model_id ? <View style={styles.probeRow}><View style={styles.copy}><Text style={styles.label}>اختبار اتصال النص الفعلي</Text><Text style={styles.hint}>الاختبار لا يعتمد القدرة تلقائيًا ولا يغير إعدادات التوجيه.</Text></View><Pressable disabled={testing||loading} onPress={()=>void runTextProbe()} style={[styles.probe, (testing||loading)&&styles.disabled]}><Text style={styles.saveText}>{testing?"جارٍ الاختبار…":"اختبار النص"}</Text></Pressable></View>:null}
     {loading?<ActivityIndicator color={colors.primary}/>:null}
