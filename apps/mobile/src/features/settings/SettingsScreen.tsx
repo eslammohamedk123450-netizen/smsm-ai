@@ -275,7 +275,7 @@ export default function SettingsScreen() {
         </View>
 
         <TouchableOpacity activeOpacity={0.7} style={styles.logoutButton} onPress={confirmLogout} disabled={loggingOut} accessibilityRole="button">
-          {loggingOut ? <ActivityIndicator color="#F87171" /> : <Text style={styles.logoutText}>{isArabic ? "تسجيل الخروج" : "Sign out"}</Text>}
+          {loggingOut ? <ActivityIndicator color={colors.textPrimary} /> : <Text style={styles.logoutText}>{isArabic ? "تسجيل الخروج" : "Sign out"}</Text>}
         </TouchableOpacity>
       </ScrollView>
 
@@ -399,6 +399,6 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   cancelActionText: { color: colors.textPrimary, fontWeight: "600" },
   saveAction: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
   saveActionText: { color: colors.onPrimary, fontWeight: "700" },
-  dangerAction: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: "#1F2937", alignItems: "center", justifyContent: "center" },
+  dangerAction: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: colors.surfaceElevated, alignItems: "center", justifyContent: "center" },
   dangerActionText: { color: colors.textPrimary, fontWeight: "700" },
 });
