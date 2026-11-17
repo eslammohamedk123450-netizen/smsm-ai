@@ -17,16 +17,16 @@ Deno.test("manual profile selection is never silently downgraded for a simple re
   if (result.profileKey !== "pro" || result.mode !== "manual" || !result.allowed) throw new Error("Manual Pro selection must remain Pro.");
 });
 
-Deno.test("manual selection above subscription entitlement is rejected, not downgraded", () => {
+Deno.test("Pro subscribers can manually select Max without silent downgrade", () => {
   const result = resolveSulyProfileKey({ requestedProfileKey: "max", userTier: "pro", intent: "complex_task" });
-  if (result.profileKey !== "max" || result.mode !== "manual" || result.allowed) throw new Error("Unavailable Max selection must be rejected.");
+  if (result.profileKey !== "max" || result.mode !== "manual" || !result.allowed) throw new Error("Pro subscribers should be allowed to select Max.");
 });
 
 Deno.test("configured profile minimum tier is enforced from the database value", () => {
   if (!isSubscriptionTierEligible("free", "free")) throw new Error("Free should access a free minimum profile.");
   if (!isSubscriptionTierEligible("pro", "lite")) throw new Error("Pro should inherit Lite access.");
   if (!isSubscriptionTierEligible("max", "pro")) throw new Error("Max should inherit Pro access.");
-  if (isSubscriptionTierEligible("pro", "max")) throw new Error("Pro must not access a Max-only profile.");
+  if (!isSubscriptionTierEligible("pro", "pro")) throw new Error("Pro should access the Max profile, whose minimum tier is Pro.");
   if (isSubscriptionTierEligible("unknown", "free")) throw new Error("Unknown user tiers must fail closed.");
   if (isSubscriptionTierEligible("max", "unknown")) throw new Error("Unknown profile tiers must fail closed.");
 });
