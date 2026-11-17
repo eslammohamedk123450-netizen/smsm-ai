@@ -867,7 +867,7 @@ async function handleRequest(req: Request): Promise<Response> {
   const maxOutputChars = outputLimitForRequest(mind.intent, latestUserMessage, maxTokens);
   const streamRequested = body.stream === true;
   let himsActivated = profile.hims_activated === true;
-  const discussesEducationalResources = /(?:محاضر|كورسات|دروس|منهج|شهادة|مواد دراسية|مقرر|lectures?|courses?|lessons?|syllabus|certificates?)/iu.test(latestUserMessage);
+  const discussesEducationalResources = /(?:محاضر|كورسات?|دروس?|منهج|مادة دراسية|مواد دراسية|مقرر|lectures?|courses?|lessons?|syllabus)/iu.test(latestUserMessage);
   let himsContextAllowed = himsActivated && (containsHimsReference(latestUserMessage) || discussesEducationalResources);
   let identityContext = buildSulyIdentityContext(himsActivated, himsContextAllowed);
   let userMetadata = identityContext.userMetadata;
@@ -2853,8 +2853,12 @@ async function handleRequest(req: Request): Promise<Response> {
       : null;
     const messageId = await persistAssistantText(supabase, conversationId, user.id, billingTaskId, selected?.model.id ?? null, content);
     const completedSkillSteps = loopResult.steps.filter((step) => step.kind === "tool" && step.status === "completed" && typeof step.tool === "string");
-    if (!internalBrainCall && loopResult.status === "completed" && reviewVerdict !== "rejected" && !agentCancellationObserved && completedSkillSteps.length > 0) {
-      await storeLearnedSkillCandidate({
+    if (!internalBrainCall && loopResult.status === "completed" && reviewVerdict !== "rejected" && !agentCancellationObserved) {
+      const explicitSkill = extractExplicitSkillLearningRequest(latestUserMessage, content);
+      if (explicitSkill) await storeLearnedSkillCandidate({
+        supabase, userId: user.id, ...explicitSkill, sourceKind: "conversation", sourceRef: conversationId, confidence: 0.9,
+      });
+      if (completedSkillSteps.length > 0) await storeLearnedSkillCandidate({
         supabase,
         userId: user.id,
         name: makeSkillTitle(latestUserMessage),
