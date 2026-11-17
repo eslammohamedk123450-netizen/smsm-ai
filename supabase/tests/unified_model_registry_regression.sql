@@ -24,6 +24,17 @@ begin
   if not (select relrowsecurity from pg_class where oid='public.suly_model_capabilities'::regclass) then
     raise exception 'RLS must be enabled on suly_model_capabilities';
   end if;
+  if has_table_privilege('authenticated','public.suly_model_registry','INSERT')
+     or has_table_privilege('authenticated','public.suly_model_registry','UPDATE')
+     or has_table_privilege('authenticated','public.suly_model_registry','DELETE')
+     or has_table_privilege('authenticated','public.suly_model_capabilities','INSERT')
+     or has_table_privilege('authenticated','public.suly_model_capabilities','UPDATE')
+     or has_table_privilege('authenticated','public.suly_model_capabilities','DELETE')
+     or has_table_privilege('authenticated','public.suly_model_route_assignments','INSERT')
+     or has_table_privilege('authenticated','public.suly_model_route_assignments','UPDATE')
+     or has_table_privilege('authenticated','public.suly_model_route_assignments','DELETE') then
+    raise exception 'canonical model tables must only be changed through audited admin RPCs and compatibility triggers';
+  end if;
   if has_function_privilege('anon',v_list_fn,'EXECUTE') or has_function_privilege('anon',v_audit_fn,'EXECUTE') or has_function_privilege('anon',v_route_fn,'EXECUTE') or has_function_privilege('anon',v_save_fn,'EXECUTE') then
     raise exception 'anon must not execute unified model admin RPCs';
   end if;
