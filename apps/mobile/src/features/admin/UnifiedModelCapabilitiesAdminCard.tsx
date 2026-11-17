@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { supabase } from "../../lib/supabase/client";
 import { adminService } from "./admin-service";
@@ -29,6 +30,15 @@ const CAPABILITIES: Array<[string, string]> = [
   ["computer_use","استخدام الكمبيوتر"],["code_interpreter","تنفيذ الكود"],["mcp_tools","أدوات MCP"],
   ["gmail","Gmail"],["google_drive","Google Drive"],["github","GitHub"],
 ];
+const CAPABILITY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
+  text: "text-outline", chat: "chatbubble-ellipses-outline", vision: "eye-outline",
+  pdf_input: "document-text-outline", file_input: "folder-outline", video_input: "videocam-outline",
+  audio_input: "mic-outline", audio_output: "volume-high-outline", image_generation: "image-outline",
+  video_generation: "film-outline", transcription: "ear-outline", function_calling: "git-branch-outline",
+  structured_output: "code-slash-outline", streaming: "radio-outline", web_search: "search-outline",
+  file_search: "folder-outline", computer_use: "desktop-outline", code_interpreter: "code-slash-outline",
+  mcp_tools: "hardware-chip-outline", gmail: "mail-outline", google_drive: "cloud-outline", github: "logo-github",
+};
 const VENDOR: Array<[string,string]> = [["unknown","غير معروف"],["supported","مدعوم رسميًا"],["unsupported","غير مدعوم"]];
 const TEST: Array<[string,string]> = [["not_tested","لم يُختبر"],["passed","نجح"],["failed","فشل"]];
 const REVIEW: Record<ReviewStatus,string> = {
@@ -138,6 +148,51 @@ export function UnifiedModelCapabilitiesAdminCard() {
     finally { setSaving(false); }
   };
 
+  const linkedModels = useMemo(() => {
+    const ids = new Set(rows.filter((row) => row.capability_key === capability).map((row) => row.model_id));
+    return models.filter((model) => ids.has(model.model_id));
+  }, [models, rows, capability]);
+
+  const addableModels = useMemo(() => {
+    const linkedIds = new Set(linkedModels.map((model) => model.model_id));
+    const query = search.trim().toLocaleLowerCase();
+    return models.filter((model) => {
+      if (linkedIds.has(model.model_id)) return false;
+      if (model.service_type !== "chat") {
+        const allowed = MEDIA_CAPABILITIES[model.service_type as Exclude<ServiceType, "chat">] ?? [];
+        if (!allowed.includes(capability)) return false;
+      }
+      return !query || `${model.display_name} ${model.model_identifier} ${model.provider_name ?? ""}`.toLocaleLowerCase().includes(query);
+    }).slice(0, 40);
+  }, [models, linkedModels, capability, search]);
+
+  const addModelToCapability = async (model: ModelRow) => {
+    setSaving(true); setError(null); setNotice(null);
+    try {
+      const { data, error: rpcError } = await supabase.rpc("suly_admin_save_unified_model_capability", {
+        p_model_id: model.model_id,
+        p_capability_key: capability,
+        p_vendor_claim_status: "unknown",
+        p_vendor_evidence_url: null,
+        p_provider_test_status: "not_tested",
+        p_provider_evidence_url: null,
+        p_suly_test_status: "not_tested",
+        p_suly_evidence_url: null,
+        p_notes: "أضيف من دليل القدرات؛ يحتاج مراجعة واختبار قبل الاعتماد.",
+        p_review_status: "suggested",
+      });
+      if (rpcError) throw rpcError;
+      if (data?.success !== true) throw new Error("لم تؤكد قاعدة البيانات إضافة القدرة.");
+      setSelectedId(model.model_id);
+      setNotice(`تمت إضافة ${model.display_name} إلى القدرة كاقتراح يحتاج مراجعة.`);
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذرت إضافة النموذج إلى القدرة.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const runTextProbe = async () => {
     if(!selected?.legacy_chat_model_id || capability!=="text") return;
     setTesting(true);setError(null);setNotice(null);
@@ -160,7 +215,55 @@ export function UnifiedModelCapabilitiesAdminCard() {
       <Text style={styles.metric}>قدرات تحتاج مراجعة: {rows.filter(r=>r.capability_key && (r.review_status==="suggested"||r.review_status==="legacy_unreviewed")).length}</Text>
       <Text style={styles.metric}>المعتمدة: {rows.filter(r=>r.review_status==="approved").length}</Text>
     </View>
-    <TextInput value={search} onChangeText={setSearch} placeholder="ابحث عن نموذج أو معرّف" placeholderTextColor={colors.textMuted} style={styles.input}/>
+    <View style={styles.directoryHeader}>
+      <View style={styles.copy}>
+        <Text style={styles.label}>مكتبة القدرات</Text>
+        <Text style={styles.hint}>اختر أيقونة القدرة لعرض النماذج المرتبطة بها أو إضافة نماذج جديدة.</Text>
+      </View>
+      <Text style={styles.metric}>{CAPABILITIES.length} قدرة</Text>
+    </View>
+    <View style={styles.capabilityGrid}>
+      {CAPABILITIES.map(([key, label]) => {
+        const count = new Set(rows.filter((row) => row.capability_key === key).map((row) => row.model_id)).size;
+        const active = capability === key;
+        return <Pressable key={key} onPress={() => { setCapability(key); setNotice(null); }} style={[styles.capabilityTile, active && styles.capabilityTileActive]}>
+          <Ionicons name={CAPABILITY_ICONS[key] ?? "extension-puzzle-outline"} size={20} color={active ? colors.primary : colors.textSecondary}/>
+          <Text style={styles.capabilityTileLabel}>{label}</Text>
+          <Text style={styles.capabilityCount}>{count} نموذج</Text>
+        </Pressable>;
+      })}
+    </View>
+    <View style={styles.directoryHeader}>
+      <View style={styles.copy}>
+        <Text style={styles.label}>النماذج المرتبطة: {CAPABILITIES.find(([key]) => key === capability)?.[1] ?? capability}</Text>
+        <Text style={styles.hint}>الإضافة تنشئ سجلًا مقترحًا فقط؛ لا تفعّل النموذج ولا تمنحه أهلية التوجيه.</Text>
+      </View>
+      <Text style={styles.metric}>{linkedModels.length}</Text>
+    </View>
+    {linkedModels.length ? linkedModels.map((model) => {
+      const evidence = rows.find((row) => row.model_id === model.model_id && row.capability_key === capability);
+      return <Pressable key={model.model_id} onPress={() => setSelectedId(model.model_id)} style={styles.modelListRow}>
+        <View style={styles.modelListCopy}>
+          <Text style={styles.modelListName}>{model.display_name}</Text>
+          <Text style={styles.modelListMeta}>{model.provider_name ?? `المزود #${model.provider_id}`} · {model.service_type} · {model.lifecycle_state === "active" ? "نشط في السجل" : model.lifecycle_state === "archived" ? "مؤرشف" : "مرشح"}</Text>
+          <Text style={styles.modelListMeta}>المراجعة: {REVIEW[evidence?.review_status ?? "suggested"]} · الاختبار: {evidence?.suly_test_status === "passed" ? "نجح" : evidence?.suly_test_status === "failed" ? "فشل" : "لم يُختبر"}</Text>
+        </View>
+        <Ionicons name="chevron-forward-outline" size={18} color={colors.textMuted}/>
+      </Pressable>;
+    }) : <Text style={styles.hint}>لا توجد نماذج مرتبطة بهذه القدرة حتى الآن.</Text>}
+    <TextInput value={search} onChangeText={setSearch} placeholder="ابحث لإضافة نموذج بالاسم أو جزء من المعرف..." placeholderTextColor={colors.textMuted} style={styles.input}/>
+    {addableModels.length ? addableModels.map((model) => <View key={model.model_id} style={styles.modelListRow}>
+      <View style={styles.modelListCopy}>
+        <Text style={styles.modelListName}>{model.display_name}</Text>
+        <Text style={styles.modelListMeta}>{model.provider_name ?? `المزود #${model.provider_id}`} · {model.model_identifier} · {model.service_type}</Text>
+      </View>
+      <Pressable disabled={saving} onPress={() => void addModelToCapability(model)} style={[styles.addModelButton, saving && styles.disabled]}>
+        <Ionicons name="add" size={16} color={colors.onPrimary}/>
+        <Text style={styles.addModelText}>إضافة</Text>
+      </Pressable>
+    </View>) : <Text style={styles.hint}>لا توجد نماذج أخرى مطابقة لهذه القدرة والبحث الحالي.</Text>}
+    <Text style={styles.label}>مراجعة أدلة النموذج</Text>
+    <TextInput value={search} onChangeText={setSearch} placeholder="ابحث عن نموذج لفتح ملف مراجعته..." placeholderTextColor={colors.textMuted} style={styles.input}/>
     <View style={styles.wrap}>{visibleModels.map(m=><Pressable key={m.model_id} onPress={()=>setSelectedId(m.model_id)} style={[styles.chip,selectedId===m.model_id&&styles.selected]}><Text style={styles.chipText}>{m.display_name} · {m.provider_name ?? `مزود #${m.provider_id}`} · {m.service_type}</Text></Pressable>)}</View>
     {models.length>60?<Text style={styles.hint}>يتم عرض أول 60 نتيجة؛ استخدم البحث لتضييق القائمة.</Text>:null}
     {selected?<Text style={styles.selectedName}>{selected.display_name} · {selected.provider_name ?? `المزود #${selected.provider_id}`} · {selected.model_identifier} · {selected.lifecycle_state==="active"?"مفعّل في الكتالوج":selected.lifecycle_state==="archived"?"مؤرشف":"مرشح للمراجعة"}</Text>:null}
@@ -197,6 +300,18 @@ export function UnifiedModelCapabilitiesAdminCard() {
 
 const createStyles=(c:ThemePalette)=>StyleSheet.create({
   card:{borderWidth:1,borderColor:c.divider,borderRadius:12,backgroundColor:c.surface,padding:13,gap:9},
+  directoryHeader:{flexDirection:"row-reverse",alignItems:"center",justifyContent:"space-between",gap:8},
+  capabilityGrid:{flexDirection:"row-reverse",flexWrap:"wrap",gap:7},
+  capabilityTile:{width:"31.5%",minHeight:82,borderWidth:1,borderColor:c.divider,borderRadius:10,backgroundColor:c.background,padding:8,alignItems:"center",justifyContent:"center",gap:5},
+  capabilityTileActive:{borderColor:c.primary,backgroundColor:c.primary+"12"},
+  capabilityTileLabel:{color:c.textPrimary,fontSize:9,fontWeight:"800",textAlign:"center"},
+  capabilityCount:{color:c.textMuted,fontSize:8},
+  modelListRow:{flexDirection:"row-reverse",alignItems:"center",justifyContent:"space-between",gap:8,borderWidth:1,borderColor:c.divider,borderRadius:9,padding:9,backgroundColor:c.background},
+  modelListCopy:{flex:1,gap:3,alignItems:"flex-end"},
+  modelListName:{color:c.textPrimary,fontSize:10,fontWeight:"800",textAlign:"right"},
+  modelListMeta:{color:c.textMuted,fontSize:8,textAlign:"right"},
+  addModelButton:{flexDirection:"row-reverse",alignItems:"center",gap:3,backgroundColor:c.primary,borderRadius:8,paddingHorizontal:9,paddingVertical:7},
+  addModelText:{color:c.onPrimary,fontSize:9,fontWeight:"900"},
   header:{flexDirection:"row-reverse",justifyContent:"space-between",alignItems:"flex-start",gap:8},
   copy:{flex:1,alignItems:"flex-end",gap:3},title:{color:c.textPrimary,fontSize:14,fontWeight:"900",textAlign:"right"},
   sub:{color:c.textMuted,fontSize:9,textAlign:"right",lineHeight:15},action:{color:c.primary,fontSize:10,fontWeight:"800"},
