@@ -104,8 +104,10 @@ export function parseMarkdownBlocks(markdown: string): MarkdownBlock[] {
             continue;
           }
         } catch {
-          // Invalid visualization payloads remain visible as ordinary code blocks.
+          // Invalid visualization payloads receive a readable fallback below.
         }
+        blocks.push({ type: "paragraph", text: "تعذر إنشاء العنصر المرئي بتنسيق صالح. أعد طلب الرسم أو المخطط وسأحاول إنشاءه من جديد." });
+        continue;
       }
       blocks.push({ type: "code", language: fence[1] || "", code });
       continue;
