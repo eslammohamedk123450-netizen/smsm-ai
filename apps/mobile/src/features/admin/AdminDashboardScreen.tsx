@@ -112,7 +112,7 @@ export function AdminDashboardScreen() {
       const label = usageRange === 7
         ? dateLabel(end)
         : `${start.toLocaleDateString("ar-EG", { day: "numeric", month: "short" })}–${end.toLocaleDateString("ar-EG", { day: "numeric", month: "short" })}`;
-      return { startKey, endKey, label, total: 0 };
+      return { key: `${startKey}-${endKey}`, startKey, endKey, label, total: 0 };
     });
     for (const tx of transactions) {
       if (tx.event_type !== "settle") continue;
