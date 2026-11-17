@@ -9,6 +9,7 @@ import type { ThemePalette } from "../../theme/colors";
 type ServiceType = "chat" | "image" | "video" | "audio";
 type ReviewStatus = "suggested" | "legacy_unreviewed" | "approved" | "rejected";
 type TestStatus = "not_tested" | "passed" | "failed";
+type AuditRow = { id: number; display_name: string | null; capability_key: string | null; action: string; created_at: string };
 type ModelRow = {
   model_id: string; provider_id: number; service_type: ServiceType; model_identifier: string;
   display_name: string; lifecycle_state: "active" | "candidate" | "archived";
@@ -43,6 +44,7 @@ export function UnifiedModelCapabilitiesAdminCard() {
   const { colors } = useSulyTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [rows,setRows] = useState<ModelRow[]>([]);
+  const [audit,setAudit] = useState<AuditRow[]>([]);
   const [selectedId,setSelectedId] = useState("");
   const [capability,setCapability] = useState("text");
   const [search,setSearch] = useState("");
@@ -63,10 +65,15 @@ export function UnifiedModelCapabilitiesAdminCard() {
   const load = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const {data,error:rpcError} = await supabase.rpc("suly_admin_list_unified_model_capabilities");
-      if(rpcError) throw rpcError;
-      const next = (data ?? []) as ModelRow[];
+      const [capabilityResult,auditResult] = await Promise.all([
+        supabase.rpc("suly_admin_list_unified_model_capabilities"),
+        supabase.rpc("suly_admin_list_model_registry_audit"),
+      ]);
+      if(capabilityResult.error) throw capabilityResult.error;
+      if(auditResult.error) throw auditResult.error;
+      const next = (capabilityResult.data ?? []) as ModelRow[];
       setRows(next);
+      setAudit((auditResult.data ?? []) as AuditRow[]);
       setSelectedId((current) => current && next.some((r) => r.model_id === current) ? current : (next[0]?.model_id ?? ""));
     } catch(cause) {
       setError(cause instanceof Error ? cause.message : "تعذر تحميل سجل النماذج الموحد.");
@@ -178,6 +185,13 @@ export function UnifiedModelCapabilitiesAdminCard() {
       <Pressable disabled={saving||loading||!selected} onPress={()=>void save("legacy_unreviewed")} style={[styles.secondary,(saving||loading||!selected)&&styles.disabled]}><Text style={styles.secondaryText}>حفظ دون اعتماد</Text></Pressable>
     </View>
     <Text style={styles.hint}>الاعتماد يوثق القدرة فقط. لا يفعّل النموذج ولا يغير الأسعار أو رصيد المستخدمين أو تعيينات Brain.</Text>
+    <View style={styles.audit}>
+      <Text style={styles.label}>سجل التغييرات والمراجعات</Text>
+      {audit.length ? audit.slice(0,8).map(item=><View key={item.id} style={styles.auditRow}>
+        <Text style={styles.auditTitle}>{item.display_name ?? "نموذج"} · {item.capability_key ?? "—"}</Text>
+        <Text style={styles.hint}>{item.action==="capability_approved"?"اعتماد قدرة":item.action==="capability_rejected"?"رفض قدرة":"تحديث قدرة"} · {new Date(item.created_at).toLocaleString("ar-EG")}</Text>
+      </View>):<Text style={styles.hint}>لا توجد عمليات مراجعة مسجلة بعد.</Text>}
+    </View>
   </View>;
 }
 
@@ -193,6 +207,7 @@ const createStyles=(c:ThemePalette)=>StyleSheet.create({
   hint:{color:c.textMuted,fontSize:9,textAlign:"right",lineHeight:15},selectedName:{color:c.textPrimary,fontSize:10,textAlign:"right",fontWeight:"800"},
   review:{color:c.primary,fontSize:10,textAlign:"right",fontWeight:"800"},label:{color:c.textPrimary,fontSize:10,fontWeight:"800",textAlign:"right"},
   probeRow:{flexDirection:"row-reverse",alignItems:"center",justifyContent:"space-between",gap:8},probe:{backgroundColor:c.primary,borderRadius:8,padding:9},
+  audit:{borderTopWidth:1,borderColor:c.divider,paddingTop:10,gap:7},auditRow:{borderWidth:1,borderColor:c.divider,borderRadius:8,padding:8,gap:3},auditTitle:{color:c.textSecondary,fontSize:9,fontWeight:"800",textAlign:"right"},
   actions:{flexDirection:"row-reverse",flexWrap:"wrap",gap:7},approve:{backgroundColor:c.primary,borderRadius:8,padding:10},
   reject:{backgroundColor:c.error,borderRadius:8,padding:10},secondary:{borderWidth:1,borderColor:c.divider,borderRadius:8,padding:10},
   saveText:{color:c.onPrimary,fontSize:9,fontWeight:"900"},secondaryText:{color:c.textSecondary,fontSize:9,fontWeight:"800"},
