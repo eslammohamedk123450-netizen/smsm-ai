@@ -31,6 +31,9 @@ export interface ChatComposerProps {
   onCancel?(): void;
   isAgentMode?: boolean;
   onToggleAgent?(): void;
+  modelLabel?: string;
+  onOpenModelPicker?(): void;
+  modelPickerDisabled?: boolean;
 }
 
 const MIN_INPUT_HEIGHT = 42;
@@ -45,6 +48,9 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
     onCancel,
     isAgentMode = false,
     onToggleAgent,
+    modelLabel,
+    onOpenModelPicker,
+    modelPickerDisabled = false,
   },
   ref
 ) {
@@ -92,6 +98,23 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
 
   return (
     <View style={styles.wrapper}>
+      {modelLabel && onOpenModelPicker ? (
+        <View style={styles.modelRow}>
+          <TouchableOpacity
+            onPress={onOpenModelPicker}
+            disabled={modelPickerDisabled}
+            activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel={isArabic ? "اختيار مستوى SULY" : "Choose SULY model profile"}
+            accessibilityState={{ disabled: modelPickerDisabled }}
+            style={[styles.modelPickerButton, modelPickerDisabled && styles.controlDisabled]}
+          >
+            <Ionicons name="layers-outline" size={14} color={colors.textSecondary} />
+            <Text style={styles.modelPickerText}>{modelLabel}</Text>
+            <Ionicons name="chevron-down" size={14} color={colors.textMuted} />
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       {attachment ? attachment.kind === "image" && attachmentPreviewUri ? (
         <View style={styles.imageAttachmentPreview}>
@@ -207,6 +230,10 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
     paddingBottom: 10,
     backgroundColor: colors.background,
   },
+  modelRow: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", marginBottom: 7 },
+  modelPickerButton: { minHeight: 30, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 6, paddingHorizontal: 10, borderRadius: 16, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
+  modelPickerText: { color: colors.textSecondary, fontSize: 11, fontWeight: "700" },
+  controlDisabled: { opacity: 0.45 },
   lowBalanceBanner: {
     flexDirection: isArabic ? "row-reverse" : "row",
     justifyContent: "space-between",
