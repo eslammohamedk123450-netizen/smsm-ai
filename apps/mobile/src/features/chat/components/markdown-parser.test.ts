@@ -43,6 +43,33 @@ const answer = 42;
     ]);
   });
 
+  it("parses a native flowchart block with bounded steps", () => {
+    const input = "```flow\n{\"title\":\"رحلة المستخدم\",\"steps\":[\"فتح التطبيق\",\"تسجيل الدخول\",\"إرسال رسالة\",\"عرض النتيجة\"]}\n```";
+    expect(parseMarkdownBlocks(input)).toEqual([
+      { type: "flow", title: "رحلة المستخدم", steps: ["فتح التطبيق", "تسجيل الدخول", "إرسال رسالة", "عرض النتيجة"] },
+    ]);
+  });
+
+  it("parses a dashboard with KPI metrics and embedded charts", () => {
+    const input = "```dashboard\n{\"title\":\"أداء الشركة\",\"metrics\":[{\"label\":\"الإيرادات\",\"value\":120000,\"change\":\"+12%\"},{\"label\":\"العملاء\",\"value\":840}],\"charts\":[{\"title\":\"الإيرادات الشهرية\",\"labels\":[\"يناير\",\"فبراير\"],\"values\":[10,20]}]}\n```";
+    expect(parseMarkdownBlocks(input)).toEqual([
+      {
+        type: "dashboard",
+        title: "أداء الشركة",
+        metrics: [
+          { label: "الإيرادات", value: 120000, change: "+12%" },
+          { label: "العملاء", value: 840, change: undefined },
+        ],
+        charts: [{ title: "الإيرادات الشهرية", labels: ["يناير", "فبراير"], values: [10, 20] }],
+      },
+    ]);
+  });
+
+  it("keeps malformed flowchart and dashboard payloads as code", () => {
+    expect(parseMarkdownBlocks("```flow\n{\"steps\":[\"واحد\"]}\n```")[0].type).toBe("code");
+    expect(parseMarkdownBlocks("```dashboard\n{\"metrics\":[]}\n```")[0].type).toBe("code");
+  });
+
   it("keeps invalid chart payloads visible as code", () => {
     const input = "```chart\n{\"type\":\"pie\",\"labels\":[\"A\"],\"values\":[1]}\n```";
     expect(parseMarkdownBlocks(input)).toEqual([
