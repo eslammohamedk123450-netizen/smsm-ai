@@ -8,7 +8,14 @@ import { chatService, type Conversation } from "../chat/chat-service";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
 import { useAppLocale } from "../../theme/LocaleProvider";
-import { TaskHistoryPanel } from "./TaskHistoryPanel";
+import { listTaskHistory, type TaskHistoryItem } from "../brain/task-service";
+
+type UnifiedHistoryItem =
+  | { kind: "conversation"; conversation: Conversation; updatedAt: string }
+  | { kind: "task"; task: TaskHistoryItem; updatedAt: string };
+
+const TASK_STATUS_AR: Record<TaskHistoryItem["status"], string> = { queued: "في الانتظار", running: "قيد التنفيذ", completed: "مكتملة", failed: "تعذّر إكمالها", cancelled: "ملغاة" };
+const TASK_STATUS_EN: Record<TaskHistoryItem["status"], string> = { queued: "Queued", running: "Running", completed: "Completed", failed: "Failed", cancelled: "Cancelled" };
 
 export function ConversationsScreen() {
   const router = useRouter();
@@ -16,6 +23,8 @@ export function ConversationsScreen() {
   const { isArabic } = useAppLocale();
   const styles = useMemo(() => createStyles(colors, isArabic), [colors, isArabic]);
   const [items, setItems] = useState<Conversation[]>([]);
+  const [tasks, setTasks] = useState<TaskHistoryItem[]>([]);
+  const [selectedTask, setSelectedTask] = useState<TaskHistoryItem | null>(null);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -28,16 +37,30 @@ export function ConversationsScreen() {
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
-    try { setItems(await chatService.listConversations(200)); }
+    try {
+      const [conversations, taskRows] = await Promise.all([
+        chatService.listConversations(200),
+        listTaskHistory(100).catch(() => [] as TaskHistoryItem[]),
+      ]);
+      setItems(conversations);
+      setTasks(taskRows);
+    }
     catch (cause) { setError(cause instanceof Error ? cause.message : (isArabic ? "تعذر تحميل المحادثات." : "Could not load chats.")); }
     finally { setLoading(false); }
   }, [isArabic]);
   useEffect(() => { void load(); }, [load]);
 
-  const filtered = useMemo(() => {
+  const filtered = useMemo<UnifiedHistoryItem[]>(() => {
     const value = query.trim().toLocaleLowerCase(isArabic ? "ar" : "en");
-    return value ? items.filter((item) => item.title.toLocaleLowerCase(isArabic ? "ar" : "en").includes(value)) : items;
-  }, [items, query, isArabic]);
+    const combined: UnifiedHistoryItem[] = [
+      ...items.map((conversation) => ({ kind: "conversation" as const, conversation, updatedAt: conversation.updatedAt })),
+      ...tasks.map((task) => ({ kind: "task" as const, task, updatedAt: task.updatedAt ?? "" })),
+    ];
+    const matching = value ? combined.filter((entry) => entry.kind === "conversation"
+      ? entry.conversation.title.toLocaleLowerCase(isArabic ? "ar" : "en").includes(value)
+      : entry.task.objective.toLocaleLowerCase(isArabic ? "ar" : "en").includes(value)) : combined;
+    return matching.sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
+  }, [items, tasks, query, isArabic]);
 
   const create = async () => {
     if (creating) return;
@@ -109,15 +132,25 @@ export function ConversationsScreen() {
       {notice ? <Text style={[styles.notice, { color: colors.textSecondary }]}>{notice}</Text> : null}
       {loading ? <ActivityIndicator color={colors.textPrimary} /> : filtered.length === 0 ? (
         <View style={[styles.empty, { backgroundColor: colors.surface, borderColor: colors.divider }]}><Ionicons name="chatbubbles-outline" size={32} color={colors.textMuted} /><Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>{query ? (isArabic ? "لا توجد نتائج" : "No results") : (isArabic ? "ابدأ أول محادثة" : "Start your first chat")}</Text><Text style={[styles.subtitle, { color: colors.textSecondary }]}>{query ? (isArabic ? "جرّب كلمة بحث مختلفة." : "Try a different search term.") : (isArabic ? "كل محادثة جديدة ستظهر هنا." : "New chats will appear here.")}</Text></View>
-      ) : filtered.map((item) => (
-        <View key={item.id} style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.divider }]}>
-          <Pressable style={styles.rowMain} onPress={() => router.push({ pathname: "/chat", params: { conversationId: item.id } })}>
+      ) : filtered.map((entry) => entry.kind === "conversation" ? (
+        <View key={`chat-${entry.conversation.id}`} style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.divider }]}>
+          <Pressable style={styles.rowMain} onPress={() => router.push({ pathname: "/chat", params: { conversationId: entry.conversation.id } })}>
             <View style={[styles.rowIcon, { backgroundColor: colors.surfaceElevated }]}><Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.textPrimary} /></View>
-            <View style={styles.rowCopy}><Text numberOfLines={1} style={[styles.rowTitle, { color: colors.textPrimary }]}>{item.title || (isArabic ? "محادثة جديدة" : "New conversation")}</Text><Text style={[styles.rowDate, { color: colors.textMuted }]}>{new Date(item.updatedAt).toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text></View>
-            {item.isPinned ? <Ionicons name="pin" size={16} color={colors.textMuted} /> : null}
+            <View style={styles.rowCopy}><Text numberOfLines={1} style={[styles.rowTitle, { color: colors.textPrimary }]}>{entry.conversation.title || (isArabic ? "محادثة جديدة" : "New conversation")}</Text><Text style={[styles.rowDate, { color: colors.textMuted }]}>{new Date(entry.updatedAt).toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text></View>
+            {entry.conversation.isPinned ? <Ionicons name="pin" size={16} color={colors.textMuted} /> : null}
           </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "إجراءات المحادثة" : "Chat actions"} onPress={() => setSelected(item)} style={styles.moreButton}><Ionicons name="ellipsis-horizontal" size={20} color={colors.textMuted} /></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "إجراءات المحادثة" : "Chat actions"} onPress={() => setSelected(entry.conversation)} style={styles.moreButton}><Ionicons name="ellipsis-horizontal" size={20} color={colors.textMuted} /></Pressable>
         </View>
+      ) : (
+        <Pressable key={`task-${entry.task.jobId}`} onPress={() => setSelectedTask(entry.task)} style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.divider }]}>
+          <View style={[styles.rowIcon, { backgroundColor: colors.surfaceElevated }]}><Ionicons name={entry.task.status === "completed" ? "checkmark-circle-outline" : entry.task.status === "failed" ? "alert-circle-outline" : "git-branch-outline"} size={18} color={colors.textPrimary} /></View>
+          <View style={styles.rowCopy}>
+            <Text numberOfLines={2} style={[styles.rowTitle, { color: colors.textPrimary }]}>{entry.task.objective}</Text>
+            <Text style={[styles.rowDate, { color: colors.textMuted }]}>{new Date(entry.updatedAt || Date.now()).toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text>
+            {entry.task.resultText ? <Text numberOfLines={2} style={[styles.rowDate, { color: colors.textSecondary }]}>{entry.task.resultText}</Text> : null}
+          </View>
+          <View style={[styles.taskStatus, { backgroundColor: colors.surfaceElevated }]}><Text style={[styles.taskStatusText, { color: colors.textSecondary }]}>{isArabic ? TASK_STATUS_AR[entry.task.status] : TASK_STATUS_EN[entry.task.status]}</Text></View>
+        </Pressable>
       ))}
       <Pressable onPress={() => void load()} style={styles.refresh}><Ionicons name="refresh" size={15} color={colors.textMuted} /><Text style={[styles.refreshText, { color: colors.textMuted }]}>{isArabic ? "تحديث القائمة" : "Refresh list"}</Text></Pressable>
       <BottomSheet visible={Boolean(selected)} title={selected?.title ?? (isArabic ? "إجراءات المحادثة" : "Chat actions")} onClose={() => setSelected(null)}>
@@ -143,7 +176,14 @@ export function ConversationsScreen() {
         </View>
       </BottomSheet>
         </>
-      <TaskHistoryPanel />
+      <BottomSheet visible={Boolean(selectedTask)} title={isArabic ? "تفاصيل التنفيذ" : "Task details"} onClose={() => setSelectedTask(null)}>
+        {selectedTask ? <View style={styles.sheetActions}>
+          <Text style={styles.sheetActionText}>{isArabic ? "الطلب" : "Request"}: {selectedTask.objective}</Text>
+          <Text style={styles.sheetActionText}>{isArabic ? "الحالة" : "Status"}: {isArabic ? TASK_STATUS_AR[selectedTask.status] : TASK_STATUS_EN[selectedTask.status]}</Text>
+          <Text style={styles.sheetActionText}>{isArabic ? "آخر تحديث" : "Last updated"}: {selectedTask.updatedAt ? new Date(selectedTask.updatedAt).toLocaleString(isArabic ? "ar-EG" : "en-US") : (isArabic ? "غير متاح" : "Unavailable")}</Text>
+          {selectedTask.resultText ? <Text selectable style={styles.sheetActionText}>{isArabic ? "النتيجة" : "Result"}: {selectedTask.resultText}</Text> : null}
+        </View> : null}
+      </BottomSheet>
     </ScrollView>
   );
 }
@@ -180,6 +220,8 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   rowCopy: { flex: 1, gap: 4 },
   rowTitle: { fontSize: 13, fontWeight: "800", textAlign: isArabic ? "right" : "left" },
   rowDate: { fontSize: 10, textAlign: isArabic ? "right" : "left" },
+  taskStatus: { borderRadius: 9, paddingHorizontal: 8, paddingVertical: 6 },
+  taskStatusText: { fontSize: 9, fontWeight: "700" },
   refresh: { flexDirection: isArabic ? "row-reverse" : "row", justifyContent: "center", alignItems: "center", gap: 6, paddingVertical: 8 },
   refreshText: { fontSize: 11 },
 });
