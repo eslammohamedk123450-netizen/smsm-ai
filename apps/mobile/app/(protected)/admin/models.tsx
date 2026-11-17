@@ -1,2 +1,2 @@
-import { ModelsAdminScreen } from "../../../src/features/admin/AdminScreens";
-export default ModelsAdminScreen;
+import { ModelControlCenterScreen } from "../../../src/features/admin/ModelControlCenterScreen";
+export default ModelControlCenterScreen;

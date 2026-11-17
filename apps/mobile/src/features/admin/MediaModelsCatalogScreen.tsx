@@ -8,7 +8,6 @@ import type { ThemePalette } from "../../theme/colors";
 import { supabase } from "../../lib/supabase/client";
 import { adminService } from "./admin-service";
 import { MediaModelPricingAdminCard } from "./MediaModelPricingAdminCard";
-import { MediaModelCapabilityEvidenceAdminCard } from "./MediaModelCapabilityEvidenceAdminCard";
 
 type Kind = "image" | "video" | "transcription" | "voice";
 type ServiceType = "image" | "video" | "audio";
@@ -24,7 +23,7 @@ type CapabilityEvidence = {
   provider_test_status: "not_tested" | "passed" | "failed";
   suly_test_status: "not_tested" | "passed" | "failed";
   vendor_evidence_url: string | null; provider_evidence_url: string | null; suly_evidence_url: string | null;
-  notes: string | null;
+  notes: string | null; review_status: "suggested" | "legacy_unreviewed" | "approved" | "rejected";
 };
 const TITLES: Record<Kind, string> = {
   image: "نماذج الصور",
@@ -66,7 +65,7 @@ export function MediaModelsCatalogScreen() {
     try {
       const [priceRows, evidenceResult] = await Promise.all([
         adminService.getMediaModelPriceVersions(),
-        supabase.rpc("suly_admin_list_media_model_capability_evidence"),
+        supabase.rpc("suly_admin_list_unified_model_capabilities"),
       ]);
       if (evidenceResult.error) throw evidenceResult.error;
       setRows((priceRows ?? []) as MediaModelRow[]);
@@ -86,7 +85,7 @@ export function MediaModelsCatalogScreen() {
         const required = CAPABILITY_FOR[kind]!;
         const proof = evidence.some((item) => item.provider_id === row.provider_id
           && item.service_type === row.service_type && item.model_identifier === row.model_identifier
-          && item.capability_key === required && item.vendor_claim_status === "supported");
+          && item.capability_key === required && item.vendor_claim_status === "supported" && item.review_status === "approved");
         if (!proof) return false;
       }
       return !query || `${row.display_name} ${row.model_identifier} ${row.provider_name} ${row.provider_type}`.toLocaleLowerCase().includes(query);
@@ -95,7 +94,7 @@ export function MediaModelsCatalogScreen() {
 
   const getCapabilities = (row: MediaModelRow) => evidence.filter((item) =>
     item.provider_id === row.provider_id && item.service_type === row.service_type
-    && item.model_identifier === row.model_identifier && item.vendor_claim_status === "supported");
+    && item.model_identifier === row.model_identifier && item.vendor_claim_status === "supported" && item.review_status === "approved");
 
   const unitLabel = (row: MediaModelRow) => row.unit_type === "image" ? "صورة" : row.unit_type === "video_second" ? "ثانية فيديو" : row.unit_type === "audio_minute" ? "دقيقة صوت" : row.unit_type;
 
@@ -192,7 +191,7 @@ export function MediaModelsCatalogScreen() {
       {selected.capability.vendor_evidence_url ? <Text selectable style={styles.meta}>وثائق: {selected.capability.vendor_evidence_url}</Text> : null}
     </View> : null}
     <MediaModelPricingAdminCard serviceType={SERVICE_FOR[kind]} capabilityKey={CAPABILITY_FOR[kind] as "transcription" | "audio_output" | undefined} initialRows={rows} initialEvidence={evidence} initialLoading={loading} skipInitialLoad />
-    <MediaModelCapabilityEvidenceAdminCard serviceType={SERVICE_FOR[kind]} capabilityKey={CAPABILITY_FOR[kind] as "transcription" | "audio_output" | undefined} initialModels={rows} initialEvidence={evidence} initialLoading={loading} skipInitialLoad />
+    <Link href="/admin/models" asChild><Pressable><Text style={styles.link}>مراجعة واعتماد كل قدرات النماذج من المركز الموحد</Text></Pressable></Link>
     <View style={styles.footerLinks}>
       <Link href="/admin/api-keys" asChild><Pressable><Text style={styles.link}>إدارة المزودين ومفاتيح API</Text></Pressable></Link>
       {kind === "image" ? <Link href="/admin/image-generation" asChild><Pressable><Text style={styles.link}>إضافة / تعديل نموذج صور</Text></Pressable></Link> : null}

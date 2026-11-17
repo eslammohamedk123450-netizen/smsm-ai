@@ -10,7 +10,6 @@ import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
 import { GmailModelPickerCard } from "./GmailModelPickerCard";
 import { RouteModelChainsCard } from "./RouteModelChainsCard";
-import { ModelCapabilityEvidenceAdminCard } from "./ModelCapabilityEvidenceAdminCard";
 import { ModelPricingAdminCard } from "./ModelPricingAdminCard";
 
 type ProviderRow = { id: number; name: string; provider_type: string; base_url: string | null; enabled: boolean; last_test_status: string | null };
@@ -516,7 +515,7 @@ export function ModelsAdminScreen() {
           <Link href="/admin/api-keys" asChild><Pressable accessibilityRole="button"><Text style={styles.link}>إدارة المزودين ومفاتيح API</Text></Pressable></Link>
           <ErrorText>{error}</ErrorText>
           {!loading ? <>
-            <ModelCapabilityEvidenceAdminCard models={models} />
+            <Link href="/admin/models" asChild><Pressable accessibilityRole="button"><Text style={styles.link}>مراجعة واعتماد القدرات من مركز النماذج الموحد</Text></Pressable></Link>
             <View style={styles.modelsSectionHeader}><View style={styles.modelsHeadingCopy}><Text style={styles.sectionTitle}>كتالوج النماذج</Text><Text style={styles.detail}>إدارة الحالة ومسار التوجيه والقيود وسجل الصحة</Text></View><View style={styles.totalBadge}><Text style={styles.totalBadgeText}>{models.length} نموذج</Text></View></View>
             <View style={styles.searchWrap}><Text style={styles.searchGlyph}>⌕</Text><TextInput style={[styles.input, styles.modelSearchInput]} value={search} onChangeText={setSearch} placeholder="ابحث بالاسم أو المزود أو المسار" placeholderTextColor={colors.textMuted} autoCapitalize="none" /><Pressable accessibilityRole="button" onPress={() => setSearch("")}><Text style={styles.link}>مسح</Text></Pressable></View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
