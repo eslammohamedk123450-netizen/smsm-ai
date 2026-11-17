@@ -345,12 +345,13 @@ export const adminService = {
     if (healthResult.error) throw healthResult.error;
     if (probeResult.error) throw probeResult.error;
     if (settingsResult.error) throw settingsResult.error;
-    const providerNames = new Map<number, string>(providers.map((item: { id: number; name?: string | null; provider_type?: string | null }) => [Number(item.id), String(item.name ?? item.provider_type ?? "—")]));
+    const providerNames = new Map<number, string>(providers.map((item: { id: number; name?: string | null; provider_type?: string | null }) => [Number(item.id), String(item.name ?? "—")]));
+    const providerTypes = new Map<number, string>(providers.map((item: { id: number; provider_type?: string | null }) => [Number(item.id), String(item.provider_type ?? "—")]));
     const providerEnabled = new Map<number, boolean>(providers.map((item: { id: number; enabled?: boolean }) => [Number(item.id), item.enabled === true]));
     const health = new Map<number, Record<string, unknown>>((healthResult.data ?? []).map((row) => [Number(row.model_id), row]));
     const probe = new Map<number, Record<string, unknown>>((probeResult.data ?? []).map((row) => [Number(row.model_id), row]));
     return {
-      models: (modelsResult.data ?? []).map((row) => ({ ...row, provider_name: providerNames.get(Number(row.provider_id)) ?? "—", provider_enabled: providerEnabled.get(Number(row.provider_id)) ?? false, health: health.get(Number(row.id)) ?? null, probe: probe.get(Number(row.id)) ?? null })),
+      models: (modelsResult.data ?? []).map((row) => ({ ...row, provider_name: providerNames.get(Number(row.provider_id)) ?? "—", provider_type: providerTypes.get(Number(row.provider_id)) ?? "—", provider_enabled: providerEnabled.get(Number(row.provider_id)) ?? false, health: health.get(Number(row.id)) ?? null, probe: probe.get(Number(row.id)) ?? null })),
       settings: settingsResult.data,
     };
   },
@@ -406,7 +407,8 @@ export const adminService = {
     ]);
     if (error) throw error;
     const providerNames = new Map<number, string>(providers.map((provider: { id: number; name?: string | null }) => [Number(provider.id), String(provider.name ?? "—")]));
-    return (data ?? []).map((row) => ({ ...row, provider_name: providerNames.get(Number(row.provider_id)) ?? "—" }));
+    const providerTypes = new Map<number, string>(providers.map((provider: { id: number; provider_type?: string | null }) => [Number(provider.id), String(provider.provider_type ?? "—")]));
+    return (data ?? []).map((row) => ({ ...row, provider_name: providerNames.get(Number(row.provider_id)) ?? "—", provider_type: providerTypes.get(Number(row.provider_id)) ?? "—" }));
   },
 
   async updateMediaModelPrice(input: {
