@@ -725,7 +725,7 @@ async function handleRequest(req: Request): Promise<Response> {
   const modelId = Number.isSafeInteger(rawModelId) && rawModelId > 0 ? rawModelId : 0;
   const hasExplicitModel = modelId > 0;
   const rawProfileKey = typeof body.model_profile_key === "string" ? body.model_profile_key.trim().toLowerCase() : "";
-  const requestedProfileKey = ["auto", "free", "lite", "pro", "max", "ultra_team"].includes(rawProfileKey) ? rawProfileKey : null;
+  const requestedProfileKey = ["auto", "lite", "pro", "max", "x"].includes(rawProfileKey) ? rawProfileKey : null;
   const hasManualProfile = requestedProfileKey !== null && requestedProfileKey !== "auto";
   const routingMode = hasManualProfile || body.routing_mode === "manual" || (hasExplicitModel && body.routing_mode !== "auto") ? "manual" : "auto";
   // New clients select Chat or Agent explicitly. Legacy clients remain Agent
@@ -1163,12 +1163,9 @@ async function handleRequest(req: Request): Promise<Response> {
       return await failedResponse(jsonResponse({ error: "تعذر تحميل إعدادات مستوى SULY المحدد. لم يتم تغيير اختيارك." }, 503, req), "suly_profile_unavailable");
     }
   }
-  // During a coordinated rollout the new Edge Function can reach production
-  // before the additive Free-profile migration. The existing model allowlist
-  // still restricts this fallback to Free-eligible free_race models.
-  const freeProfileFallback = !profileAssignmentsError
-    && selectedProfileKey === "free"
-    && userTier === "free"
+  // Compatibility fallback for legacy installations missing the Lite profile row.
+  const liteProfileFallback = !profileAssignmentsError
+    && selectedProfileKey === "lite"
     && !profileDefinitionResult.data
     ? {
         capabilities_json: {
@@ -1181,7 +1178,7 @@ async function handleRequest(req: Request): Promise<Response> {
         is_active: true,
       }
     : null;
-  const profileDefinition = profileDefinitionResult.data ?? freeProfileFallback;
+  const profileDefinition = profileDefinitionResult.data ?? liteProfileFallback;
   const profileCapabilities = selectedProfileKey
     ? (profileDefinition?.capabilities_json ?? {}) as Record<string, unknown>
     : {};
