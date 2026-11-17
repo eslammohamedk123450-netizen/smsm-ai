@@ -868,7 +868,9 @@ async function handleRequest(req: Request): Promise<Response> {
   const maxOutputChars = outputLimitForRequest(mind.intent, latestUserMessage, maxTokens);
   const streamRequested = body.stream === true;
   let himsActivated = profile.hims_activated === true;
-  let himsContextAllowed = himsActivated && recentUserMessagesForFeature.some(containsHimsReference);
+  const previousUserAskedAboutHims = recentUserMessagesForFeature.slice(0, -1).some(containsHimsReference);
+  const isShortFeatureFollowup = latestUserMessage.length <= 100 && /^(?:طب|طيب|وده|دي|ده|كمان|ممكن توضح|وضحلي|اشرحلي|what about|and|also)(?:\\s|$)/iu.test(latestUserMessage.trim());
+  let himsContextAllowed = himsActivated && (containsHimsReference(latestUserMessage) || (previousUserAskedAboutHims && isShortFeatureFollowup));
   let identityContext = buildSulyIdentityContext(himsActivated, himsContextAllowed);
   let userMetadata = identityContext.userMetadata;
   let systemPrompt = identityContext.systemPrompt;
@@ -1499,7 +1501,7 @@ async function handleRequest(req: Request): Promise<Response> {
   const safeAgentMemories = himsContextAllowed
     ? memoryState.memories
     : memoryState.memories.filter((memory) => !containsHimsReference(memory));
-  const safeFeatureContext = himsActivated
+  const safeFeatureContext = himsContextAllowed
     ? featureContext
     : {
       features: Object.fromEntries(Object.entries(featureContext.features).filter(([key, info]) =>
@@ -1637,7 +1639,7 @@ async function handleRequest(req: Request): Promise<Response> {
     userId: user.id,
     embedding: requestEmbedding,
   });
-  if (cacheLookup.hit && (himsActivated || !containsHimsReference(cacheLookup.hit.responseText))) {
+  if (cacheLookup.hit && (himsContextAllowed || !containsHimsReference(cacheLookup.hit.responseText))) {
     const cached = cacheLookup.hit;
     await recordCacheHit(supabase, cached.id);
     const messageId = await persistAssistantText(supabase, conversationId, user.id, billingTaskId, null, cached.responseText);
