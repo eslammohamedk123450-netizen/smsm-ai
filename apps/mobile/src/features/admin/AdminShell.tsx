@@ -30,7 +30,7 @@ const NAV_GROUPS: readonly NavGroup[] = [
     label: "المزودون والنماذج", labelEn: "Providers & models",
     hint: "الكتالوج والاختبارات والقدرات", hintEn: "Catalogue, tests and capabilities",
     items: [
-      { path: "/admin/models", label: "النماذج", labelEn: "Models", icon: "git-branch-outline" },
+      { path: "/admin/models", label: "نماذج التطبيق والقدرات", labelEn: "Models & capabilities", icon: "grid-outline" },
       { path: "/admin/api-keys", label: "المزودون والمفاتيح", labelEn: "Providers & API keys", icon: "key-outline" },
       { path: "/admin/media-catalog?kind=image", label: "نماذج الصور والفيديو والصوت", labelEn: "Image, video & audio models", icon: "images-outline" },
     ],
