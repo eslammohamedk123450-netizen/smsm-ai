@@ -8,6 +8,7 @@ import { useSulyTheme } from "../../theme/ThemeProvider";
 import { useAppLocale } from "../../theme/LocaleProvider";
 import type { ThemePalette } from "../../theme/colors";
 import { chatService, type Conversation } from "../../features/chat/chat-service";
+import { useAuth } from "../../features/auth/auth-provider";
 
 type Props = { children: React.ReactNode };
 const NavigationMenuContext = createContext<(() => void) | null>(null);
@@ -26,7 +27,6 @@ const ITEMS = [
   { key: "library", labelAr: "المكتبة", labelEn: "Library", href: "/media", icon: "albums-outline" as const },
   { key: "projects", labelAr: "المشاريع", labelEn: "Projects", href: "/projects", icon: "folder-open-outline" as const },
   { key: "tools", labelAr: "الأدوات والموصلات", labelEn: "Tools & connectors", href: "/integrations", icon: "git-network-outline" as const },
-  { key: "account", labelAr: "الحساب", labelEn: "Account", href: "/settings", icon: "person-circle-outline" as const },
 ] as const;
 
 const PLUS_ITEMS = [
@@ -50,6 +50,7 @@ export function MainNavigation({ children }: Props) {
   const router = useRouter();
   const { colors } = useSulyTheme();
   const { isArabic } = useAppLocale();
+  const { user, profileFullName } = useAuth();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [plusVisible, setPlusVisible] = useState(false);
@@ -159,13 +160,27 @@ export function MainNavigation({ children }: Props) {
                   <View style={styles.recentState}><Text style={[styles.recentStateText, { color: colors.textMuted }]}>{isArabic ? "لا توجد محادثات بعد" : "No conversations yet"}</Text></View>
                 )}
                 <Pressable onPress={() => navigate("/conversations")} style={[styles.viewAllButton, { flexDirection: isArabic ? "row-reverse" : "row" }]} accessibilityRole="button">
-                  <Text style={[styles.viewAllText, { color: colors.textPrimary }]}>{isArabic ? "عرض كل المحادثات" : "View all conversations"}</Text>
+                  <Text style={[styles.viewAllText, { color: colors.textPrimary }]}>{isArabic ? "عرض المزيد" : "Show more"}</Text>
                   <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={15} color={colors.textMuted} />
                 </Pressable>
               </View>
               </ScrollView>
               <View style={[styles.drawerFooter, { borderColor: colors.divider }]}>
-                <Text style={[styles.footerText, { color: colors.textMuted }]}>{isArabic ? "مساحة عملك الذكية" : "Your intelligent workspace"}</Text>
+                <Pressable
+                  onPress={() => navigate("/settings")}
+                  accessibilityRole="button"
+                  accessibilityLabel={isArabic ? "فتح الحساب وتعديل الملف الشخصي" : "Open account and edit profile"}
+                  style={[styles.profileButton, { flexDirection: isArabic ? "row-reverse" : "row", backgroundColor: colors.surfaceElevated }]}
+                >
+                  <View style={[styles.profileAvatar, { backgroundColor: colors.primary }]}>
+                    <Text style={[styles.profileAvatarText, { color: colors.onPrimary }]}>{(profileFullName?.trim()?.[0] || user?.email?.[0] || "S").toLocaleUpperCase(isArabic ? "ar" : "en")}</Text>
+                  </View>
+                  <View style={styles.profileCopy}>
+                    <Text numberOfLines={1} style={[styles.profileName, { color: colors.textPrimary, textAlign: isArabic ? "right" : "left" }]}>{profileFullName || (isArabic ? "حسابي" : "My account")}</Text>
+                    <Text numberOfLines={1} style={[styles.profileEmail, { color: colors.textMuted, textAlign: isArabic ? "right" : "left" }]}>{user?.email || (isArabic ? "إدارة الملف الشخصي" : "Manage profile")}</Text>
+                  </View>
+                  <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={16} color={colors.textMuted} />
+                </Pressable>
               </View>
             </SafeAreaView>
           </View>
@@ -232,7 +247,12 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
   drawerItemText: { flex: 1, fontSize: 13, fontWeight: "700" },
   selectedMark: { width: 5, height: 5, borderRadius: 3 },
   drawerFooter: { marginTop: "auto", borderTopWidth: 1, paddingTop: 14 },
-  footerText: { fontSize: 10, textAlign: "center" },
+  profileButton: { minHeight: 58, alignItems: "center", gap: 10, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 },
+  profileAvatar: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  profileAvatarText: { fontSize: 15, fontWeight: "900" },
+  profileCopy: { flex: 1, minWidth: 0, gap: 3 },
+  profileName: { fontSize: 12, fontWeight: "800" },
+  profileEmail: { fontSize: 10 },
   plusSheet: { marginTop: "auto", borderTopWidth: 1, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 18, paddingTop: 16, paddingBottom: 12 },
   sheetHeading: { alignItems: "center", justifyContent: "space-between", paddingBottom: 12 },
   sheetTitle: { fontSize: 16, fontWeight: "800" },
