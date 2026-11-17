@@ -384,6 +384,21 @@ create trigger suly_sync_chat_model_registry after insert or update of provider_
 drop trigger if exists suly_sync_media_model_registry on public.suly_media_generation_models;
 create trigger suly_sync_media_model_registry after insert or update of provider_id,service_type,model_identifier,display_name,is_active,protocol
   on public.suly_media_generation_models for each row execute function public.suly_sync_media_model_to_registry();
+-- Seed conservative review suggestions for existing catalog entries as well.
+insert into public.suly_model_capabilities(model_id,capability_key,review_status,provenance)
+select id,capability_key,'suggested',jsonb_build_object('source','existing_model_catalog')
+from public.suly_model_registry
+cross join lateral (values ('chat'),('text')) as suggested(capability_key)
+where service_type='chat'
+on conflict(model_id,capability_key) do nothing;
+
+insert into public.suly_model_capabilities(model_id,capability_key,review_status,provenance)
+select id,case when service_type='image' then 'image_generation' else 'video_generation' end,
+       'suggested',jsonb_build_object('source','existing_media_catalog')
+from public.suly_model_registry
+where service_type in ('image','video') and legacy_media_model_id is not null
+on conflict(model_id,capability_key) do nothing;
+
 drop trigger if exists suly_sync_chat_capability_registry on public.ai_model_capability_evidence;
 create trigger suly_sync_chat_capability_registry after insert or update
   on public.ai_model_capability_evidence for each row execute function public.suly_sync_legacy_capability_to_registry();
