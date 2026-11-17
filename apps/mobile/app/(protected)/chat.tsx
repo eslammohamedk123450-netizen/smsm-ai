@@ -188,7 +188,7 @@ export default function ChatPage() {
   const selectedProfileLabel = selectedModelProfile === "auto"
     ? (isArabic ? "SULY 2.0 Auto" : "SULY 2.0 Auto")
     : modelProfileOptions.find((item) => item.profile_key === selectedModelProfile)?.display_name
-      ? `SULY 2.0 ${selectedModelProfile.toUpperCase()}`
+      ? `SULY 2.0 ${selectedModelProfile === "lite" ? "Lite" : selectedModelProfile === "pro" ? "Pro" : "Max"}`
       : "SULY 2.0 Auto";
 
   const openNavigationDrawer = useNavigationMenu();
@@ -801,7 +801,7 @@ export default function ChatPage() {
                 accessibilityRole="button"
               >
                 <View style={styles.modelPickerCopy}>
-                  <Text style={styles.modelPickerName}>SULY 2.0 {profile.profile_key.toUpperCase()}</Text>
+                  <Text style={styles.modelPickerName}>SULY 2.0 {profile.profile_key === "lite" ? "Lite" : profile.profile_key === "pro" ? "Pro" : "Max"}</Text>
                   <Text style={styles.modelPickerDescription}>{profile.tagline || profile.display_name}</Text>
                 </View>
                 {selectedModelProfile === profile.profile_key ? <Ionicons name="checkmark-circle" size={19} color={colors.primary} /> : null}
