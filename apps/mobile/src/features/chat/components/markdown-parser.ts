@@ -5,7 +5,9 @@ export type MarkdownBlock =
   | { type: "quote"; text: string }
   | { type: "code"; language: string; code: string }
   | { type: "table"; headers: string[]; rows: string[][] }
-  | { type: "chart"; title?: string; labels: string[]; values: number[] };
+  | { type: "chart"; title?: string; labels: string[]; values: number[] }
+  | { type: "flow"; title?: string; steps: string[] }
+  | { type: "dashboard"; title?: string; metrics: Array<{ label: string; value: string | number; change?: string }>; charts: Array<{ title?: string; labels: string[]; values: number[] }> };
 
 function splitTableRow(line: string): string[] {
   return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim());
@@ -41,24 +43,54 @@ export function parseMarkdownBlocks(markdown: string): MarkdownBlock[] {
       }
       if (index < lines.length) index += 1;
       const code = codeLines.join("\n");
-      if (fence[1]?.toLowerCase() === "chart") {
+      const language = (fence[1] || "").toLowerCase();
+      if (language === "chart" || language === "flow" || language === "diagram" || language === "dashboard") {
         try {
-          const chart = JSON.parse(code) as { type?: unknown; title?: unknown; labels?: unknown; values?: unknown };
-          if (chart.type === "bar" && Array.isArray(chart.labels) && Array.isArray(chart.values)
-            && chart.labels.length > 0 && chart.labels.length <= 12
-            && chart.labels.length === chart.values.length
-            && chart.labels.every((label) => typeof label === "string" && label.length <= 80)
-            && chart.values.every((value) => typeof value === "number" && Number.isFinite(value) && value >= 0)) {
+          const visual = JSON.parse(code) as Record<string, unknown>;
+          const safeTitle = typeof visual.title === "string" ? visual.title.slice(0, 120) : undefined;
+          const validChart = (value: unknown, maxItems = 12): value is { title?: string; labels: string[]; values: number[] } => {
+            if (!value || typeof value !== "object") return false;
+            const chart = value as Record<string, unknown>;
+            return Array.isArray(chart.labels) && Array.isArray(chart.values)
+              && chart.labels.length > 0 && chart.labels.length <= maxItems
+              && chart.labels.length === chart.values.length
+              && chart.labels.every((label) => typeof label === "string" && label.trim().length > 0 && label.length <= 80)
+              && chart.values.every((item) => typeof item === "number" && Number.isFinite(item) && item >= 0);
+          };
+          if (language === "chart" && visual.type === "bar" && validChart(visual)) {
+            blocks.push({ type: "chart", title: safeTitle, labels: visual.labels, values: visual.values });
+            continue;
+          }
+          if ((language === "flow" || language === "diagram") && Array.isArray(visual.steps)
+            && visual.steps.length >= 2 && visual.steps.length <= 10
+            && visual.steps.every((step) => typeof step === "string" && step.trim().length > 0 && step.length <= 100)) {
+            blocks.push({ type: "flow", title: safeTitle, steps: visual.steps as string[] });
+            continue;
+          }
+          if (language === "dashboard" && Array.isArray(visual.metrics) && visual.metrics.length > 0 && visual.metrics.length <= 8
+            && visual.metrics.every((metric) => {
+              if (!metric || typeof metric !== "object") return false;
+              const item = metric as Record<string, unknown>;
+              return typeof item.label === "string" && item.label.trim().length > 0 && item.label.length <= 48
+                && (typeof item.value === "string" || (typeof item.value === "number" && Number.isFinite(item.value)))
+                && String(item.value).length <= 32
+                && (item.change === undefined || (typeof item.change === "string" && item.change.length <= 32));
+            })
+            && Array.isArray(visual.charts) && visual.charts.length <= 3 && visual.charts.every((chart) => validChart(chart, 8))) {
             blocks.push({
-              type: "chart",
-              title: typeof chart.title === "string" ? chart.title.slice(0, 120) : undefined,
-              labels: chart.labels as string[],
-              values: chart.values as number[],
+              type: "dashboard",
+              title: safeTitle,
+              metrics: (visual.metrics as Array<{ label: string; value: string | number; change?: string }>).map((metric) => ({
+                label: metric.label, value: metric.value, change: metric.change,
+              })),
+              charts: (visual.charts as Array<{ title?: string; labels: string[]; values: number[] }>).map((chart) => ({
+                title: chart.title?.slice(0, 120), labels: chart.labels, values: chart.values,
+              })),
             });
             continue;
           }
         } catch {
-          // Invalid chart payloads remain visible as ordinary code blocks.
+          // Invalid visualization payloads remain visible as ordinary code blocks.
         }
       }
       blocks.push({ type: "code", language: fence[1] || "", code });
