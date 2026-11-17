@@ -63,7 +63,7 @@ export function MediaModelCapabilityEvidenceAdminCard({ serviceType, capabilityK
   const capabilities=selected?(capabilityKey?OPTIONS[selected.service_type].filter(([key])=>key===capabilityKey):OPTIONS[selected.service_type]):OPTIONS.image;
   useEffect(()=>{
     if(!capabilities.some(([key])=>key===capability)) setCapability(capabilities[0]?.[0]??"image_generation");
-  },[selectedKey]);
+  },[selectedKey,capabilityKey]);
   useEffect(()=>{
     const row=evidence.find((e)=>e.provider_id===selected?.provider_id&&e.service_type===selected?.service_type&&e.model_identifier===selected?.model_identifier&&e.capability_key===capability);
     setVendor(row?.vendor_claim_status??"unknown");setVendorUrl(row?.vendor_evidence_url??"");
