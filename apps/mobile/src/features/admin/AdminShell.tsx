@@ -7,6 +7,7 @@ import { supabase } from "../../lib/supabase/client";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
 import { useAppLocale } from "../../theme/LocaleProvider";
+import { adminService } from "./admin-service";
 
 type NavItem = { path: string; label: string; labelEn: string; icon: keyof typeof Ionicons.glyphMap };
 type NavGroup = { key: string; label: string; labelEn: string; hint: string; hintEn: string; items: readonly NavItem[] };
@@ -129,18 +130,12 @@ export function AdminShell() {
   const refreshHealth = async () => {
     setChecking(true);
     try {
-      const [modelsResult, healthResult] = await Promise.all([
-        supabase.from("ai_models").select("id,enabled").eq("enabled", true).limit(500),
-        supabase.from("ai_model_health").select("model_id,last_status,auto_restricted").limit(1000),
-      ]);
-      if (modelsResult.error || healthResult.error) throw modelsResult.error ?? healthResult.error;
-      const activeModels = modelsResult.data ?? [];
-      const healthById = new Map((healthResult.data ?? []).map((row) => [Number(row.model_id), row]));
-      if (!activeModels.length || activeModels.some((model) => !healthById.has(Number(model.id)))) setSystemOk(null);
-      else setSystemOk(activeModels.every((model) => {
-        const health = healthById.get(Number(model.id));
-        return health?.last_status !== "error" && health?.auto_restricted !== true;
-      }));
+      const overview = await adminService.getModelsOverview();
+      const activeModels = overview.models.filter((model) => model.enabled);
+      if (!activeModels.length || activeModels.some((model) => !model.health)) setSystemOk(null);
+      else setSystemOk(activeModels.every((model) =>
+        model.health?.last_status !== "error" && model.health?.auto_restricted !== true,
+      ));
     } catch { setSystemOk(null); }
     finally { setChecking(false); }
   };
