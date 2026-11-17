@@ -76,8 +76,9 @@ const config: ExpoConfig & { splash?: { image: string; resizeMode: "contain"; ba
     output: "static",
   },
   experiments: {
-    // Root-relative by default (Cloudflare Pages / Netlify). GitHub Pages builds
-    // override this with EXPO_PUBLIC_WEB_BASE_URL=/smsm-ai.
+    // The canonical site uses a custom domain, so production assets are
+    // root-relative. The GitHub Pages preview is mounted at /preview.
+    // The deploy workflow supplies the correct base URL for each export.
     baseUrl: process.env.EXPO_PUBLIC_WEB_BASE_URL ?? "",
   },
 };
