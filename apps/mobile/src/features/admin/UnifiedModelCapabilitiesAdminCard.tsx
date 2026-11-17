@@ -186,20 +186,6 @@ export function UnifiedModelCapabilitiesAdminCard() {
     if (data?.success !== true) throw new Error(`لم تؤكد قاعدة البيانات إضافة ${model.display_name}.`);
   };
 
-  const addModelToCapability = async (model: ModelRow) => {
-    setSaving(true); setError(null); setNotice(null);
-    try {
-      await saveCapabilityLink(model);
-      setSelectedId(model.model_id);
-      setNotice(`تمت إضافة ${model.display_name} إلى القدرة كاقتراح يحتاج مراجعة.`);
-      await load();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "تعذرت إضافة النموذج إلى القدرة.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const toggleAddSelection = (modelId: string) => {
     setSelectedToAdd((current) => current.includes(modelId) ? current.filter((id) => id !== modelId) : [...current, modelId]);
   };
@@ -262,7 +248,7 @@ export function UnifiedModelCapabilitiesAdminCard() {
       {CAPABILITIES.map(([key, label]) => {
         const count = new Set(rows.filter((row) => row.capability_key === key).map((row) => row.model_id)).size;
         const active = capability === key;
-        return <Pressable key={key} onPress={() => { setCapability(key); setNotice(null); }} style={[styles.capabilityTile, active && styles.capabilityTileActive]}>
+        return <Pressable key={key} onPress={() => { setCapability(key); setSelectedToAdd([]); setNotice(null); }} style={[styles.capabilityTile, active && styles.capabilityTileActive]}>
           <Ionicons name={CAPABILITY_ICONS[key] ?? "apps-outline"} size={20} color={active ? colors.primary : colors.textSecondary}/>
           <Text style={styles.capabilityTileLabel}>{label}</Text>
           <Text style={styles.capabilityCount}>{count} نموذج</Text>
