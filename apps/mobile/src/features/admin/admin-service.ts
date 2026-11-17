@@ -509,7 +509,8 @@ export const adminService = {
 
   async saveRouteModelAssignments(routeRole: "chat" | "planner" | "worker" | "reviewer" | "summarizer", modelIds: number[]) {
     await requireAdmin();
-    const ids = [...new Set(modelIds)].filter((id) => Number.isSafeInteger(id) && id > 0).slice(0, 2);
+    const ids = [...new Set(modelIds)].filter((id) => Number.isSafeInteger(id) && id > 0).slice(0, 500);
+    if (ids.length === 0 || ids.length > 500) throw new Error("يجب اختيار نموذج واحد على الأقل وبحد أقصى 500 نموذج.");
     const { data, error } = await supabase.rpc("suly_admin_save_route_models", {
       p_route_role: routeRole,
       p_model_ids: ids,
