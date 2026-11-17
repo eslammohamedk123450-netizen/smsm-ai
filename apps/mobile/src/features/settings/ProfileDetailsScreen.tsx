@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Image, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Image, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
@@ -10,6 +10,7 @@ import { useAuth } from "../auth/auth-provider";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import { useAppLocale } from "../../theme/LocaleProvider";
 import type { ThemePalette } from "../../theme/colors";
+import { supabase } from "../../lib/supabase/client";
 
 export default function ProfileDetailsScreen() {
   const { user, profileFullName, logout } = useAuth();
@@ -18,6 +19,9 @@ export default function ProfileDetailsScreen() {
   const { isArabic } = useAppLocale();
   const { show } = useToast();
   const styles = useMemo(() => createStyles(colors, isArabic), [colors, isArabic]);
+  const [nameEditVisible, setNameEditVisible] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const [savingName, setSavingName] = useState(false);
   const [logoutVisible, setLogoutVisible] = useState(false);
   const [deleteRequestVisible, setDeleteRequestVisible] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -25,6 +29,31 @@ export default function ProfileDetailsScreen() {
     || (typeof user?.user_metadata?.full_name === "string" ? user.user_metadata.full_name.trim() : "")
     || "Suly";
   const avatarUrl = typeof user?.user_metadata?.avatar_url === "string" ? user.user_metadata.avatar_url : null;
+
+  const saveProfileName = async () => {
+    const nextName = nameDraft.trim();
+    if (!nextName || nextName.length > 80) {
+      show(isArabic ? "اكتب اسمًا من حرف إلى 80 حرفًا." : "Enter a name between 1 and 80 characters.", "error");
+      return;
+    }
+    setSavingName(true);
+    try {
+      const { error: authError } = await supabase.auth.updateUser({ data: { full_name: nextName } });
+      if (authError) throw authError;
+      const { error: profileError } = await supabase.rpc("suly_upsert_my_profile", {
+        p_email: null,
+        p_full_name: nextName,
+        p_avatar_url: null,
+      });
+      if (profileError) throw profileError;
+      setNameEditVisible(false);
+      show(isArabic ? "تم تحديث اسم الحساب." : "Account name updated.", "success");
+    } catch {
+      show(isArabic ? "تعذر تحديث الاسم. حاول مرة أخرى." : "Could not update your name. Try again.", "error");
+    } finally {
+      setSavingName(false);
+    }
+  };
 
   const copyUserId = async () => {
     if (!user?.id) return;
@@ -73,6 +102,10 @@ export default function ProfileDetailsScreen() {
             <Text style={styles.email}>{user?.email ?? "—"}</Text>
           </View>
         </View>
+        <Pressable onPress={() => { setNameDraft(name); setNameEditVisible(true); }} style={styles.editNameButton} accessibilityRole="button">
+          <Text style={styles.editNameText}>{isArabic ? "تعديل الاسم" : "Edit name"}</Text>
+          <Ionicons name="create-outline" size={17} color={colors.primary} />
+        </Pressable>
 
         <Text style={styles.section}>{isArabic ? "معرف المستخدم" : "User ID"}</Text>
         <Pressable onPress={() => void copyUserId()} style={[styles.infoRow, { flexDirection: isArabic ? "row-reverse" : "row" }]} accessibilityRole="button">
@@ -104,6 +137,24 @@ export default function ProfileDetailsScreen() {
         <Text style={styles.notice}>{isArabic ? "الحذف المباشر غير متاح بعد لعدم وجود مسار آمن معتمد لحذف الحساب وبياناته. يمكنك إرسال طلب رسمي للدعم؛ إرسال الطلب لا يحذف الحساب تلقائيًا." : "Direct deletion is not available yet because no approved safe account-and-data deletion workflow exists. You can submit a formal support request; submitting it does not automatically delete the account."}</Text>
       </ScrollView>
 
+      <BottomSheet visible={nameEditVisible} title={isArabic ? "تعديل الاسم" : "Edit name"} onClose={() => setNameEditVisible(false)}>
+        <View style={styles.nameEditSheet}>
+          <TextInput
+            value={nameDraft}
+            onChangeText={setNameDraft}
+            maxLength={80}
+            autoCapitalize="words"
+            placeholder={isArabic ? "الاسم" : "Name"}
+            placeholderTextColor={colors.textMuted}
+            style={styles.nameInput}
+          />
+          <View style={[styles.sheetActions, { flexDirection: isArabic ? "row-reverse" : "row" }]}>
+            <Pressable onPress={() => setNameEditVisible(false)} style={styles.cancelButton} disabled={savingName}><Text style={styles.cancelText}>{isArabic ? "إلغاء" : "Cancel"}</Text></Pressable>
+            <Pressable onPress={() => void saveProfileName()} style={styles.confirmButton} disabled={savingName}><Text style={styles.confirmText}>{savingName ? (isArabic ? "جارٍ الحفظ…" : "Saving…") : (isArabic ? "حفظ" : "Save")}</Text></Pressable>
+          </View>
+        </View>
+      </BottomSheet>
+
       <BottomSheet visible={logoutVisible} title={isArabic ? "تسجيل الخروج؟" : "Sign out?"} onClose={() => setLogoutVisible(false)}>
         <Text style={styles.sheetText}>{isArabic ? "هل تريد تسجيل الخروج من هذا الحساب؟" : "Do you want to sign out of this account?"}</Text>
         <View style={[styles.sheetActions, { flexDirection: isArabic ? "row-reverse" : "row" }]}>
@@ -130,6 +181,10 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   back: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface },
   heading: { flex: 1, color: colors.textPrimary, fontSize: 20, fontWeight: "800", textAlign: isArabic ? "right" : "left" },
   profileCard: { alignItems: "center", gap: 13, padding: 16, borderWidth: 1, borderColor: colors.divider, borderRadius: 16, backgroundColor: colors.surface },
+  editNameButton: { minHeight: 42, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "center", gap: 7, borderWidth: 1, borderColor: colors.divider, borderRadius: 12, backgroundColor: colors.surface },
+  editNameText: { color: colors.primary, fontSize: 12, fontWeight: "700" },
+  nameEditSheet: { gap: 12 },
+  nameInput: { minHeight: 48, borderWidth: 1, borderColor: colors.divider, borderRadius: 12, paddingHorizontal: 14, color: colors.textPrimary, backgroundColor: colors.surface, textAlign: isArabic ? "right" : "left" },
   avatar: { width: 54, height: 54, borderRadius: 27, backgroundColor: colors.surfaceElevated, alignItems: "center", justifyContent: "center", overflow: "hidden" },
   avatarImage: { width: 54, height: 54, borderRadius: 27 },
   avatarText: { color: colors.textPrimary, fontSize: 22, fontWeight: "800" },
