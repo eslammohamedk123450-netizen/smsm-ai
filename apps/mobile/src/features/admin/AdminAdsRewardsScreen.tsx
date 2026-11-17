@@ -4,6 +4,7 @@ import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { adminService } from "./admin-service";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
+import { AdminMobileBreadcrumb } from "./AdminMobileBreadcrumb";
 
 type AdSettings = { appId: string; rewardedUnitId: string; bannerUnitId: string };
 
@@ -38,6 +39,7 @@ export function AdminAdsRewardsScreen() {
   };
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <AdminMobileBreadcrumb />
     <View style={styles.heading}>
       <Text style={styles.title}>الإعلانات والمكافآت</Text>
       <Text style={styles.subtitle}>إدارة معرفات AdMob بصورة مستقلة عن تعديل الباقات والأسعار.</Text>
