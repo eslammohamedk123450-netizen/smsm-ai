@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useLocalSearchParams } from "expo-router";
+import { Link, useLocalSearchParams, usePathname } from "expo-router";
 import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, StyleSheet, Switch, TextInput, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
@@ -8,6 +8,7 @@ import { providerPresets, findPreset, type ProviderPreset } from "./provider-pre
 import { confirmAdminAction } from "./admin-confirm";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
+import { useAppLocale } from "../../theme/LocaleProvider";
 import { GmailModelPickerCard } from "./GmailModelPickerCard";
 import { RouteModelChainsCard } from "./RouteModelChainsCard";
 import { ModelPricingAdminCard } from "./ModelPricingAdminCard";
@@ -60,10 +61,48 @@ function parseModelCapabilityState(value: unknown): ModelCapabilityState {
   return { chat: parsed.chat !== false, vision: parsed.vision === true, pdf: parsed.pdf === true, word: parsed.word === true, video: parsed.video === true, gmail: parsed.gmail === true, google_drive: parsed.google_drive === true, github: parsed.github === true };
 }
 
+const PAGE_TITLE_EN: Record<string, string> = {
+  "مزودو الخدمة": "Providers",
+  "كتالوج النماذج النصية": "Text model catalog",
+  "إدارة المستخدمين": "Users & accounts",
+  "إدارة الرصيد": "Wallet & credits",
+  "إدارة الباقات والأسعار": "Pricing & plans",
+  "قاطع الدائرة": "Circuit breaker",
+  "الوكيل المركزي": "Central Agent",
+};
+
+function sectionForAdminPath(pathname: string, isArabic: boolean): string {
+  const sections: Array<{ match: string; ar: string; en: string }> = [
+    { match: "/admin/api-keys", ar: "المزودون والنماذج", en: "Providers & Models" },
+    { match: "/admin/models", ar: "المزودون والنماذج", en: "Providers & Models" },
+    { match: "/admin/users", ar: "المستخدمون والحسابات", en: "Users & Accounts" },
+    { match: "/admin/credit-management", ar: "الأرصدة والمحفظة", en: "Credits & Wallet" },
+    { match: "/admin/pricing", ar: "الأسعار والباقات", en: "Pricing & Plans" },
+    { match: "/admin/circuit-breaker", ar: "النظام والأمان", en: "System & Security" },
+    { match: "/admin/agents", ar: "التوجيه والوكيل المركزي", en: "Routing & Agent" },
+  ];
+  const current = sections.find((section) => pathname.startsWith(section.match));
+  return current ? (isArabic ? current.ar : current.en) : (isArabic ? "مساحة الإدارة" : "Admin workspace");
+}
+
 function PageHeader({ title }: { title: string }) {
   const { colors } = useSulyTheme();
+  const { isArabic } = useAppLocale();
+  const pathname = usePathname();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  return <View style={styles.header}><Link href="/admin" asChild><TouchableOpacity activeOpacity={0.7}><Text style={styles.back}>‹ لوحة المشرف</Text></TouchableOpacity></Link><Text style={styles.pageTitle}>{title}</Text></View>;
+  const section = sectionForAdminPath(pathname, isArabic);
+  return <View style={styles.header}>
+    <View style={[styles.headerBreadcrumbs, { flexDirection: isArabic ? "row-reverse" : "row" }]}>
+      <Link href="/admin" asChild>
+        <TouchableOpacity activeOpacity={0.7} accessibilityRole="link">
+          <Text style={styles.back}>{isArabic ? "مركز التحكم" : "Control Center"}</Text>
+        </TouchableOpacity>
+      </Link>
+      <Text style={styles.breadcrumbSeparator}>/</Text>
+      <Text style={styles.breadcrumbSection}>{section}</Text>
+    </View>
+    <Text style={[styles.pageTitle, { textAlign: isArabic ? "right" : "left" }]}>{isArabic ? title : (PAGE_TITLE_EN[title] ?? title)}</Text>
+  </View>;
 }
 function ErrorText({ children }: { children: string | null }) { const { colors } = useSulyTheme(); const styles = useMemo(() => createStyles(colors), [colors]); return children ? <Text accessibilityRole="alert" style={styles.error}>{children}</Text> : null; }
 function probeErrorLabel(code: string | null) {
@@ -921,8 +960,11 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
   providerModelName: { color: colors.textPrimary, fontSize: 13, fontWeight: "700", textAlign: "right" },
   providerModelIdentifier: { color: colors.textMuted, fontSize: 11, textAlign: "right" },
   probeFeedback: { borderRightWidth: 3, borderRightColor: colors.primary, backgroundColor: colors.surfaceElevated, borderRadius: 5, paddingHorizontal: 8 },
-  header: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
-  back: { color: colors.accent, fontSize: 13 },
+  header: { minHeight: 56, flexDirection: "column", alignItems: "stretch", justifyContent: "center", gap: 5, marginBottom: 4 },
+  headerBreadcrumbs: { alignItems: "center", gap: 7, justifyContent: "flex-start" },
+  breadcrumbSeparator: { color: colors.textMuted, fontSize: 10 },
+  breadcrumbSection: { color: colors.textMuted, fontSize: 10, fontWeight: "600" },
+  back: { color: colors.accent, fontSize: 10, fontWeight: "700" },
   pageTitle: { color: colors.textPrimary, fontSize: 22, fontWeight: "700", textAlign: "right" },
   explainer: { color: colors.textSecondary, lineHeight: 21, textAlign: "right", marginBottom: 8 },
   card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 16, padding: 16, gap: 12 },
