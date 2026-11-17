@@ -68,7 +68,7 @@ export function isQuickReplyCandidate(text: string): boolean {
   const normalized = normalizeQuickReply(text);
   if (!normalized || normalized.length > QUICK_REPLY_MAX_QUESTION_LENGTH) return false;
   // Real work requests are longer, imperative, or contain search markers.
-  if (/\b(اعمل|اعملي|ابحث|ابحثي|حلل|صمم|اكتب كود|برمج|خطة|قارن|موقع|تقرير)\b/u.test(normalized)) return false;
+  if (/\b(اعمل|اعملي|ابحث|ابحثي|حلل|صمم|اكتب كود|برمج|خطة|قارن|موقع|تقرير)\b/u.test(normalized)) return false;\n  if (/(?:تقدر|تستطيع|يمكنك|تنفيذ|تنفذ|وكيل|agent|رسم|مخطط|جدول|dashboard|chart|graph|مهام|task)/iu.test(normalized)) return false;
   if (normalized.split(" ").length > 8) return false;
   return true;
 }
