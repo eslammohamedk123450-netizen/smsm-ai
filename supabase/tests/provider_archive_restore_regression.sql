@@ -2,6 +2,7 @@
 do $$
 declare
   v_definition text;
+  v_summary_definition text;
 begin
   if not exists (
     select 1 from pg_class c
@@ -43,6 +44,13 @@ begin
   if pg_get_functiondef('public.suly_admin_set_provider_lifecycle(integer,boolean,boolean)'::regprocedure)
        not ilike '%suly_admin_set_provider_lifecycle_v2%' then
     raise exception 'legacy provider lifecycle RPC must delegate to reversible v2';
+  end if;
+
+  select pg_get_functiondef('public.suly_admin_custom_page_source(text)'::regprocedure)
+    into v_summary_definition;
+  if v_summary_definition not ilike '%join public.ai_providers%'
+     or v_summary_definition not ilike '%p.enabled is true%' then
+    raise exception 'custom admin model summaries must exclude archived providers';
   end if;
 end;
 $$;
