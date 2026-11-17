@@ -380,7 +380,7 @@ export function ModelsAdminScreen() {
   const [models, setModels] = useState<ModelRow[]>([]);
   const [modelPrices, setModelPrices] = useState<Record<number, ModelPriceSummary>>({});
   const [search, setSearch] = useState(typeof q === "string" ? q : "");
-  const [modelFilter, setModelFilter] = useState<"all" | "enabled" | "disabled" | "restricted">("enabled");
+  const [modelFilter, setModelFilter] = useState<"all" | "enabled" | "disabled" | "restricted">(typeof q === "string" && q.trim() ? "all" : "enabled");
   const [modelViewMode, setModelViewMode] = useState<"table" | "cards">("table");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -391,7 +391,11 @@ export function ModelsAdminScreen() {
   const [batchResults, setBatchResults] = useState<Record<number, { status: "success" | "error"; durationMs: number; errorCode: string | null }>>({});
   const [batchFilter, setBatchFilter] = useState<"all" | "success" | "error">("all");
 
-  useEffect(() => { if (typeof q === "string") setSearch(q); }, [q]);
+  useEffect(() => {
+    if (typeof q !== "string") return;
+    setSearch(q);
+    if (q.trim()) setModelFilter("all");
+  }, [q]);
 
   const filteredModels = useMemo(() => {
     const query = search.trim().toLowerCase();

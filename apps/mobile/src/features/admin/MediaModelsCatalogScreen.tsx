@@ -50,11 +50,11 @@ const money = (value: number, unit: string) => `${Number(value).toLocaleString("
 export function MediaModelsCatalogScreen() {
   const { colors } = useSulyTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const params = useLocalSearchParams<{ kind?: string }>();
+  const params = useLocalSearchParams<{ kind?: string; q?: string }>();
   const kind: Kind = params.kind === "video" || params.kind === "transcription" || params.kind === "voice" ? params.kind : "image";
   const [rows, setRows] = useState<MediaModelRow[]>([]);
   const [evidence, setEvidence] = useState<CapabilityEvidence[]>([]);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(typeof params.q === "string" ? params.q : "");
   const [viewMode, setViewMode] = useState<"table" | "cards">("table");
   const [selected, setSelected] = useState<{ row: MediaModelRow; capability: CapabilityEvidence } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -75,7 +75,7 @@ export function MediaModelsCatalogScreen() {
     } finally { setLoading(false); }
   }, []);
   useEffect(() => { void load(); }, [load]);
-  useEffect(() => { setSelected(null); setSearch(""); }, [kind]);
+  useEffect(() => { setSelected(null); setSearch(typeof params.q === "string" ? params.q : ""); }, [kind, params.q]);
 
   const visibleRows = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();

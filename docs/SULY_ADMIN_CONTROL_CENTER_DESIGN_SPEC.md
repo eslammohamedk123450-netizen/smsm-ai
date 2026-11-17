@@ -21,8 +21,14 @@
 
 ### Providers & Models
 - [x] Add a Table / Cards presentation switch to the unified model catalog; both views share the same loaded registry, filters, search, and lifecycle status.
-- [ ] Complete the remaining model detail and five-step Add Model workflow only where existing provider contracts, evidence, pricing, and reviewed server operations support it.
+- [x] Add a read-only model detail inspector to both catalog presentations, showing provider identity, service type, lifecycle/operational status, and only registered capability keys.
+- [x] Link catalog detail to the existing capability review, operations/health, pricing, audit, provider, and model-management pages without creating new data paths.
+- [ ] Complete the remaining model detail (including model-specific historical price/health/audit timelines) and five-step Add Model workflow only where existing provider contracts, evidence, pricing, and reviewed server operations support it.
 - [ ] Confirm every capability/test action and model state transition against its existing server authorization and evidence source.
+
+### Current implementation blockers
+- The repository currently has no admin RPC for registering a new canonical `suly_model_registry` model. The existing `sync-models` Edge Function only discovers and inserts missing chat models into `ai_models`; its insert path assigns placeholder defaults (including context window and zero prices) and keeps them disabled. Do not use those placeholders as verified specifications or route a manual Add Model wizard through that discovery action.
+- The five-step Add Model wizard remains blocked until a reviewed server-side registration contract can create a Draft/Pending Validation model without guessed limits/prices, preserve provider-specific validation, and keep new records out of routing until separately verified. No client-side direct insert or ad-hoc schema/RPC was introduced to bypass this boundary.
 
 ### Remaining admin domains and acceptance
 - [x] Add route-aware breadcrumbs to the desktop shell without replacing the domain pages’ own content titles.
