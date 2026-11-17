@@ -241,11 +241,15 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
           editable={!disabled && !isStreaming && !isListening}
           placeholder={isArabic ? "اسأل Suly" : "Ask SULY"}
           placeholderTextColor={colors.textMuted}
+          selectionColor={colors.primary}
+          underlineColorAndroid="transparent"
+          keyboardAppearance="dark"
+          includeFontPadding={false}
           style={[styles.input, { height: inputHeight }]}
           multiline
           scrollEnabled={inputHeight >= MAX_INPUT_HEIGHT}
           maxLength={16000}
-          textAlign="right"
+          textAlign={isArabic ? "right" : "left"}
           accessibilityLabel={isArabic ? "اسأل Suly" : "Ask SULY"}
         />
 
@@ -355,6 +359,8 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
     minHeight: MIN_INPUT_HEIGHT,
     maxHeight: MAX_INPUT_HEIGHT,
     color: colors.textPrimary,
+    backgroundColor: "transparent",
+    borderWidth: 0,
     fontSize: 15,
     lineHeight: 21,
     paddingHorizontal: 10,
@@ -362,7 +368,7 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
     paddingBottom: 8,
     textAlign: isArabic ? "right" : "left",
     textAlignVertical: "top",
-    writingDirection: "rtl",
+    writingDirection: isArabic ? "rtl" : "ltr",
   },
   leftControls: { flexDirection: "row", alignItems: "center", gap: 4 },
   agentToggle: { minWidth: 58, height: 36, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 8, borderRadius: 18, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
