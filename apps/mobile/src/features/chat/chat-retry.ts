@@ -1,8 +1,7 @@
-import { randomUUID } from "expo-crypto";
 import type { ChatMessage } from "./chat-service";
 
 /** A new explicit retry is a new server request; reconnects reuse its in-memory request. */
-export function createRetryRequestId(): string {
+export function createRetryRequestId(randomUUID: () => string): string {
   return randomUUID();
 }
 
