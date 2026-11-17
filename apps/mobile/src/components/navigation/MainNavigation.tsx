@@ -22,6 +22,7 @@ export function usePlusMenu() {
 
 const ITEMS = [
   { key: "conversations", labelAr: "سجل المحادثات", labelEn: "History", href: "/conversations", icon: "chatbubbles-outline" as const },
+  { key: "projects", labelAr: "المشاريع", labelEn: "Projects", href: "/projects", icon: "folder-open-outline" as const },
   { key: "studio", labelAr: "Studio", labelEn: "Studio", href: "/studio", icon: "sparkles-outline" as const },
   { key: "library", labelAr: "المكتبة", labelEn: "Library", href: "/media", icon: "folder-open-outline" as const },
   { key: "account", labelAr: "الحساب", labelEn: "Account", href: "/settings", icon: "person-circle-outline" as const },
@@ -35,6 +36,7 @@ const PLUS_ITEMS = [
 ] as const;
 
 function activeSection(pathname: string): string {
+  if (pathname.startsWith("/projects")) return "projects";
   if (pathname.startsWith("/studio") || pathname.startsWith("/image-studio") || pathname.startsWith("/video-studio")) return "studio";
   if (pathname.startsWith("/media") || pathname.startsWith("/hims")) return "library";
   if (pathname.startsWith("/settings") || pathname.startsWith("/support") || pathname.startsWith("/upgrade") || pathname.startsWith("/balance") || pathname.startsWith("/integrations")) return "account";
