@@ -70,7 +70,7 @@ export function getSulyProductAnswer(text: string): string | null {
   const mentionsAgent = /(?:وضع\s+الوكيل|الوكيل|agent\s*mode)/iu.test(normalized);
   if (!mentionsAgent) return null;
   const asksHow = /(?:ازاي|إزاي|كيف|كيفية|أين|فين|مكان|how|where|enable|activate|turn\s+on|تفعيل|تشغيل|أفعل|افعل)/iu.test(normalized);
-  const asksWhat = /(?:يعني\s+ايه|ما\s+هو|ماهو|اشرح|what\s+is|explain)/iu.test(normalized);
+  const asksWhat = /(?:يعني\s+(?:ايه|إيه)|ما\s+هو|ماهو|اشرح|what\s+is|explain)/iu.test(normalized);
   if (asksHow) {
     return "لتفعيل وضع الوكيل في SULY، اضغط زر «وكيل» ✨ الموجود في شريط كتابة الرسالة بجوار زر +. سيتحول الزر إلى الحالة النشطة، وسيُرسل طلبك التالي عبر وضع الوكيل. لإيقافه اضغط الزر مرة أخرى.";
   }
