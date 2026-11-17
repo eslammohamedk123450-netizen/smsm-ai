@@ -37,7 +37,7 @@ export function embeddingsEndpoint(baseUrl: unknown): string | null {
   }
 }
 
-async function requestEmbedding(supabase: any, provider: EmbeddingProvider, text: string): Promise<number[]> {
+async function requestEmbedding(supabase: any, provider: EmbeddingProvider, text: string, timeoutMs = EMBEDDING_TIMEOUT_MS): Promise<number[]> {
   const endpoint = embeddingsEndpoint(provider.base_url);
   if (!endpoint) throw new Error(`${provider.provider_type} embedding URL is invalid`);
 
@@ -49,7 +49,7 @@ async function requestEmbedding(supabase: any, provider: EmbeddingProvider, text
   }
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), EMBEDDING_TIMEOUT_MS);
+  const timeoutId = setTimeout(() => controller.abort(), Math.max(250, Math.min(timeoutMs, 10_000)));
   let response: Response;
   try {
     response = await fetch(endpoint, {
@@ -93,7 +93,7 @@ async function requestEmbedding(supabase: any, provider: EmbeddingProvider, text
 export async function createEmbedding(
   supabase: any,
   text: string,
-  options: { limit?: number; maxChars?: number } = {},
+  options: { limit?: number; maxChars?: number; timeoutMs?: number } = {},
 ): Promise<number[] | null> {
   const input = text.trim().slice(0, options.maxChars ?? 8000);
   if (!input) return null;
@@ -110,7 +110,7 @@ export async function createEmbedding(
     let lastError: unknown = null;
     for (const provider of providers as EmbeddingProvider[]) {
       try {
-        return await requestEmbedding(supabase, provider, input);
+        return await requestEmbedding(supabase, provider, input, options.timeoutMs ?? EMBEDDING_TIMEOUT_MS);
       } catch (error) {
         lastError = error;
       }
