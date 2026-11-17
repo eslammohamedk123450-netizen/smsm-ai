@@ -71,6 +71,12 @@ export function parseMarkdownBlocks(markdown: string): MarkdownBlock[] {
               && chart.labels.every((label) => typeof label === "string" && label.trim().length > 0 && label.length <= 80)
               && chart.values.every((item) => typeof item === "number" && Number.isFinite(item) && item >= 0);
           };
+          if (language === "agent" && typeof visual.title === "string" && visual.title.trim().length > 0
+            && visual.title.length <= 80 && typeof visual.message === "string"
+            && visual.message.trim().length > 0 && visual.message.length <= 240) {
+            blocks.push({ type: "agent", title: visual.title, message: visual.message });
+            continue;
+          }
           if (language === "chart" && visual.type === "bar" && validChart(visual)) {
             blocks.push({ type: "chart", title: safeTitle, labels: visual.labels, values: visual.values });
             continue;
