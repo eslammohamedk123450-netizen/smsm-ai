@@ -31,7 +31,7 @@ const NAV_GROUPS: readonly NavGroup[] = [
     items: [
       { path: "/admin/models", label: "النماذج", labelEn: "Models", icon: "git-branch-outline" },
       { path: "/admin/api-keys", label: "المزودون والمفاتيح", labelEn: "Providers & API keys", icon: "key-outline" },
-      { path: "/admin/image-generation", label: "نماذج الوسائط", labelEn: "Media models", icon: "images-outline" },
+      { path: "/admin/media-catalog?kind=image", label: "نماذج الصور والفيديو والصوت", labelEn: "Image, video & audio models", icon: "images-outline" },
     ],
   },
   {
