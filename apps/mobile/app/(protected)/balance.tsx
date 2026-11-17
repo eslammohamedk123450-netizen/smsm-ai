@@ -54,7 +54,7 @@ function mapCreditEntries(entries: CreditEntry[], isArabic: boolean): Transactio
         points,
         isCredit,
         time: Number.isNaN(date.getTime()) ? "—" : date.toLocaleTimeString(isArabic ? "ar-EG" : "en-US", { hour: "2-digit", minute: "2-digit" }),
-        date: Number.isNaN(date.getTime()) ? "تاريخ غير متاح" : date.toLocaleDateString(isArabic ? "ar-EG" : "en-US"),
+        date: Number.isNaN(date.getTime()) ? (isArabic ? "تاريخ غير متاح" : "Date unavailable") : date.toLocaleDateString(isArabic ? "ar-EG" : "en-US"),
       };
     });
 }
@@ -201,7 +201,7 @@ export default function BalanceScreen() {
               <ActivityIndicator color={colors.primary} style={{ marginVertical: 8 }} />
             ) : (
               <Text style={styles.balanceNumber}>
-                {balance === null ? "—" : balance.toLocaleString("en-US")}
+                {balance === null ? "—" : balance.toLocaleString(isArabic ? "ar-EG" : "en-US")}
               </Text>
             )}
             <Text style={styles.balanceNotice}>
@@ -386,7 +386,7 @@ function createStyles(colors: ThemePalette, isArabic: boolean) { return StyleShe
     borderColor: colors.divider,
   },
   cardHeaderRow: {
-    flexDirection: "row-reverse",
+    flexDirection: isArabic ? "row-reverse" : "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
@@ -425,17 +425,17 @@ function createStyles(colors: ThemePalette, isArabic: boolean) { return StyleShe
     fontSize: 32,
     fontWeight: "700",
     color: colors.textPrimary,
-    textAlign: "right",
+    textAlign: isArabic ? "right" : "left",
     marginVertical: 4,
   },
   balanceNotice: {
     fontSize: 11,
     color: colors.textMuted,
-    textAlign: "right",
+    textAlign: isArabic ? "right" : "left",
     marginTop: 2,
   },
   buttonRow: {
-    flexDirection: "row-reverse",
+    flexDirection: isArabic ? "row-reverse" : "row",
     gap: 12,
   },
   rechargeBtn: {
@@ -472,7 +472,7 @@ function createStyles(colors: ThemePalette, isArabic: boolean) { return StyleShe
     borderColor: colors.divider,
   },
   consumptionHeaderRow: {
-    flexDirection: "row-reverse",
+    flexDirection: isArabic ? "row-reverse" : "row",
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 12,
@@ -502,7 +502,7 @@ function createStyles(colors: ThemePalette, isArabic: boolean) { return StyleShe
   consumptionSubtitle: {
     fontSize: 13,
     color: colors.textMuted,
-    textAlign: "right",
+    textAlign: isArabic ? "right" : "left",
     marginTop: 10,
   },
   lockedConsumption: {
@@ -534,7 +534,7 @@ function createStyles(colors: ThemePalette, isArabic: boolean) { return StyleShe
     fontSize: 16,
     fontWeight: "700",
     color: colors.textPrimary,
-    textAlign: "right",
+    textAlign: isArabic ? "right" : "left",
   },
   emptyCard: {
     backgroundColor: colors.surface,
@@ -555,7 +555,7 @@ function createStyles(colors: ThemePalette, isArabic: boolean) { return StyleShe
   dateHeader: {
     fontSize: 11,
     color: colors.textMuted,
-    textAlign: "right",
+    textAlign: isArabic ? "right" : "left",
     paddingHorizontal: 4,
   },
   transactionCard: {
@@ -564,12 +564,12 @@ function createStyles(colors: ThemePalette, isArabic: boolean) { return StyleShe
     padding: 12,
     borderWidth: 1,
     borderColor: colors.divider,
-    flexDirection: "row-reverse",
+    flexDirection: isArabic ? "row-reverse" : "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
   txRight: {
-    flexDirection: "row-reverse",
+    flexDirection: isArabic ? "row-reverse" : "row",
     alignItems: "center",
     gap: 12,
     flex: 1,
@@ -592,13 +592,13 @@ function createStyles(colors: ThemePalette, isArabic: boolean) { return StyleShe
     fontSize: 14,
     fontWeight: "700",
     color: colors.textPrimary,
-    textAlign: "right",
+    textAlign: isArabic ? "right" : "left",
   },
   txMeta: {
     fontSize: 11,
     color: colors.textMuted,
     marginTop: 2,
-    textAlign: "right",
+    textAlign: isArabic ? "right" : "left",
   },
   txLeft: {
     alignItems: isArabic ? "flex-start" : "flex-end",
@@ -659,7 +659,7 @@ function createStyles(colors: ThemePalette, isArabic: boolean) { return StyleShe
     marginBottom: 16,
   },
   packItem: {
-    flexDirection: "row-reverse",
+    flexDirection: isArabic ? "row-reverse" : "row",
     alignItems: "center",
     justifyContent: "space-between",
     backgroundColor: colors.surface,
@@ -672,7 +672,7 @@ function createStyles(colors: ThemePalette, isArabic: boolean) { return StyleShe
     borderColor: colors.primary,
   },
   packInfo: {
-    flexDirection: "row-reverse",
+    flexDirection: isArabic ? "row-reverse" : "row",
     alignItems: "center",
     gap: 8,
   },
