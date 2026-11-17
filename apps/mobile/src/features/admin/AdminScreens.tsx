@@ -89,6 +89,7 @@ export function ProvidersAdminScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [providers, setProviders] = useState<ProviderRow[]>([]);
   const [archivedProviders, setArchivedProviders] = useState<ProviderRow[]>([]);
+  const [showArchivedProviders, setShowArchivedProviders] = useState(false);
   const [providerModels, setProviderModels] = useState<ModelRow[]>([]);
   const [selectedType, setSelectedType] = useState("");
   const [name, setName] = useState("");
@@ -142,20 +143,6 @@ export function ProvidersAdminScreen() {
       setNotice(`${provider.name}: تم إيقاف المزود وإخفاؤه من الكتالوج. حُفظت إعداداته لاستعادتها لاحقًا، والسجلات المالية لم تتغير.`);
       await load();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر تغيير حالة المزود."); }
-    finally { setBusyId(null); }
-  };
-
-  const removeProvider = async (provider: ProviderRow) => {
-    const confirmed = await confirmAdminAction("حذف المزود", `سيُحذف ${provider.name} ومفتاحه وكل نماذجه نهائيًا.`, "حذف نهائي");
-    if (!confirmed) return;
-    setBusyId(provider.id); setError(null); setNotice(null);
-    try {
-      await adminService.deleteProvider(provider.id);
-      setProviders((current) => current.filter((item) => item.id !== provider.id));
-      setProviderModels((current) => current.filter((model) => model.provider_id !== provider.id));
-      setNotice(`تم حذف ${provider.name} ومفتاحه ونماذجه.`);
-      void load();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر حذف المزود."); }
     finally { setBusyId(null); }
   };
 
@@ -310,15 +297,15 @@ export function ProvidersAdminScreen() {
         <View style={styles.rowWrap}>
           <PrimaryButton label={busyId === provider.id ? "جارٍ التنفيذ…" : "مزامنة نماذج هذا المفتاح"} onPress={() => void syncProvider(provider)} disabled={busyId !== null || testingModelId !== null} />
           <PrimaryButton label={provider.enabled ? "إيقاف هذا المفتاح ونماذجه" : "تفعيل هذا المفتاح ونماذجه"} onPress={() => void toggleProvider(provider)} disabled={busyId !== null || testingModelId !== null} />
-          <Pressable accessibilityRole="button" onPress={() => void removeProvider(provider)} disabled={busyId !== null || testingModelId !== null}><Text style={styles.error}>حذف المفتاح ونماذجه</Text></Pressable>
         </View>
       </Card>;
     })}
     <Card>
       <View style={styles.sectionRow}>
-        <View><Text style={styles.sectionTitle}>المفاتيح المؤرشفة</Text><Text style={styles.detail}>{archivedProviders.length} مفتاح متوقف · مخفي من الكتالوجات النشطة</Text></View>
-        <Pressable accessibilityRole="button" onPress={() => void load()}><Text style={styles.link}>تحديث</Text></Pressable>
+        <View><Text style={styles.sectionTitle}>المفاتيح المؤرشفة</Text><Text style={styles.detail}>المفاتيح المتوقفة مخفية عن الكتالوجات والإحصاءات التشغيلية. افتح الأرشيف فقط عند الحاجة للاستعادة.</Text></View>
+        <Pressable accessibilityRole="button" accessibilityState={{ expanded: showArchivedProviders }} onPress={() => setShowArchivedProviders((value) => !value)}><Text style={styles.link}>{showArchivedProviders ? "إخفاء الأرشيف" : `عرض الأرشيف (${archivedProviders.length})`}</Text></Pressable>
       </View>
+      {showArchivedProviders ? <>
       {archivedProviders.length === 0
         ? <Text style={styles.detail}>لا توجد مفاتيح مؤرشفة.</Text>
         : archivedProviders.map((provider) => <View key={provider.id} style={styles.providerModelRow}>
@@ -343,7 +330,9 @@ export function ProvidersAdminScreen() {
             disabled={busyId !== null || testingModelId !== null}
           />
         </View>)}
-    </Card>
+    </Card
+      </> : null}
+    </Card>>
   </ScrollView>;
 }
 
