@@ -84,7 +84,7 @@ from public.ai_models m
 on conflict (provider_id, service_type, model_identifier) do update
 set legacy_chat_model_id = excluded.legacy_chat_model_id,
     display_name = excluded.display_name,
-    source_metadata = public.suly_model_registry.source_metadata || excluded.source_metadata,
+    source_metadata = suly_model_registry.source_metadata || excluded.source_metadata,
     updated_at = now();
 
 -- Backfill media catalog entries. Pricing and activation remain in their original tables.
@@ -97,7 +97,7 @@ from public.suly_media_generation_models m
 on conflict (provider_id, service_type, model_identifier) do update
 set legacy_media_model_id = excluded.legacy_media_model_id,
     display_name = excluded.display_name,
-    source_metadata = public.suly_model_registry.source_metadata || excluded.source_metadata,
+    source_metadata = suly_model_registry.source_metadata || excluded.source_metadata,
     updated_at = now();
 
 -- Preserve evidence-only and price-history-only media identities as candidates;
@@ -297,7 +297,7 @@ begin
   on conflict(provider_id,service_type,model_identifier) do update set
     display_name=excluded.display_name,legacy_chat_model_id=excluded.legacy_chat_model_id,
     lifecycle_state=excluded.lifecycle_state,
-    source_metadata=public.suly_model_registry.source_metadata || excluded.source_metadata,
+    source_metadata=suly_model_registry.source_metadata || excluded.source_metadata,
     updated_at=now()
   returning id into v_registry_id;
   -- Model-list discovery is only a suggestion, never proof or automatic approval.
@@ -321,7 +321,7 @@ begin
   on conflict(provider_id,service_type,model_identifier) do update set
     display_name=excluded.display_name,legacy_media_model_id=excluded.legacy_media_model_id,
     lifecycle_state=excluded.lifecycle_state,
-    source_metadata=public.suly_model_registry.source_metadata || excluded.source_metadata,
+    source_metadata=suly_model_registry.source_metadata || excluded.source_metadata,
     updated_at=now()
   returning id into v_registry_id;
   v_capability := case when new.service_type='image' then 'image_generation' else 'video_generation' end;
