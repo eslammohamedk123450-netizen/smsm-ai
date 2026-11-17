@@ -35,7 +35,7 @@ export function resolveSulyProfileKey(input: {
   userTier: string;
   intent: SulyIntent;
 }): SulyProfileResolution {
-  const tier: SulyTier = input.userTier in TIER_RANK
+  const tier: SulyTier = Object.prototype.hasOwnProperty.call(TIER_RANK, input.userTier)
     ? input.userTier as SulyTier
     : "free";
   const requested = input.requestedProfileKey;
