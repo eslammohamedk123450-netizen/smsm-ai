@@ -6,7 +6,7 @@ const TIER_RANK: Record<SulyTier, number> = { free: 0, lite: 1, pro: 2, max: 3 }
 const PROFILE_MINIMUM_TIER: Record<SulyProfileKey, SulyTier> = {
   lite: "free",
   pro: "pro",
-  max: "max",
+  max: "pro",
 };
 
 /** Enforce the minimum subscription tier configured on the active profile row. */
