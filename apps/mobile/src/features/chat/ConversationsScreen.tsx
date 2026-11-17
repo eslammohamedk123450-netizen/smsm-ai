@@ -118,14 +118,14 @@ export function ConversationsScreen() {
           <Text style={styles.newButtonText}>{isArabic ? "محادثة جديدة" : "New chat"}</Text>
         </Pressable>
       </View>
-      <>      <Pressable accessibilityRole="button" onPress={() => router.push("/projects")} style={[styles.projectsButton, { backgroundColor: colors.surface, borderColor: colors.divider, flexDirection: isArabic ? "row-reverse" : "row" }]}>
+      <Pressable accessibilityRole="button" onPress={() => router.push("/projects")} style={[styles.projectsButton, { backgroundColor: colors.surface, borderColor: colors.divider, flexDirection: isArabic ? "row-reverse" : "row" }]}>
         <Ionicons name="folder-open-outline" size={17} color={colors.primary} />
         <Text style={[styles.projectsButtonText, { color: colors.textPrimary }]}>{isArabic ? "إدارة مشاريعي" : "My projects"}</Text>
         <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={15} color={colors.textMuted} />
       </Pressable>
       <View style={[styles.search, { backgroundColor: colors.surface, borderColor: colors.divider }]}>
         <Ionicons name="search" size={18} color={colors.textMuted} />
-        <TextInput value={query} onChangeText={setQuery} placeholder={isArabic ? "ابحث في المحادثات…" : "Search chats…"} placeholderTextColor={colors.textMuted} style={[styles.searchInput, { color: colors.textPrimary }]} />
+        <TextInput value={query} onChangeText={setQuery} placeholder={isArabic ? "ابحث في السجل…" : "Search history…"} placeholderTextColor={colors.textMuted} style={[styles.searchInput, { color: colors.textPrimary }]} />
         {query ? <Pressable onPress={() => setQuery("")}><Ionicons name="close-circle" size={18} color={colors.textMuted} /></Pressable> : null}
       </View>
       {error ? <Text style={[styles.error, { color: colors.error }]}>{error}</Text> : null}
@@ -175,7 +175,6 @@ export function ConversationsScreen() {
           <Pressable onPress={() => void deleteSelected()} style={[styles.sheetAction, styles.dangerAction]}><Text style={styles.dangerText}>{isArabic ? "حذف نهائي" : "Delete permanently"}</Text></Pressable>
         </View>
       </BottomSheet>
-        </>
       <BottomSheet visible={Boolean(selectedTask)} title={isArabic ? "تفاصيل التنفيذ" : "Task details"} onClose={() => setSelectedTask(null)}>
         {selectedTask ? <View style={styles.sheetActions}>
           <Text style={styles.sheetActionText}>{isArabic ? "الطلب" : "Request"}: {selectedTask.objective}</Text>
