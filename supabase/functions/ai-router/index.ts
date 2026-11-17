@@ -3131,7 +3131,7 @@ async function handleRequest(req: Request): Promise<Response> {
 Deno.serve(async (req: Request) => {
   try {
     return await handleRequest(req);
-  } catch {
+  } catch (error) {
     const claim = activeAiClaims.get(req);
     if (claim) {
       const { error } = await claim.supabase.rpc("suly_finish_ai_request", {
@@ -3146,7 +3146,11 @@ Deno.serve(async (req: Request) => {
       if (error) console.error("Could not finalize unhandled AI request:", error.message);
       activeAiClaims.delete(req);
     }
-    console.error("Unhandled ai-router error.");
+    console.error("Unhandled ai-router error:", {
+      request_id: claim?.requestId ?? null,
+      error_name: error instanceof Error ? error.name : "UnknownError",
+      error_message: safeOperationalSummary(error instanceof Error ? error.message : String(error), 500),
+    });
     return jsonResponse({ error: "Internal ai-router error." }, 500, req);
   }
 });
