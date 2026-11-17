@@ -96,7 +96,7 @@ export function ModelPricingAdminCard() {
     <View style={styles.header}>
       <View style={styles.headerCopy}>
         <Text style={styles.title}>كتالوج أسعار النماذج النصية</Text>
-        <Text style={styles.subtitle}>45 نموذجًا · التكلفة بالجنيه لكل مليون رمز · سعر البيع محسوب بزيادة 40%</Text>
+        <Text style={styles.subtitle}>{rows.length} نموذج · تكلفة المزود وسعر البيع المسجلان بالجنيه لكل مليون رمز</Text>
       </View>
       <Pressable onPress={() => void load()} style={styles.refresh}><Text style={styles.refreshText}>تحديث</Text></Pressable>
     </View>
