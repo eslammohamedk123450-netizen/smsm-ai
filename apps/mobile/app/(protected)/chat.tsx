@@ -174,9 +174,14 @@ export default function ChatPage() {
         const normalizedTier = tier.toLowerCase();
         setCurrentSubscriptionTier(normalizedTier);
         const configuredProfiles = (profiles ?? []) as SulyModelProfileOption[];
-        const mergedProfiles = DEFAULT_MODEL_PROFILE_OPTIONS.map((fallback) => (
-          configuredProfiles.find((profile) => profile.profile_key === fallback.profile_key) ?? fallback
-        ));
+        const mergedProfiles = [
+          ...DEFAULT_MODEL_PROFILE_OPTIONS.map((fallback) => (
+            configuredProfiles.find((profile) => profile.profile_key === fallback.profile_key) ?? fallback
+          )),
+          // Keep newly configured profiles (including SULY X) from the database;
+          // do not resurrect retired, hard-coded fallback placeholders.
+          ...configuredProfiles.filter((profile) => !DEFAULT_MODEL_PROFILE_OPTIONS.some((fallback) => fallback.profile_key === profile.profile_key)),
+        ];
         setModelProfileOptions(mergedProfiles);
         setSelectedModelProfile((current) => mergedProfiles.some((item) => item.profile_key === current && item.is_active) ? current : "lite");
       } catch {
@@ -202,11 +207,6 @@ export default function ChatPage() {
     }
     setSelectedModelProfile(profile.profile_key);
     setModelProfileMenuVisible(false);
-  };
-
-  const chooseXProfile = () => {
-    setModelProfileMenuVisible(false);
-    show(isArabic ? "SULY X سيُتاح بعد اكتمال اعتماد النموذج ومزود الخدمة." : "SULY X will be available after its model and provider are approved.", "info");
   };
 
   const openNavigationDrawer = useNavigationMenu();
@@ -815,13 +815,6 @@ export default function ChatPage() {
                 {!profile.is_active ? <Ionicons name="lock-closed-outline" size={16} color={colors.textMuted} /> : null}
               </Pressable>
             ))}
-            <Pressable onPress={chooseXProfile} style={[styles.modelPickerOption, styles.modelPickerOptionDisabled]} accessibilityRole="button">
-              <View style={styles.modelPickerCopy}>
-                <Text style={styles.modelPickerName}>SULY 2.0 X</Text>
-                <Text style={styles.modelPickerDescription}>{isArabic ? "يتطلب اعتماد النموذج ومزود الخدمة." : "Requires model and provider approval."}</Text>
-              </View>
-              <Ionicons name="lock-closed-outline" size={17} color={colors.textMuted} />
-            </Pressable>
             {modelProfileLoading ? <Text style={styles.modelPickerHint}>{isArabic ? "جارٍ تحميل النماذج…" : "Loading models…"}</Text> : null}
           </View>
         ) : null}
