@@ -286,7 +286,7 @@ returns table (
   before_state jsonb, after_state jsonb, actor_id uuid, created_at timestamptz
 )
 language plpgsql security definer set search_path=public,pg_temp
-as $
+as $$
 begin
   if not public.suly_is_admin() then raise exception 'admin_required' using errcode='42501'; end if;
   return query
@@ -296,7 +296,7 @@ begin
   order by a.created_at desc,a.id desc
   limit 100;
 end;
-$;
+$$;
 
 revoke all on public.suly_model_registry, public.suly_model_capabilities, public.suly_model_registry_audit from anon, authenticated;
 revoke all on function public.suly_admin_list_unified_model_capabilities() from public,anon;
