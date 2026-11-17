@@ -40,7 +40,7 @@ const DEFAULT_MODEL_PROFILE_OPTIONS: SulyModelProfileOption[] = [
   { profile_key: "free", display_name: "SULY Free", tagline: "للتجربة والمهام البسيطة", minimum_subscription_tier: "free", is_active: true },
   { profile_key: "lite", display_name: "SULY Lite", tagline: "للاستخدام الشخصي اليومي", minimum_subscription_tier: "lite", is_active: true },
   { profile_key: "pro", display_name: "SULY Pro", tagline: "للاستخدام الجاد والمهام المتقدمة", minimum_subscription_tier: "pro", is_active: false },
-  { profile_key: "max", display_name: "SULY Max", tagline: "للمهام المعقدة والتحليل العميق", minimum_subscription_tier: "max", is_active: false },
+  { profile_key: "max", display_name: "SULY Max", tagline: "للمهام المعقدة والتحليل العميق", minimum_subscription_tier: "pro", is_active: false },
   { profile_key: "ultra_team", display_name: "SULY Ultra Team", tagline: "مساحة عمل للفرق", minimum_subscription_tier: "ultra_team", is_active: false },
 ];
 
