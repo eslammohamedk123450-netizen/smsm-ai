@@ -103,7 +103,7 @@ export default function BalanceScreen() {
         setPlanTier(tier);
         if (!tier || tier === "free") setMonthlyAllowance(null);
         else {
-          const { data: plan } = await supabase.from("subscription_plans").select("monthly_credits,daily_credits").eq("id", tier === "lite" ? 2 : tier === "pro" ? 3 : tier === "max" ? 4 : tier === "ultra_team" || tier === "ultra" ? 5 : 1).maybeSingle();
+          const { data: plan } = await supabase.from("subscription_plans").select("monthly_credits,daily_credits").eq("tier_key", tier).eq("is_active", true).order("id", { ascending: false }).limit(1).maybeSingle();
           const monthly = Number(plan?.monthly_credits ?? 0) || Number(plan?.daily_credits ?? 0) * 30;
           setMonthlyAllowance(monthly > 0 ? monthly : null);
         }
