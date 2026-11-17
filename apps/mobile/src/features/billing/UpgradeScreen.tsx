@@ -9,13 +9,15 @@ import { useAppLocale } from "../../theme/LocaleProvider";
 import { supabase } from "../../lib/supabase/client";
 import { useAuth } from "../auth/auth-provider";
 
-type Plan = { id: number; name: string; tier_key?: string | null; description: string | null; price: number; currency: string; billing_period: string; daily_credits: number; max_requests: number; sort_order: number };
+type Plan = { id: number; name: string; tier_key?: string | null; description: string | null; price: number; currency: string; billing_period: string; monthly_credits: number; daily_credits: number; max_requests: number; sort_order: number };
 type Feature = { id: number; plan_id: number; title: string; value: string; sort_order: number };
-const PLAN_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = { free: "sparkles-outline", basic: "leaf-outline", standard: "leaf-outline", lite: "flash-outline", pro: "rocket-outline", max: "diamond-outline", ultra: "infinite-outline" };
+const PLAN_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = { free: "sparkles-outline", basic: "leaf-outline", standard: "leaf-outline", lite: "flash-outline", pro: "rocket-outline", max: "diamond-outline", ultra: "infinite-outline", ultra_team: "people-outline" };
 const planKey = (name: string) => {
   const value = name.trim().toLowerCase();
   if (value.includes("free")) return "free";
-  if (value.includes("max") || value.includes("ultra")) return "max";
+  if (value.includes("ultra team") || value.includes("ultra_team") || value === "team") return "ultra_team";
+  if (value.includes("max")) return "max";
+  if (value.includes("ultra")) return "ultra";
   if (value.includes("pro")) return "pro";
   if (value.includes("lite")) return "lite";
   return "free";
@@ -36,12 +38,12 @@ export default function UpgradeScreen() {
   const load = useCallback(async () => {
     setLoading(true); setError(null);
     let [plansResult, featuresResult, tierResult] = await Promise.all([
-      supabase.from("subscription_plans").select("id,name,tier_key,description,price,currency,billing_period,daily_credits,max_requests,sort_order").eq("is_active", true).order("sort_order").limit(20),
+      supabase.from("subscription_plans").select("id,name,tier_key,description,price,currency,billing_period,monthly_credits,daily_credits,max_requests,sort_order").eq("is_active", true).order("sort_order").limit(20),
       supabase.from("subscription_plan_features").select("id,plan_id,title,value,sort_order").eq("is_active", true).order("sort_order").limit(200),
       user ? supabase.rpc("suly_effective_subscription_tier", { p_user_id: user.id }) : Promise.resolve({ data: "free", error: null }),
     ]);
     if (plansResult.error) {
-      const legacyPlans = await supabase.from("subscription_plans").select("id,name,description,price,currency,billing_period,daily_credits,max_requests,sort_order").eq("is_active", true).order("sort_order").limit(20);
+      const legacyPlans = await supabase.from("subscription_plans").select("id,name,description,price,currency,billing_period,monthly_credits,daily_credits,max_requests,sort_order").eq("is_active", true).order("sort_order").limit(20);
       if (!legacyPlans.error) plansResult = { ...legacyPlans, data: (legacyPlans.data ?? []).map((plan) => ({ ...plan, tier_key: planKey(plan.name) })) } as unknown as typeof plansResult;
     }
     if (plansResult.error || featuresResult.error || tierResult.error) setError(isArabic ? "تعذر تحميل الباقات أو التحقق من اشتراكك الحالي. حاول مرة أخرى." : "Could not load plans or verify your current subscription. Try again.");
@@ -57,7 +59,7 @@ export default function UpgradeScreen() {
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     <View style={styles.header}><Pressable onPress={() => router.back()}><Text style={styles.back}>{isArabic ? "رجوع" : "Back"}</Text></Pressable><View style={styles.headerTitle}><Ionicons name="card-outline" size={25} color={colors.primary} /><Text style={styles.title}>{isArabic ? "الباقات والترقية" : "Plans & upgrades"}</Text></View></View>
-    <Text style={styles.subtitle}>{isArabic ? "كل مستويات SULY ظاهرة للجميع. باقة Pro تفتح Lite وPro وMax، وباقة Max تفتحها جميعًا بالإضافة إلى SULY X عند اعتماده." : "All SULY models are visible to everyone. Pro unlocks Lite, Pro, and Max; Max also unlocks SULY X once it is approved."}</Text>
+    <Text style={styles.subtitle}>{isArabic ? "المجاني يستخدم مستوى Free فقط. الاشتراك يحدد النماذج والقدرات والحدود المتاحة، والكريدت يُستهلك حسب الاستخدام الفعلي. يمكن شحن رصيد إضافي دون شراء باقة." : "Free accounts use the Free profile only. Your subscription controls model access, capabilities and limits; credits are consumed by actual usage. You can also top up without a subscription."}</Text>
     {loading ? <ActivityIndicator color={colors.primary} /> : error ? <Text style={styles.error}>{error}</Text> : plans.map((plan) => {
       const key = plan.tier_key || planKey(plan.name);
       const current = currentTier === key;
@@ -65,8 +67,8 @@ export default function UpgradeScreen() {
         <View style={styles.planHeader}><View style={styles.planIdentity}><View style={styles.iconWrap}><Ionicons name={PLAN_ICONS[key] ?? "layers-outline"} size={25} color={colors.primary} /></View><Text style={styles.planName}>{plan.name}</Text></View><Text style={styles.price}>{plan.price === 0 ? (isArabic ? "مجانية" : "Free") : `${plan.price} ${plan.currency}`}</Text></View>
         {current ? <Text style={styles.currentBadge}>{isArabic ? "باقتك الحالية" : "Current plan"}</Text> : null}
         <Text style={styles.description}>{(isArabic ? (plan.description ?? "باقة مناسبة لاستخدامك") : key === "max" ? "For advanced work, deep analysis, and multi-step tasks." : key === "pro" ? "For coding, research, and complex everyday work." : "For everyday chats, questions, and writing.")}</Text>
-        <Text style={styles.meta}>{isArabic ? `المستويات المفتوحة: ${key === "max" ? "SULY X (عند الاعتماد) + Max + Pro + Lite" : key === "pro" ? "SULY Max + Pro + Lite" : "SULY Lite"}` : `Unlocked modes: ${key === "max" ? "SULY X (when approved) + Max + Pro + Lite" : key === "pro" ? "SULY Max + Pro + Lite" : "SULY Lite"}`}</Text>
-        <Text style={styles.meta}>{isArabic ? `الرصيد: ${plan.daily_credits.toLocaleString("ar-EG")} · المهام: ${plan.max_requests.toLocaleString("ar-EG")}` : `Credits: ${plan.daily_credits.toLocaleString("en-US")} · Tasks: ${plan.max_requests.toLocaleString("en-US")}`}</Text>
+        <Text style={styles.meta}>{isArabic ? `مستوى الخدمة: ${key === "ultra_team" ? "Ultra Team" : key.toUpperCase()}` : `Service level: ${key === "ultra_team" ? "Ultra Team" : key.toUpperCase()}`}</Text>
+        <Text style={styles.meta}>{isArabic ? `الرصيد الشهري: ${Number(plan.monthly_credits ?? 0).toLocaleString("ar-EG")} · المهام: ${plan.max_requests.toLocaleString("ar-EG")}` : `Monthly credits: ${Number(plan.monthly_credits ?? 0).toLocaleString("en-US")} · Tasks: ${plan.max_requests.toLocaleString("en-US")}`}</Text>
         <View style={styles.features}>{features.filter((feature) => feature.plan_id === plan.id).map((feature) => <View key={feature.id} style={styles.feature}><Ionicons name="checkmark-circle" size={17} color={colors.primary} /><Text style={styles.featureValue}><Text style={styles.featureTitle}>{feature.title}: </Text>{feature.value}</Text></View>)}</View>
         <Pressable disabled={current || plan.price === 0} style={[styles.action, (current || plan.price === 0) && styles.disabled]}><Text style={styles.actionText}>{current ? (isArabic ? "باقتك الحالية" : "Current plan") : plan.price === 0 ? (isArabic ? "الباقة المجانية" : "Free plan") : (isArabic ? "ستتوفر الترقية قريبًا" : "Upgrades coming soon")}</Text></Pressable>
       </View>;

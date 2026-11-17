@@ -1,32 +1,44 @@
 import { isSubscriptionTierEligible, resolveSulyProfileKey } from "./suly_profile_routing.ts";
 
-Deno.test("auto uses Lite for lightweight chat even when a higher plan is available", () => {
-  const result = resolveSulyProfileKey({ requestedProfileKey: "auto", userTier: "pro", intent: "chat" });
-  if (result.profileKey !== "lite" || result.mode !== "auto" || !result.allowed) throw new Error("Auto chat should use Lite.");
+Deno.test("auto uses Free for free users and Lite for paid subscribers on lightweight chat", () => {
+  const free = resolveSulyProfileKey({ requestedProfileKey: "auto", userTier: "free", intent: "chat" });
+  const pro = resolveSulyProfileKey({ requestedProfileKey: "auto", userTier: "pro", intent: "chat" });
+  if (free.profileKey !== "free" || free.mode !== "auto" || !free.allowed) throw new Error("Free users must stay on the Free profile.");
+  if (pro.profileKey !== "lite" || pro.mode !== "auto" || !pro.allowed) throw new Error("Paid chat should use the economical Lite profile by default.");
 });
 
-Deno.test("auto uses the highest subscribed profile for complex work", () => {
+Deno.test("auto uses the highest entitled profile for complex work", () => {
+  const free = resolveSulyProfileKey({ requestedProfileKey: "auto", userTier: "free", intent: "complex_task" });
+  const lite = resolveSulyProfileKey({ requestedProfileKey: "auto", userTier: "lite", intent: "complex_task" });
   const pro = resolveSulyProfileKey({ requestedProfileKey: "auto", userTier: "pro", intent: "complex_task" });
   const max = resolveSulyProfileKey({ requestedProfileKey: "auto", userTier: "max", intent: "complex_task" });
-  const free = resolveSulyProfileKey({ requestedProfileKey: "auto", userTier: "free", intent: "complex_task" });
-  if (pro.profileKey !== "pro" || max.profileKey !== "max" || free.profileKey !== "lite") throw new Error("Auto complexity routing did not respect subscription.");
+  const team = resolveSulyProfileKey({ requestedProfileKey: "auto", userTier: "ultra_team", intent: "complex_task" });
+  if (free.profileKey !== "free" || lite.profileKey !== "lite" || pro.profileKey !== "pro" || max.profileKey !== "max" || team.profileKey !== "ultra_team") {
+    throw new Error("Auto complexity routing did not respect the user's subscription tier.");
+  }
 });
 
-Deno.test("manual profile selection is never silently downgraded for a simple request", () => {
+Deno.test("manual profile selection is never silently downgraded", () => {
   const result = resolveSulyProfileKey({ requestedProfileKey: "pro", userTier: "pro", intent: "chat" });
   if (result.profileKey !== "pro" || result.mode !== "manual" || !result.allowed) throw new Error("Manual Pro selection must remain Pro.");
 });
 
-Deno.test("Pro subscribers can manually select Max without silent downgrade", () => {
-  const result = resolveSulyProfileKey({ requestedProfileKey: "max", userTier: "pro", intent: "complex_task" });
-  if (result.profileKey !== "max" || result.mode !== "manual" || !result.allowed) throw new Error("Pro subscribers should be allowed to select Max.");
+Deno.test("legacy Free clients requesting the old Lite default remain on Free, while Pro retains Max-profile access", () => {
+  const legacyFree = resolveSulyProfileKey({ requestedProfileKey: "lite", userTier: "free", intent: "chat" });
+  const proMax = resolveSulyProfileKey({ requestedProfileKey: "max", userTier: "pro", intent: "complex_task" });
+  if (legacyFree.profileKey !== "free" || !legacyFree.allowed) throw new Error("Legacy Free clients must be safely routed to the Free profile.");
+  if (!proMax.allowed) throw new Error("Pro retains access to the Max profile under the existing entitlement policy.");
 });
 
-Deno.test("configured profile minimum tier is enforced from the database value", () => {
-  if (!isSubscriptionTierEligible("free", "free")) throw new Error("Free should access a free minimum profile.");
-  if (!isSubscriptionTierEligible("pro", "lite")) throw new Error("Pro should inherit Lite access.");
-  if (!isSubscriptionTierEligible("max", "pro")) throw new Error("Max should inherit Pro access.");
-  if (!isSubscriptionTierEligible("pro", "pro")) throw new Error("Pro should access the Max profile, whose minimum tier is Pro.");
+Deno.test("Ultra Team is the highest tier and inherits all lower profile access", () => {
+  if (!isSubscriptionTierEligible("ultra_team", "max")) throw new Error("Ultra Team should inherit Max access.");
+  if (!isSubscriptionTierEligible("ultra_team", "pro")) throw new Error("Ultra Team should inherit Pro access.");
+  if (!isSubscriptionTierEligible("ultra_team", "lite")) throw new Error("Ultra Team should inherit Lite access.");
+  if (!isSubscriptionTierEligible("ultra_team", "free")) throw new Error("Ultra Team should inherit Free access.");
+  if (!isSubscriptionTierEligible("free", "free")) throw new Error("Free should access the Free profile.");
+  if (isSubscriptionTierEligible("free", "lite")) throw new Error("Free must not access paid Lite.");
+  const proMax = resolveSulyProfileKey({ requestedProfileKey: "max", userTier: "pro", intent: "complex_task" });
+  if (!proMax.allowed) throw new Error("Pro retains access to the Max profile under the existing entitlement policy.");
   if (isSubscriptionTierEligible("unknown", "free")) throw new Error("Unknown user tiers must fail closed.");
   if (isSubscriptionTierEligible("max", "unknown")) throw new Error("Unknown profile tiers must fail closed.");
 });

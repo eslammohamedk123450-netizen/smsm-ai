@@ -1,12 +1,14 @@
-export type SulyTier = "free" | "lite" | "pro" | "max";
-export type SulyProfileKey = "lite" | "pro" | "max";
+export type SulyTier = "free" | "lite" | "pro" | "max" | "ultra_team";
+export type SulyProfileKey = "free" | "lite" | "pro" | "max" | "ultra_team";
 export type SulyIntent = "chat" | "simple_task" | "complex_task";
 
-const TIER_RANK: Record<SulyTier, number> = { free: 0, lite: 1, pro: 2, max: 3 };
+const TIER_RANK: Record<SulyTier, number> = { free: 0, lite: 1, pro: 2, max: 3, ultra_team: 4 };
 const PROFILE_MINIMUM_TIER: Record<SulyProfileKey, SulyTier> = {
-  lite: "free",
+  free: "free",
+  lite: "lite",
   pro: "pro",
   max: "pro",
+  ultra_team: "ultra_team",
 };
 
 /** Enforce the minimum subscription tier configured on the active profile row. */
@@ -23,20 +25,27 @@ export interface SulyProfileResolution {
 }
 
 /**
- * Auto is advisory routing: it selects the lowest profile that matches the
- * task's complexity and the user's subscription. Manual selection is honored
- * as requested and is never silently downgraded.
+ * Free is a distinct model profile and never inherits paid Lite.
+ * Auto uses the lowest appropriate profile for lightweight work and the
+ * subscriber's highest profile for complex work. Manual selection is honored
+ * as requested but never silently downgraded.
  */
 export function resolveSulyProfileKey(input: {
   requestedProfileKey?: string | null;
   userTier: string;
   intent: SulyIntent;
 }): SulyProfileResolution {
-  const tier: SulyTier = input.userTier === "max" || input.userTier === "pro" || input.userTier === "lite"
-    ? input.userTier
+  const tier: SulyTier = Object.prototype.hasOwnProperty.call(TIER_RANK, input.userTier)
+    ? input.userTier as SulyTier
     : "free";
   const requested = input.requestedProfileKey;
-  if (requested === "lite" || requested === "pro" || requested === "max") {
+  // Older mobile clients shipped with "lite" as the default profile even for
+  // Free accounts. Keep those clients working by routing that legacy default
+  // to the Free profile; model-level allowed_tiers still limits Free to free_race.
+  if (tier === "free" && requested === "lite") {
+    return { profileKey: "free", mode: "manual", allowed: true };
+  }
+  if (requested === "free" || requested === "lite" || requested === "pro" || requested === "max" || requested === "ultra_team") {
     return {
       profileKey: requested,
       mode: "manual",
@@ -45,7 +54,7 @@ export function resolveSulyProfileKey(input: {
   }
 
   const profileKey: SulyProfileKey = input.intent === "complex_task"
-    ? tier === "max" ? "max" : tier === "pro" ? "pro" : "lite"
-    : "lite";
+    ? tier
+    : tier === "free" ? "free" : "lite";
   return { profileKey, mode: "auto", allowed: true };
 }

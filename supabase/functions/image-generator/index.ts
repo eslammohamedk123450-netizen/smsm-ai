@@ -216,7 +216,7 @@ async function handleImageGeneratorRequest(req: Request): Promise<Response> {
     console.error("Effective media subscription entitlement verification failed.");
     return json(503, { error: "تعذر التحقق من صلاحيات الباقة. حاول مرة أخرى." });
   }
-  const userTier = ["free","lite","pro","max"].includes(effectiveTier) ? effectiveTier : "free";
+  const userTier = ["free","lite","pro","max","ultra_team"].includes(effectiveTier) ? effectiveTier : "free";
 
   const { data: existingAsset } = await service.from("global_media_assets").select("id,message_id,metadata")
     .eq("user_id", userId).contains("metadata", { request_id: requestId }).maybeSingle();
@@ -249,7 +249,7 @@ async function handleImageGeneratorRequest(req: Request): Promise<Response> {
   else modelQuery = modelQuery.eq("is_default", true);
   const { data: model, error: modelError } = await modelQuery.maybeSingle();
   if (modelError || !model) return json(503, { error: "لا يوجد نموذج صور خارجي مفعّل. اطلب من المشرف ربط مزود ونموذج صور." });
-  const mediaTierRank: Record<string, number> = { free: 0, lite: 1, pro: 2, max: 3 };
+  const mediaTierRank: Record<string, number> = { free: 0, lite: 1, pro: 2, max: 3, ultra_team: 4 };
   const mediaUserRank = mediaTierRank[userTier] ?? 0;
   const mediaTierAllowed = (model.allowed_tiers ?? []).some((tier: string) =>
     mediaTierRank[tier] !== undefined && mediaTierRank[tier] <= mediaUserRank);

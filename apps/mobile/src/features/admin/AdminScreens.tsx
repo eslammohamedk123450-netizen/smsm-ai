@@ -397,7 +397,7 @@ export function ModelsAdminScreen() {
 
   const openModelDetails = async (model: ModelRow) => {
     setSelectedModel(model);
-    setEditTiers(model.allowed_tiers ?? ["free", "lite", "pro", "max"]);
+    setEditTiers(model.allowed_tiers ?? ["max"]);
     setEditTimeout(String(model.response_timeout_ms ?? 30000));
     setEditThreshold(String(model.restriction_failure_threshold ?? 3));
     setEditWindow(String(model.restriction_window_minutes ?? 15));
@@ -596,7 +596,7 @@ export function ModelsAdminScreen() {
           <View style={styles.modalHeading}><View style={styles.sectionIcon}><Text style={styles.sectionIconText}>◈</Text></View><View style={styles.modalHeadingText}><Text style={styles.sectionTitle}>إعدادات النموذج</Text><Text style={styles.detail}>{selectedModel?.name}</Text></View></View>
           <Text style={styles.detail}>الشرائح المسموحة allowed_tiers:</Text>
           <View style={styles.rowWrap}>
-            {["free", "lite", "pro", "max"].map((tier) => (
+            {["free", "lite", "pro", "max", "ultra_team"].map((tier) => (
               <Pressable key={tier} onPress={() => toggleTier(tier)} style={[styles.pill, editTiers.includes(tier) && styles.pillSelected]}>
                 <Text style={styles.pillText}>{tier}</Text>
               </Pressable>
@@ -728,7 +728,7 @@ export function PricingAdminScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [plans, setPlans] = useState<PricingPlan[]>([]);
   const [features, setFeatures] = useState<PricingFeature[]>([]);
-  const [drafts, setDrafts] = useState<Record<string, { price: string; max_requests: string; daily_credits: string }>>({});
+  const [drafts, setDrafts] = useState<Record<string, { price: string; max_requests: string; monthly_credits: string; daily_credits: string }>>({});
   const [featureDrafts, setFeatureDrafts] = useState<Record<string, { title: string; value: string }>>({});
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -741,26 +741,26 @@ export function PricingAdminScreen() {
       setPlans(loadedPlans);
       setFeatures(loadedFeatures);
       setFeatureDrafts(Object.fromEntries(loadedFeatures.map((feature) => [feature.id, { title: feature.title, value: feature.value }])));
-      setDrafts(Object.fromEntries(loadedPlans.map((plan) => [plan.id, { price: String(plan.price), max_requests: String(plan.max_requests), daily_credits: String(plan.daily_credits) }])));
+      setDrafts(Object.fromEntries(loadedPlans.map((plan) => [plan.id, { price: String(plan.price), max_requests: String(plan.max_requests), monthly_credits: String(plan.monthly_credits), daily_credits: String(plan.daily_credits) }])));
     } catch { setError("تعذر تحميل الباقات. تحقق من migration والصلاحية."); }
     finally { setLoading(false); }
   };
   useEffect(() => { void load(); }, []);
-  const updateDraft = (planId: number, key: "price" | "max_requests" | "daily_credits", value: string) => {
+  const updateDraft = (planId: number, key: "price" | "max_requests" | "monthly_credits" | "daily_credits", value: string) => {
     const draftKey = String(planId);
     setDrafts((current) => ({ ...current, [draftKey]: { ...current[draftKey], [key]: value } }));
   };
   const save = async () => {
     const values = plans.map((plan) => {
       const draft = drafts[plan.id];
-      return { plan, price: Number(draft?.price), max_requests: Number(draft?.max_requests), daily_credits: Number(draft?.daily_credits) };
+      return { plan, price: Number(draft?.price), max_requests: Number(draft?.max_requests), monthly_credits: Number(draft?.monthly_credits), daily_credits: Number(draft?.daily_credits) };
     });
-    if (values.some(({ price, max_requests, daily_credits }) => !Number.isFinite(price) || price < 0 || !Number.isInteger(max_requests) || max_requests < 0 || !Number.isInteger(daily_credits) || daily_credits < 0)) {
+    if (values.some(({ price, max_requests, monthly_credits, daily_credits }) => !Number.isFinite(price) || price < 0 || !Number.isInteger(max_requests) || max_requests < 0 || !Number.isInteger(monthly_credits) || monthly_credits < 0 || !Number.isInteger(daily_credits) || daily_credits < 0)) {
       setError("كل الأسعار والحدود يجب أن تكون أرقامًا غير سالبة، والحدود أعدادًا صحيحة."); return;
     }
     setBusy(true); setError(null); setNotice(null);
     try {
-      await Promise.all(values.map(({ plan, price, max_requests, daily_credits }) => adminService.updatePricingPlan(plan.id, { price, max_requests, daily_credits })));
+      await Promise.all(values.map(({ plan, price, max_requests, monthly_credits, daily_credits }) => adminService.updatePricingPlan(plan.id, { price, max_requests, monthly_credits, daily_credits })));
       await Promise.all(features.map((feature) => {
         const draft = featureDrafts[feature.id];
         return adminService.updatePricingFeature(feature.id, { title: draft?.title ?? feature.title, value: draft?.value ?? feature.value });
@@ -782,7 +782,8 @@ export function PricingAdminScreen() {
           <Text style={styles.cardTitle}>{plan.name} ({plan.id})</Text>
           <NumberField label="السعر" value={draft?.price ?? ""} onChange={(value) => updateDraft(plan.id, "price", value)} />
           <NumberField label="الحد الأقصى للطلبات" value={draft?.max_requests ?? ""} onChange={(value) => updateDraft(plan.id, "max_requests", value)} />
-          <NumberField label="الرصيد اليومي" value={draft?.daily_credits ?? ""} onChange={(value) => updateDraft(plan.id, "daily_credits", value)} />
+          <NumberField label="رصيد الاشتراك الشهري" value={draft?.monthly_credits ?? ""} onChange={(value) => updateDraft(plan.id, "monthly_credits", value)} />
+          <NumberField label="حد الاستخدام اليومي (اختياري)" value={draft?.daily_credits ?? ""} onChange={(value) => updateDraft(plan.id, "daily_credits", value)} />
           <Text style={styles.label}>مزايا الباقة</Text>
           {features.filter((feature) => feature.plan_id === plan.id).map((feature) => <View key={feature.id} style={styles.featureEditor}>
             <TextInput style={styles.input} value={featureDrafts[feature.id]?.title ?? feature.title} onChangeText={(value) => setFeatureDrafts((current) => ({ ...current, [feature.id]: { ...(current[feature.id] ?? { value: feature.value }), title: value } }))} placeholder="عنوان المزية" placeholderTextColor={colors.textMuted} />
