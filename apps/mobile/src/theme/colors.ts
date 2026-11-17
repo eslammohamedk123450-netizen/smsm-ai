@@ -10,12 +10,12 @@ const darkColors = {
 } as const;
 
 const lightColors = {
-  primary: "#9B7417", onPrimary: "#FFFFFF",
+  primary: "#8F6A12", onPrimary: "#FFFFFF",
   primaryDark: "#806013", secondary: "#A47B20", primarySoft: "#B88A2B20",
   background: "#FAF8F1", surface: "#FFFFFF", surfaceElevated: "#F1ECDD",
-  textPrimary: "#1F1D18", textSecondary: "#514B3F", textMuted: "#777165", accent: "#9B7417",
-  success: "#337B58", warning: "#9B7417", error: "#B64D4D",
-  freeBadge: "#777165", premiumBadge: "#9B7417", racingBadge: "#A47B20",
+  textPrimary: "#1F1D18", textSecondary: "#514B3F", textMuted: "#6F695F", accent: "#8F6A12",
+  success: "#337B58", warning: "#8F6A12", error: "#B64D4D",
+  freeBadge: "#6F695F", premiumBadge: "#8F6A12", racingBadge: "#8F6A12",
   divider: "#E2DCCB", cardBackground: "#FFFFFF", inputBackground: "#F6F2E8",
   inputBorder: "#CFC6B3", modalOverlay: "#00000066",
 } as const;

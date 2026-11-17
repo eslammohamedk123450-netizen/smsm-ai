@@ -44,15 +44,13 @@ describe("SULY shared theme tokens", () => {
 });
 
 
-  it.each(["dark", "light"] as const)("uses neutral grayscale tokens in %s mode", (mode) => {
-    const palette = getThemeColors(mode);
-    for (const [key, value] of Object.entries(palette)) {
-      const rgb = value.slice(1, 7);
-      if (!/^[0-9a-f]{6}$/i.test(rgb)) throw new Error(`Invalid grayscale token: ${key}=${value}`);
-      const red = rgb.slice(0, 2);
-      const green = rgb.slice(2, 4);
-      const blue = rgb.slice(4, 6);
-      expect(red).toBe(green);
-      expect(green).toBe(blue);
-    }
+  it("preserves the approved Midnight Gold Luxury identity", () => {
+    const dark = getThemeColors("dark");
+    const light = getThemeColors("light");
+    expect(dark.primary).toBe("#D4AF37");
+    expect(dark.background).toBe("#080B14");
+    expect(dark.surface).toBe("#151A27");
+    expect(dark.surfaceElevated).toBe("#252B3A");
+    expect(dark.textPrimary).toBe("#F5F0E2");
+    expect(light.primary).toBe("#8F6A12");
   });
