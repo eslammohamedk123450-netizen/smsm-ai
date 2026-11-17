@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -84,18 +84,27 @@ export default function SkillRegistryScreen() {
     } finally { setBusyId(null); }
   };
 
-  const deleteSkill = async (item: SkillItem) => {
-    if (!user?.id || busyId) return;
-    setBusyId(item.id);
-    try {
-      const { error: deleteError } = await supabase.from("user_learned_skills")
-        .delete().eq("id", item.id).eq("user_id", user.id);
-      if (deleteError) throw deleteError;
-      setItems((current) => current.filter((skill) => skill.id !== item.id));
-      show(isArabic ? "تم حذف المهارة." : "Skill deleted.", "success");
-    } catch {
-      show(isArabic ? "تعذر حذف المهارة." : "Could not delete the skill.", "error");
-    } finally { setBusyId(null); }
+  const deleteSkill = (item: SkillItem) => {
+    Alert.alert(
+      isArabic ? "حذف المهارة؟" : "Delete skill?",
+      isArabic ? "لن يمكن استعادة هذه المهارة بعد حذفها." : "This skill cannot be recovered after deletion.",
+      [
+        { text: isArabic ? "إلغاء" : "Cancel", style: "cancel" },
+        { text: isArabic ? "حذف" : "Delete", style: "destructive", onPress: () => { void (async () => {
+          if (!user?.id || busyId) return;
+          setBusyId(item.id);
+          try {
+            const { error: deleteError } = await supabase.from("user_learned_skills")
+              .delete().eq("id", item.id).eq("user_id", user.id);
+            if (deleteError) throw deleteError;
+            setItems((current) => current.filter((skill) => skill.id !== item.id));
+            show(isArabic ? "تم حذف المهارة." : "Skill deleted.", "success");
+          } catch {
+            show(isArabic ? "تعذر حذف المهارة." : "Could not delete the skill.", "error");
+          } finally { setBusyId(null); }
+        })(); } },
+      ],
+    );
   };
 
   const visibleItems = items.filter((item) => item.status === filter);
