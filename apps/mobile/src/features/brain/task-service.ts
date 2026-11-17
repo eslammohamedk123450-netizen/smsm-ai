@@ -72,3 +72,77 @@ export async function getTaskProgress(taskId: string, jobId?: string): Promise<T
     errorMessage: job?.error_message == null ? null : String(job.error_message),
   };
 }
+
+
+export type TaskHistoryItem = {
+  jobId: string;
+  taskId: string | null;
+  status: "queued" | "running" | "completed" | "failed" | "cancelled";
+  objective: string;
+  resultText: string | null;
+  updatedAt: string | null;
+  completedAt: string | null;
+  complexity: string | null;
+  estimatedSteps: number | null;
+};
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
+/** Pure, bounded projection for the signed-in user's task-history view. */
+export function mapTaskHistory(jobs: unknown[], contexts: unknown[]): TaskHistoryItem[] {
+  const contextByTask = new Map<string, Record<string, unknown>>();
+  for (const value of contexts) {
+    const row = asRecord(value);
+    if (typeof row?.task_id === "string") contextByTask.set(row.task_id, row);
+  }
+  const allowedStatuses = new Set(["queued", "running", "completed", "failed", "cancelled"]);
+  return jobs.flatMap((value) => {
+    const job = asRecord(value);
+    if (typeof job?.id !== "string" || typeof job.status !== "string" || !allowedStatuses.has(job.status)) return [];
+    const taskId = typeof job.task_id === "string" ? job.task_id : null;
+    const context = taskId ? contextByTask.get(taskId) : undefined;
+    const result = asRecord(job.result);
+    const resultText = typeof job.result === "string" ? job.result
+      : typeof result?.response === "string" ? result.response
+      : typeof result?.summary === "string" ? result.summary
+      : null;
+    return [{
+      jobId: job.id,
+      taskId,
+      status: job.status as TaskHistoryItem["status"],
+      objective: typeof context?.objective === "string" ? context.objective : "مهمة محفوظة",
+      resultText,
+      updatedAt: typeof job.updated_at === "string" ? job.updated_at : null,
+      completedAt: typeof job.completed_at === "string" ? job.completed_at : null,
+      complexity: typeof context?.complexity === "string" ? context.complexity : null,
+      estimatedSteps: typeof context?.estimated_steps === "number" ? context.estimated_steps : null,
+    }];
+  });
+}
+
+/**
+ * Lists only rows visible under the authenticated user's RLS policy. The
+ * selected agent_task_jobs columns are intentionally limited to the explicit
+ * authenticated column grants; worker payloads and lease fields are excluded.
+ */
+export async function listTaskHistory(limit = 100): Promise<TaskHistoryItem[]> {
+  const safeLimit = Math.max(1, Math.min(100, Math.floor(Number.isFinite(limit) ? limit : 100)));
+  const { data: jobs, error: jobsError } = await supabase.from("agent_task_jobs")
+    .select("id,task_id,status,result,updated_at,completed_at")
+    .order("updated_at", { ascending: false })
+    .limit(safeLimit);
+  if (jobsError) throw new Error("تعذر تحميل سجل المهام.");
+
+  const taskIds = [...new Set((jobs ?? []).map((job) => job.task_id).filter((id): id is string => typeof id === "string"))];
+  let contexts: unknown[] = [];
+  if (taskIds.length) {
+    const { data, error } = await supabase.from("brain_task_contexts")
+      .select("task_id,objective,complexity,estimated_steps")
+      .in("task_id", taskIds);
+    if (error) throw new Error("تعذر تحميل تفاصيل سجل المهام.");
+    contexts = data ?? [];
+  }
+  return mapTaskHistory(jobs ?? [], contexts);
+}

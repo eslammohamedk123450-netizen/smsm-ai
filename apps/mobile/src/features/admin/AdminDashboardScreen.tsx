@@ -7,12 +7,9 @@ import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
 import { confirmAdminAction } from "./admin-confirm";
 import { AgentTaskQueueCard } from "./AgentTaskQueueCard";
-import { SulyModelProfilesAdminCard } from "./SulyModelProfilesAdminCard";
 import { SulyFinanceOverviewCard } from "./SulyFinanceOverviewCard";
 import { NegativeBalanceSettingsCard } from "./NegativeBalanceSettingsCard";
-import { ModelPricingAdminCard } from "./ModelPricingAdminCard";
-import { MediaModelPricingAdminCard } from "./MediaModelPricingAdminCard";
-import { MediaModelCapabilityEvidenceAdminCard } from "./MediaModelCapabilityEvidenceAdminCard";
+import { adminService } from "./admin-service";
 
 type Model = { id: number; enabled: boolean; health?: { auto_restricted?: boolean; last_status?: string | null; total_attempts?: number; successful_attempts?: number; average_latency_ms?: number | null } | null };
 type Tx = { amount: number | null; event_type: string; created_at: string };
@@ -46,32 +43,45 @@ export function AdminDashboardScreen() {
   const load = useCallback(async (refresh = false) => {
     if (refresh) setRefreshing(true); else setLoading(true);
     setError(null);
-    const since = new Date(Date.now() - 7 * 86400000).toISOString();
-    const hourAgo = new Date(Date.now() - 3600000).toISOString();
-    const [modelsResult, modelHealthResult, usersResult, errorsResult, transactionsResult, auditResult, maintenanceResult] = await Promise.all([
-      supabase.from("ai_models").select("id,enabled").limit(500),
-      supabase.from("ai_model_health").select("model_id,last_status,auto_restricted,total_attempts,successful_attempts,average_latency_ms").limit(1000),
-      supabase.from("suly_profiles").select("id", { count: "exact", head: true }),
-      supabase.from("ai_model_attempt_logs").select("id", { count: "exact", head: true }).gte("created_at", hourAgo).neq("attempt_status", "success"),
-      supabase.from("suly_credit_transactions").select("amount,event_type,created_at").gte("created_at", since).order("created_at", { ascending: true }).limit(2000),
-      supabase.from("admin_audit_logs").select("id,admin_id,action,target_table,target_id,created_at").order("created_at", { ascending: false }).limit(5),
-      supabase.from("system_settings").select("value").eq("key", "maintenance_mode").maybeSingle(),
-    ]);
-    if (modelsResult.error || modelHealthResult.error || usersResult.error || errorsResult.error || transactionsResult.error || auditResult.error || maintenanceResult.error) setError("تعذر تحميل بعض مؤشرات التشغيل. اعرض تفاصيل المصدر أو تحقق من صلاحيات قاعدة البيانات.");
-    setModelsAvailable(!modelsResult.error);
-    setModelHealthAvailable(!modelHealthResult.error);
-    setTransactionsAvailable(!transactionsResult.error);
-    setAuditAvailable(!auditResult.error);
-    const healthById = new Map((modelHealthResult.data ?? []).map((row) => [Number(row.model_id), row]));
-    setModels(((modelsResult.data ?? []) as Model[]).map((model) => ({ ...model, health: healthById.get(Number(model.id)) ?? null })));
-    setUserCount(usersResult.error ? null : usersResult.count ?? 0);
-    setHourErrors(errorsResult.error ? null : errorsResult.count ?? 0);
-    setTransactions((transactionsResult.data ?? []) as Tx[]);
-    setAudit((auditResult.data ?? []) as Audit[]);
-    setMaintenanceMode(maintenanceResult.error ? null : maintenanceResult.data?.value === "true");
-    // The app has no authoritative live-presence source; avoid presenting online users as zero.
-    setOnlineCount(null);
-    setLoading(false); setRefreshing(false);
+    try {
+      const since = new Date(Date.now() - 7 * 86400000).toISOString();
+      const hourAgo = new Date(Date.now() - 3600000).toISOString();
+      const [modelsOverview, usersResult, transactionsResult, auditResult, maintenanceResult] = await Promise.all([
+        adminService.getModelsOverview(),
+        supabase.from("suly_profiles").select("id", { count: "exact", head: true }),
+        supabase.from("suly_credit_transactions").select("amount,event_type,created_at").gte("created_at", since).order("created_at", { ascending: true }).limit(2000),
+        supabase.from("admin_audit_logs").select("id,admin_id,action,target_table,target_id,created_at").order("created_at", { ascending: false }).limit(5),
+        supabase.from("system_settings").select("value").eq("key", "maintenance_mode").maybeSingle(),
+      ]);
+      const activeModelRows = modelsOverview.models as Model[];
+      const activeModelIds = activeModelRows.map((model) => Number(model.id));
+      const errorsResult = activeModelIds.length
+        ? await supabase.from("ai_model_attempt_logs").select("id", { count: "exact", head: true }).in("model_id", activeModelIds).gte("created_at", hourAgo).neq("attempt_status", "success")
+        : { count: 0, error: null };
+      if (usersResult.error || errorsResult.error || transactionsResult.error || auditResult.error || maintenanceResult.error) {
+        setError("تعذر تحميل بعض مؤشرات التشغيل. اعرض تفاصيل المصدر أو تحقق من صلاحيات قاعدة البيانات.");
+      }
+      setModelsAvailable(true);
+      setModelHealthAvailable(true);
+      setTransactionsAvailable(!transactionsResult.error);
+      setAuditAvailable(!auditResult.error);
+      setModels(activeModelRows);
+      setUserCount(usersResult.error ? null : usersResult.count ?? 0);
+      setHourErrors(errorsResult.error ? null : errorsResult.count ?? 0);
+      setTransactions((transactionsResult.data ?? []) as Tx[]);
+      setAudit((auditResult.data ?? []) as Audit[]);
+      setMaintenanceMode(maintenanceResult.error ? null : maintenanceResult.data?.value === "true");
+      setOnlineCount(null);
+    } catch {
+      setError("تعذر تحميل مؤشرات النماذج أو بعض بيانات لوحة الإدارة.");
+      setModelsAvailable(false);
+      setModelHealthAvailable(false);
+      setHourErrors(null);
+      setModels([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
   useEffect(() => { void load(); }, [load]);
 
@@ -134,10 +144,6 @@ export function AdminDashboardScreen() {
     <AgentTaskQueueCard />
     <SulyFinanceOverviewCard />
     <NegativeBalanceSettingsCard />
-    <SulyModelProfilesAdminCard />
-    <ModelPricingAdminCard />
-    <MediaModelPricingAdminCard />
-    <MediaModelCapabilityEvidenceAdminCard />
     <View style={styles.lowerGrid}>
       <View style={styles.panel}><View style={styles.panelHeading}><Text style={styles.sectionTitle}>استهلاك آخر 7 أيام</Text><Pressable onPress={() => router.push("/admin/credit-management")}><Text style={styles.link}>التفاصيل ←</Text></Pressable></View><View style={styles.chart}>{chart.length ? chart.map((item) => <Pressable key={item.key} onPress={() => router.push("/admin/credit-management")} style={styles.barColumn}><Text style={styles.barValue}>{item.total ? valueText(item.total) : "0"}</Text><View style={styles.barTrack}><View style={[styles.bar, { height: `${Math.max(5, item.total / maxChart * 100)}%` }]} /></View><Text style={styles.barLabel}>{item.label}</Text></Pressable>) : <Text style={styles.emptyText}>بيانات الاستهلاك غير متاحة حاليًا.</Text>}</View><Text style={styles.chartFootnote}>تقدير مبني على معاملات `settle` المحمّلة؛ اضغط للانتقال إلى تفاصيل الرصيد.</Text></View>
       <View style={styles.panel}><View style={styles.panelHeading}><Text style={styles.sectionTitle}>آخر أحداث سجل النشاط</Text><Pressable onPress={() => router.push("/admin/audit")}><Text style={styles.link}>عرض السجل ←</Text></Pressable></View>{audit.length ? audit.map((item) => <Pressable key={item.id} onPress={() => router.push("/admin/audit")} style={styles.auditRow}><View style={styles.auditBullet} /><View style={styles.auditCopy}><Text style={styles.auditAction}>{item.action}</Text><Text style={styles.auditMeta}>{item.target_table ?? "—"} · {new Date(item.created_at).toLocaleString("ar-EG")}</Text></View></Pressable>) : <Text style={styles.emptyText}>{auditAvailable ? "لا توجد أحداث حديثة." : "تعذر تحميل سجل النشاط."}</Text>}</View>

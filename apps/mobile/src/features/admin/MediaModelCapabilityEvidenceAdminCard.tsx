@@ -23,13 +23,13 @@ const VENDOR = [["unknown","غير معروف"],["supported","مدعوم رسم�
 const TEST = [["not_tested","لم يُختبر"],["passed","نجح"],["failed","فشل"]] as const;
 const keyOf = (m: MediaModel) => `${m.provider_id}:${m.service_type}:${m.model_identifier}`;
 
-export function MediaModelCapabilityEvidenceAdminCard() {
+export function MediaModelCapabilityEvidenceAdminCard({ serviceType, capabilityKey }: { serviceType?: ServiceType; capabilityKey?: "transcription" | "audio_output" } = {}) {
   const { colors } = useSulyTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [models,setModels]=useState<MediaModel[]>([]);
   const [evidence,setEvidence]=useState<Evidence[]>([]);
   const [selectedKey,setSelectedKey]=useState<string>("");
-  const [capability,setCapability]=useState("image_generation");
+  const [capability,setCapability]=useState(capabilityKey ?? "image_generation");
   const [search,setSearch]=useState("");
   const [vendor,setVendor]=useState<Evidence["vendor_claim_status"]>("unknown");
   const [vendorUrl,setVendorUrl]=useState("");
@@ -51,19 +51,19 @@ export function MediaModelCapabilityEvidenceAdminCard() {
         supabase.rpc("suly_admin_list_media_model_capability_evidence"),
       ]);
       if(evidenceResult.error) throw evidenceResult.error;
-      const list=(priceRows??[]) as MediaModel[];
+      const list=((priceRows??[]) as MediaModel[]).filter((model) => !serviceType || model.service_type === serviceType);
       setModels(list);
       setEvidence((evidenceResult.data??[]) as Evidence[]);
-      setSelectedKey((current)=>current|| (list[0]?keyOf(list[0]):""));
+      setSelectedKey((current)=>current && list.some((model)=>keyOf(model)===current) ? current : (list[0]?keyOf(list[0]):""));
     }catch(cause){setError(cause instanceof Error?cause.message:"تعذر تحميل أدلة قدرات نماذج الوسائط.");}
     finally{setLoading(false);}
   };
-  useEffect(()=>{void load();},[]);
+  useEffect(()=>{void load();},[serviceType]);
   const selected=models.find((m)=>keyOf(m)===selectedKey)??null;
-  const capabilities=selected?OPTIONS[selected.service_type]:OPTIONS.image;
+  const capabilities=selected?(capabilityKey?OPTIONS[selected.service_type].filter(([key])=>key===capabilityKey):OPTIONS[selected.service_type]):OPTIONS.image;
   useEffect(()=>{
     if(!capabilities.some(([key])=>key===capability)) setCapability(capabilities[0]?.[0]??"image_generation");
-  },[selectedKey]);
+  },[selectedKey,capabilityKey]);
   useEffect(()=>{
     const row=evidence.find((e)=>e.provider_id===selected?.provider_id&&e.service_type===selected?.service_type&&e.model_identifier===selected?.model_identifier&&e.capability_key===capability);
     setVendor(row?.vendor_claim_status??"unknown");setVendorUrl(row?.vendor_evidence_url??"");
@@ -97,9 +97,9 @@ export function MediaModelCapabilityEvidenceAdminCard() {
     finally{setSaving(false);}
   };
   return <View style={styles.card}>
-    <View style={styles.header}><View style={styles.copy}><Text style={styles.title}>توثيق قدرات الصور والفيديو والصوت</Text><Text style={styles.sub}>سجل مستقل عن السعر والتفعيل: وثائق المزود، اختبار المزود، وتكامل SULY.</Text></View><Pressable onPress={()=>void load()}><Text style={styles.action}>تحديث</Text></Pressable></View>
+    <View style={styles.header}><View style={styles.copy}><Text style={styles.title}>{capabilityKey === "transcription" ? "توثيق نماذج تفريغ الصوت" : capabilityKey === "audio_output" ? "توثيق نماذج توليد الصوت" : "توثيق قدرات الصور والفيديو والصوت"}</Text><Text style={styles.sub}>سجل مستقل عن السعر والتفعيل: وثائق المزود، اختبار المزود، وتكامل SULY.</Text></View><Pressable onPress={()=>void load()}><Text style={styles.action}>تحديث</Text></Pressable></View>
     <TextInput value={search} onChangeText={setSearch} placeholder="ابحث باسم نموذج الوسائط أو معرّفه" placeholderTextColor={colors.textMuted} style={styles.input}/>
-    <View style={styles.wrap}>{visible.map(m=><Pressable key={keyOf(m)} onPress={()=>{setSelectedKey(keyOf(m));setCapability(OPTIONS[m.service_type][0][0]);}} style={[styles.chip,selectedKey===keyOf(m)&&styles.selected]}><Text style={styles.chipText}>{m.display_name} · {m.service_type}</Text></Pressable>)}</View>
+    <View style={styles.wrap}>{visible.map(m=><Pressable key={keyOf(m)} onPress={()=>{setSelectedKey(keyOf(m));setCapability(capabilityKey ?? OPTIONS[m.service_type][0][0]);}} style={[styles.chip,selectedKey===keyOf(m)&&styles.selected]}><Text style={styles.chipText}>{m.display_name} · {m.service_type}</Text></Pressable>)}</View>
     {loading?<ActivityIndicator color={colors.primary}/>:null}
     {selected?<Text style={styles.selectedName}>{selected.display_name} · {selected.model_identifier} · Provider #{selected.provider_id}</Text>:null}
     <View style={styles.wrap}>{capabilities.map(([key,label])=><Pressable key={key} onPress={()=>setCapability(key)} style={[styles.chip,capability===key&&styles.selected]}><Text style={styles.chipText}>{label}</Text></Pressable>)}</View>

@@ -240,7 +240,7 @@ export function BrainTaskScreen() {
             <Text style={styles.secondaryText}>مسح</Text>
           </Pressable>
           <Pressable onPress={() => void submit()} style={[styles.primary, busy && styles.disabled]} disabled={busy} accessibilityRole="button">
-            {busy ? <ActivityIndicator color="#071018" /> : <Text style={styles.primaryText}>تشغيل المهمة</Text>}
+            {busy ? <ActivityIndicator color={colors.onPrimary} /> : <Text style={styles.primaryText}>تشغيل المهمة</Text>}
           </Pressable>
         </View>
         {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}

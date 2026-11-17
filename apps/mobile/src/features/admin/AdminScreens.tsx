@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocalSearchParams } from "expo-router";
 import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, StyleSheet, Switch, TextInput, TouchableOpacity, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
-import { adminService, type AgentConfig, type PricingPlan, type PricingFeature } from "./admin-service";
+import { adminService, type PricingPlan, type PricingFeature } from "./admin-service";
 import { providerPresets, findPreset, type ProviderPreset } from "./provider-presets";
 import { confirmAdminAction } from "./admin-confirm";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
 import { GmailModelPickerCard } from "./GmailModelPickerCard";
-import { AgentModelPickerCard } from "./AgentModelPickerCard";
 import { RouteModelChainsCard } from "./RouteModelChainsCard";
 import { ModelCapabilityEvidenceAdminCard } from "./ModelCapabilityEvidenceAdminCard";
+import { ModelPricingAdminCard } from "./ModelPricingAdminCard";
 
 type ProviderRow = { id: number; name: string; provider_type: string; base_url: string | null; enabled: boolean; last_test_status: string | null };
 type ModelRow = {
@@ -18,6 +19,7 @@ type ModelRow = {
   provider_id: number;
   name: string;
   provider_name: string;
+  provider_type?: string;
   provider_enabled?: boolean;
   model_identifier: string;
   enabled: boolean;
@@ -33,6 +35,7 @@ type ModelRow = {
   health: { auto_restricted?: boolean; consecutive_failures?: number; restriction_reason?: string | null; last_status?: string | null; total_attempts?: number; successful_attempts?: number; average_latency_ms?: number | null } | null;
   probe: { consecutive_scheduled_failures?: number; consecutive_scheduled_successes?: number; last_scheduled_status?: string | null; last_scheduled_at?: string | null; last_error_code?: string | null } | null;
 };
+type ModelPriceSummary = { provider_input_cost_egp_per_million: number; provider_output_cost_egp_per_million: number; selling_input_egp_per_million: number; selling_output_egp_per_million: number; currency: string; price_version: number };
 type AttemptRow = { attempt_status: string; duration_ms: number | null; error_code: string | null; error_reason: string | null; created_at: string };
 type ProbeLogRow = { run_type: "manual" | "scheduled"; status: "success" | "error" | "skipped"; duration_ms: number; error_code: string | null; checked_at: string; model_name: string; provider_name: string };
 type UserRow = { id: string; email: string; full_name: string | null; subscription_tier: string | null; is_banned: boolean; balance: number; reserved_balance: number };
@@ -41,6 +44,8 @@ type TransactionRow = { id?: string; user_id?: string; event_type: string; amoun
 type ModelCapabilityKey = "chat" | "vision" | "pdf" | "word" | "video" | "gmail" | "google_drive" | "github";
 type ModelCapabilityState = Record<ModelCapabilityKey, boolean>;
 const MODEL_CAPABILITY_OPTIONS: Array<[ModelCapabilityKey, string]> = [["chat", "نص"], ["vision", "قراءة الصور"], ["pdf", "PDF"], ["word", "Word / DOCX"], ["video", "فيديو"], ["gmail", "Gmail"], ["google_drive", "Google Drive"], ["github", "GitHub"]];
+const MODEL_CAPABILITY_ICONS: Record<ModelCapabilityKey, keyof typeof Ionicons.glyphMap> = { chat: "chatbubble-ellipses-outline", vision: "eye-outline", pdf: "document-text-outline", word: "document-outline", video: "videocam-outline", gmail: "mail-outline", google_drive: "cloud-outline", github: "logo-github" };
+const formatModelPrice = (value: number | undefined, currency = "EGP") => value == null || !Number.isFinite(Number(value)) ? "—" : `${Number(value).toLocaleString("en-EG", { maximumFractionDigits: 4 })} ${currency}`;
 const MODEL_TASK_ROLE_OPTIONS: Array<[string, string]> = [["general", "عام (كل الأقسام)"], ["chat", "المحادثة"], ["planner", "التخطيط"], ["worker", "التنفيذ"], ["reviewer", "المراجعة"], ["summarizer", "التلخيص"]];
 function modelSupportsAgentRole(model: ModelRow, role: string): boolean {
   const roles = model.task_roles?.length ? model.task_roles : ["general"];
@@ -83,6 +88,8 @@ export function ProvidersAdminScreen() {
   const { colors } = useSulyTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [providers, setProviders] = useState<ProviderRow[]>([]);
+  const [archivedProviders, setArchivedProviders] = useState<ProviderRow[]>([]);
+  const [showArchivedProviders, setShowArchivedProviders] = useState(false);
   const [providerModels, setProviderModels] = useState<ModelRow[]>([]);
   const [selectedType, setSelectedType] = useState("");
   const [name, setName] = useState("");
@@ -104,8 +111,11 @@ export function ProvidersAdminScreen() {
     if (showInitialLoader) setLoading(true);
     setError(null);
     try {
-      const [providerRows, modelOverview] = await Promise.all([adminService.getProviders(), adminService.getModelsOverview()]);
+      const [providerRows, archivedRows, modelOverview] = await Promise.all([
+        adminService.getProviders(), adminService.getArchivedProviders(), adminService.getModelsOverview(),
+      ]);
       setProviders(providerRows as ProviderRow[]);
+      setArchivedProviders(archivedRows as ProviderRow[]);
       setProviderModels(modelOverview.models as ModelRow[]);
     }
     catch { setError("تعذر تحميل مزودي الخدمة. تحقق من الصلاحيات وسياسات RLS."); }
@@ -130,23 +140,9 @@ export function ProvidersAdminScreen() {
     setBusyId(provider.id); setError(null); setNotice(null);
     try {
       await adminService.setProviderLifecycle(provider.id, !provider.enabled, true);
-      setNotice(`${provider.name}: تم ${provider.enabled ? "تجميد" : "تفعيل"} المزود. يلزم إعادة ربط النماذج يدويًا بعد إعادة التفعيل.`);
+      setNotice(`${provider.name}: تم إيقاف المزود وإخفاؤه من الكتالوج. حُفظت إعداداته لاستعادتها لاحقًا، والسجلات المالية لم تتغير.`);
       await load();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر تغيير حالة المزود."); }
-    finally { setBusyId(null); }
-  };
-
-  const removeProvider = async (provider: ProviderRow) => {
-    const confirmed = await confirmAdminAction("حذف المزود", `سيُحذف ${provider.name} ومفتاحه وكل نماذجه نهائيًا.`, "حذف نهائي");
-    if (!confirmed) return;
-    setBusyId(provider.id); setError(null); setNotice(null);
-    try {
-      await adminService.deleteProvider(provider.id);
-      setProviders((current) => current.filter((item) => item.id !== provider.id));
-      setProviderModels((current) => current.filter((model) => model.provider_id !== provider.id));
-      setNotice(`تم حذف ${provider.name} ومفتاحه ونماذجه.`);
-      void load();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر حذف المزود."); }
     finally { setBusyId(null); }
   };
 
@@ -216,7 +212,7 @@ export function ProvidersAdminScreen() {
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <PageHeader title="مزودو الخدمة" />
     <Text style={styles.explainer}>أضف أكثر من مفتاح للخدمة نفسها عند الحاجة. كل مفتاح يُحفظ كحساب مستقل، وتُربط به نماذجه وسجل صحته وحده؛ قيم المفاتيح لا تظهر بعد الحفظ.</Text>
-    <Card><Text style={styles.detail}>تعطيل أي مفتاح يجمّد نماذجه فورًا: تُزال من أقسام التوجيه ومستويات SULY والاختيارات الجديدة، وتُلغى التعيينات المباشرة المرتبطة به. إعادة التفعيل لا تعيد النماذج تلقائيًا؛ راجعها وأعد اختيارها يدويًا.</Text></Card>
+    <Card><Text style={styles.detail}>إيقاف المفتاح يؤرشفه ويخفيه من الكتالوجات النشطة، ويوقف نماذجه ومساراته. تُحفظ إعداداته السابقة لاستعادتها عند إعادة التفعيل، بينما تظل جميع سجلات التكلفة والاستهلاك والأرصدة والمعاملات محفوظة دون تعديل.</Text></Card>
     <Card>
       <View style={styles.providerFormHeading}><View style={styles.sectionIcon}><Text style={styles.sectionIconText}>⌘</Text></View><View style={styles.providerFormHeadingText}><Text style={styles.sectionTitle}>إضافة مفتاح API</Text><Text style={styles.detail}>كل إضافة تنشئ حسابًا ومجموعة نماذج مستقلين</Text></View></View>
       <Text style={styles.sectionTitle}>١. اختر الخدمة</Text>
@@ -301,10 +297,41 @@ export function ProvidersAdminScreen() {
         <View style={styles.rowWrap}>
           <PrimaryButton label={busyId === provider.id ? "جارٍ التنفيذ…" : "مزامنة نماذج هذا المفتاح"} onPress={() => void syncProvider(provider)} disabled={busyId !== null || testingModelId !== null} />
           <PrimaryButton label={provider.enabled ? "إيقاف هذا المفتاح ونماذجه" : "تفعيل هذا المفتاح ونماذجه"} onPress={() => void toggleProvider(provider)} disabled={busyId !== null || testingModelId !== null} />
-          <Pressable accessibilityRole="button" onPress={() => void removeProvider(provider)} disabled={busyId !== null || testingModelId !== null}><Text style={styles.error}>حذف المفتاح ونماذجه</Text></Pressable>
         </View>
       </Card>;
     })}
+    <Card>
+      <View style={styles.sectionRow}>
+        <View><Text style={styles.sectionTitle}>المفاتيح المؤرشفة</Text><Text style={styles.detail}>المفاتيح المتوقفة مخفية عن الكتالوجات والإحصاءات التشغيلية. افتح الأرشيف فقط عند الحاجة للاستعادة.</Text></View>
+        <Pressable accessibilityRole="button" accessibilityState={{ expanded: showArchivedProviders }} onPress={() => setShowArchivedProviders((value) => !value)}><Text style={styles.link}>{showArchivedProviders ? "إخفاء الأرشيف" : `عرض الأرشيف (${archivedProviders.length})`}</Text></Pressable>
+      </View>
+      {showArchivedProviders ? (
+        archivedProviders.length === 0
+          ? <Text style={styles.detail}>لا توجد مفاتيح مؤرشفة.</Text>
+          : archivedProviders.map((provider) => <View key={provider.id} style={styles.providerModelRow}>
+              <View style={styles.providerModelInfo}>
+                <Text style={styles.cardTitle}>{provider.name}</Text>
+                <Text style={styles.detail}>{provider.provider_type} · {provider.base_url ?? ""}</Text>
+                <Text style={styles.detail}>يمكن استعادة إعدادات التوجيه السابقة إذا كانت محفوظة. ستظل صلاحية النموذج والصحة الحالية خاضعتين لفحوص التوجيه.</Text>
+              </View>
+              <PrimaryButton
+                label={busyId === provider.id ? "جارٍ الاستعادة…" : "استعادة المفتاح وإعداداته"}
+                onPress={() => void (async () => {
+                  setBusyId(provider.id); setError(null); setNotice(null);
+                  try {
+                    const result = await adminService.setProviderLifecycle(provider.id, true, true);
+                    setNotice(result.restored
+                      ? `تمت استعادة ${provider.name} وإعداداته السابقة. راجع صحة النماذج قبل التشغيل.`
+                      : `تم تفعيل ${provider.name}. لم توجد لقطة إعدادات سابقة لاستعادتها؛ راجع التعيينات يدويًا.`);
+                    await load();
+                  } catch (cause) { setError(cause instanceof Error ? cause.message : "تعذرت استعادة المفتاح."); }
+                  finally { setBusyId(null); }
+                })()}
+                disabled={busyId !== null || testingModelId !== null}
+              />
+            </View>)
+      ) : null}
+    </Card>
   </ScrollView>;
 }
 
@@ -313,12 +340,10 @@ export function ModelsAdminScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { q } = useLocalSearchParams<{ q?: string }>();
   const [models, setModels] = useState<ModelRow[]>([]);
+  const [modelPrices, setModelPrices] = useState<Record<number, ModelPriceSummary>>({});
   const [search, setSearch] = useState(typeof q === "string" ? q : "");
   const [modelFilter, setModelFilter] = useState<"all" | "enabled" | "disabled" | "restricted">("enabled");
-  const [settings, setSettings] = useState<Record<string, unknown> | null>(null);
-  const [gmailModelId, setGmailModelId] = useState<number | null>(null);
-  const [plannerModelId, setPlannerModelId] = useState<number | null>(null);
-  const [summarizerModelId, setSummarizerModelId] = useState<number | null>(null);
+  const [modelViewMode, setModelViewMode] = useState<"table" | "cards">("table");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [testingModelId, setTestingModelId] = useState<number | null>(null);
@@ -330,15 +355,10 @@ export function ModelsAdminScreen() {
 
   useEffect(() => { if (typeof q === "string") setSearch(q); }, [q]);
 
-  const [freeTimeout, setFreeTimeout] = useState("5000");
-  const [fallbackTimeout, setFallbackTimeout] = useState("30000");
-  const [parallel, setParallel] = useState("10");
-  const [paidFallback, setPaidFallback] = useState(true);
-  const [autoRestrict, setAutoRestrict] = useState(true);
   const filteredModels = useMemo(() => {
     const query = search.trim().toLowerCase();
     return models.filter((model) => {
-      const matchesQuery = !query || `${model.name} ${model.model_identifier} ${model.provider_name} ${model.routing_group}`.toLowerCase().includes(query);
+      const matchesQuery = !query || `${model.name} ${model.model_identifier} ${model.provider_name} ${model.provider_type ?? ""} ${model.routing_group}`.toLowerCase().includes(query);
       const providerVisible = model.provider_enabled === true;
       const matchesFilter = providerVisible && (
         modelFilter === "all"
@@ -367,23 +387,9 @@ export function ModelsAdminScreen() {
     if (showInitialLoader) setLoading(true);
     setError(null);
     try {
-      const result = await adminService.getModelsOverview();
+      const [result, priceRows] = await Promise.all([adminService.getModelsOverview(), adminService.getModelPriceVersions()]);
       setModels(result.models as ModelRow[]);
-      const config = result.settings as Record<string, unknown> | null;
-      setSettings(config);
-      if (config) {
-        const configuredGmailModelId = Number(config.gmail_task_model_id);
-        setGmailModelId(Number.isSafeInteger(configuredGmailModelId) && configuredGmailModelId > 0 ? configuredGmailModelId : null);
-        const configuredPlannerModelId = Number(config.agent_planner_model_id);
-        setPlannerModelId(Number.isSafeInteger(configuredPlannerModelId) && configuredPlannerModelId > 0 ? configuredPlannerModelId : null);
-        const configuredSummarizerModelId = Number(config.agent_summarizer_model_id);
-        setSummarizerModelId(Number.isSafeInteger(configuredSummarizerModelId) && configuredSummarizerModelId > 0 ? configuredSummarizerModelId : null);
-        setFreeTimeout(String(config.free_race_timeout_ms ?? 5000));
-        setFallbackTimeout(String(config.paid_fallback_timeout_ms ?? 30000));
-        setParallel(String(config.max_parallel_free_models ?? 10));
-        setPaidFallback(config.paid_fallback_enabled === true);
-        setAutoRestrict(config.health_auto_restrict_enabled !== false);
-      }
+      setModelPrices(Object.fromEntries((priceRows as Array<ModelPriceSummary & { model_id: number }>).map((row) => [Number(row.model_id), row])));
     } catch { setError("تعذر تحميل النماذج أو إعدادات التوجيه."); }
     finally { setLoading(false); }
   };
@@ -441,33 +447,6 @@ export function ModelsAdminScreen() {
     setEditTaskRoles((prev) => prev.includes(role)
       ? prev.filter((item) => item !== role)
       : [...prev.filter((item) => item !== "general" && role !== "general"), role]);
-  };
-
-  const saveSettings = async () => {
-    const free = Number(freeTimeout), fallback = Number(fallbackTimeout), count = Number(parallel);
-    if (!Number.isInteger(free) || free < 1000 || free > 30000 || !Number.isInteger(fallback) || fallback < 1000 || fallback > 120000 || !Number.isInteger(count) || count < 1 || count > 50) { setError("المهلة المجانية 1000–30000، مهلة البديل 1000–120000، والتوازي 1–50."); return; }
-    setBusy(true); setError(null);
-    try { await adminService.updateRouterSettings({ free_race_timeout_ms: free, paid_fallback_timeout_ms: fallback, max_parallel_free_models: count, paid_fallback_enabled: paidFallback, health_auto_restrict_enabled: autoRestrict }); setError(null); await load(); }
-    catch { setError("تعذر حفظ إعدادات التوجيه عبر قاعدة البيانات."); }
-    finally { setBusy(false); }
-  };
-
-  const saveGmailModel = async () => {
-    setBusy(true); setError(null);
-    try {
-      await adminService.updateGmailTaskModel(gmailModelId);
-      await load();
-    } catch { setError("تعذر حفظ نموذج Gmail. تحقق من ترحيل قاعدة البيانات وصلاحيات الإدارة."); }
-    finally { setBusy(false); }
-  };
-
-  const saveAgentModels = async () => {
-    setBusy(true); setError(null);
-    try {
-      await adminService.updateAgentModels(plannerModelId, summarizerModelId);
-      await load();
-    } catch { setError("تعذر حفظ نموذجي Planner وSummarizer. تحقق من تطبيق هجرة إعداداتهما وصلاحيات الإدارة."); }
-    finally { setBusy(false); }
   };
 
   const disable = async (model: ModelRow) => {
@@ -533,12 +512,10 @@ export function ModelsAdminScreen() {
         windowSize={7}
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={<View style={styles.modelListHeader}>
-          <PageHeader title="النماذج والتوجيه" />
+          <PageHeader title="كتالوج النماذج النصية" />
+          <Link href="/admin/api-keys" asChild><Pressable accessibilityRole="button"><Text style={styles.link}>إدارة المزودين ومفاتيح API</Text></Pressable></Link>
           <ErrorText>{error}</ErrorText>
           {!loading ? <>
-            <RouteModelChainsCard models={models} />
-            {settings && <GmailModelPickerCard models={models} selectedModelId={gmailModelId} onSelect={setGmailModelId} onSave={() => void saveGmailModel()} busy={busy} />}
-            {settings && <Card><View style={styles.settingsHeading}><View style={styles.sectionIcon}><Text style={styles.sectionIconText}>✦</Text></View><View style={styles.settingsHeadingText}><Text style={styles.sectionTitle}>نماذج أدوار Agent</Text><Text style={styles.detail}>اختيار مستقل؛ تغيير هذه القيم لا يغيّر نماذج الدردشة أو اختيار Gmail.</Text></View></View><AgentModelPickerCard role="planner" models={models} selectedModelId={plannerModelId} onSelect={setPlannerModelId} busy={busy} /><AgentModelPickerCard role="summarizer" models={models} selectedModelId={summarizerModelId} onSelect={setSummarizerModelId} busy={busy} /><PrimaryButton label={busy ? "جارٍ الحفظ…" : "حفظ نموذجي Agent"} onPress={() => void saveAgentModels()} disabled={busy} /></Card>}
             <ModelCapabilityEvidenceAdminCard models={models} />
             <View style={styles.modelsSectionHeader}><View style={styles.modelsHeadingCopy}><Text style={styles.sectionTitle}>كتالوج النماذج</Text><Text style={styles.detail}>إدارة الحالة ومسار التوجيه والقيود وسجل الصحة</Text></View><View style={styles.totalBadge}><Text style={styles.totalBadgeText}>{models.length} نموذج</Text></View></View>
             <View style={styles.searchWrap}><Text style={styles.searchGlyph}>⌕</Text><TextInput style={[styles.input, styles.modelSearchInput]} value={search} onChangeText={setSearch} placeholder="ابحث بالاسم أو المزود أو المسار" placeholderTextColor={colors.textMuted} autoCapitalize="none" /><Pressable accessibilityRole="button" onPress={() => setSearch("")}><Text style={styles.link}>مسح</Text></Pressable></View>
@@ -551,14 +528,19 @@ export function ModelsAdminScreen() {
               ] as const).map(([filter, label]) => <Pressable key={filter} accessibilityRole="button" accessibilityState={{ selected: modelFilter === filter }} onPress={() => setModelFilter(filter)} style={[styles.filterChip, modelFilter === filter && styles.filterChipSelected]}><Text style={[styles.filterText, modelFilter === filter && styles.filterTextSelected]}>{label}</Text></Pressable>)}
             </ScrollView>
             <Text style={styles.resultsCount}>عرض {filteredModels.length} من {models.length}</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator style={styles.modelTableScroller}><View style={styles.modelsTableHeader}><Text style={styles.modelsTableName}>النموذج / المزود</Text><Text style={styles.modelsTableMetric}>الحالة</Text><Text style={styles.modelsTableMetric}>الاستجابة</Text><Text style={styles.modelsTableMetric}>النجاح</Text><Text style={styles.modelsTableActions}>إجراءات</Text></View></ScrollView>
+            <View style={styles.rowWrap}>
+              <Pressable onPress={() => setModelViewMode("table")} style={[styles.filterChip, modelViewMode === "table" && styles.filterChipSelected]}><Text style={[styles.filterText, modelViewMode === "table" && styles.filterTextSelected]}>عرض الجدول</Text></Pressable>
+              <Pressable onPress={() => setModelViewMode("cards")} style={[styles.filterChip, modelViewMode === "cards" && styles.filterChipSelected]}><Text style={[styles.filterText, modelViewMode === "cards" && styles.filterTextSelected]}>عرض البطاقات</Text></Pressable>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator style={styles.modelTableScroller}><View style={styles.modelsTableHeader}><Text style={styles.modelsTableName}>النموذج / حساب المفتاح</Text><Text style={styles.modelsTableCapabilities}>القدرات</Text><Text style={styles.modelsTablePrice}>تكلفة الإدخال / 1M</Text><Text style={styles.modelsTablePrice}>تكلفة الإخراج / 1M</Text><Text style={styles.modelsTableMetric}>الحالة</Text><Text style={styles.modelsTableMetric}>الاستجابة</Text><Text style={styles.modelsTableActions}>إجراءات</Text></View></ScrollView>
             <Card><View style={styles.sectionRow}><View style={styles.batchCopy}><Text style={styles.sectionTitle}>اختبار شامل للنماذج</Text><Text style={styles.detail}>يختبر النماذج الظاهرة بالتوازي حتى 5 نماذج، باستخدام طلب قصير قليل التوكنز.</Text></View><PrimaryButton label={batchTesting ? "جارٍ الاختبار…" : `اختبار ${filteredModels.length} نموذج`} onPress={() => void testFilteredModels()} disabled={batchTesting || testingModelId !== null || filteredModels.length === 0} /></View>{Object.keys(batchResults).length > 0 ? <View style={styles.batchSummary}><Pressable onPress={() => setBatchFilter("success")}><Text style={styles.success}>الناجح: {Object.values(batchResults).filter((result) => result.status === "success").length}</Text></Pressable><Pressable onPress={() => setBatchFilter("error")}><Text style={styles.warning}>الفاشل: {Object.values(batchResults).filter((result) => result.status === "error").length}</Text></Pressable><Pressable onPress={() => setBatchFilter("all")}><Text style={styles.detail}>الكل</Text></Pressable><Text style={styles.detail}>تم اختبار: {Object.keys(batchResults).length}</Text></View> : null}</Card>
 
             <Card><View style={styles.healthProbeHeading}><View style={styles.sectionIcon}><Text style={styles.sectionIconText}>ϟ</Text></View><View style={styles.settingsHeadingText}><Text style={styles.sectionTitle}>مراقبة صحة النماذج</Text><Text style={styles.detail}>فحص تلقائي يوميًا الساعة 02:00 UTC لكل نموذج مفعّل ولكل مفتاح مرتبط به. يستخدم طلبًا قصيرًا بحد أقصى 16 token، ولا يخصم رصيد المستخدم؛ قد يستهلك استخدامًا لدى مزود الخدمة.</Text></View></View><Text style={styles.detail}>بعد 3 إخفاقات فحص متتالية يُستبعد النموذج آليًا من التوجيه، ويعود بعد نجاح فحصين متتاليين. الإيقاف اليدوي لا يُلغى بالفحص.</Text></Card>
-            {settings && <Card><View style={styles.settingsHeading}><View style={styles.sectionIcon}><Text style={styles.sectionIconText}>⚙</Text></View><View style={styles.settingsHeadingText}><Text style={styles.sectionTitle}>إعدادات التوجيه</Text><Text style={styles.detail}>ai_router_settings · تؤثر على اختيار النماذج وتوازي الطلبات</Text></View></View><View style={styles.settingsFields}><NumberField label="مهلة سباق النماذج (ms)" value={freeTimeout} onChange={setFreeTimeout} /><NumberField label="مهلة البديل المدفوع (ms)" value={fallbackTimeout} onChange={setFallbackTimeout} /><NumberField label="أقصى نماذج متوازية" value={parallel} onChange={setParallel} /></View><View style={styles.settingsToggles}><Toggle label="تفعيل البديل المدفوع" value={paidFallback} onChange={setPaidFallback} /><Toggle label="التقييد التلقائي للصحة" value={autoRestrict} onChange={setAutoRestrict} /></View><PrimaryButton label={busy ? "جارٍ الحفظ…" : "✓  حفظ إعدادات التوجيه"} onPress={() => void saveSettings()} disabled={busy} /></Card>}
+            
           </> : null}
         </View>}
         ListEmptyComponent={loading ? <ActivityIndicator color={colors.primary} style={styles.listLoading} /> : <Card><Text style={styles.emptyIcon}>⌕</Text><Text style={styles.detail}>لا توجد نماذج تطابق البحث أو عامل التصفية المحدد.</Text></Card>}
+        ListFooterComponent={<View style={{ paddingTop: 14 }}><ModelPricingAdminCard /></View>}
         renderItem={({ item: model }) => {
           const providerIsOff = model.provider_enabled === false;
           const isManuallyOff = !model.enabled || model.routing_group === "disabled";
@@ -566,18 +548,44 @@ export function ModelsAdminScreen() {
           const statusTextStyle = model.health?.auto_restricted ? styles.statusRestrictedText : providerIsOff || isManuallyOff ? styles.statusDisabledText : styles.statusEnabledText;
           const attempts = Number(model.health?.total_attempts ?? 0);
           const successRate = attempts ? `${Math.round(Number(model.health?.successful_attempts ?? 0) / attempts * 100)}%` : "—";
-          return <ScrollView horizontal showsHorizontalScrollIndicator nestedScrollEnabled style={styles.modelTableScroller}><View style={styles.modelTableRow}>
-            <View style={styles.modelsTableName}><Text style={styles.cardTitle} numberOfLines={1}>{model.name}</Text><Text style={styles.modelTableSub} numberOfLines={1}>{model.provider_name} · {model.model_identifier}</Text><Text style={styles.modelTableSub}>مسار: {model.routing_group} · أولوية {model.priority}</Text><Text style={styles.modelTableSub}>القدرات: {MODEL_CAPABILITY_OPTIONS.filter(([key]) => parseModelCapabilityState(model.capabilities_json)[key]).map(([, label]) => label).join(" · ") || "غير محددة"}</Text></View>
+          return modelViewMode === "table" ? <ScrollView horizontal showsHorizontalScrollIndicator nestedScrollEnabled style={styles.modelTableScroller}><View style={styles.modelTableRow}>
+            <View style={styles.modelsTableName}><Text style={styles.cardTitle} numberOfLines={1}>{model.name}</Text><Text style={styles.modelTableSub} numberOfLines={1}>المزود: {model.provider_type ?? "—"} · اسم المفتاح: {model.provider_name}</Text><Text style={styles.modelTableSub} numberOfLines={1}>{model.model_identifier}</Text><Text style={styles.modelTableSub}>مسار: {model.routing_group} · أولوية {model.priority}</Text></View>
+            <View style={styles.modelsTableCapabilities}>{MODEL_CAPABILITY_OPTIONS.filter(([key]) => parseModelCapabilityState(model.capabilities_json)[key]).map(([key, label]) => <Pressable key={key} onPress={() => void openModelDetails(model)} accessibilityRole="button" accessibilityLabel={`قدرة ${label} · فتح تفاصيل النموذج`} style={styles.capabilityIconButton}><Ionicons name={MODEL_CAPABILITY_ICONS[key]} size={16} color={colors.textSecondary} /></Pressable>)}</View>
+            <View style={styles.modelsTablePrice}><Text style={styles.modelMetricValue}>{formatModelPrice(modelPrices[model.id]?.provider_input_cost_egp_per_million, modelPrices[model.id]?.currency)}</Text><Text style={styles.modelTableSub}>بيع: {formatModelPrice(modelPrices[model.id]?.selling_input_egp_per_million, modelPrices[model.id]?.currency)}</Text></View>
+            <View style={styles.modelsTablePrice}><Text style={styles.modelMetricValue}>{formatModelPrice(modelPrices[model.id]?.provider_output_cost_egp_per_million, modelPrices[model.id]?.currency)}</Text><Text style={styles.modelTableSub}>بيع: {formatModelPrice(modelPrices[model.id]?.selling_output_egp_per_million, modelPrices[model.id]?.currency)}</Text></View>
             <View style={styles.modelsTableMetric}><Text style={[styles.statusBadgeText, statusTextStyle]}>{status}</Text></View>
             <View style={styles.modelsTableMetric}><Text style={styles.modelMetricValue}>{model.health?.average_latency_ms == null ? "—" : `${Math.round(model.health.average_latency_ms)}ms`}</Text></View>
-            <View style={styles.modelsTableMetric}><Text style={styles.modelMetricValue}>{batchResults[model.id] ? (batchResults[model.id].status === "success" ? "100%" : "0%") : successRate}</Text><Text style={styles.modelTableSub}>{attempts ? `${attempts} طلب` : "لا بيانات"}</Text></View>
             <View style={styles.modelsTableActions}>
               <Pressable accessibilityRole="button" onPress={() => void openModelDetails(model)} style={styles.detailsAction}><Text style={styles.link}>⚙  القيود وسجل الفحوص</Text></Pressable>
               <PrimaryButton label={testingModelId === model.id ? "جارٍ الفحص…" : "اختبار فوري"} onPress={() => void testModel(model)} disabled={busy || testingModelId !== null} />
               {testResults[model.id] ? <Text accessibilityRole="text" style={testResults[model.id].startsWith("نجح الطلب") ? styles.success : styles.warning}>{testResults[model.id]}</Text> : null}
               {model.health?.auto_restricted ? <PrimaryButton label="مراجعة وإعادة تفعيل" onPress={() => void resetHealth(model)} disabled={busy || testingModelId !== null} /> : providerIsOff ? <Link href="/admin/api-keys" asChild><Pressable style={styles.detailsAction}><Text style={styles.link}>اذهب لتفعيل المفتاح</Text></Pressable></Link> : isManuallyOff ? <><PrimaryButton label="تفعيل ضمن سباق مجاني" onPress={() => void assignRoute(model, "free_race")} disabled={busy || testingModelId !== null} /><PrimaryButton label="تفعيل كبديل مدفوع" onPress={() => void assignRoute(model, "paid_fallback")} disabled={busy || testingModelId !== null} /></> : <PrimaryButton label="تعطيل" onPress={() => void disable(model)} disabled={busy || testingModelId !== null} />}
             </View>
-          </View></ScrollView>;
+          </View></ScrollView> : <Card>
+            <View style={styles.providerCardHeader}>
+              <View style={styles.providerHeaderText}>
+                <Text style={styles.cardTitle}>{model.name}</Text>
+                <Text style={styles.detail}>{model.provider_type ?? "—"} · حساب المفتاح: {model.provider_name}</Text>
+                <Text style={styles.modelTableSub}>{model.model_identifier}</Text>
+                <Text style={styles.modelTableSub}>المسار: {model.routing_group} · الأولوية: {model.priority}</Text>
+              </View>
+              <Text style={[styles.statusBadgeText, statusTextStyle]}>{status}</Text>
+            </View>
+            <Text style={styles.sectionTitle}>القدرات</Text>
+            <View style={styles.rowWrap}>
+              {MODEL_CAPABILITY_OPTIONS.filter(([key]) => parseModelCapabilityState(model.capabilities_json)[key]).map(([key, label]) => <View key={key} style={styles.pill}><Text style={styles.pillText}>{label}</Text></View>)}
+              {MODEL_CAPABILITY_OPTIONS.every(([key]) => !parseModelCapabilityState(model.capabilities_json)[key]) ? <Text style={styles.detail}>لا توجد قدرات موثقة</Text> : null}
+            </View>
+            <View style={styles.rowWrap}>
+              <View style={styles.card}><Text style={styles.detail}>تكلفة الإدخال / مليون</Text><Text style={styles.modelMetricValue}>{formatModelPrice(modelPrices[model.id]?.provider_input_cost_egp_per_million, modelPrices[model.id]?.currency)}</Text><Text style={styles.detail}>سعر البيع: {formatModelPrice(modelPrices[model.id]?.selling_input_egp_per_million, modelPrices[model.id]?.currency)}</Text></View>
+              <View style={styles.card}><Text style={styles.detail}>تكلفة الإخراج / مليون</Text><Text style={styles.modelMetricValue}>{formatModelPrice(modelPrices[model.id]?.provider_output_cost_egp_per_million, modelPrices[model.id]?.currency)}</Text><Text style={styles.detail}>سعر البيع: {formatModelPrice(modelPrices[model.id]?.selling_output_egp_per_million, modelPrices[model.id]?.currency)}</Text></View>
+            </View>
+            <Text style={styles.detail}>متوسط الاستجابة: {model.health?.average_latency_ms == null ? "—" : Math.round(model.health.average_latency_ms) + "ms"} · نسبة النجاح: {successRate}</Text>
+            <Pressable accessibilityRole="button" onPress={() => void openModelDetails(model)} style={styles.detailsAction}><Text style={styles.link}>القيود وسجل الفحوص</Text></Pressable>
+            <PrimaryButton label={testingModelId === model.id ? "جارٍ الفحص…" : "اختبار فوري"} onPress={() => void testModel(model)} disabled={busy || testingModelId !== null} />
+            {testResults[model.id] ? <Text style={testResults[model.id].startsWith("نجح الطلب") ? styles.success : styles.warning}>{testResults[model.id]}</Text> : null}
+            {model.health?.auto_restricted ? <PrimaryButton label="مراجعة وإعادة تفعيل" onPress={() => void resetHealth(model)} disabled={busy || testingModelId !== null} /> : isManuallyOff ? <><PrimaryButton label="تفعيل ضمن سباق مجاني" onPress={() => void assignRoute(model, "free_race")} disabled={busy || testingModelId !== null} /><PrimaryButton label="تفعيل كبديل مدفوع" onPress={() => void assignRoute(model, "paid_fallback")} disabled={busy || testingModelId !== null} /></> : <PrimaryButton label="تعطيل" onPress={() => void disable(model)} disabled={busy || testingModelId !== null} />}
+          </Card>;
         }}
       />
     </View>
@@ -682,7 +690,7 @@ export function UsersAdminScreen() {
     <View style={styles.searchWrap}><TextInput style={styles.input} value={search} onChangeText={setSearch} placeholder="ابحث بالاسم أو البريد أو UUID" placeholderTextColor={colors.textMuted} autoCapitalize="none" /><Pressable onPress={() => void load()}><Text style={styles.link}>تحديث</Text></Pressable></View>
     <ErrorText>{error}</ErrorText>
     {loading ? <ActivityIndicator color={colors.primary} /> : <FlatList data={filtered} keyExtractor={(item) => item.id} contentContainerStyle={styles.content} renderItem={({ item }) => <Card>
-      <Text style={styles.cardTitle}>{item.full_name || item.email || item.id}</Text><Text style={styles.detail}>{item.email} · {item.subscription_tier ?? "free"}</Text><Text style={styles.detail}>الرصيد {item.balance} · المحجوز {item.reserved_balance} · {item.is_banned ? "محظور" : "نشط"}</Text><Text selectable style={styles.idText}>{item.id}</Text>
+      <Text style={styles.cardTitle}>{item.full_name || item.email || item.id}</Text><Text style={styles.detail}>{item.email} · {item.subscription_tier ?? "free"}</Text><Text style={styles.detail}>الرصيد {item.balance} · {item.is_banned ? "محظور" : "نشط"}</Text><Text selectable style={styles.idText}>{item.id}</Text>
       <View style={styles.rowWrap}><Pressable onPress={() => void toggleBan(item)}><Text style={item.is_banned ? styles.success : styles.warning}>{item.is_banned ? "إلغاء الحظر" : "حظر"}</Text></Pressable><Pressable onPress={() => { setSelected(item); setAmount(""); setReason(""); }}><Text style={styles.link}>تعديل الرصيد</Text></Pressable><Pressable onPress={() => void showTransactions(item)}><Text style={styles.link}>سجل المعاملات</Text></Pressable></View>
       {transactions[item.id]?.map((tx, index) => <Text key={`${tx.id ?? tx.created_at}-${index}`} style={styles.detail}>{tx.event_type} · {tx.amount} · الرصيد {tx.balance_after} · {tx.created_at}</Text>)}
     </Card>} />}
@@ -798,44 +806,82 @@ export function CircuitBreakerAdminScreen() {
 export function AgentsAdminScreen() {
   const { colors } = useSulyTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const [agents, setAgents] = useState<AgentConfig[]>([]);
   const [models, setModels] = useState<ModelRow[]>([]);
-  const [name, setName] = useState("");
-  const [prompt, setPrompt] = useState("");
-  const [chain, setChain] = useState<string[]>([]);
-  const [role, setRole] = useState<"planner" | "thinker" | "worker" | "reviewer" | "summarizer" | "coordinator">("worker");
-  const [modelSearch, setModelSearch] = useState("");
+  const [settings, setSettings] = useState<Record<string, unknown> | null>(null);
+  const [gmailModelId, setGmailModelId] = useState<number | null>(null);
+  const [freeTimeout, setFreeTimeout] = useState("5000");
+  const [fallbackTimeout, setFallbackTimeout] = useState("30000");
+  const [parallel, setParallel] = useState("10");
+  const [paidFallback, setPaidFallback] = useState(true);
+  const [autoRestrict, setAutoRestrict] = useState(true);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+
   const load = async () => {
     setLoading(true); setError(null);
-    try { const [nextAgents, overview] = await Promise.all([adminService.getAgents(), adminService.getModelsOverview()]); setAgents(nextAgents); setModels(overview.models as ModelRow[]); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر تحميل المساعدين."); }
+    try {
+      const result = await adminService.getModelsOverview();
+      setModels(result.models as ModelRow[]);
+      const config = result.settings as Record<string, unknown> | null;
+      setSettings(config);
+      if (config) {
+        const gmailId = Number(config.gmail_task_model_id);
+        setGmailModelId(Number.isSafeInteger(gmailId) && gmailId > 0 ? gmailId : null);
+        setFreeTimeout(String(config.free_race_timeout_ms ?? 5000));
+        setFallbackTimeout(String(config.paid_fallback_timeout_ms ?? 30000));
+        setParallel(String(config.max_parallel_free_models ?? 10));
+        setPaidFallback(config.paid_fallback_enabled === true);
+        setAutoRestrict(config.health_auto_restrict_enabled !== false);
+      }
+    } catch { setError("تعذر تحميل إعدادات الوكيل المركزي والنماذج المؤهلة."); }
     finally { setLoading(false); }
   };
   useEffect(() => { void load(); }, []);
-  const addAgent = async () => {
-    setBusy(true); setError(null); setNotice(null);
-    try {
-      const fixed = role !== "worker" ? agents.find((agent) => agent.role === role) : null;
-      if (fixed) await adminService.updateAgent(fixed.id, { name: fixed.name, systemPrompt: fixed.system_prompt, modelFallbackChain: chain, isActive: fixed.is_active });
-      else await adminService.createAgent({ name: name.trim(), role, systemPrompt: prompt, modelFallbackChain: chain });
-      setName(""); setPrompt(""); setChain([]); setRole("worker"); setNotice(fixed ? "تم تحديث نماذج الوظيفة الثابتة." : "تمت إضافة العامل."); await load();
-    }
-    catch (cause) { setError(cause instanceof Error ? cause.message : "تعذرت إضافة المساعد."); }
+
+  const saveGmailModel = async () => {
+    setBusy(true); setError(null);
+    try { await adminService.updateGmailTaskModel(gmailModelId); await load(); }
+    catch { setError("تعذر حفظ نموذج موصل Gmail. تحقق من صلاحيات الإدارة."); }
     finally { setBusy(false); }
   };
-  const toggleModel = (id: string) => setChain((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
-  const roleLabel = role === "planner" ? "العقل المخطط" : role === "thinker" ? "العقل المفكر" : role === "reviewer" ? "المراجع" : role === "summarizer" ? "الملخّص" : role === "coordinator" ? "المنسق" : "عامل متخصص";
-  return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-    <PageHeader title="إدارة المساعدين" />
-    <Text style={styles.explainer}>أضف العقل والمراجع والمساعدين المتخصصين وحدد تعليماتهم وسلسلة نماذج غير محدودة عملياً حسب الأولوية.</Text>
-    <ErrorText>{error}</ErrorText>{notice && <Text style={styles.success}>{notice}</Text>}
-    <Card><Text style={styles.sectionTitle}>إضافة مكوّن</Text><View style={styles.filterRow}>{([['planner','العقل المخطط'],['thinker','العقل المفكر'],['reviewer','المراجع'],['summarizer','الملخّص'],['coordinator','المنسق'],['worker','عامل متخصص']] as const).map(([value, label]) => <Pressable key={value} onPress={() => setRole(value)} style={[styles.filterChip, role === value && styles.filterChipSelected]}><Text style={[styles.filterText, role === value && styles.filterTextSelected]}>{label}</Text></Pressable>)}</View><TextInput style={styles.input} value={name} onChangeText={setName} placeholder={role === "planner" ? "العقل المفكر" : role === "reviewer" ? "المراجع والمنسق" : "اسم المساعد"} placeholderTextColor={colors.textMuted} /><TextInput style={[styles.input, { minHeight: 130 }]} value={prompt} onChangeText={setPrompt} placeholder="وظيفة المساعد وتعليماته" placeholderTextColor={colors.textMuted} multiline textAlignVertical="top" /><Text style={styles.label}>النماذج حسب الأولوية (اضغط بالترتيب)</Text><TextInput style={styles.input} placeholder="ابحث عن نموذج بالاسم" placeholderTextColor={colors.textMuted} onChangeText={setModelSearch} value={modelSearch} /><View style={styles.filterRow}>{models.filter((model) => model.enabled && model.provider_enabled === true && model.routing_group === "free_race" && modelSupportsAgentRole(model, role) && `${model.name} ${model.model_identifier}`.toLowerCase().includes(modelSearch.trim().toLowerCase())).map((model) => <Pressable key={String(model.id)} onPress={() => toggleModel(String(model.id))} style={[styles.filterChip, chain.includes(String(model.id)) && styles.filterChipSelected]}><Text style={[styles.filterText, chain.includes(String(model.id)) && styles.filterTextSelected]}>{chain.includes(String(model.id)) ? `${chain.indexOf(String(model.id)) + 1}. ` : ""}{model.name}</Text></Pressable>)}</View><PrimaryButton label={busy ? "جارٍ الحفظ…" : "إضافة المكوّن"} onPress={() => void addAgent()} disabled={busy} /></Card>
-    <Text style={styles.sectionTitle}>المساعدون الحاليون · {agents.length}</Text>
-    {loading ? <ActivityIndicator color={colors.primary} /> : <ScrollView horizontal style={styles.agentsTable}><View><View style={styles.agentsTableHeader}><Text style={styles.agentNameCell}>الاسم / التعليمات</Text><Text style={styles.agentRoleCell}>الدور</Text><Text style={styles.agentModelsCell}>النماذج الاحتياطية</Text><Text style={styles.agentActionCell}>إجراء</Text></View>{agents.map((agent) => <View key={agent.id} style={styles.agentRow}><View style={styles.agentNameCell}><Text style={styles.cardTitle} numberOfLines={1}>{agent.name}</Text><Text style={styles.modelTableSub} numberOfLines={2}>{agent.system_prompt}</Text></View><Text style={[styles.agentRoleCell, styles.detail]}>{agent.role}</Text><Text style={[styles.agentModelsCell, styles.detail]} numberOfLines={2}>{agent.model_fallback_chain.join(" → ") || "التوجيه العام"}</Text><View style={styles.agentActionCell}><Pressable onPress={async () => { if (!await confirmAdminAction("حذف المساعد؟", `سيُحذف ${agent.name} نهائيًا.`, "حذف")) return; void adminService.deleteAgent(agent.id).then(() => load()).catch((cause) => setError(cause instanceof Error ? cause.message : "تعذر حذف المساعد.")); }}><Text style={styles.deleteFeature}>حذف</Text></Pressable></View></View>)}</View></ScrollView>}
+
+  const saveSettings = async () => {
+    const free = Number(freeTimeout), fallback = Number(fallbackTimeout), count = Number(parallel);
+    if (!Number.isInteger(free) || free < 1000 || free > 30000 || !Number.isInteger(fallback) || fallback < 1000 || fallback > 120000 || !Number.isInteger(count) || count < 1 || count > 50) {
+      setError("المهلة المجانية 1000–30000، مهلة البديل 1000–120000، والتوازي 1–50."); return;
+    }
+    setBusy(true); setError(null);
+    try {
+      await adminService.updateRouterSettings({ free_race_timeout_ms: free, paid_fallback_timeout_ms: fallback, max_parallel_free_models: count, paid_fallback_enabled: paidFallback, health_auto_restrict_enabled: autoRestrict });
+      await load();
+    } catch { setError("تعذر حفظ إعدادات توجيه الوكيل المركزي."); }
+    finally { setBusy(false); }
+  };
+
+  return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <PageHeader title="الوكيل المركزي" />
+    <Card>
+      <Text style={styles.sectionTitle}>عقل تنفيذي واحد لـ SULY</Text>
+      <Text style={styles.detail}>كل الطلبات تبدأ من الوكيل المركزي. التخطيط والتنفيذ والمراجعة والتلخيص وظائف داخلية يستدعيها عند الحاجة، وليست مساعدين مستقلين أو أنظمة تتخذ قرارات متنافسة.</Text>
+      <Text style={styles.detail}>النماذج هنا تُسند إلى وظائف داخلية فقط. لن تُنشأ وكلاء منفصلة أو تعليمات متعارضة.</Text>
+      <Link href="/admin/models" asChild><Pressable><Text style={styles.link}>فتح كتالوج النماذج والأسعار</Text></Pressable></Link>
+    </Card>
+    <ErrorText>{error}</ErrorText>
+    {loading ? <ActivityIndicator color={colors.primary} /> : <>
+      <RouteModelChainsCard models={models} />
+      {settings ? <GmailModelPickerCard models={models} selectedModelId={gmailModelId} onSelect={setGmailModelId} onSave={() => void saveGmailModel()} busy={busy} /> : null}
+      {settings ? <Card>
+        <View style={styles.settingsHeading}><View style={styles.sectionIcon}><Text style={styles.sectionIconText}>⚙</Text></View><View style={styles.settingsHeadingText}><Text style={styles.sectionTitle}>إعدادات توجيه الوكيل</Text><Text style={styles.detail}>إعدادات تنفيذ مشتركة؛ لا تنشئ أنظمة أو وكلاء مستقلة.</Text></View></View>
+        <View style={styles.settingsFields}>
+          <NumberField label="مهلة اختيار النموذج (ms)" value={freeTimeout} onChange={setFreeTimeout} />
+          <NumberField label="مهلة البديل (ms)" value={fallbackTimeout} onChange={setFallbackTimeout} />
+          <NumberField label="أقصى نماذج متوازية" value={parallel} onChange={setParallel} />
+        </View>
+        <View style={styles.settingsToggles}><Toggle label="السماح بالبديل المدفوع" value={paidFallback} onChange={setPaidFallback} /><Toggle label="استبعاد النموذج عند تراجع الصحة" value={autoRestrict} onChange={setAutoRestrict} /></View>
+        <PrimaryButton label={busy ? "جارٍ الحفظ…" : "حفظ إعدادات الوكيل"} onPress={() => void saveSettings()} disabled={busy} />
+      </Card> : null}
+    </>}
   </ScrollView>;
 }
 
@@ -889,11 +935,14 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
   settingsFields: { gap: 2, paddingVertical: 6 },
   settingsToggles: { borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 6 },
   modelsSectionHeader: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", marginTop: 8, gap: 10 },
-  modelsTableHeader: { minWidth: 780, flexDirection: "row-reverse", alignItems: "center", backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.divider, borderRadius: 7, paddingVertical: 7, marginTop: 5 },
+  modelsTableHeader: { minWidth: 1160, flexDirection: "row-reverse", alignItems: "center", backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.divider, borderRadius: 7, paddingVertical: 7, marginTop: 5 },
   modelTableScroller: { flexGrow: 0 },
-  modelTableRow: { minWidth: 780, flexDirection: "row-reverse", alignItems: "center", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.divider, backgroundColor: colors.surface },
-  modelsTableName: { width: 220, paddingHorizontal: 8, alignItems: "flex-end" },
-  modelsTableMetric: { width: 95, alignItems: "center", justifyContent: "center", paddingHorizontal: 5 },
+  modelTableRow: { minWidth: 1160, flexDirection: "row-reverse", alignItems: "center", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.divider, backgroundColor: colors.surface },
+  modelsTableName: { width: 225, paddingHorizontal: 8, alignItems: "flex-end" },
+  modelsTableCapabilities: { width: 125, flexDirection: "row-reverse", flexWrap: "wrap", gap: 5, alignItems: "center", justifyContent: "center", paddingHorizontal: 5 },
+  capabilityIconButton: { width: 25, height: 25, borderWidth: 1, borderColor: colors.divider, borderRadius: 7, alignItems: "center", justifyContent: "center" },
+  modelsTablePrice: { width: 135, alignItems: "center", justifyContent: "center", paddingHorizontal: 5, gap: 2 },
+  modelsTableMetric: { width: 90, alignItems: "center", justifyContent: "center", paddingHorizontal: 5 },
   modelsTableActions: { width: 275, flexDirection: "row-reverse", flexWrap: "wrap", gap: 4, alignItems: "center", paddingHorizontal: 5 },
   modelTableSub: { color: colors.textMuted, fontSize: 8, textAlign: "right", maxWidth: 205 },
   modelMetricValue: { color: colors.textPrimary, fontSize: 10, fontWeight: "800" },

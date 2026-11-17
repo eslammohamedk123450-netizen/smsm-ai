@@ -4,6 +4,7 @@ import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
 import { adminService } from "./admin-service";
+import { supabase } from "../../lib/supabase/client";
 
 type MediaPriceRow = {
   id: string;
@@ -22,7 +23,7 @@ type MediaPriceRow = {
 const money = (value: number) => Number(value).toLocaleString("en-EG", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
 const serviceLabel: Record<MediaPriceRow["service_type"], string> = { image: "صورة", video: "ثانية فيديو", audio: "دقيقة صوت" };
 
-export function MediaModelPricingAdminCard() {
+export function MediaModelPricingAdminCard({ serviceType, capabilityKey }: { serviceType?: "image" | "video" | "audio"; capabilityKey?: "transcription" | "audio_output" } = {}) {
   const { colors } = useSulyTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [rows, setRows] = useState<MediaPriceRow[]>([]);
@@ -39,8 +40,19 @@ export function MediaModelPricingAdminCard() {
     setError(null);
     try {
       const result = await adminService.getMediaModelPriceVersions() as MediaPriceRow[];
-      setRows(result);
-      return result;
+      let visible = result;
+      if (capabilityKey) {
+        const { data: evidence, error: evidenceError } = await supabase.rpc("suly_admin_list_media_model_capability_evidence");
+        if (evidenceError) throw evidenceError;
+        const supported = new Set((evidence ?? [])
+          .filter((item: { capability_key: string; vendor_claim_status: string }) =>
+            item.capability_key === capabilityKey && item.vendor_claim_status === "supported")
+          .map((item: { provider_id: number; service_type: string; model_identifier: string }) =>
+            `${item.provider_id}:${item.service_type}:${item.model_identifier}`));
+        visible = result.filter((row) => supported.has(`${row.provider_id}:${row.service_type}:${row.model_identifier}`));
+      }
+      setRows(visible);
+      return visible;
     } catch {
       setError("تعذر تحميل أسعار خدمات الوسائط.");
       return null;
@@ -48,13 +60,13 @@ export function MediaModelPricingAdminCard() {
       setLoading(false);
     }
   };
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); }, [serviceType, capabilityKey]);
 
   const visibleRows = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
-    return rows.filter((row) => !query || `${row.display_name} ${row.model_identifier} ${row.service_type}`.toLocaleLowerCase().includes(query));
-  }, [rows, search]);
-  const selected = rows.find((row) => row.id === selectedId) ?? null;
+    return rows.filter((row) => (!serviceType || row.service_type === serviceType) && (!query || `${row.display_name} ${row.model_identifier} ${row.service_type}`.toLocaleLowerCase().includes(query)));
+  }, [rows, search, serviceType]);
+  const selected = visibleRows.find((row) => row.id === selectedId) ?? null;
 
   const select = (row: MediaPriceRow) => {
     setSelectedId(row.id);
@@ -100,8 +112,8 @@ export function MediaModelPricingAdminCard() {
   return <View style={styles.card}>
     <View style={styles.header}>
       <View style={styles.headerCopy}>
-        <Text style={styles.title}>أسعار الصور والفيديو والصوت</Text>
-        <Text style={styles.subtitle}>22 نموذجًا · تكلفة المزود وسعر البيع بالجنيه · زيادة ثابتة 40%</Text>
+        <Text style={styles.title}>{capabilityKey === "transcription" ? "أسعار نماذج تفريغ الصوت" : capabilityKey === "audio_output" ? "أسعار نماذج توليد الصوت" : serviceType === "image" ? "أسعار نماذج الصور" : serviceType === "video" ? "أسعار نماذج الفيديو" : serviceType === "audio" ? "أسعار نماذج الصوت" : "أسعار الصور والفيديو والصوت"}</Text>
+        <Text style={styles.subtitle}>{visibleRows.length} نموذج · تكلفة المزود وسعر البيع المسجلان بالجنيه</Text>
       </View>
       <Pressable onPress={() => void load()} style={styles.refresh}><Text style={styles.refreshText}>تحديث</Text></Pressable>
     </View>

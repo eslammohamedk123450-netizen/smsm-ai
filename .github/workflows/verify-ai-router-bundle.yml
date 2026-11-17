@@ -8,18 +8,45 @@ on:
       - "supabase/functions/sync-models/**"
       - "supabase/functions/image-generator/**"
       - "apps/mobile/src/features/admin/MediaGenerationModelsAdminScreen.tsx"
+      - "apps/mobile/src/theme/**"
+      - "apps/mobile/src/features/projects/project-validation.ts"
+      - "apps/mobile/src/features/projects/project-service.test.ts"
+      - "apps/mobile/src/features/brain/task-service.ts"
+      - "apps/mobile/src/features/brain/task-service.test.ts"
+      - "apps/mobile/src/features/chat/ConversationsScreen.tsx"
+      - "apps/mobile/src/features/chat/TaskHistoryPanel.tsx"
+      - "apps/mobile/src/components/navigation/**"
+      - "apps/mobile/app/(protected)/chat.tsx"
+      - "apps/mobile/app/+html.tsx"
+      - "apps/mobile/package.json"
+      - "apps/mobile/package-lock.json"
+      - "apps/mobile/tsconfig.json"
       - "supabase/migrations/**"
       - "supabase/deploy-artifacts/ai-router.bundle.js"
       - "supabase/deploy-artifacts/sync-models.bundle.js"
       - "package.json"
       - ".github/workflows/verify-ai-router-bundle.yml"
   push:
-    branches: [release/v1, feat/agent-worker-brain-queue]
+    branches: [release/v1, develop, feat/agent-worker-brain-queue]
     paths:
       - "supabase/functions/ai-router/**"
+      - "supabase/functions/_shared/**"
       - "supabase/functions/sync-models/**"
       - "supabase/functions/image-generator/**"
       - "apps/mobile/src/features/admin/MediaGenerationModelsAdminScreen.tsx"
+      - "apps/mobile/src/theme/**"
+      - "apps/mobile/src/features/projects/project-validation.ts"
+      - "apps/mobile/src/features/projects/project-service.test.ts"
+      - "apps/mobile/src/features/brain/task-service.ts"
+      - "apps/mobile/src/features/brain/task-service.test.ts"
+      - "apps/mobile/src/features/chat/ConversationsScreen.tsx"
+      - "apps/mobile/src/features/chat/TaskHistoryPanel.tsx"
+      - "apps/mobile/src/components/navigation/**"
+      - "apps/mobile/app/(protected)/chat.tsx"
+      - "apps/mobile/app/+html.tsx"
+      - "apps/mobile/package.json"
+      - "apps/mobile/package-lock.json"
+      - "apps/mobile/tsconfig.json"
       - "supabase/migrations/**"
       - "supabase/deploy-artifacts/ai-router.bundle.js"
       - "supabase/deploy-artifacts/sync-models.bundle.js"
@@ -60,7 +87,7 @@ jobs:
         run: npm run bundle:ai-router && npm run bundle:sync-models
 
       - name: Commit the regenerated bundle to the development branch
-        if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name == 'push' && github.ref_name == 'feat/agent-worker-brain-queue')
+        if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name == 'push' && (github.ref_name == 'develop' || github.ref_name == 'feat/agent-worker-brain-queue'))
         env:
           TARGET_REF: ${{ github.event.pull_request.head.ref || github.ref_name }}
           SOURCE_SHA: ${{ steps.source.outputs.sha }}
@@ -101,3 +128,46 @@ jobs:
         run: deno test supabase/functions/image-generator/cost.test.ts
       - name: Type-check image generator
         run: deno check supabase/functions/image-generator/index.ts
+
+
+  hims-regressions:
+    name: HIMS activation and resource isolation regressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js for the repository type dependencies
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install pinned repository dependencies
+        run: npm ci
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Test HIMS activation parsing and authorization boundaries
+        run: deno test --node-modules-dir=auto supabase/functions/_shared/activation_command.test.ts supabase/functions/_shared/feature_flags.test.ts
+
+
+  theme-regressions:
+    name: Monochrome theme and project defaults
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
+      - name: Install mobile dependencies
+        working-directory: apps/mobile
+        run: npm ci
+      - name: Test theme contrast, grayscale tokens, and project defaults
+        working-directory: apps/mobile
+        run: npm test -- --runInBand src/theme/colors.test.ts src/features/projects/project-service.test.ts src/features/brain/task-service.test.ts
+      - name: Type-check the shared Expo application
+        working-directory: apps/mobile
+        run: npm run typecheck

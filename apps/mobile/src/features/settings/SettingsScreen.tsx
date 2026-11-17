@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Image, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 
 import { useRouter } from "expo-router";
+import Constants from "expo-constants";
 import { getCreditLedger, type CreditEntry } from "../credits/credit-service";
 import { useAuth } from "../auth/auth-provider";
 import type { ThemePalette } from "../../theme/colors";
@@ -18,8 +20,8 @@ export default function SettingsScreen() {
   const { show } = useToast();
   const router = useRouter();
   const { colors, mode, effectiveMode, setMode } = useSulyTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
   const { language, isArabic, setLanguage } = useAppLocale();
+  const styles = useMemo(() => createStyles(colors, isArabic), [colors, isArabic]);
   const [adminAccess, setAdminAccess] = useState<{ userId: string | null; state: "checking" | "allowed" | "denied" | "error" }>({ userId: null, state: "checking" });
   const [savedProfileName, setSavedProfileName] = useState<string | null>(null);
   const [profileEditVisible, setProfileEditVisible] = useState(false);
@@ -161,27 +163,56 @@ export default function SettingsScreen() {
 
   const name = savedProfileName?.trim() || profileFullName?.trim() || "Suly";
   const avatarUrl = typeof user?.user_metadata?.avatar_url === "string" ? user.user_metadata.avatar_url : null;
-  const back = () => { if (router.canGoBack()) router.back(); else router.replace("/home"); };
+  const back = () => { if (router.canGoBack()) router.back(); else router.replace("/chat"); };
 
   return (
     <>
       <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
         <View style={styles.header}>
-          <Text style={styles.heading}>{isArabic ? "الإعدادات" : "Settings"}</Text>
+          <Text style={styles.heading}>{isArabic ? "الحساب" : "Account"}</Text>
           <TouchableOpacity activeOpacity={0.7} onPress={back} style={styles.backButton} accessibilityRole="button" accessibilityLabel={isArabic ? "رجوع" : "Back"}><Text style={styles.backIcon}>↩</Text></TouchableOpacity>
         </View>
 
         <Text style={styles.sectionTitle}>{isArabic ? "الحساب" : "Account"}</Text>
-        <View style={styles.card}>
+        <TouchableOpacity activeOpacity={0.7} onPress={() => router.push("/(protected)/profile")} style={styles.card} accessibilityRole="button">
           <View style={styles.avatar}>{avatarUrl ? <Image source={{ uri: avatarUrl }} style={styles.avatarImage} /> : <Text style={styles.avatarText}>{name.slice(0, 1).toUpperCase()}</Text>}</View>
           <View style={styles.accountCopy}>
             <Text style={styles.userName}>{name}</Text>
             <Text style={styles.email}>{user?.email ?? "—"}</Text>
           </View>
-        </View>
+          <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={18} color={colors.textMuted} />
+        </TouchableOpacity>
         <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => { setProfileNameDraft(name === "Suly" ? "" : name); setProfileEditVisible(true); }} accessibilityRole="button">
           <Text style={styles.rowText}>{isArabic ? "تعديل الاسم الظاهر" : "Edit display name"}</Text><Text style={styles.chevron}>‹</Text>
         </TouchableOpacity>
+
+        <Text style={styles.sectionTitle}>{isArabic ? "الرصيد" : "Credits"}</Text>
+        <View style={styles.creditCard}>
+          <Text style={styles.balanceLabel}>{isArabic ? "الرصيد الحالي" : "Current balance"}</Text>
+          <Text style={styles.balanceValue}>{loadingCredits ? "…" : balance === null ? "—" : balance.toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => { setCreditModal(true); void loadCredits(); }} style={styles.historyButton} accessibilityRole="button"><Text style={styles.linkText}>{isArabic ? "عرض السجل" : "View history"}</Text></TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => router.push("/(protected)/balance")} style={styles.historyButton} accessibilityRole="button"><Text style={styles.linkText}>{isArabic ? "تفاصيل الرصيد والاستهلاك" : "Balance details & usage"}</Text></TouchableOpacity>
+        </View>
+
+        <Text style={styles.sectionTitle}>{isArabic ? "الاشتراك والخطة" : "Plan & subscription"}</Text>
+        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/upgrade")} accessibilityRole="button">
+          <Text style={styles.rowText}>{isArabic ? "عرض الباقات والاشتراك الحالي" : "View plans and current subscription"}</Text><Text style={styles.chevron}>‹</Text>
+        </TouchableOpacity>
+
+        <Text style={styles.sectionTitle}>{isArabic ? "المهارات" : "Skills"}</Text>
+        <View style={styles.cardRow}>
+          <Text style={styles.rowText}>{isArabic ? "مهارات SULY" : "SULY skills"}</Text>
+          <Text style={styles.email}>{isArabic ? "سجل المهارات غير متصل بعد" : "Skill registry is not connected yet"}</Text>
+        </View>
+
+        <Text style={styles.sectionTitle}>{isArabic ? "الموصلات" : "Connectors"}</Text>
+        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/integrations")} accessibilityRole="button"><Text style={styles.rowText}>{isArabic ? "إدارة الموصلات والتطبيقات المرتبطة" : "Manage connected apps"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
+
+        <Text style={styles.sectionTitle}>{isArabic ? "اللغة" : "Language"}</Text>
+        <View style={styles.languageControl}>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => void changeLanguage("en")} style={[styles.languageOption, language === "en" && styles.languageSelected]}><Text style={[styles.rowText, language === "en" && styles.languageSelectedText]}>English</Text></TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => void changeLanguage("ar")} style={[styles.languageOption, language === "ar" && styles.languageSelected]}><Text style={[styles.rowText, language === "ar" && styles.languageSelectedText]}>العربية</Text></TouchableOpacity>
+        </View>
 
         <Text style={styles.sectionTitle}>{isArabic ? "المظهر" : "Appearance"}</Text>
         <View style={styles.languageControl}>
@@ -193,22 +224,10 @@ export default function SettingsScreen() {
         </View>
         <Text style={styles.email}>{isArabic ? `المظهر الحالي: ${effectiveMode === "dark" ? "داكن" : "فاتح"}` : `Current appearance: ${effectiveMode}`}</Text>
 
-        <Text style={styles.sectionTitle}>{isArabic ? "اللغة" : "Language"}</Text>
-        <View style={styles.languageControl}>
-          <TouchableOpacity activeOpacity={0.7} onPress={() => void changeLanguage("en")} style={[styles.languageOption, language === "en" && styles.languageSelected]}><Text style={[styles.rowText, language === "en" && styles.languageSelectedText]}>English</Text></TouchableOpacity>
-          <TouchableOpacity activeOpacity={0.7} onPress={() => void changeLanguage("ar")} style={[styles.languageOption, language === "ar" && styles.languageSelected]}><Text style={[styles.rowText, language === "ar" && styles.languageSelectedText]}>العربية</Text></TouchableOpacity>
-        </View>
-
-        <Text style={styles.sectionTitle}>{isArabic ? "الرصيد" : "Credits"}</Text>
-        <View style={styles.creditCard}>
-          <Text style={styles.balanceLabel}>{isArabic ? "الرصيد الحالي" : "Current balance"}</Text>
-          <Text style={styles.balanceValue}>{loadingCredits ? "…" : balance === null ? "—" : balance.toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text>
-          <TouchableOpacity activeOpacity={0.7} onPress={() => { setCreditModal(true); void loadCredits(); }} style={styles.historyButton} accessibilityRole="button"><Text style={styles.linkText}>{isArabic ? "عرض السجل" : "View history"}</Text></TouchableOpacity>
-        </View>
-
-        <Text style={styles.sectionTitle}>{isArabic ? "الاشتراك والخطة" : "Plan & subscription"}</Text>
-        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/upgrade")} accessibilityRole="button">
-          <Text style={styles.rowText}>{isArabic ? "عرض الباقات والاشتراك الحالي" : "View plans and current subscription"}</Text><Text style={styles.chevron}>‹</Text>
+        <Text style={styles.sectionTitle}>{isArabic ? "ذاكرة التخزين" : "Memory storage"}</Text>
+        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/memory")} accessibilityRole="button">
+          <Text style={styles.rowText}>{isArabic ? "عرض ذاكرة SULY" : "View SULY memory"}</Text>
+          <Text style={styles.chevron}>‹</Text>
         </TouchableOpacity>
 
         <Text style={styles.sectionTitle}>{isArabic ? "التخزين والمكتبة" : "Storage & Library"}</Text>
@@ -216,8 +235,20 @@ export default function SettingsScreen() {
           <Text style={styles.rowText}>{isArabic ? "فتح مكتبتي وإدارة ملفاتي" : "Open my Library and manage files"}</Text><Text style={styles.chevron}>‹</Text>
         </TouchableOpacity>
 
+        <Text style={styles.sectionTitle}>{isArabic ? "تقييم التطبيق" : "Rate the app"}</Text>
+        <View style={styles.cardRow}>
+          <Text style={styles.rowText}>{isArabic ? "تقييم SULY" : "Rate SULY"}</Text>
+          <Text style={styles.email}>{isArabic ? "رابط المتجر غير مُعتمد بعد" : "Store listing is not configured yet"}</Text>
+        </View>
+
         <Text style={styles.sectionTitle}>{isArabic ? "الدعم" : "Support"}</Text>
         <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/support")} accessibilityRole="button"><Text style={styles.rowText}>{isArabic ? "الشكاوى والدعم" : "Support & complaints"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
+
+        <Text style={styles.sectionTitle}>{isArabic ? "التطبيق" : "Application"}</Text>
+        <View style={styles.cardRow}>
+          <Text style={styles.rowText}>{isArabic ? "إصدار التطبيق" : "App version"}</Text>
+          <Text style={styles.email}>{Constants.expoConfig?.version ?? "1.0.0"}</Text>
+        </View>
 
         <Text style={styles.sectionTitle}>{isArabic ? "المحادثات" : "Conversations"}</Text>
         <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => void openArchive()} accessibilityRole="button"><Text style={styles.rowText}>{isArabic ? "الأرشيف" : "Archive"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
@@ -233,12 +264,9 @@ export default function SettingsScreen() {
         </> : adminAccessState === "error" ? <>
           <Text style={styles.sectionTitle}>{isArabic ? "إدارة النظام" : "Administration"}</Text>
           <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => void checkAdminAccess()} accessibilityRole="button">
-            <Text style={styles.rowText}>{isArabic ? "تعذر التحقق من صلاحية الأدمن — اضغط لإعادة المحاولة" : "Could not verify admin access — tap to retry"}</Text><Text style={styles.chevron}>↻</Text>
+            <Text style={styles.rowText}>{isArabic ? "تعذر التحقق من صلاحية الأدمن — اضغط لإعادة المحاولة" : "Could not verify admin access — tap to retry"}</Text><Ionicons name="refresh-outline" size={17} color={colors.textMuted} />
           </TouchableOpacity>
         </> : null}
-        <Text style={styles.sectionTitle}>{isArabic ? "التكاملات" : "Integrations"}</Text>
-        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/integrations")} accessibilityRole="button"><Text style={styles.rowText}>{isArabic ? "التطبيقات المرتبطة" : "Connected apps"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
-
         <Text style={styles.sectionTitle}>{isArabic ? "المعلومات والسياسات" : "Information & policies"}</Text>
         <View style={styles.policyCard}>
           <TouchableOpacity activeOpacity={0.7} onPress={() => setPolicyModal("privacy")} style={styles.policyRow}><Text style={styles.rowText}>{isArabic ? "سياسة الخصوصية" : "Privacy policy"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
@@ -247,7 +275,7 @@ export default function SettingsScreen() {
         </View>
 
         <TouchableOpacity activeOpacity={0.7} style={styles.logoutButton} onPress={confirmLogout} disabled={loggingOut} accessibilityRole="button">
-          {loggingOut ? <ActivityIndicator color="#F87171" /> : <Text style={styles.logoutText}>{isArabic ? "تسجيل الخروج" : "Sign out"}</Text>}
+          {loggingOut ? <ActivityIndicator color={colors.textPrimary} /> : <Text style={styles.logoutText}>{isArabic ? "تسجيل الخروج" : "Sign out"}</Text>}
         </TouchableOpacity>
       </ScrollView>
 
@@ -312,25 +340,25 @@ export default function SettingsScreen() {
   );
 }
 
-const createStyles = (colors: ThemePalette) => StyleSheet.create({
+const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: 20, paddingBottom: 36 },
-  header: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
+  header: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
   heading: { fontSize: 22, fontWeight: "700", color: colors.textPrimary },
   backButton: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" },
   backIcon: { color: colors.textPrimary, fontSize: 25 },
-  sectionTitle: { color: colors.textSecondary, marginTop: 23, marginBottom: 10, textAlign: "right", fontSize: 14, fontWeight: "600" },
-  card: { padding: 16, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, flexDirection: "row-reverse", alignItems: "center", gap: 12 },
+  sectionTitle: { color: colors.textSecondary, marginTop: 23, marginBottom: 10, textAlign: isArabic ? "right" : "left", fontSize: 14, fontWeight: "600" },
+  card: { padding: 16, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 12 },
   avatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.surfaceElevated, alignItems: "center", justifyContent: "center" },
   avatarImage: { width: 48, height: 48, borderRadius: 24 },
   avatarText: { color: colors.primary, fontSize: 20, fontWeight: "800" },
-  accountCopy: { flex: 1, alignItems: "flex-end" },
+  accountCopy: { flex: 1, alignItems: isArabic ? "flex-end" : "flex-start" },
   userName: { color: colors.textPrimary, fontSize: 15, fontWeight: "700" },
   email: { color: colors.textSecondary, marginTop: 4, fontSize: 13 },
-  profileNameInput: { minHeight: 48, borderWidth: 1, borderColor: colors.divider, borderRadius: 12, paddingHorizontal: 14, color: colors.textPrimary, backgroundColor: colors.surface, textAlign: "right" },
-  cardRow: { minHeight: 58, paddingHorizontal: 15, paddingVertical: 10, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between" },
+  profileNameInput: { minHeight: 48, borderWidth: 1, borderColor: colors.divider, borderRadius: 12, paddingHorizontal: 14, color: colors.textPrimary, backgroundColor: colors.surface, textAlign: isArabic ? "right" : "left" },
+  cardRow: { minHeight: 58, paddingHorizontal: 15, paddingVertical: 10, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "space-between" },
   rowText: { color: colors.textPrimary, fontSize: 14 },
-  languageControl: { minHeight: 50, flexDirection: "row-reverse", gap: 6, padding: 5, borderWidth: 1, borderColor: colors.divider, borderRadius: 16, backgroundColor: colors.surface },
+  languageControl: { minHeight: 50, flexDirection: isArabic ? "row-reverse" : "row", gap: 6, padding: 5, borderWidth: 1, borderColor: colors.divider, borderRadius: 16, backgroundColor: colors.surface },
   languageOption: { flex: 1, alignItems: "center", justifyContent: "center", borderRadius: 11, paddingVertical: 9, paddingHorizontal: 13 },
   languageSelected: { backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.primary },
   languageSelectedText: { color: colors.primary, fontWeight: "700" },
@@ -343,27 +371,27 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
   chevron: { color: colors.textMuted, fontSize: 22 },
   separator: { height: 1, backgroundColor: colors.divider },
   logoutButton: { paddingVertical: 15, paddingHorizontal: 20, borderRadius: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, marginTop: 30, alignItems: "center", minHeight: 50, justifyContent: "center" },
-  logoutText: { color: "#F87171", fontWeight: "700", fontSize: 15 },
+  logoutText: { color: colors.textPrimary, fontWeight: "700", fontSize: 15 },
   sheetContent: { maxHeight: 520 },
   archiveContent: { maxHeight: 520, gap: 8 },
-  archiveRow: { minHeight: 56, flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", paddingVertical: 9, paddingHorizontal: 10, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider },
-  archiveCopy: { flex: 1, alignItems: "flex-end", paddingHorizontal: 8 },
+  archiveRow: { minHeight: 56, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 9, paddingHorizontal: 10, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider },
+  archiveCopy: { flex: 1, alignItems: isArabic ? "flex-end" : "flex-start", paddingHorizontal: 8 },
   restoreButton: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 10, backgroundColor: colors.surfaceElevated },
   historyList: { maxHeight: 340 },
   balanceCard: { padding: 20, borderRadius: 16, backgroundColor: colors.surface, alignItems: "center" },
   balanceLabel: { color: colors.textSecondary, fontSize: 14 },
   modalBalance: { color: colors.primary, fontSize: 34, fontWeight: "800", marginTop: 8 },
   emptyHistory: { color: colors.textMuted, textAlign: "center", marginTop: 28 },
-  transaction: { flexDirection: "row-reverse", justifyContent: "space-between", alignItems: "center", paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.divider },
-  transactionCopy: { flex: 1, alignItems: "flex-end", paddingLeft: 12 },
-  transactionTitle: { color: colors.textPrimary, fontSize: 13, textAlign: "right" },
+  transaction: { flexDirection: isArabic ? "row-reverse" : "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.divider },
+  transactionCopy: { flex: 1, alignItems: isArabic ? "flex-end" : "flex-start", paddingLeft: 12 },
+  transactionTitle: { color: colors.textPrimary, fontSize: 13, textAlign: isArabic ? "right" : "left" },
   transactionDate: { color: colors.textMuted, fontSize: 11, marginTop: 5 },
   transactionAmount: { alignItems: "flex-start" },
   delta: { fontSize: 15, fontWeight: "700" },
-  positive: { color: colors.success },
-  negative: { color: colors.error },
+  positive: { color: colors.textSecondary },
+  negative: { color: colors.textPrimary },
   balanceAfter: { color: colors.textMuted, fontSize: 10, marginTop: 4 },
-  policyNotice: { color: colors.textSecondary, fontSize: 14, lineHeight: 22, textAlign: "right", marginTop: 15 },
+  policyNotice: { color: colors.textSecondary, fontSize: 14, lineHeight: 22, textAlign: isArabic ? "right" : "left", marginTop: 15 },
   modalClose: { backgroundColor: colors.primary, borderRadius: 14, paddingHorizontal: 20, paddingVertical: 12, marginTop: 20, alignItems: "center", justifyContent: "center" },
   newChatText: { color: colors.onPrimary, fontWeight: "700", textAlign: "center" },
   confirmActions: { flexDirection: "row-reverse", gap: 10, marginTop: 18 },
@@ -371,6 +399,6 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
   cancelActionText: { color: colors.textPrimary, fontWeight: "600" },
   saveAction: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
   saveActionText: { color: colors.onPrimary, fontWeight: "700" },
-  dangerAction: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: "#1F2937", alignItems: "center", justifyContent: "center" },
-  dangerActionText: { color: "#F87171", fontWeight: "700" },
+  dangerAction: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: colors.surfaceElevated, alignItems: "center", justifyContent: "center" },
+  dangerActionText: { color: colors.textPrimary, fontWeight: "700" },
 });

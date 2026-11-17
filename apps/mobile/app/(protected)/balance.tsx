@@ -17,6 +17,7 @@ import { useAuth } from "../../src/features/auth/auth-provider";
 import { supabase } from "../../src/lib/supabase/client";
 import { useSulyTheme } from "../../src/theme/ThemeProvider";
 import type { ThemePalette } from "../../src/theme/colors";
+import { useAppLocale } from "../../src/theme/LocaleProvider";
 
 interface TransactionItem {
   id: string;
@@ -29,7 +30,7 @@ interface TransactionItem {
   date: string;
 }
 
-function mapCreditEntries(entries: CreditEntry[]): TransactionItem[] {
+function mapCreditEntries(entries: CreditEntry[], isArabic: boolean): TransactionItem[] {
   return entries
     .filter((entry) => entry.event_type === "settle" || entry.event_type === "admin_adjust" || entry.event_type === "expire" || entry.event_type === "daily_grant")
     .map((entry) => {
@@ -40,20 +41,20 @@ function mapCreditEntries(entries: CreditEntry[]): TransactionItem[] {
       const date = new Date(entry.created_at);
       const points = isSettlement ? Math.max(0, entry.amount) : Math.abs(entry.balance_delta || entry.amount);
       const title = isSettlement
-        ? entry.task_title ? `مهمة: ${entry.task_title}` : "استخدام رصيد لمهمة"
-        : isDailyGrant ? "الرصيد اليومي"
-          : isReward ? "مكافأة إعلان مكتملة"
-          : entry.event_type === "expire" ? "إعادة الرصيد غير المستخدم"
-            : entry.reason || "تعديل رصيد";
+        ? entry.task_title ? `${isArabic ? "مهمة" : "Task"}: ${entry.task_title}` : (isArabic ? "استخدام رصيد لمهمة" : "Credits used for a task")
+        : isDailyGrant ? (isArabic ? "الرصيد اليومي" : "Daily credits")
+          : isReward ? (isArabic ? "مكافأة إعلان مكتملة" : "Completed ad reward")
+          : entry.event_type === "expire" ? (isArabic ? "إعادة الرصيد غير المستخدم" : "Unused credits returned")
+            : entry.reason || (isArabic ? "تعديل رصيد" : "Balance adjustment");
       return {
         id: entry.id,
         title,
         type: isSettlement ? "chat" : isCredit ? "recharge" : "other",
-        typeLabel: isSettlement ? "استهلاك" : isDailyGrant ? "رصيد يومي" : isReward ? "مكافأة" : isCredit ? "إضافة رصيد" : "تعديل",
+        typeLabel: isSettlement ? (isArabic ? "استهلاك" : "Usage") : isDailyGrant ? (isArabic ? "رصيد يومي" : "Daily credits") : isReward ? (isArabic ? "مكافأة" : "Reward") : isCredit ? (isArabic ? "إضافة رصيد" : "Credit") : (isArabic ? "تعديل" : "Adjustment"),
         points,
         isCredit,
-        time: Number.isNaN(date.getTime()) ? "—" : date.toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" }),
-        date: Number.isNaN(date.getTime()) ? "تاريخ غير متاح" : date.toLocaleDateString("ar-EG"),
+        time: Number.isNaN(date.getTime()) ? "—" : date.toLocaleTimeString(isArabic ? "ar-EG" : "en-US", { hour: "2-digit", minute: "2-digit" }),
+        date: Number.isNaN(date.getTime()) ? (isArabic ? "تاريخ غير متاح" : "Date unavailable") : date.toLocaleDateString(isArabic ? "ar-EG" : "en-US"),
       };
     });
 }
@@ -61,7 +62,8 @@ function mapCreditEntries(entries: CreditEntry[]): TransactionItem[] {
 export default function BalanceScreen() {
   const router = useRouter();
   const { colors } = useSulyTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
+  const { isArabic } = useAppLocale();
+  const styles = useMemo(() => createStyles(colors, isArabic), [colors, isArabic]);
   const { user } = useAuth();
   const scrollRef = useRef<any>(null);
   const historyYRef = useRef<number>(0);
@@ -96,7 +98,7 @@ export default function BalanceScreen() {
         if (dailyGrantResult.error) console.warn("Daily credit grant could not be refreshed:", dailyGrantResult.error.message);
         if (!active) return;
         setBalance(ledger.balance);
-        setTransactions(mapCreditEntries(ledger.entries));
+        setTransactions(mapCreditEntries(ledger.entries, isArabic));
         const tier = !tierResult.error && typeof tierResult.data === "string" ? tierResult.data.toLowerCase() : null;
         setPlanTier(tier);
         if (!tier || tier === "free") setMonthlyAllowance(null);
@@ -122,7 +124,7 @@ export default function BalanceScreen() {
     return () => {
       active = false;
     };
-  }, [user]));
+  }, [user, isArabic]));
 
   const monthlySpent = monthlyConsumed ?? 0;
   const isPaidPlan = Boolean(planTier && planTier !== "free");
@@ -160,11 +162,11 @@ export default function BalanceScreen() {
           onPress={() => router.back()}
           style={styles.headerBackBtn}
           accessibilityRole="button"
-          accessibilityLabel="العودة للمحادثة"
+          accessibilityLabel={isArabic ? "العودة للمحادثة" : "Back to chat"}
         >
-          <Ionicons name="arrow-forward" size={22} color={colors.textPrimary} />
+          <Ionicons name={isArabic ? "arrow-forward" : "arrow-back"} size={22} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>الرصيد والاستهلاك</Text>
+        <Text style={styles.headerTitle}>{isArabic ? "الرصيد والاستهلاك" : "Balance & usage"}</Text>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -183,9 +185,9 @@ export default function BalanceScreen() {
               style={styles.upgradeBtn}
               activeOpacity={0.8}
               accessibilityRole="button"
-              accessibilityLabel="ترقية الخطة"
+              accessibilityLabel={isArabic ? "ترقية الخطة" : "Upgrade plan"}
             >
-              <Text style={styles.upgradeBtnText}>ترقية</Text>
+              <Text style={styles.upgradeBtnText}>{isArabic ? "ترقية" : "Upgrade"}</Text>
             </TouchableOpacity>
           </View>
 
@@ -194,16 +196,16 @@ export default function BalanceScreen() {
 
           {/* Current balance */}
           <View style={styles.balanceSection}>
-            <Text style={styles.balanceLabel}>الرصيد الحالي</Text>
+            <Text style={styles.balanceLabel}>{isArabic ? "الرصيد الحالي" : "Current balance"}</Text>
             {loading ? (
               <ActivityIndicator color={colors.primary} style={{ marginVertical: 8 }} />
             ) : (
               <Text style={styles.balanceNumber}>
-                {balance === null ? "—" : balance.toLocaleString("en-US")}
+                {balance === null ? "—" : balance.toLocaleString(isArabic ? "ar-EG" : "en-US")}
               </Text>
             )}
             <Text style={styles.balanceNotice}>
-              يتم تحديث الرصيد يوميًا · 30
+              {isArabic ? "يتم تحديث الرصيد يوميًا · 30" : "Daily credits refresh · 30"}
             </Text>
           </View>
 
@@ -214,28 +216,28 @@ export default function BalanceScreen() {
               style={styles.rechargeBtn}
               activeOpacity={0.8}
               accessibilityRole="button"
-              accessibilityLabel="اشحن رصيد"
+              accessibilityLabel={isArabic ? "اشحن رصيد" : "Recharge credits"}
             >
-              <Text style={styles.rechargeBtnText}>اشحن رصيد</Text>
+              <Text style={styles.rechargeBtnText}>{isArabic ? "اشحن رصيد" : "Recharge credits"}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={scrollToHistory}
               style={styles.historyBtn}
               activeOpacity={0.8}
               accessibilityRole="button"
-              accessibilityLabel="السجل"
+              accessibilityLabel={isArabic ? "السجل" : "History"}
             >
-              <Text style={styles.historyBtnText}>السجل</Text>
+              <Text style={styles.historyBtnText}>{isArabic ? "السجل" : "History"}</Text>
             </TouchableOpacity>
           </View>
         </View>
 
         {/* 2. كارت الاستهلاك: عنوان استهلاك هذا الشهر + Progress Bar */}
         <View style={styles.consumptionCard}>
-          {!isPaidPlan ? <View style={styles.lockedConsumption}><Ionicons name="lock-closed" size={22} color={colors.textMuted} /><Text style={styles.lockedText}>تفاصيل الاستهلاك متاحة للمشتركين في باقة مدفوعة</Text><TouchableOpacity onPress={() => router.push("/(protected)/upgrade")} style={styles.lockedButton}><Text style={styles.lockedButtonText}>عرض الباقات</Text></TouchableOpacity></View> : null}
+          {!isPaidPlan ? <View style={styles.lockedConsumption}><Ionicons name="lock-closed" size={22} color={colors.textMuted} /><Text style={styles.lockedText}>{isArabic ? "تفاصيل الاستهلاك متاحة للمشتركين في باقة مدفوعة" : "Usage details are available on paid plans"}</Text><TouchableOpacity onPress={() => router.push("/(protected)/upgrade")} style={styles.lockedButton}><Text style={styles.lockedButtonText}>{isArabic ? "عرض الباقات" : "View plans"}</Text></TouchableOpacity></View> : null}
           {isPaidPlan ? <>
           <View style={styles.consumptionHeaderRow}>
-            <Text style={styles.consumptionTitle}>استهلاك هذا الشهر</Text>
+            <Text style={styles.consumptionTitle}>{isArabic ? "استهلاك هذا الشهر" : "This month’s usage"}</Text>
             <Text style={styles.consumptionPercent}>{monthlyConsumed === null || monthlyAllowance === null ? "—" : `${percentage}%`}</Text>
           </View>
 
@@ -246,8 +248,8 @@ export default function BalanceScreen() {
 
           <Text style={styles.consumptionSubtitle}>
             {monthlyConsumed === null || monthlyAllowance === null
-              ? "تعذر تحميل بيانات الرصيد والاستهلاك الفعلية."
-              : `استخدمت ${monthlySpent.toLocaleString("en-US")} نقطة من باقتك الحالية البالغة ${monthlyTotal.toLocaleString("en-US")} نقطة.`}
+              ? (isArabic ? "تعذر تحميل بيانات الرصيد والاستهلاك الفعلية." : "Could not load actual balance and usage data.")
+              : isArabic ? `استخدمت ${monthlySpent.toLocaleString("ar-EG")} نقطة من باقتك الحالية البالغة ${monthlyTotal.toLocaleString("ar-EG")} نقطة.` : `You used ${monthlySpent.toLocaleString("en-US")} of ${monthlyTotal.toLocaleString("en-US")} plan credits.`}
           </Text>
           </> : null}
         </View>
@@ -259,11 +261,11 @@ export default function BalanceScreen() {
             historyYRef.current = e.nativeEvent.layout.y;
           }}
         >
-          <Text style={styles.historySectionTitle}>سجل الاستهلاك</Text>
+          <Text style={styles.historySectionTitle}>{isArabic ? "سجل الاستهلاك" : "Usage history"}</Text>
 
           {Object.keys(grouped).length === 0 ? (
             <View style={styles.emptyCard}>
-              <Text style={styles.emptyText}>لا توجد عمليات استهلاك مسجلة حتى الآن.</Text>
+              <Text style={styles.emptyText}>{isArabic ? "لا توجد عمليات استهلاك مسجلة حتى الآن." : "No usage transactions yet."}</Text>
             </View>
           ) : (
             Object.entries(grouped).map(([date, items]) => (
@@ -278,7 +280,7 @@ export default function BalanceScreen() {
                       <View style={styles.txInfo}>
                         <Text style={styles.txTitle}>{item.title}</Text>
                         <Text style={styles.txMeta}>
-                          {item.typeLabel} • {item.points.toLocaleString("en-US")} نقطة
+                          {item.typeLabel} • {item.points.toLocaleString(isArabic ? "ar-EG" : "en-US")} {isArabic ? "نقطة" : "credits"}
                         </Text>
                       </View>
                     </View>
@@ -317,15 +319,15 @@ export default function BalanceScreen() {
         >
           <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
             <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>الشحن غير مفعّل حاليًا</Text>
-            <Text style={styles.modalSub}>لن يُضاف رصيد أو يتغير المبلغ إلا بعد تأكيد عملية شحن فعلية. لا تتوفر عملية دفع مرتبطة بهذه الشاشة الآن.</Text>
+            <Text style={styles.modalTitle}>{isArabic ? "الشحن غير مفعّل حاليًا" : "Recharge is not enabled yet"}</Text>
+            <Text style={styles.modalSub}>{isArabic ? "لن يُضاف رصيد أو يتغير المبلغ إلا بعد تأكيد عملية شحن فعلية. لا تتوفر عملية دفع مرتبطة بهذه الشاشة الآن." : "Credits and amounts will not change until a real recharge is confirmed. No payment flow is currently connected to this screen."}</Text>
 
             <TouchableOpacity
               onPress={() => setRechargeModalVisible(false)}
               style={styles.modalCloseBtn}
               activeOpacity={0.8}
             >
-              <Text style={styles.modalCloseText}>إغلاق</Text>
+              <Text style={styles.modalCloseText}>{isArabic ? "إغلاق" : "Close"}</Text>
             </TouchableOpacity>
           </Pressable>
         </Pressable>
@@ -334,7 +336,7 @@ export default function BalanceScreen() {
   );
 }
 
-function createStyles(colors: ThemePalette) { return StyleSheet.create({
+function createStyles(colors: ThemePalette, isArabic: boolean) { return StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: colors.background,
@@ -343,7 +345,7 @@ function createStyles(colors: ThemePalette) { return StyleSheet.create({
     height: 56,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
-    flexDirection: "row-reverse",
+    flexDirection: isArabic ? "row-reverse" : "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
@@ -384,7 +386,7 @@ function createStyles(colors: ThemePalette) { return StyleSheet.create({
     borderColor: colors.divider,
   },
   cardHeaderRow: {
-    flexDirection: "row-reverse",
+    flexDirection: isArabic ? "row-reverse" : "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
@@ -417,23 +419,23 @@ function createStyles(colors: ThemePalette) { return StyleSheet.create({
   balanceLabel: {
     fontSize: 13,
     color: colors.textMuted,
-    textAlign: "right",
+    textAlign: isArabic ? "right" : "left",
   },
   balanceNumber: {
     fontSize: 32,
     fontWeight: "700",
     color: colors.textPrimary,
-    textAlign: "right",
+    textAlign: isArabic ? "right" : "left",
     marginVertical: 4,
   },
   balanceNotice: {
     fontSize: 11,
     color: colors.textMuted,
-    textAlign: "right",
+    textAlign: isArabic ? "right" : "left",
     marginTop: 2,
   },
   buttonRow: {
-    flexDirection: "row-reverse",
+    flexDirection: isArabic ? "row-reverse" : "row",
     gap: 12,
   },
   rechargeBtn: {
@@ -470,7 +472,7 @@ function createStyles(colors: ThemePalette) { return StyleSheet.create({
     borderColor: colors.divider,
   },
   consumptionHeaderRow: {
-    flexDirection: "row-reverse",
+    flexDirection: isArabic ? "row-reverse" : "row",
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 12,
@@ -500,7 +502,7 @@ function createStyles(colors: ThemePalette) { return StyleSheet.create({
   consumptionSubtitle: {
     fontSize: 13,
     color: colors.textMuted,
-    textAlign: "right",
+    textAlign: isArabic ? "right" : "left",
     marginTop: 10,
   },
   lockedConsumption: {
@@ -532,7 +534,7 @@ function createStyles(colors: ThemePalette) { return StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: colors.textPrimary,
-    textAlign: "right",
+    textAlign: isArabic ? "right" : "left",
   },
   emptyCard: {
     backgroundColor: colors.surface,
@@ -553,7 +555,7 @@ function createStyles(colors: ThemePalette) { return StyleSheet.create({
   dateHeader: {
     fontSize: 11,
     color: colors.textMuted,
-    textAlign: "right",
+    textAlign: isArabic ? "right" : "left",
     paddingHorizontal: 4,
   },
   transactionCard: {
@@ -562,12 +564,12 @@ function createStyles(colors: ThemePalette) { return StyleSheet.create({
     padding: 12,
     borderWidth: 1,
     borderColor: colors.divider,
-    flexDirection: "row-reverse",
+    flexDirection: isArabic ? "row-reverse" : "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
   txRight: {
-    flexDirection: "row-reverse",
+    flexDirection: isArabic ? "row-reverse" : "row",
     alignItems: "center",
     gap: 12,
     flex: 1,
@@ -584,22 +586,22 @@ function createStyles(colors: ThemePalette) { return StyleSheet.create({
   },
   txInfo: {
     flex: 1,
-    alignItems: "flex-end",
+    alignItems: isArabic ? "flex-end" : "flex-start",
   },
   txTitle: {
     fontSize: 14,
     fontWeight: "700",
     color: colors.textPrimary,
-    textAlign: "right",
+    textAlign: isArabic ? "right" : "left",
   },
   txMeta: {
     fontSize: 11,
     color: colors.textMuted,
     marginTop: 2,
-    textAlign: "right",
+    textAlign: isArabic ? "right" : "left",
   },
   txLeft: {
-    alignItems: "flex-start",
+    alignItems: isArabic ? "flex-start" : "flex-end",
     minWidth: 70,
   },
   debitAmount: {
@@ -657,7 +659,7 @@ function createStyles(colors: ThemePalette) { return StyleSheet.create({
     marginBottom: 16,
   },
   packItem: {
-    flexDirection: "row-reverse",
+    flexDirection: isArabic ? "row-reverse" : "row",
     alignItems: "center",
     justifyContent: "space-between",
     backgroundColor: colors.surface,
@@ -670,7 +672,7 @@ function createStyles(colors: ThemePalette) { return StyleSheet.create({
     borderColor: colors.primary,
   },
   packInfo: {
-    flexDirection: "row-reverse",
+    flexDirection: isArabic ? "row-reverse" : "row",
     alignItems: "center",
     gap: 8,
   },

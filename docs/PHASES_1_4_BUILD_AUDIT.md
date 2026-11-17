@@ -117,3 +117,29 @@ The migration source and rollback-only regression are implementation artifacts c
 - Phase 4: shared semantic theme tokens, core-surface migration, and automated contrast regression source committed; full screen/device/accessibility validation deferred to Track B.
 
 **Rule:** Do not keep a build phase open only because its comprehensive tests have not yet run. Record all such tests in Track B. If Track B discovers a defect, create a linked implementation fix in Track A/develop and rerun the relevant case. This document records implementation status, not a claim that the product has passed comprehensive testing.
+
+
+## متابعة تنفيذ HIMS — 2026-11-16 (بعد تحديث الخطة الرئيسية)
+- تصحيح سجل المرحلة 2: هجرة `20261116180955_hims_activation_code_collision_guard` موجودة في سجل هجرات مشروع Supabase المتصل، ومصدرها على develop يرفض تكرار hash ولا يغيّر سجل الكود الأصلي. لا تخلطها مع مسودة الهجرة الأقدم.
+- فحص صلاحيات القراءة أكد RLS ومنع صلاحيات الجدول المباشرة عن anon/authenticated لجداول الأكواد والاستحقاقات والموارد، وقصر `suly_activate_feature` على service_role.
+- فحص دوال الإدارة أكد وجود تحقق `auth.uid()` و`suly_is_admin()` في الدوال المفحوصة؛ لا تُسقط تحذيرات Advisor على أنها ثغرات مثبتة دون تدقيق كل دالة.
+- أضيفت اختبارات Deno لحد المحاولات fail-closed، وretry-after، وتنقية أخطاء التفعيل، ومنع جلب موارد HIMS للمستخدم غير المفعّل في `supabase/functions/_shared/feature_flags.test.ts`، commit `391feae982ad092eaba3214947e85064b97fb66e`.
+- لم يُنفذ اختبار SQL متغير للبيانات لأن Supabase project لا يحتوي حاليًا على فرع تطوير معزول؛ لم تُجرَ أي كتابة جديدة على قاعدة البيانات في هذه الدفعة.
+- **خطر متبقٍ:** سباق كودين مختلفين للمستخدم نفسه قد يزيد `used_count` للكود الثاني رغم أن إدخال الاستحقاق قد اصطدم بقيد فريد. يلزم اختبار متزامن وإصلاح ذري بهجرة جديدة في بيئة معزولة قبل إغلاق Phase 2.
+- Phase 3: تنفيذ المصدر في المحادثة العادية موجود؛ قبول طالب/مدير حقيقي وتسليم محتوى فعلي يظل BLOCKED حتى توفير حسابات اختبار ومحتوى معتمد.
+- Advisor snapshot الحالي: 12 RLS-without-policy informational findings، 2 extensions-in-public warnings، 1 anon SECURITY DEFINER public-share warning، 61 authenticated SECURITY DEFINER warnings، وleaked-password protection disabled. لم يتم تغيير أي إعداد منها في هذه الدفعة.
+
+
+### تحديث التحقق الآلي — 2026-11-16
+- أضيفت وظيفة HIMS regression إلى workflow `.github/workflows/verify-ai-router-bundle.yml`، وأضيفت تغييرات `develop` وملفات `_shared` إلى محفزات التشغيل.
+- التشغيل النهائي: GitHub Actions `43960751890`، commit `36ee3423e275da3c5594c8d65439e72370463e97`؛ وظيفة HIMS regressions **PASS**، واختبارات media billing وtype-check **PASS**، وبناء والتحقق من Edge Function bundles **PASS**.
+- سجل المحاولات السابقة: `43960322088` فشل بسبب syntax error في الاختبار، و`43960664237` فشل بسبب تهيئة npm type dependencies في Deno. أُصلح السببان وأعيد التشغيل؛ لا يُخفى سجل الفشل.
+- لا يزال سباق تفعيل كودين مختلفين لنفس المستخدم بحاجة إلى إصلاح ذري واختبار تزامن في بيئة Supabase معزولة.
+
+
+### Phase 4 — shared monochrome palette implementation — 2026-11-16
+- Updated shared Light/Dark semantic tokens to neutral grayscale while preserving token names and component contracts.
+- Updated web document shell colors and project creation default color; user-customized project colors and database records were not changed.
+- Added grayscale assertions to existing contrast tests and a CI job for Jest + Expo TypeScript.
+- GitHub Actions run `43961210070` **SUCCESS** on `6678011330c4f0083321d3486f0c460126627940`; theme/project test job and TypeScript check passed.
+- Remaining: screen-by-screen visual QA, native-device QA, accessibility review beyond shared text contrast, and review of any legacy per-record project colors. No DB migration/data update was made.

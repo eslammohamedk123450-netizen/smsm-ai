@@ -3,7 +3,7 @@ import type { ExpoConfig } from "expo/config";
 const easProjectId = process.env.EAS_PROJECT_ID?.trim() || undefined;
 
 const config: ExpoConfig & { splash?: { image: string; resizeMode: "contain"; backgroundColor: string } } = {
-  name: "Suly",
+  name: "SULY",
   icon: "./assets/suly-icon.png",
   owner: "suly-sam100",
   slug: "smsm-ai",
@@ -30,7 +30,7 @@ const config: ExpoConfig & { splash?: { image: string; resizeMode: "contain"; ba
   },
   extra: { eas: { projectId: easProjectId ?? "4eb557a8-8aea-4ea9-a3d7-7ccba99f6c73" } },
   orientation: "portrait",
-  userInterfaceStyle: "dark",
+  userInterfaceStyle: "automatic",
   platforms: ["ios", "android", "web"],
   plugins: [
     "expo-router",
@@ -41,10 +41,6 @@ const config: ExpoConfig & { splash?: { image: string; resizeMode: "contain"; ba
       imageWidth: 200,
       resizeMode: "contain",
       backgroundColor: "#000000",
-    }],
-    ["expo-speech-recognition", {
-      microphonePermission: "السماح لـ Suly باستخدام الميكروفون لإملاء الرسائل.",
-      speechRecognitionPermission: "السماح لـ Suly بتحويل الصوت إلى نص للرسائل.",
     }],
     ["react-native-google-mobile-ads", {
       androidAppId: process.env.EXPO_PUBLIC_ADMOB_APP_ID_ANDROID ?? "ca-app-pub-3940256099942544~3347511713",

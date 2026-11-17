@@ -1,3 +1,9 @@
+# SULY — UX and Credit Policy (Supporting Historical Record)
+
+> **Current approved UX source:** [SULY Development Master Plan](SULY_DEVELOPMENT_MASTER_PLAN.md). This older supporting note is retained for historical implementation context only. If any navigation, model-selection, subscription, theme, or account detail below conflicts with the master plan, the master plan and the latest owner-approved decisions take precedence. The current approved interface is chat-first with a four-item sidebar, no bottom navigation, a user-selectable SULY model picker, monochrome light/dark themes, and separate subscription tiers and model profiles.
+
+---
+
 # SULY — Approved Chat-First UX & Credit Presentation Decisions
 
 **Decision date:** 2026-11-16  

@@ -4,7 +4,6 @@ import type { ThemePalette } from "../../../theme/colors";
 import type { ElementRef } from "react";
 import {
   ActivityIndicator,
-  Animated,
   Image,
   Keyboard,
   Modal,
@@ -17,8 +16,6 @@ import {
 } from "react-native";
 import { PremiumText as Text } from "../../../components/ui/PremiumText";
 import { Ionicons } from "@expo/vector-icons";
-import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition";
-import { useToast } from "../../../components/ui/Toast";
 import { useAppLocale } from "../../../theme/LocaleProvider";
 import { AttachSheet } from "./AttachSheet";
 import type { PickedMedia } from "../../media/media-service";
@@ -34,16 +31,12 @@ export interface ChatComposerProps {
   onCancel?(): void;
   creditBalance?: number | null;
   onOpenRecharge?(): void;
+  onOpenConnectors?(): void;
 }
 
 const MIN_INPUT_HEIGHT = 42;
 const MAX_INPUT_HEIGHT = 132;
 
-function formatDictationDuration(totalSeconds: number) {
-  const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, "0");
-  const seconds = (totalSeconds % 60).toString().padStart(2, "0");
-  return `${minutes}:${seconds}`;
-}
 
 export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(function ChatComposer(
   {
@@ -53,6 +46,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
     onCancel,
     creditBalance = null,
     onOpenRecharge,
+    onOpenConnectors,
   },
   ref
 ) {
@@ -65,151 +59,17 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
   const [attachment, setAttachment] = useState<ChatAttachment | null>(null);
   const [attachmentPreviewUri, setAttachmentPreviewUri] = useState<string | null>(null);
   const [previewVisible, setPreviewVisible] = useState(false);
-  const [voiceActive, setVoiceActive] = useState(false);
-  const [voiceListening, setVoiceListening] = useState(false);
-  const [speechDetected, setSpeechDetected] = useState(false);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [attachVisible, setAttachVisible] = useState(false);
-  const speechBase = useRef("");
-  const recordingPulse = useRef(new Animated.Value(0)).current;
   const inputRef = useRef<ElementRef<typeof TextInput>>(null);
-  const voiceIntent = useRef(false);
-  const ignoreRecognitionResults = useRef(false);
-  const timerStartedAt = useRef(0);
-  const restartTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const speechWaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const restartDelay = useRef(250);
-  const startRecognitionRef = useRef<() => void>(() => {});
-  const scheduleRestartRef = useRef<() => void>(() => {});
-  const waveBars = useRef<Animated.Value[]>([]);
-  if (waveBars.current.length === 0) waveBars.current = Array.from({ length: 5 }, () => new Animated.Value(0));
-  const { show } = useToast();
-  const voiceSupported = Platform.OS !== "web" || ExpoSpeechRecognitionModule.isRecognitionAvailable();
-
-  const clearRestart = () => {
-    if (restartTimer.current) clearTimeout(restartTimer.current);
-    restartTimer.current = null;
-  };
-
-  const clearSpeechWaveTimer = () => {
-    if (speechWaveTimer.current) clearTimeout(speechWaveTimer.current);
-    speechWaveTimer.current = null;
-  };
-
   useImperativeHandle(ref, () => ({
     editMessage(content: string) {
       setText(content);
       setInputHeight(MIN_INPUT_HEIGHT);
       setAttachment(null);
-      speechBase.current = "";
       setSelection({ start: content.length, end: content.length });
       requestAnimationFrame(() => inputRef.current?.focus());
     },
   }), []);
-
-  startRecognitionRef.current = () => {
-    if (!voiceIntent.current) return;
-    try {
-      ExpoSpeechRecognitionModule.start({
-        lang: "ar-EG",
-        continuous: true,
-        interimResults: true,
-        maxAlternatives: 1,
-      });
-    } catch {
-      voiceIntent.current = false;
-      setVoiceActive(false);
-      setVoiceListening(false);
-      clearRestart();
-      show(isArabic ? "التعرّف الصوتي غير متاح على هذا الجهاز." : "Speech recognition is unavailable on this device.", "error");
-    }
-  };
-
-  scheduleRestartRef.current = () => {
-    if (!voiceIntent.current || restartTimer.current) return;
-    const delay = restartDelay.current;
-    restartDelay.current = Math.min(restartDelay.current * 2, 4000);
-    restartTimer.current = setTimeout(() => {
-      restartTimer.current = null;
-      if (voiceIntent.current) startRecognitionRef.current();
-    }, delay);
-  };
-
-  useSpeechRecognitionEvent("start", () => {
-    clearRestart();
-    restartDelay.current = 250;
-    if (voiceIntent.current) setVoiceListening(true);
-  });
-  useSpeechRecognitionEvent("end", () => {
-    setVoiceListening(false);
-    setSpeechDetected(false);
-    clearSpeechWaveTimer();
-    if (voiceIntent.current) scheduleRestartRef.current();
-  });
-  useSpeechRecognitionEvent("error", (event) => {
-    setVoiceListening(false);
-    setSpeechDetected(false);
-    clearSpeechWaveTimer();
-    if (event.error === "not-allowed" || event.error === "service-not-allowed" || event.error === "audio-capture") {
-      voiceIntent.current = false;
-      clearRestart();
-      setVoiceActive(false);
-      show(event.message || (isArabic ? "تعذّر الوصول إلى الميكروفون. تحقق من الأذونات وحاول مجددًا." : "Could not access the microphone. Check permissions and try again."), "error");
-      return;
-    }
-    if (voiceIntent.current) scheduleRestartRef.current();
-  });
-  useSpeechRecognitionEvent("result", (event) => {
-    if (ignoreRecognitionResults.current) return;
-    const transcript = event.results?.[0]?.transcript?.trim();
-    if (!transcript) return;
-    setSpeechDetected(true);
-    clearSpeechWaveTimer();
-    speechWaveTimer.current = setTimeout(() => {
-      speechWaveTimer.current = null;
-      setSpeechDetected(false);
-    }, 650);
-    const next = [speechBase.current, transcript].filter(Boolean).join(" ");
-    setText(next);
-    if (event.isFinal) speechBase.current = next;
-  });
-
-  useEffect(() => {
-    if (!voiceActive) return;
-    const interval = setInterval(() => {
-      setElapsedSeconds(Math.floor((Date.now() - timerStartedAt.current) / 1000));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [voiceActive]);
-
-  useEffect(() => {
-    if (!voiceActive) {
-      recordingPulse.setValue(0);
-      return;
-    }
-    const pulse = Animated.loop(Animated.sequence([
-      Animated.timing(recordingPulse, { toValue: 1, duration: 600, useNativeDriver: true }),
-      Animated.timing(recordingPulse, { toValue: 0, duration: 600, useNativeDriver: true }),
-    ]));
-    pulse.start();
-    return () => pulse.stop();
-  }, [recordingPulse, voiceActive]);
-
-  useEffect(() => {
-    if (!voiceActive || !speechDetected) {
-      waveBars.current.forEach((value) => {
-        value.stopAnimation();
-        value.setValue(0);
-      });
-      return;
-    }
-    const animations = waveBars.current.map((value, index) => Animated.loop(Animated.sequence([
-      Animated.timing(value, { toValue: 1, duration: 170 + index * 37, useNativeDriver: true }),
-      Animated.timing(value, { toValue: 0, duration: 210 + (4 - index) * 29, useNativeDriver: true }),
-    ])));
-    animations.forEach((animation) => animation.start());
-    return () => animations.forEach((animation) => animation.stop());
-  }, [speechDetected, voiceActive]);
 
   useEffect(() => {
     let objectUrl: string | null = null;
@@ -224,55 +84,12 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
     return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [attachment]);
 
-  useEffect(() => () => {
-    voiceIntent.current = false;
-    clearRestart();
-    clearSpeechWaveTimer();
-    try { ExpoSpeechRecognitionModule.abort(); } catch { /* Ignore */ }
-  }, []);
-
-  const stopVoice = () => {
-    voiceIntent.current = false;
-    clearRestart();
-    clearSpeechWaveTimer();
-    setVoiceActive(false);
-    setVoiceListening(false);
-    setSpeechDetected(false);
-    try { ExpoSpeechRecognitionModule.stop(); } catch { /* Ignore */ }
-  };
-
   const submit = () => {
     const content = text.trim();
     if ((!content && !attachment) || disabled) return;
-    if (voiceActive) stopVoice();
     Keyboard.dismiss();
-    ignoreRecognitionResults.current = true;
     onSend(content, attachment ?? undefined);
-    setText(""); setInputHeight(MIN_INPUT_HEIGHT); setSelection(undefined); setAttachment(null); speechBase.current = "";
-  };
-
-  const beginVoice = () => {
-    ignoreRecognitionResults.current = false;
-    speechBase.current = text.trim();
-    voiceIntent.current = true;
-    timerStartedAt.current = Date.now();
-    setElapsedSeconds(0);
-    setSpeechDetected(false);
-    setVoiceActive(true);
-    startRecognitionRef.current();
-  };
-
-  const requestVoicePermission = async () => {
-    try {
-      const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-      if (!permission.granted) {
-        show(isArabic ? "لم يُمنح إذن الميكروفون." : "Microphone permission was not granted.", "info");
-        return;
-      }
-      beginVoice();
-    } catch {
-      show(isArabic ? "تعذّر طلب إذن الميكروفون على هذا الجهاز." : "Could not request microphone permission on this device.", "error");
-    }
+    setText(""); setInputHeight(MIN_INPUT_HEIGHT); setSelection(undefined); setAttachment(null);
   };
 
   const hasLowBalance = creditBalance !== null && creditBalance < 500;
@@ -316,26 +133,6 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
         </View>
       ) : null}
 
-      {voiceActive ? (
-        <View style={styles.voiceToolbar}>
-          <View style={styles.voiceStatus} accessibilityLiveRegion="polite">
-            <View style={styles.voiceWaveform} accessibilityLabel={isArabic ? "موجات الصوت" : "Audio waveform"}>
-              {waveBars.current.map((bar, index) => (
-                <Animated.View
-                  key={index}
-                  style={[styles.voiceWaveBar, { transform: [{ scaleY: bar.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }] }]}
-                />
-              ))}
-            </View>
-            <Text style={styles.voiceTimer}>{formatDictationDuration(elapsedSeconds)}</Text>
-            {!voiceListening ? <Text style={styles.reconnecting}>{isArabic ? "جارٍ إعادة الاتصال…" : "Reconnecting…"}</Text> : null}
-          </View>
-          <Pressable onPress={stopVoice} style={styles.cancelVoiceButton}>
-            <Text style={styles.cancelVoiceText}>×</Text>
-          </Pressable>
-        </View>
-      ) : null}
-
       {/* Main Bar: Height 56, #1F1F1F, r: 999 */}
       <View style={styles.container}>
         {/* Right side (RTL start): + Button */}
@@ -371,17 +168,16 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
           accessibilityLabel={isArabic ? "اسأل Suly" : "Ask SULY"}
         />
 
-        {/* Left side (RTL end): Mic icon + Blue circular button with sound waves */}
+        {/* Connectors shortcut replaces voice input; voice capture is not part of this chat UI. */}
         <View style={styles.leftControls}>
           <TouchableOpacity
-            onPress={() => (voiceActive ? stopVoice() : void requestVoicePermission())}
-            disabled={disabled || isStreaming || !voiceSupported}
+            onPress={onOpenConnectors}
+            disabled={disabled || isStreaming}
             activeOpacity={0.7}
-            style={styles.micButton}
-            accessibilityLabel={isArabic ? "تسجيل صوتي" : "Record audio"}
+            style={styles.connectorButton}
+            accessibilityLabel={isArabic ? "فتح الموصلات" : "Open connectors"}
           >
-            <Ionicons name={voiceActive ? "mic" : "mic-outline"} size={20} color={voiceActive ? colors.error : colors.textMuted} />
-            {voiceActive ? <Animated.View style={styles.recordingPulse} /> : null}
+            <Ionicons name="git-network-outline" size={20} color={colors.textMuted} />
           </TouchableOpacity>
 
           {isStreaming ? (
@@ -390,7 +186,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
             </Pressable>
           ) : (
             <Pressable
-              style={[styles.blueButton, Platform.OS === "web" && styles.webSendButton, (!text.trim() && !attachment && !voiceActive) && styles.blueButtonIdle]}
+              style={[styles.blueButton, Platform.OS === "web" && styles.webSendButton, (!text.trim() && !attachment) && styles.blueButtonIdle]}
               onPress={submit}
               disabled={disabled || (!text.trim() && !attachment)}
               accessibilityLabel={isArabic ? "إرسال" : "Send"}
@@ -473,8 +269,7 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
     writingDirection: "rtl",
   },
   leftControls: { flexDirection: "row", alignItems: "center", gap: 4 },
-  micButton: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 18 },
-  recordingPulse: { position: "absolute", top: 4, right: 4, width: 6, height: 6, borderRadius: 3, backgroundColor: colors.error },
+  connectorButton: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 18 },
   blueButton: {
     width: 38,
     height: 38,
@@ -509,24 +304,4 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   previewOverlay: { flex: 1, backgroundColor: colors.modalOverlay, justifyContent: "center", alignItems: "center" },
   previewImage: { width: "100%", height: "85%" },
   previewClose: { position: "absolute", top: 44, right: 20, zIndex: 1, width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 21, backgroundColor: colors.surfaceElevated },
-  voiceToolbar: {
-    minHeight: 46,
-    flexDirection: isArabic ? "row-reverse" : "row",
-    alignItems: "center",
-    gap: 8,
-    borderWidth: 1,
-    borderColor: colors.divider,
-    backgroundColor: colors.surface,
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    marginBottom: 6,
-  },
-  voiceStatus: { flex: 1, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 8 },
-  voiceWaveform: { height: 24, flexDirection: "row", alignItems: "center", gap: 3, marginHorizontal: 2 },
-  voiceWaveBar: { width: 3, height: 18, borderRadius: 2, backgroundColor: colors.primary },
-  voiceTimer: { color: colors.textPrimary, fontSize: 14, fontWeight: "700" },
-  reconnecting: { color: colors.textMuted, fontSize: 12 },
-  cancelVoiceButton: { width: 32, height: 32, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.divider, borderRadius: 16 },
-  cancelVoiceText: { color: colors.error, fontSize: 20 },
 });

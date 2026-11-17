@@ -25,6 +25,17 @@ import { useToast } from "../../src/components/ui/Toast";
 import { supabase } from "../../src/lib/supabase/client";
 import { integrationService, type ToolkitStatus } from "../../src/features/integrations/integration-service";
 import { randomUUID } from "expo-crypto";
+import { useNavigationMenu, usePlusMenu } from "../../src/components/navigation/MainNavigation";
+
+type SulyModelProfileKey = "auto" | "lite" | "pro" | "max";
+type SulyModelProfileOption = {
+  profile_key: Exclude<SulyModelProfileKey, "auto">;
+  display_name: string;
+  tagline: string;
+  minimum_subscription_tier: string;
+  is_active: boolean;
+};
+const SUBSCRIPTION_TIER_RANK: Record<string, number> = { free: 0, lite: 1, pro: 2, max: 3 };
 
 const STREAMING_ID = "local-streaming-assistant";
 const TASK_SUGGESTIONS = getRotatingSuggestions(Date.now(), 4);
@@ -130,10 +141,58 @@ export default function ChatPage() {
   const [ratingNote, setRatingNote] = useState("");
   const [ratingSaving, setRatingSaving] = useState(false);
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
-  const selectedModelProfile = "auto" as const;
-  const [navigationMenuVisible, setNavigationMenuVisible] = useState(false);
-  const [creatingNewConversation, setCreatingNewConversation] = useState(false);
-  const [actualModelUsed, setActualModelUsed] = useState<string | null>(null);
+  // The selected profile is screen-local; the server revalidates subscription eligibility on every request.
+  const [selectedModelProfile, setSelectedModelProfile] = useState<SulyModelProfileKey>("auto");
+  const [modelProfileOptions, setModelProfileOptions] = useState<SulyModelProfileOption[]>([]);
+  const [modelProfileLoading, setModelProfileLoading] = useState(false);
+  const [modelProfileMenuVisible, setModelProfileMenuVisible] = useState(false);
+  useEffect(() => {
+    let active = true;
+    if (!user?.id) {
+      setModelProfileOptions([]);
+      setModelProfileLoading(false);
+      setSelectedModelProfile("auto");
+      return () => { active = false; };
+    }
+    setModelProfileLoading(true);
+    void (async () => {
+      try {
+        const [{ data: tier, error: tierError }, { data: profiles, error: profilesError }] = await Promise.all([
+          supabase.rpc("suly_effective_subscription_tier", { p_user_id: user.id }),
+          supabase.from("suly_model_profiles")
+            .select("profile_key,display_name,tagline,minimum_subscription_tier,is_active")
+            .eq("is_active", true)
+            .order("sort_order", { ascending: true }),
+        ]);
+        if (tierError || profilesError || typeof tier !== "string") throw new Error("profile catalog unavailable");
+        const currentRank = SUBSCRIPTION_TIER_RANK[tier] ?? 0;
+        const eligible = ((profiles ?? []) as SulyModelProfileOption[]).filter((profile) => {
+          const minimumRank = SUBSCRIPTION_TIER_RANK[profile.minimum_subscription_tier];
+          return profile.is_active === true && Number.isFinite(minimumRank) && currentRank >= minimumRank;
+        });
+        if (!active) return;
+        setModelProfileOptions(eligible);
+        setSelectedModelProfile((current) => current !== "auto" && !eligible.some((item) => item.profile_key === current) ? "auto" : current);
+      } catch {
+        if (active) {
+          setModelProfileOptions([]);
+          setSelectedModelProfile("auto");
+        }
+      } finally {
+        if (active) setModelProfileLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, [user?.id]);
+
+  const selectedProfileLabel = selectedModelProfile === "auto"
+    ? (isArabic ? "SULY 2.0 Auto" : "SULY 2.0 Auto")
+    : modelProfileOptions.find((item) => item.profile_key === selectedModelProfile)?.display_name
+      ? `SULY 2.0 ${selectedModelProfile === "lite" ? "Lite" : selectedModelProfile === "pro" ? "Pro" : "Max"}`
+      : "SULY 2.0 Auto";
+
+  const openNavigationDrawer = useNavigationMenu();
+  const openPlusMenu = usePlusMenu();
   const suggestions = isArabic ? TASK_SUGGESTIONS : TASK_SUGGESTIONS_EN;
   const [connectorApproval, setConnectorApproval] = useState<{ content: string; toolkit: ToolkitStatus["toolkit"]; intent: "read" | "write"; connected: boolean; accountExists: boolean; disabled: boolean; writeApproval: ConnectorWriteApproval | null } | null>(null);
   const closeShareSheet = useCallback(() => setShareVisible(false), []);
@@ -297,7 +356,7 @@ export default function ChatPage() {
       }]);
       setError(null);
       setRetryFailure(null);
-      setActualModelUsed(null);
+      
       setIsSending(true);
       setActiveTaskLabel(studioIntent ? isArabic ? "تجهيز بطاقة الاستوديو…" : "Preparing Studio card…" : isArabic ? "جارٍ الرد على رسالتك…" : "Responding to your message…");
       void logFrictionEvent({ eventKind: "task_start", screenKey: "chat", featureKey: "chat", stepKey: "send_message", conversationId });
@@ -329,7 +388,6 @@ export default function ChatPage() {
         }
         await chatService.sendMessage({
           conversationId: conversationKey,
-          onModelInfo(identifier) { setActualModelUsed(identifier); },
           content,
           modelProfileKey: selectedModelProfile,
           writeApproval,
@@ -386,6 +444,7 @@ export default function ChatPage() {
             await chatService.retryAssistant({
               conversationId: id,
               userMessageId: savedUserMessageId,
+              modelProfileKey: selectedModelProfile,
               signal: controller.signal,
               onChunk(text) {
                 streamedTextRef.current += text;
@@ -424,7 +483,7 @@ export default function ChatPage() {
     await runOnce(lock, async () => {
       setError(null);
       setRetryFailure(null);
-      setActualModelUsed(null);
+      
       setIsSending(true);
       setActiveTaskLabel(isArabic ? "جاري إعادة تنفيذ المهمة…" : "Retrying task…");
       const controller = new AbortController();
@@ -434,8 +493,9 @@ export default function ChatPage() {
       try {
         await chatService.retryAssistant({
           ...failed,
+          modelProfileKey: selectedModelProfile,
           signal: controller.signal,
-          onModelInfo(identifier) { setActualModelUsed(identifier); },
+          
           onChunk(text) {
             streamedTextRef.current += text;
             setMessages((current) => {
@@ -597,6 +657,7 @@ export default function ChatPage() {
       await chatService.regenerateAssistant({
         conversationId,
         history,
+        modelProfileKey: selectedModelProfile,
         signal: controller.signal,
         onChunk(text) {
           streamedTextRef.current += text;
@@ -680,35 +741,33 @@ export default function ChatPage() {
 
   const shareTitle = messages.find((message) => message.role === "user")?.content.slice(0, 48) || (isArabic ? "محادثة Suly" : "SULY conversation");
 
-  const startNewConversation = async () => {
-    if (creatingNewConversation) return;
-    setCreatingNewConversation(true);
-    setNavigationMenuVisible(false);
-    try {
-      const next = await chatService.createConversation(isArabic ? "محادثة جديدة" : "New conversation");
-      router.push({ pathname: "/chat", params: { conversationId: next.id } });
-    } catch (cause) {
-      show(cause instanceof Error ? cause.message : (isArabic ? "تعذر بدء محادثة جديدة." : "Could not start a new conversation."), "error");
-    } finally {
-      setCreatingNewConversation(false);
-    }
-  };
   const shareText = messages.map((message) => `${message.role === "user" ? (isArabic ? "أنت" : "You") : "Suly"}:\n${message.content}`).join("\n\n");
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right", "bottom"]}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : Platform.OS === "android" ? "height" : undefined} keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}>
         <View style={styles.appBar}>
-          <Pressable onPress={() => setNavigationMenuVisible(true)} style={styles.headerButton} accessibilityRole="button" accessibilityLabel={isArabic ? "فتح قائمة التنقل" : "Open navigation menu"}>
+          <Pressable onPress={openNavigationDrawer} style={styles.headerButton} accessibilityRole="button" accessibilityLabel={isArabic ? "فتح قائمة التنقل" : "Open navigation menu"}>
             <Ionicons name="menu-outline" size={22} color={colors.textPrimary} />
           </Pressable>
-          <View style={styles.brandCenter}>
-            <Text style={styles.brandTitle}>SULY</Text>
-          </View>
+          <Pressable
+            onPress={() => setModelProfileMenuVisible((visible) => !visible)}
+            disabled={isSending || Boolean(retryFailure)}
+            style={[styles.modelPickerTrigger, (isSending || Boolean(retryFailure)) && styles.disabled]}
+            accessibilityRole="button"
+            accessibilityLabel={isArabic ? "اختر نموذج SULY" : "Choose SULY model"}
+            accessibilityState={{ expanded: modelProfileMenuVisible }}
+          >
+            <Text numberOfLines={1} style={styles.brandTitle}>{selectedProfileLabel}</Text>
+            <Ionicons name={modelProfileMenuVisible ? "chevron-up" : "chevron-down"} size={16} color={colors.textSecondary} />
+          </Pressable>
           <View style={styles.headerActions}>
+            <TouchableOpacity onPress={openPlusMenu} style={styles.headerButton} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={isArabic ? "إضافة ملف أو أداة" : "Add file or tool"}>
+              <Ionicons name="add" size={23} color={colors.textPrimary} />
+            </TouchableOpacity>
             {creditBalance !== null ? (
               <TouchableOpacity onPress={() => router.push("/(protected)/balance")} style={styles.creditPill} accessibilityRole="button" accessibilityLabel={isArabic ? "رصيد Suly" : "SULY credits"}>
-                <Ionicons name="diamond-outline" size={14} color={colors.warning} />
+                <Ionicons name="flash-outline" size={14} color={colors.textSecondary} />
                 <Text style={styles.creditPillText}>{creditBalance.toLocaleString("en-US")}</Text>
               </TouchableOpacity>
             ) : null}
@@ -720,21 +779,53 @@ export default function ChatPage() {
             </TouchableOpacity>
           </View>
         </View>
-        {actualModelUsed ? (
-          <View style={styles.actualModelInline} accessibilityRole="text">
-            <Ionicons name="checkmark-circle-outline" size={13} color={colors.textMuted} />
-            <Text style={styles.actualModelInlineText}>
-              {isArabic ? "النموذج المستخدم في آخر رد (بتأكيد الخادم): " + actualModelUsed : "Last response model (server-confirmed): " + actualModelUsed}
-            </Text>
+        {modelProfileMenuVisible ? (
+          <View style={styles.modelPickerMenu}>
+            <Text style={styles.modelPickerHeading}>{isArabic ? "اختر نموذج SULY" : "Choose a SULY model"}</Text>
+            <Pressable
+              onPress={() => { setSelectedModelProfile("auto"); setModelProfileMenuVisible(false); }}
+              style={[styles.modelPickerOption, selectedModelProfile === "auto" && styles.modelPickerOptionSelected]}
+              accessibilityRole="button"
+            >
+              <View style={styles.modelPickerCopy}>
+                <Text style={styles.modelPickerName}>SULY 2.0 Auto</Text>
+                <Text style={styles.modelPickerDescription}>{isArabic ? "يختار الوكيل المركزي المستوى المؤهل الأنسب للمهمة." : "The central Agent selects the best eligible profile for the task."}</Text>
+              </View>
+              {selectedModelProfile === "auto" ? <Ionicons name="checkmark-circle" size={19} color={colors.primary} /> : null}
+            </Pressable>
+            {modelProfileOptions.map((profile) => (
+              <Pressable
+                key={profile.profile_key}
+                onPress={() => { setSelectedModelProfile(profile.profile_key); setModelProfileMenuVisible(false); }}
+                style={[styles.modelPickerOption, selectedModelProfile === profile.profile_key && styles.modelPickerOptionSelected]}
+                accessibilityRole="button"
+              >
+                <View style={styles.modelPickerCopy}>
+                  <Text style={styles.modelPickerName}>SULY 2.0 {profile.profile_key === "lite" ? "Lite" : profile.profile_key === "pro" ? "Pro" : "Max"}</Text>
+                  <Text style={styles.modelPickerDescription}>{profile.tagline || profile.display_name}</Text>
+                </View>
+                {selectedModelProfile === profile.profile_key ? <Ionicons name="checkmark-circle" size={19} color={colors.primary} /> : null}
+              </Pressable>
+            ))}
+            {(
+              <View style={[styles.modelPickerOption, styles.modelPickerOptionDisabled]}>
+                <View style={styles.modelPickerCopy}>
+                  <Text style={styles.modelPickerName}>SULY 2.0 X</Text>
+                  <Text style={styles.modelPickerDescription}>{isArabic ? "غير متاح حتى اكتمال التحقق والاعتماد." : "Unavailable until verification and approval are complete."}</Text>
+                </View>
+                <Ionicons name="lock-closed-outline" size={17} color={colors.textMuted} />
+              </View>
+            )}
+            {modelProfileLoading ? <Text style={styles.modelPickerHint}>{isArabic ? "جارٍ تحميل المستويات المسموح بها…" : "Loading eligible profiles…"}</Text> : null}
+            {!modelProfileLoading && modelProfileOptions.length === 0 ? <Text style={styles.modelPickerHint}>{isArabic ? "تعذر تحميل مستويات الحساب؛ الوضع التلقائي متاح." : "Could not load account profiles; Auto remains available."}</Text> : null}
           </View>
         ) : null}
-
         {error ? <Pressable onPress={() => setError(null)} style={styles.errorBox}><Text style={styles.errorText}>{error}  ×</Text></Pressable> : null}
         {retryFailure ? <View style={styles.retryWarning} accessibilityRole="alert"><Text style={styles.retryWarningText}>{isArabic ? "حُفظت رسالتك، لكن تعذّر إكمال الرد." : "Your message was saved, but the response could not be completed."}</Text><Pressable onPress={() => void retryResponse()} disabled={isSending} accessibilityRole="button" accessibilityLabel={isArabic ? "إعادة محاولة الرد" : "Retry response"} style={styles.retryButton}><Text style={styles.retryButtonText}>{isSending ? (isArabic ? "جارٍ إعادة المحاولة…" : "Retrying…") : (isArabic ? "إعادة المحاولة" : "Retry")}</Text></Pressable></View> : null}
         {isLoading ? <View style={styles.loading}><ActivityIndicator color={colors.primary} /><Text style={styles.loadingText}>{isArabic ? "جارٍ تحميل المحادثة…" : "Loading conversation…"}</Text></View> : messages.length === 0 ? (
           <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>{isArabic ? "أهلًا بك في SULY" : "What can I help with?"}</Text>
-            <Text style={styles.emptySubtitle}>{isArabic ? "اكتب ما تحتاجه بطريقتك العادية، والوكيل سيتولى اختيار طريقة المساعدة المناسبة." : "Describe what you need in your own words. The central Agent will decide how best to help."}</Text>
+            <Text style={styles.emptyTitle}>{isArabic ? "اجعل SULY يعمل من أجلك" : "Make SULY work for you"}</Text>
+            <Text style={styles.emptySubtitle}>{isArabic ? "اكتب ما تحتاجه، وسيتولى SULY مساعدتك." : "Write what you need, and SULY will help you get it done."}</Text>
             <View style={styles.taskGrid}>
               {suggestions.map((suggestion) => (
                 <Pressable
@@ -775,37 +866,12 @@ export default function ChatPage() {
         )}
         {isUploadingAttachment ? <View style={styles.uploadStatus}><ActivityIndicator size="small" color={colors.primary} /><Text style={styles.loadingText}>{isArabic ? "جارٍ رفع المرفق…" : "Uploading attachment…"}</Text></View> : null}
         <StreamingStatus isStreaming={isSending && !isUploadingAttachment} taskLabel={activeTaskLabel} onCancel={() => abortRef.current?.abort()} />
-        <ChatComposer ref={composerRef} onSend={handleSend} disabled={isSending || Boolean(connectorApproval)} isStreaming={isSending} onCancel={() => abortRef.current?.abort()} creditBalance={creditBalance} onOpenRecharge={() => router.push("/(protected)/balance")} />
+        <ChatComposer ref={composerRef} onSend={handleSend} disabled={isSending || Boolean(connectorApproval)} isStreaming={isSending} onCancel={() => abortRef.current?.abort()} creditBalance={creditBalance} onOpenRecharge={() => router.push("/(protected)/balance")} onOpenConnectors={() => router.push("/integrations")} />
       </KeyboardAvoidingView>
       <ShareConversationSheet visible={shareVisible} conversationId={conversationId} title={shareTitle} plainText={shareText} onClose={closeShareSheet} />
-      <BottomSheet visible={navigationMenuVisible} title={isArabic ? "قائمة SULY" : "SULY menu"} onClose={() => setNavigationMenuVisible(false)}>
-        <ScrollView style={styles.navigationMenuScroll} contentContainerStyle={styles.navigationMenu}>
-          {[
-            { labelAr: "محادثة جديدة", labelEn: "New chat", href: "/chat", icon: "add-circle-outline" as const },
-            { labelAr: "المحادثات والبحث", labelEn: "Conversations & search", href: "/conversations", icon: "chatbubbles-outline" as const },
-            { labelAr: "المشروعات", labelEn: "Projects", href: "/projects", icon: "folder-outline" as const },
-            { labelAr: "المهام", labelEn: "Tasks", href: "/tasks", icon: "git-branch-outline" as const },
-            { labelAr: "الاستوديو", labelEn: "Studio", href: "/studio", icon: "sparkles-outline" as const },
-            { labelAr: "المكتبة", labelEn: "Library", href: "/media", icon: "albums-outline" as const },
-            { labelAr: "الرصيد", labelEn: "Credits", href: "/balance", icon: "wallet-outline" as const },
-            { labelAr: "الباقات والاشتراك", labelEn: "Plans & subscription", href: "/upgrade", icon: "card-outline" as const },
-            { labelAr: "التكاملات", labelEn: "Integrations", href: "/integrations", icon: "git-network-outline" as const },
-            { labelAr: "الدعم والمساعدة", labelEn: "Support", href: "/support", icon: "help-circle-outline" as const },
-            { labelAr: "الإعدادات", labelEn: "Settings", href: "/settings", icon: "settings-outline" as const },
-          ].map((item) => (
-            <Pressable key={item.href} onPress={() => { if (item.href === "/chat") { void startNewConversation(); return; } setNavigationMenuVisible(false); if (item.href === "/tasks" && conversationId) { router.push({ pathname: "/tasks", params: { conversationId } }); return; } router.push(item.href as never); }} style={styles.navigationMenuItem} accessibilityRole="button">
-              <Ionicons name={item.icon} size={19} color={colors.textSecondary} />
-              <Text style={styles.navigationMenuLabel}>{isArabic ? item.labelAr : item.labelEn}</Text>
-              <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={16} color={colors.textMuted} />
-            </Pressable>
-          ))}
-        </ScrollView>
-      </BottomSheet>
       <BottomSheet visible={usageVisible} title={isArabic ? "إحصائيات المهمة الحالية" : "Current task usage"} onClose={() => setUsageVisible(false)}>
         {usageLoading ? <ActivityIndicator color={colors.primary} /> : taskUsage ? <View style={styles.usageSheet}>
           <Text style={styles.usageTaskTitle}>{taskUsage.taskTitle}</Text>
-          <View style={styles.usageMetric}><Text style={styles.usageMetricLabel}>{isArabic ? "الرصيد المحجوز للمهمة" : "Credits reserved for this task"}</Text><Text style={styles.usageMetricValue}>{taskUsage.reserved.toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text></View>
-          <View style={styles.usageMetric}><Text style={styles.usageMetricLabel}>{isArabic ? "الرصيد المخصوم فعليًا" : "Credits actually charged"}</Text><Text style={styles.usageMetricValue}>{taskUsage.charged.toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text></View>
           <Text style={styles.usageStatus}>{isArabic ? `الحالة: ${taskUsage.status === "settled" ? "مكتملة" : taskUsage.status === "held" ? "قيد التنفيذ" : taskUsage.status}` : `Status: ${taskUsage.status === "settled" ? "Completed" : taskUsage.status === "held" ? "In progress" : taskUsage.status}`}</Text>
           <Text style={styles.ratingPrompt}>{taskRating ? (isArabic ? "تقييمك لهذه المهمة" : "Your task rating") : (isArabic ? "قيّم هذه المهمة" : "Rate this task")}</Text>
           <View style={styles.starsRow}>{[1, 2, 3, 4, 5].map((star) => <Pressable key={star} onPress={() => setRatingStars(star)} accessibilityRole="button" accessibilityLabel={isArabic ? `تقييم ${star} نجوم` : `Rate ${star} stars`}><Text style={[styles.star, star <= (taskRating?.stars ?? ratingStars) && styles.starSelected]}>★</Text></Pressable>)}</View>
@@ -846,12 +912,20 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   headerButton: { width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 21 },
   headerSpacer: { width: 42, height: 42 },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 6 },
-  actualModelInline: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 5 },
-  actualModelInlineText: { color: colors.textMuted, fontSize: 11, lineHeight: 16 },
   navigationMenuScroll: { maxHeight: 560 },
   navigationMenu: { gap: 7, paddingBottom: 8 },
   navigationMenuItem: { minHeight: 48, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 11, paddingHorizontal: 12, borderRadius: 11, backgroundColor: colors.surfaceElevated },
   navigationMenuLabel: { flex: 1, color: colors.textPrimary, fontSize: 13, fontWeight: "700", textAlign: isArabic ? "right" : "left" },
+  modelPickerTrigger: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 42, paddingHorizontal: 6 },
+  modelPickerMenu: { marginHorizontal: 12, marginTop: 8, marginBottom: 4, padding: 10, borderRadius: 14, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface, gap: 6, maxWidth: 520, width: "100%", alignSelf: "center", zIndex: 10 },
+  modelPickerHeading: { color: colors.textPrimary, fontSize: 13, fontWeight: "800", textAlign: isArabic ? "right" : "left", paddingHorizontal: 8, paddingVertical: 4 },
+  modelPickerOption: { minHeight: 54, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "space-between", gap: 10, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10, backgroundColor: colors.surfaceElevated },
+  modelPickerOptionSelected: { borderWidth: 1, borderColor: colors.primary },
+  modelPickerOptionDisabled: { opacity: 0.55 },
+  modelPickerCopy: { flex: 1, gap: 3 },
+  modelPickerName: { color: colors.textPrimary, fontSize: 13, fontWeight: "800", textAlign: isArabic ? "right" : "left" },
+  modelPickerDescription: { color: colors.textSecondary, fontSize: 11, lineHeight: 16, textAlign: isArabic ? "right" : "left" },
+  modelPickerHint: { color: colors.textMuted, fontSize: 11, textAlign: isArabic ? "right" : "left", paddingHorizontal: 8, paddingVertical: 4 },
   brandCenter: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 8 },
   brandTitle: { color: colors.textPrimary, fontSize: 20, fontWeight: "700", letterSpacing: -0.5 },
   creditPill: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 5, backgroundColor: colors.surfaceElevated, borderColor: colors.divider, borderWidth: 1, borderRadius: 9999, paddingHorizontal: 10, paddingVertical: 5 },

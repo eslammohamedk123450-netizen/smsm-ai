@@ -81,12 +81,12 @@ export function HomeScreen() {
         </View>
 
         <View style={styles.heroCopy}>
-          <Text style={[styles.eyebrow, { color: colors.textMuted }]}>{isArabic ? "أهلًا بعودتك" : "WELCOME BACK"}</Text>
+          <Text style={[styles.eyebrow, { color: colors.textMuted }]}>{isArabic ? "اجعل SULY يعمل من أجلك" : "MAKE SULY WORK FOR YOU"}</Text>
           <Text style={[styles.title, { color: colors.textPrimary }]}>
-            {isArabic ? `أهلًا ${profileFullName?.trim() || "بك"}` : `Hello ${profileFullName?.trim() || "there"}`}
+            {isArabic ? "ابدأ من احتياجك" : "Start with what you need" }
           </Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            {isArabic ? "إيه اللي تحب تنجزه النهارده؟" : "What would you like to get done today?"}
+            {isArabic ? "اكتب ما تحتاجه، وسيتولى SULY مساعدتك." : "Tell SULY what you need, and let it help."}
           </Text>
         </View>
 

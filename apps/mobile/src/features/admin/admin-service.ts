@@ -218,6 +218,20 @@ export const adminService = {
     await requireAdmin();
     const { data, error } = await supabase.rpc("suly_admin_list_providers");
     if (error) throw error;
+    return (data ?? []).filter((provider: { enabled?: boolean }) => provider.enabled === true);
+  },
+
+  async getArchivedProviders() {
+    await requireAdmin();
+    const { data, error } = await supabase.rpc("suly_admin_list_archived_providers");
+    // Before the additive migration, use the legacy safe list only to identify
+    // disabled rows; restore remains guarded until the reversible RPC exists.
+    if (error && (error as { code?: string }).code === "PGRST202") {
+      const legacy = await supabase.rpc("suly_admin_list_providers");
+      if (legacy.error) throw legacy.error;
+      return (legacy.data ?? []).filter((provider: { enabled?: boolean }) => provider.enabled === false);
+    }
+    if (error) throw error;
     return data ?? [];
   },
 
@@ -297,10 +311,18 @@ export const adminService = {
     if (error) throw error;
   },
 
-  async setProviderLifecycle(providerId: number, enabled: boolean, hideModels: boolean) {
+  async setProviderLifecycle(providerId: number, enabled: boolean, hideModels = true) {
     await requireAdmin();
-    const { error } = await supabase.rpc("suly_admin_set_provider_lifecycle", { p_provider_id: providerId, p_enabled: enabled, p_hide_models: hideModels });
+    // Guard against calling the legacy destructive/one-way lifecycle RPC on a DB
+    // that has not yet received the reversible archive/restore migration.
+    const { error: capabilityError } = await supabase.rpc("suly_admin_list_archived_providers");
+    if (capabilityError) throw new Error("ميزة الأرشفة والاستعادة لم تُفعّل على قاعدة البيانات بعد. لم يتم تغيير حالة المفتاح.");
+    const { data, error } = await supabase.rpc("suly_admin_set_provider_lifecycle_v2", { p_provider_id: providerId, p_enabled: enabled, p_hide_models: hideModels });
     if (error) throw error;
+    if (!data || data.success !== true || Number(data.provider_id) !== providerId) {
+      throw new Error("لم تؤكد قاعدة البيانات إيقاف المزود أو استعادته.");
+    }
+    return data as { success: true; provider_id: number; enabled: boolean; archived?: boolean; restored?: boolean; financial_history_preserved: true };
   },
 
   async deleteProvider(providerId: number) {
@@ -345,12 +367,15 @@ export const adminService = {
     if (healthResult.error) throw healthResult.error;
     if (probeResult.error) throw probeResult.error;
     if (settingsResult.error) throw settingsResult.error;
-    const providerNames = new Map<number, string>(providers.map((item: { id: number; name?: string | null; provider_type?: string | null }) => [Number(item.id), String(item.name ?? item.provider_type ?? "—")]));
+    const providerNames = new Map<number, string>(providers.map((item: { id: number; name?: string | null; provider_type?: string | null }) => [Number(item.id), String(item.name ?? "—")]));
+    const providerTypes = new Map<number, string>(providers.map((item: { id: number; provider_type?: string | null }) => [Number(item.id), String(item.provider_type ?? "—")]));
     const providerEnabled = new Map<number, boolean>(providers.map((item: { id: number; enabled?: boolean }) => [Number(item.id), item.enabled === true]));
     const health = new Map<number, Record<string, unknown>>((healthResult.data ?? []).map((row) => [Number(row.model_id), row]));
     const probe = new Map<number, Record<string, unknown>>((probeResult.data ?? []).map((row) => [Number(row.model_id), row]));
     return {
-      models: (modelsResult.data ?? []).map((row) => ({ ...row, provider_name: providerNames.get(Number(row.provider_id)) ?? "—", provider_enabled: providerEnabled.get(Number(row.provider_id)) ?? false, health: health.get(Number(row.id)) ?? null, probe: probe.get(Number(row.id)) ?? null })),
+      models: (modelsResult.data ?? [])
+        .filter((row) => providerEnabled.get(Number(row.provider_id)) === true)
+        .map((row) => ({ ...row, provider_name: providerNames.get(Number(row.provider_id)) ?? "—", provider_type: providerTypes.get(Number(row.provider_id)) ?? "—", provider_enabled: true, health: health.get(Number(row.id)) ?? null, probe: probe.get(Number(row.id)) ?? null })),
       settings: settingsResult.data,
     };
   },
@@ -363,6 +388,8 @@ export const adminService = {
       .eq("is_current", true)
       .order("model_id");
     if (priceError) throw priceError;
+    const activeProviders = await this.getProviders();
+    const activeProviderIds = new Set(activeProviders.map((provider: { id: number }) => Number(provider.id)));
     const modelIds = [...new Set((prices ?? []).map((row) => Number(row.model_id)))];
     if (modelIds.length === 0) return [];
     const { data: models, error: modelError } = await supabase
@@ -370,8 +397,8 @@ export const adminService = {
       .select("id,name,model_identifier,provider_id")
       .in("id", modelIds);
     if (modelError) throw modelError;
-    const modelById = new Map((models ?? []).map((row) => [Number(row.id), row]));
-    return (prices ?? []).map((price) => ({ ...price, model: modelById.get(Number(price.model_id)) ?? null }));
+    const modelById = new Map((models ?? []).filter((row) => activeProviderIds.has(Number(row.provider_id))).map((row) => [Number(row.id), row]));
+    return (prices ?? []).filter((price) => modelById.has(Number(price.model_id))).map((price) => ({ ...price, model: modelById.get(Number(price.model_id)) ?? null }));
   },
 
   async updateModelPrice(modelId: number, inputCost: number, outputCost: number, expectedVersion: number) {
@@ -395,14 +422,20 @@ export const adminService = {
 
   async getMediaModelPriceVersions() {
     await requireAdmin();
-    const { data, error } = await supabase
-      .from("suly_media_model_price_versions")
-      .select("id,provider_id,service_type,model_identifier,display_name,unit_type,provider_cost_egp_per_unit,selling_price_egp_per_unit,markup_rate,price_version,provider_tested,suly_integration_verified,is_current")
-      .eq("is_current", true)
-      .order("service_type")
-      .order("display_name");
+    const [{ data, error }, providers] = await Promise.all([
+      supabase
+        .from("suly_media_model_price_versions")
+        .select("id,provider_id,service_type,model_identifier,display_name,unit_type,provider_cost_egp_per_unit,selling_price_egp_per_unit,markup_rate,price_version,provider_tested,suly_integration_verified,is_current")
+        .eq("is_current", true)
+        .order("service_type")
+        .order("display_name"),
+      this.getProviders(),
+    ]);
     if (error) throw error;
-    return data ?? [];
+    const providerNames = new Map<number, string>(providers.map((provider: { id: number; name?: string | null }) => [Number(provider.id), String(provider.name ?? "—")]));
+    const providerTypes = new Map<number, string>(providers.map((provider: { id: number; provider_type?: string | null }) => [Number(provider.id), String(provider.provider_type ?? "—")]));
+    const activeProviderIds = new Set(providers.map((provider: { id: number }) => Number(provider.id)));
+    return (data ?? []).filter((row) => activeProviderIds.has(Number(row.provider_id))).map((row) => ({ ...row, provider_name: providerNames.get(Number(row.provider_id)) ?? "—", provider_type: providerTypes.get(Number(row.provider_id)) ?? "—" }));
   },
 
   async updateMediaModelPrice(input: {
@@ -509,7 +542,8 @@ export const adminService = {
 
   async saveRouteModelAssignments(routeRole: "chat" | "planner" | "worker" | "reviewer" | "summarizer", modelIds: number[]) {
     await requireAdmin();
-    const ids = [...new Set(modelIds)].filter((id) => Number.isSafeInteger(id) && id > 0).slice(0, 2);
+    const ids = [...new Set(modelIds)].filter((id) => Number.isSafeInteger(id) && id > 0).slice(0, 500);
+    if (ids.length === 0 || ids.length > 500) throw new Error("يجب اختيار نموذج واحد على الأقل وبحد أقصى 500 نموذج.");
     const { data, error } = await supabase.rpc("suly_admin_save_route_models", {
       p_route_role: routeRole,
       p_model_ids: ids,

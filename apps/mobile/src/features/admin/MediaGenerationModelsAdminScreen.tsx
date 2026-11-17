@@ -54,8 +54,12 @@ export function MediaGenerationModelsAdminScreen() {
       ]);
       if (modelResult.error || priceResult.error) setError("تعذر تحميل نماذج الصور الخارجية أو الأسعار. تأكد من تطبيق ترحيل مزود الصور وصلاحيات الأدمن.");
       else {
+        const activeProviderIds = new Set((providerRows ?? [])
+          .filter((provider: Provider) => provider.enabled === true)
+          .map((provider: Provider) => Number(provider.id)));
         setProviders((providerRows ?? []) as Provider[]);
-        setModels((modelResult.data ?? []) as MediaModel[]);
+        setModels(((modelResult.data ?? []) as MediaModel[])
+          .filter((model) => activeProviderIds.has(Number(model.provider_id))));
       }
     } catch {
       setError("تعذر تحميل قائمة مزودي الصور. تأكد من صلاحيات المشرف.");

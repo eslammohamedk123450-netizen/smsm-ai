@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useLocalSearchParams } from "expo-router";
 import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { useSulyTheme } from "../../theme/ThemeProvider";
@@ -18,6 +19,7 @@ const statusLabelEn: Record<string, string> = { new: "New", in_progress: "In pro
 export function SupportScreen() {
   const { colors } = useSulyTheme();
   const { isArabic } = useAppLocale();
+  const params = useLocalSearchParams<{ request?: string }>();
   const styles = useMemo(() => createStyles(colors, isArabic), [colors, isArabic]);
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,6 +33,15 @@ export function SupportScreen() {
   const [attachments, setAttachments] = useState<SupportAttachment[]>([]);
   const [replyText, setReplyText] = useState("");
   const [detailLoading, setDetailLoading] = useState(false);
+
+  useEffect(() => {
+    if (params.request !== "account_deletion") return;
+    setSubject(isArabic ? "طلب حذف الحساب" : "Account deletion request");
+    setCategory("account");
+    setDescription(isArabic
+      ? "أرغب في تقديم طلب رسمي لمراجعة حذف حسابي والبيانات المرتبطة به. أرجو توضيح خطوات التحقق وسياسة الاحتفاظ وأي بيانات مالية أو سجلات يجب الاحتفاظ بها."
+      : "I would like to submit a formal request to review deletion of my account and associated data. Please explain the verification steps, retention policy, and any financial or audit records that must be retained.");
+  }, [params.request, isArabic]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
