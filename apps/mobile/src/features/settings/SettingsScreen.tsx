@@ -6,6 +6,7 @@ import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { useRouter } from "expo-router";
 import Constants from "expo-constants";
 import { getCreditLedger, type CreditEntry } from "../credits/credit-service";
+import { getCreditDisplay } from "../credits/credit-presentation";
 import { useAuth } from "../auth/auth-provider";
 import type { ThemePalette } from "../../theme/colors";
 import { BottomSheet } from "../../components/ui/BottomSheet";
@@ -255,7 +256,18 @@ export default function SettingsScreen() {
             {transactions.length === 0 ? <Text style={styles.emptyHistory}>{isArabic ? "لا توجد معاملات مسجلة." : "No transactions yet."}</Text> : transactions.map((entry) => (
               <View key={entry.id} style={styles.transaction}>
                 <View style={styles.transactionCopy}><Text style={styles.transactionTitle}>{transactionTitle(entry)}</Text><Text style={styles.transactionDate}>{new Date(entry.created_at).toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text></View>
-                <View style={styles.transactionAmount}><Text style={[styles.delta, entry.balance_delta >= 0 ? styles.positive : styles.negative]}>{entry.balance_delta > 0 ? "+" : ""}{entry.balance_delta}</Text><Text style={styles.balanceAfter}>{entry.task_title ? `${isArabic ? "المهمة" : "Task"}: ${entry.task_title}` : `${isArabic ? "الرصيد" : "Balance"}: ${entry.balance_after}`}</Text></View>
+                {(() => {
+                  const display = getCreditDisplay(entry);
+                  const amountText = display.kind === "credit" ? `+${display.amount.toLocaleString(isArabic ? "ar-EG" : "en-US")}`
+                    : display.kind === "debit" ? `-${display.amount.toLocaleString(isArabic ? "ar-EG" : "en-US")}`
+                      : display.kind === "reserved" ? `${display.amount.toLocaleString(isArabic ? "ar-EG" : "en-US")} ${isArabic ? "محجوز" : "reserved"}`
+                        : "0";
+                  const amountStyle = display.kind === "credit" ? styles.positive : display.kind === "debit" ? styles.negative : styles.reserved;
+                  return <View style={styles.transactionAmount}>
+                    <Text style={[styles.delta, amountStyle]}>{amountText}</Text>
+                    <Text style={styles.balanceAfter}>{entry.task_title ? `${isArabic ? "المهمة" : "Task"}: ${entry.task_title}` : `${isArabic ? "الرصيد" : "Balance"}: ${entry.balance_after}`}</Text>
+                  </View>;
+                })()}
               </View>
             ))}
           </ScrollView>}
@@ -336,8 +348,9 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   transactionDate: { color: colors.textMuted, fontSize: 11, marginTop: 5 },
   transactionAmount: { alignItems: "flex-start" },
   delta: { fontSize: 15, fontWeight: "700" },
-  positive: { color: colors.textSecondary },
-  negative: { color: colors.textPrimary },
+  positive: { color: colors.success },
+  negative: { color: colors.error },
+  reserved: { color: colors.textMuted },
   balanceAfter: { color: colors.textMuted, fontSize: 10, marginTop: 4 },
   policyNotice: { color: colors.textSecondary, fontSize: 14, lineHeight: 22, textAlign: isArabic ? "right" : "left", marginTop: 15 },
   modalClose: { backgroundColor: colors.primary, borderRadius: 14, paddingHorizontal: 20, paddingVertical: 12, marginTop: 20, alignItems: "center", justifyContent: "center" },
