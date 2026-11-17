@@ -39,6 +39,12 @@ export function resolveSulyProfileKey(input: {
     ? input.userTier as SulyTier
     : "free";
   const requested = input.requestedProfileKey;
+  // Older mobile clients shipped with "lite" as the default profile even for
+  // Free accounts. Keep those clients working by routing that legacy default
+  // to the Free profile; model-level allowed_tiers still limits Free to free_race.
+  if (tier === "free" && requested === "lite") {
+    return { profileKey: "free", mode: "manual", allowed: true };
+  }
   if (requested === "free" || requested === "lite" || requested === "pro" || requested === "max" || requested === "ultra_team") {
     return {
       profileKey: requested,
