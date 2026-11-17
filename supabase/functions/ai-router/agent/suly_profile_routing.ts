@@ -7,7 +7,7 @@ const PROFILE_MINIMUM_TIER: Record<SulyProfileKey, SulyTier> = {
   free: "free",
   lite: "lite",
   pro: "pro",
-  max: "max",
+  max: "pro",
   ultra_team: "ultra_team",
 };
 
