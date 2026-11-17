@@ -3,7 +3,7 @@ import { env } from "../../config/env";
 import { supabase } from "../../lib/supabase/client";
 import type { ChatRequestBody } from "../../lib/network/sse-transport";
 import { summarizeContent } from "./conversation-title";
-import { buildRetryHistory } from "./chat-retry";
+import { buildRetryHistory, createRetryRequestId } from "./chat-retry";
 import { chatStreamManager } from "./chat-stream-manager";
 import { getStudioIntent } from "./image-generation";
 import { getMediaDeliveryUrls, type MediaAsset } from "../media/media-service";
@@ -416,7 +416,7 @@ export const chatService = {
     await this.regenerateAssistant({
       conversationId: options.conversationId,
       history,
-      requestId: randomUUID(),
+      requestId: createRetryRequestId(),
       modelProfileKey: options.modelProfileKey,
       executionMode: options.executionMode,
       signal: options.signal,
