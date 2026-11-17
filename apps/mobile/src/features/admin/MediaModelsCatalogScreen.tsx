@@ -13,7 +13,7 @@ import { MediaModelCapabilityEvidenceAdminCard } from "./MediaModelCapabilityEvi
 type Kind = "image" | "video" | "transcription" | "voice";
 type ServiceType = "image" | "video" | "audio";
 type MediaModelRow = {
-  id: string; provider_id: number; provider_name: string; service_type: ServiceType;
+  id: string; provider_id: number; provider_name: string; provider_type: string; service_type: ServiceType;
   model_identifier: string; display_name: string; unit_type: string;
   provider_cost_egp_per_unit: number; selling_price_egp_per_unit: number;
   price_version: number; provider_tested: boolean; suly_integration_verified: boolean;
@@ -87,7 +87,7 @@ export function MediaModelsCatalogScreen() {
           && item.capability_key === required && item.vendor_claim_status === "supported");
         if (!proof) return false;
       }
-      return !query || `${row.display_name} ${row.model_identifier} ${row.provider_name}`.toLocaleLowerCase().includes(query);
+      return !query || `${row.display_name} ${row.model_identifier} ${row.provider_name} ${row.provider_type}`.toLocaleLowerCase().includes(query);
     });
   }, [rows, evidence, kind, search]);
 
@@ -119,7 +119,7 @@ export function MediaModelsCatalogScreen() {
       return <View key={row.id} style={styles.row}>
         <View style={styles.nameCell}>
           <Text style={styles.modelName}>{row.display_name}</Text>
-          <Text style={styles.meta}>المزود / المفتاح: {row.provider_name}</Text>
+          <Text style={styles.meta}>المزود: {row.provider_type} · اسم المفتاح: {row.provider_name}</Text>
           <Text style={styles.meta} selectable>{row.model_identifier}</Text>
         </View>
         <View style={styles.capCell}>
