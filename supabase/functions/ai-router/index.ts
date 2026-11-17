@@ -866,7 +866,7 @@ async function handleRequest(req: Request): Promise<Response> {
   const maxOutputChars = outputLimitForRequest(mind.intent, latestUserMessage, maxTokens);
   const streamRequested = body.stream === true;
   let himsActivated = profile.hims_activated === true;
-  let identityContext = buildSulyIdentityContext(himsActivated);
+  let identityContext = buildSulyIdentityContext(himsActivated, executionMode === "agent");
   let userMetadata = identityContext.userMetadata;
   let systemPrompt = identityContext.systemPrompt;
   let workspaceId: string | null = null;
@@ -999,7 +999,7 @@ async function handleRequest(req: Request): Promise<Response> {
       const text = activationOutcomeMessage(activation.outcome, activation.label, activation.activationMessage);
       if (activationSucceeded && activation.featureKey?.toLowerCase() === "hims") {
         himsActivated = true;
-        identityContext = buildSulyIdentityContext(true);
+        identityContext = buildSulyIdentityContext(true, executionMode === "agent");
         userMetadata = identityContext.userMetadata;
         systemPrompt = identityContext.systemPrompt;
       }
