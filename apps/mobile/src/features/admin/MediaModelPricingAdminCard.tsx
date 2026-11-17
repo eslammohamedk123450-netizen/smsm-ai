@@ -27,7 +27,7 @@ export function MediaModelPricingAdminCard({ serviceType, capabilityKey, initial
   serviceType?: "image" | "video" | "audio";
   capabilityKey?: "transcription" | "audio_output";
   initialRows?: MediaPriceRow[];
-  initialEvidence?: Array<{ provider_id: number; service_type: string; model_identifier: string; capability_key: string; vendor_claim_status: string }>;
+  initialEvidence?: Array<{ provider_id: number; service_type: string; model_identifier: string; capability_key: string; vendor_claim_status: string; review_status: string }>;
   initialLoading?: boolean;
   skipInitialLoad?: boolean;
 } = {}) {
@@ -49,11 +49,11 @@ export function MediaModelPricingAdminCard({ serviceType, capabilityKey, initial
       const result = await adminService.getMediaModelPriceVersions() as MediaPriceRow[];
       let visible = result;
       if (capabilityKey) {
-        const { data: evidence, error: evidenceError } = await supabase.rpc("suly_admin_list_media_model_capability_evidence");
+        const { data: evidence, error: evidenceError } = await supabase.rpc("suly_admin_list_unified_model_capabilities");
         if (evidenceError) throw evidenceError;
         const supported = new Set((evidence ?? [])
           .filter((item: { capability_key: string; vendor_claim_status: string }) =>
-            item.capability_key === capabilityKey && item.vendor_claim_status === "supported")
+            item.capability_key === capabilityKey && item.vendor_claim_status === "supported" && item.review_status === "approved")
           .map((item: { provider_id: number; service_type: string; model_identifier: string }) =>
             `${item.provider_id}:${item.service_type}:${item.model_identifier}`));
         visible = result.filter((row) => supported.has(`${row.provider_id}:${row.service_type}:${row.model_identifier}`));
