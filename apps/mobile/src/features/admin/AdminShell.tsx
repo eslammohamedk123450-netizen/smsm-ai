@@ -63,7 +63,7 @@ const NAV_GROUPS: readonly NavGroup[] = [
     { path: "/admin/tavily", label: "Tavily · بحث الويب", labelEn: "Tavily · web search", icon: "search-outline" },
     { path: "/admin/page-builder", label: "منشئ صفحات الإدارة", labelEn: "Admin page builder", icon: "construct-outline" },
   ] }
-] as const;;
+] as const;
 
 const WIDE_BREAKPOINT = 900;
 const SIDEBAR_STORAGE_KEY = "suly:admin:sidebar-collapsed";
