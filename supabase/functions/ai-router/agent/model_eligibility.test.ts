@@ -34,6 +34,14 @@ Deno.test("higher subscription tiers inherit access to lower-tier models", () =>
   assert(!isModelEligibleForRequest({ ...base, userTier: "free", allowedTiers: ["pro"] }), "Free must not access a Pro-only model");
 });
 
+Deno.test("Ultra Team inherits every lower model tier while Free remains isolated", () => {
+  assert(isModelEligibleForRequest({ ...base, userTier: "ultra_team", allowedTiers: ["max"] }), "Ultra Team should inherit Max-eligible models");
+  assert(isModelEligibleForRequest({ ...base, userTier: "ultra_team", allowedTiers: ["pro"] }), "Ultra Team should inherit Pro-eligible models");
+  assert(isModelEligibleForRequest({ ...base, userTier: "ultra_team", allowedTiers: ["lite"] }), "Ultra Team should inherit Lite-eligible models");
+  assert(isModelEligibleForRequest({ ...base, userTier: "ultra_team", allowedTiers: ["free"] }), "Ultra Team should inherit Free-eligible models");
+  assert(!isModelEligibleForRequest({ ...base, userTier: "free", allowedTiers: ["lite"] }), "Free must not access Lite-only models");
+});
+
 Deno.test("role eligibility preserves general and worker/executor compatibility", () => {
   assert(modelSupportsRole(undefined, "planner"), "missing role config retains legacy general role");
   assert(modelSupportsRole(["general"], "reviewer"), "general role supports all task roles");
