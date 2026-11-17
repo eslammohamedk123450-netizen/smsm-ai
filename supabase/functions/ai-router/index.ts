@@ -1521,6 +1521,9 @@ async function handleRequest(req: Request): Promise<Response> {
   ].filter((block): block is string => typeof block === "string" && block.length > 0);
   if (contextBlocks.length > 0) {
     const context = contextBlocks.join("\n\n");
+    // Include retrieved memory/skills in the cache context hash so a cached
+    // answer cannot bypass a newly approved skill or changed user context.
+    systemPrompt = `${systemPrompt}\n\n${context}`;
     if (messages[0]?.role === "system") messages[0].content += `\n\n${context}`;
     else messages.unshift({ role: "system", content: context });
   }
