@@ -320,8 +320,6 @@ export function ModelsAdminScreen() {
   const [modelPrices, setModelPrices] = useState<Record<number, ModelPriceSummary>>({});
   const [search, setSearch] = useState(typeof q === "string" ? q : "");
   const [modelFilter, setModelFilter] = useState<"all" | "enabled" | "disabled" | "restricted">("enabled");
-  const [settings, setSettings] = useState<Record<string, unknown> | null>(null);
-  const [gmailModelId, setGmailModelId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [testingModelId, setTestingModelId] = useState<number | null>(null);
@@ -333,11 +331,6 @@ export function ModelsAdminScreen() {
 
   useEffect(() => { if (typeof q === "string") setSearch(q); }, [q]);
 
-  const [freeTimeout, setFreeTimeout] = useState("5000");
-  const [fallbackTimeout, setFallbackTimeout] = useState("30000");
-  const [parallel, setParallel] = useState("10");
-  const [paidFallback, setPaidFallback] = useState(true);
-  const [autoRestrict, setAutoRestrict] = useState(true);
   const filteredModels = useMemo(() => {
     const query = search.trim().toLowerCase();
     return models.filter((model) => {
@@ -373,17 +366,6 @@ export function ModelsAdminScreen() {
       const [result, priceRows] = await Promise.all([adminService.getModelsOverview(), adminService.getModelPriceVersions()]);
       setModels(result.models as ModelRow[]);
       setModelPrices(Object.fromEntries((priceRows as Array<ModelPriceSummary & { model_id: number }>).map((row) => [Number(row.model_id), row])));
-      const config = result.settings as Record<string, unknown> | null;
-      setSettings(config);
-      if (config) {
-        const configuredGmailModelId = Number(config.gmail_task_model_id);
-        setGmailModelId(Number.isSafeInteger(configuredGmailModelId) && configuredGmailModelId > 0 ? configuredGmailModelId : null);
-        setFreeTimeout(String(config.free_race_timeout_ms ?? 5000));
-        setFallbackTimeout(String(config.paid_fallback_timeout_ms ?? 30000));
-        setParallel(String(config.max_parallel_free_models ?? 10));
-        setPaidFallback(config.paid_fallback_enabled === true);
-        setAutoRestrict(config.health_auto_restrict_enabled !== false);
-      }
     } catch { setError("تعذر تحميل النماذج أو إعدادات التوجيه."); }
     finally { setLoading(false); }
   };
@@ -441,24 +423,6 @@ export function ModelsAdminScreen() {
     setEditTaskRoles((prev) => prev.includes(role)
       ? prev.filter((item) => item !== role)
       : [...prev.filter((item) => item !== "general" && role !== "general"), role]);
-  };
-
-  const saveSettings = async () => {
-    const free = Number(freeTimeout), fallback = Number(fallbackTimeout), count = Number(parallel);
-    if (!Number.isInteger(free) || free < 1000 || free > 30000 || !Number.isInteger(fallback) || fallback < 1000 || fallback > 120000 || !Number.isInteger(count) || count < 1 || count > 50) { setError("المهلة المجانية 1000–30000، مهلة البديل 1000–120000، والتوازي 1–50."); return; }
-    setBusy(true); setError(null);
-    try { await adminService.updateRouterSettings({ free_race_timeout_ms: free, paid_fallback_timeout_ms: fallback, max_parallel_free_models: count, paid_fallback_enabled: paidFallback, health_auto_restrict_enabled: autoRestrict }); setError(null); await load(); }
-    catch { setError("تعذر حفظ إعدادات التوجيه عبر قاعدة البيانات."); }
-    finally { setBusy(false); }
-  };
-
-  const saveGmailModel = async () => {
-    setBusy(true); setError(null);
-    try {
-      await adminService.updateGmailTaskModel(gmailModelId);
-      await load();
-    } catch { setError("تعذر حفظ نموذج Gmail. تحقق من ترحيل قاعدة البيانات وصلاحيات الإدارة."); }
-    finally { setBusy(false); }
   };
 
   const disable = async (model: ModelRow) => {
@@ -528,8 +492,6 @@ export function ModelsAdminScreen() {
           <Link href="/admin/api-keys" asChild><Pressable accessibilityRole="button"><Text style={styles.link}>إدارة المزودين ومفاتيح API</Text></Pressable></Link>
           <ErrorText>{error}</ErrorText>
           {!loading ? <>
-            <RouteModelChainsCard models={models} />
-            {settings && <GmailModelPickerCard models={models} selectedModelId={gmailModelId} onSelect={setGmailModelId} onSave={() => void saveGmailModel()} busy={busy} />}
             <ModelCapabilityEvidenceAdminCard models={models} />
             <View style={styles.modelsSectionHeader}><View style={styles.modelsHeadingCopy}><Text style={styles.sectionTitle}>كتالوج النماذج</Text><Text style={styles.detail}>إدارة الحالة ومسار التوجيه والقيود وسجل الصحة</Text></View><View style={styles.totalBadge}><Text style={styles.totalBadgeText}>{models.length} نموذج</Text></View></View>
             <View style={styles.searchWrap}><Text style={styles.searchGlyph}>⌕</Text><TextInput style={[styles.input, styles.modelSearchInput]} value={search} onChangeText={setSearch} placeholder="ابحث بالاسم أو المزود أو المسار" placeholderTextColor={colors.textMuted} autoCapitalize="none" /><Pressable accessibilityRole="button" onPress={() => setSearch("")}><Text style={styles.link}>مسح</Text></Pressable></View>
@@ -546,7 +508,7 @@ export function ModelsAdminScreen() {
             <Card><View style={styles.sectionRow}><View style={styles.batchCopy}><Text style={styles.sectionTitle}>اختبار شامل للنماذج</Text><Text style={styles.detail}>يختبر النماذج الظاهرة بالتوازي حتى 5 نماذج، باستخدام طلب قصير قليل التوكنز.</Text></View><PrimaryButton label={batchTesting ? "جارٍ الاختبار…" : `اختبار ${filteredModels.length} نموذج`} onPress={() => void testFilteredModels()} disabled={batchTesting || testingModelId !== null || filteredModels.length === 0} /></View>{Object.keys(batchResults).length > 0 ? <View style={styles.batchSummary}><Pressable onPress={() => setBatchFilter("success")}><Text style={styles.success}>الناجح: {Object.values(batchResults).filter((result) => result.status === "success").length}</Text></Pressable><Pressable onPress={() => setBatchFilter("error")}><Text style={styles.warning}>الفاشل: {Object.values(batchResults).filter((result) => result.status === "error").length}</Text></Pressable><Pressable onPress={() => setBatchFilter("all")}><Text style={styles.detail}>الكل</Text></Pressable><Text style={styles.detail}>تم اختبار: {Object.keys(batchResults).length}</Text></View> : null}</Card>
 
             <Card><View style={styles.healthProbeHeading}><View style={styles.sectionIcon}><Text style={styles.sectionIconText}>ϟ</Text></View><View style={styles.settingsHeadingText}><Text style={styles.sectionTitle}>مراقبة صحة النماذج</Text><Text style={styles.detail}>فحص تلقائي يوميًا الساعة 02:00 UTC لكل نموذج مفعّل ولكل مفتاح مرتبط به. يستخدم طلبًا قصيرًا بحد أقصى 16 token، ولا يخصم رصيد المستخدم؛ قد يستهلك استخدامًا لدى مزود الخدمة.</Text></View></View><Text style={styles.detail}>بعد 3 إخفاقات فحص متتالية يُستبعد النموذج آليًا من التوجيه، ويعود بعد نجاح فحصين متتاليين. الإيقاف اليدوي لا يُلغى بالفحص.</Text></Card>
-            {settings && <Card><View style={styles.settingsHeading}><View style={styles.sectionIcon}><Text style={styles.sectionIconText}>⚙</Text></View><View style={styles.settingsHeadingText}><Text style={styles.sectionTitle}>إعدادات التوجيه</Text><Text style={styles.detail}>ai_router_settings · تؤثر على اختيار النماذج وتوازي الطلبات</Text></View></View><View style={styles.settingsFields}><NumberField label="مهلة سباق النماذج (ms)" value={freeTimeout} onChange={setFreeTimeout} /><NumberField label="مهلة البديل المدفوع (ms)" value={fallbackTimeout} onChange={setFallbackTimeout} /><NumberField label="أقصى نماذج متوازية" value={parallel} onChange={setParallel} /></View><View style={styles.settingsToggles}><Toggle label="تفعيل البديل المدفوع" value={paidFallback} onChange={setPaidFallback} /><Toggle label="التقييد التلقائي للصحة" value={autoRestrict} onChange={setAutoRestrict} /></View><PrimaryButton label={busy ? "جارٍ الحفظ…" : "✓  حفظ إعدادات التوجيه"} onPress={() => void saveSettings()} disabled={busy} /></Card>}
+            
           </> : null}
         </View>}
         ListEmptyComponent={loading ? <ActivityIndicator color={colors.primary} style={styles.listLoading} /> : <Card><Text style={styles.emptyIcon}>⌕</Text><Text style={styles.detail}>لا توجد نماذج تطابق البحث أو عامل التصفية المحدد.</Text></Card>}
@@ -792,14 +754,82 @@ export function CircuitBreakerAdminScreen() {
 export function AgentsAdminScreen() {
   const { colors } = useSulyTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const [models, setModels] = useState<ModelRow[]>([]);
+  const [settings, setSettings] = useState<Record<string, unknown> | null>(null);
+  const [gmailModelId, setGmailModelId] = useState<number | null>(null);
+  const [freeTimeout, setFreeTimeout] = useState("5000");
+  const [fallbackTimeout, setFallbackTimeout] = useState("30000");
+  const [parallel, setParallel] = useState("10");
+  const [paidFallback, setPaidFallback] = useState(true);
+  const [autoRestrict, setAutoRestrict] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = async () => {
+    setLoading(true); setError(null);
+    try {
+      const result = await adminService.getModelsOverview();
+      setModels(result.models as ModelRow[]);
+      const config = result.settings as Record<string, unknown> | null;
+      setSettings(config);
+      if (config) {
+        const gmailId = Number(config.gmail_task_model_id);
+        setGmailModelId(Number.isSafeInteger(gmailId) && gmailId > 0 ? gmailId : null);
+        setFreeTimeout(String(config.free_race_timeout_ms ?? 5000));
+        setFallbackTimeout(String(config.paid_fallback_timeout_ms ?? 30000));
+        setParallel(String(config.max_parallel_free_models ?? 10));
+        setPaidFallback(config.paid_fallback_enabled === true);
+        setAutoRestrict(config.health_auto_restrict_enabled !== false);
+      }
+    } catch { setError("تعذر تحميل إعدادات الوكيل المركزي والنماذج المؤهلة."); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { void load(); }, []);
+
+  const saveGmailModel = async () => {
+    setBusy(true); setError(null);
+    try { await adminService.updateGmailTaskModel(gmailModelId); await load(); }
+    catch { setError("تعذر حفظ نموذج موصل Gmail. تحقق من صلاحيات الإدارة."); }
+    finally { setBusy(false); }
+  };
+
+  const saveSettings = async () => {
+    const free = Number(freeTimeout), fallback = Number(fallbackTimeout), count = Number(parallel);
+    if (!Number.isInteger(free) || free < 1000 || free > 30000 || !Number.isInteger(fallback) || fallback < 1000 || fallback > 120000 || !Number.isInteger(count) || count < 1 || count > 50) {
+      setError("المهلة المجانية 1000–30000، مهلة البديل 1000–120000، والتوازي 1–50."); return;
+    }
+    setBusy(true); setError(null);
+    try {
+      await adminService.updateRouterSettings({ free_race_timeout_ms: free, paid_fallback_timeout_ms: fallback, max_parallel_free_models: count, paid_fallback_enabled: paidFallback, health_auto_restrict_enabled: autoRestrict });
+      await load();
+    } catch { setError("تعذر حفظ إعدادات توجيه الوكيل المركزي."); }
+    finally { setBusy(false); }
+  };
+
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     <PageHeader title="الوكيل المركزي" />
     <Card>
       <Text style={styles.sectionTitle}>عقل تنفيذي واحد لـ SULY</Text>
       <Text style={styles.detail}>كل الطلبات تبدأ من الوكيل المركزي. التخطيط والتنفيذ والمراجعة والتلخيص وظائف داخلية يستدعيها عند الحاجة، وليست مساعدين مستقلين أو أنظمة تتخذ قرارات متنافسة.</Text>
-      <Text style={styles.detail}>لإدارة النماذج وترتيبها لكل وظيفة داخلية، استخدم صفحة «النماذج والمزودون». لن تُنشأ هنا ملفات وكلاء منفصلة أو تعليمات متعارضة.</Text>
-      <Link href="/admin/models" asChild><Pressable><Text style={styles.link}>إدارة نماذج الوكيل المركزي</Text></Pressable></Link>
+      <Text style={styles.detail}>النماذج هنا تُسند إلى وظائف داخلية فقط. لن تُنشأ وكلاء منفصلة أو تعليمات متعارضة.</Text>
+      <Link href="/admin/models" asChild><Pressable><Text style={styles.link}>فتح كتالوج النماذج والأسعار</Text></Pressable></Link>
     </Card>
+    <ErrorText>{error}</ErrorText>
+    {loading ? <ActivityIndicator color={colors.primary} /> : <>
+      <RouteModelChainsCard models={models} />
+      {settings ? <GmailModelPickerCard models={models} selectedModelId={gmailModelId} onSelect={setGmailModelId} onSave={() => void saveGmailModel()} busy={busy} /> : null}
+      {settings ? <Card>
+        <View style={styles.settingsHeading}><View style={styles.sectionIcon}><Text style={styles.sectionIconText}>⚙</Text></View><View style={styles.settingsHeadingText}><Text style={styles.sectionTitle}>إعدادات توجيه الوكيل</Text><Text style={styles.detail}>إعدادات تنفيذ مشتركة؛ لا تنشئ أنظمة أو وكلاء مستقلة.</Text></View></View>
+        <View style={styles.settingsFields}>
+          <NumberField label="مهلة اختيار النموذج (ms)" value={freeTimeout} onChange={setFreeTimeout} />
+          <NumberField label="مهلة البديل (ms)" value={fallbackTimeout} onChange={setFallbackTimeout} />
+          <NumberField label="أقصى نماذج متوازية" value={parallel} onChange={setParallel} />
+        </View>
+        <View style={styles.settingsToggles}><Toggle label="السماح بالبديل المدفوع" value={paidFallback} onChange={setPaidFallback} /><Toggle label="استبعاد النموذج عند تراجع الصحة" value={autoRestrict} onChange={setAutoRestrict} /></View>
+        <PrimaryButton label={busy ? "جارٍ الحفظ…" : "حفظ إعدادات الوكيل"} onPress={() => void saveSettings()} disabled={busy} />
+      </Card> : null}
+    </>}
   </ScrollView>;
 }
 
