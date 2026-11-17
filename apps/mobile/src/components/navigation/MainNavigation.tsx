@@ -79,7 +79,13 @@ export function MainNavigation({ children }: Props) {
   if (pathname.startsWith("/admin")) return <>{children}</>;
 
   const openDrawer = () => setDrawerVisible(true);
-  const goHome = () => {\n    setDrawerVisible(false);\n    setPlusVisible(false);\n    router.replace("/chat");\n  };\n\n  const navigate = (href: string) => {
+  const goHome = () => {
+    setDrawerVisible(false);
+    setPlusVisible(false);
+    router.replace("/chat");
+  };
+
+  const navigate = (href: string) => {
     setDrawerVisible(false);
     setPlusVisible(false);
     if (href === "/chat") router.replace("/chat");
@@ -218,7 +224,10 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
   root: { flex: 1, minWidth: 0 },
   topSafe: { zIndex: 1 },
   topBar: { minHeight: 54, alignItems: "center", paddingHorizontal: 14, borderBottomWidth: 1, gap: 12 },
-  headerButton: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },\n  homeButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },\n  homeMark: { width: 32, height: 32, borderRadius: 11, alignItems: "center", justifyContent: "center" },\n  homeMarkLetter: { fontSize: 20, fontWeight: "900" },
+  headerButton: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  homeButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  homeMark: { width: 32, height: 32, borderRadius: 11, alignItems: "center", justifyContent: "center" },
+  homeMarkLetter: { fontSize: 20, fontWeight: "900" },
   brand: { flex: 1, alignItems: "center", justifyContent: "center" },
   brandName: { fontSize: 16, fontWeight: "900", letterSpacing: 1.5 },
   content: { flex: 1, minWidth: 0, minHeight: 0 },
