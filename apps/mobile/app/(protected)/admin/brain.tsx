@@ -1,3 +1,5 @@
-import { BrainSystemAdminScreen } from "../../../src/features/admin/BrainSystemAdminScreen";
+import { Redirect } from "expo-router";
 
-export default BrainSystemAdminScreen;
+export default function LegacyBrainRedirect() {
+  return <Redirect href="/admin/models" />;
+}
