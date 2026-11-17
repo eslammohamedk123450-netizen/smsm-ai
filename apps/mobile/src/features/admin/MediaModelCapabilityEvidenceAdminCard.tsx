@@ -23,7 +23,7 @@ const VENDOR = [["unknown","غير معروف"],["supported","مدعوم رسم�
 const TEST = [["not_tested","لم يُختبر"],["passed","نجح"],["failed","فشل"]] as const;
 const keyOf = (m: MediaModel) => `${m.provider_id}:${m.service_type}:${m.model_identifier}`;
 
-export function MediaModelCapabilityEvidenceAdminCard() {
+export function MediaModelCapabilityEvidenceAdminCard({ serviceType }: { serviceType?: ServiceType } = {}) {
   const { colors } = useSulyTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [models,setModels]=useState<MediaModel[]>([]);
@@ -51,14 +51,14 @@ export function MediaModelCapabilityEvidenceAdminCard() {
         supabase.rpc("suly_admin_list_media_model_capability_evidence"),
       ]);
       if(evidenceResult.error) throw evidenceResult.error;
-      const list=(priceRows??[]) as MediaModel[];
+      const list=((priceRows??[]) as MediaModel[]).filter((model) => !serviceType || model.service_type === serviceType);
       setModels(list);
       setEvidence((evidenceResult.data??[]) as Evidence[]);
       setSelectedKey((current)=>current|| (list[0]?keyOf(list[0]):""));
     }catch(cause){setError(cause instanceof Error?cause.message:"تعذر تحميل أدلة قدرات نماذج الوسائط.");}
     finally{setLoading(false);}
   };
-  useEffect(()=>{void load();},[]);
+  useEffect(()=>{void load();},[serviceType]);
   const selected=models.find((m)=>keyOf(m)===selectedKey)??null;
   const capabilities=selected?OPTIONS[selected.service_type]:OPTIONS.image;
   useEffect(()=>{
