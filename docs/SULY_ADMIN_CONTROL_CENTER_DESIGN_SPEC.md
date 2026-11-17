@@ -26,9 +26,49 @@
 - [ ] Complete the remaining model detail (including model-specific historical price/health/audit timelines) and five-step Add Model workflow only where existing provider contracts, evidence, pricing, and reviewed server operations support it.
 - [ ] Confirm every capability/test action and model state transition against its existing server authorization and evidence source.
 
+### Verified existing domain capabilities reused
+
+These items are checked because the source and existing server contracts were inspected. They are not claims of live production testing.
+
+#### Providers, models, capabilities, and tests
+- [x] Preserve and reuse the existing provider lifecycle, credential vault, chat model catalog, media model catalog, and their existing administrative RPC/service boundaries.
+- [x] Use the unified model capability registry and its admin-checked list/save/audit RPCs; capability claims and test states require HTTPS evidence and valid status transitions, and approval requires evidence.
+- [x] Keep capability additions in a suggested/unreviewed state unless the evidence and review workflow explicitly approves them; do not automatically activate or route a newly linked capability.
+- [x] Reuse the existing authorized chat/model probe and display its result/history where available.
+- [ ] Add and verify modality-specific live probes for image, video, audio input/output, transcription, and other supported capabilities.
+- [ ] Complete the five-step Add Model flow and unified model registration only after the missing safe server-side create contract is implemented.
+
+#### Routing and the single central Agent
+- [x] Reuse one central Agent page with internally bounded roles (chat, planner, worker, reviewer, summarizer), not separate autonomous assistants.
+- [x] Reuse the existing route-model chain editor; it accepts only enabled models from enabled providers, excludes auto-restricted models, validates role compatibility, and caps each chain at 500 entries.
+- [x] Reuse the existing central routing controls for free/fallback timeouts, bounded parallelism, paid fallback, health auto-restriction, and the Gmail task model.
+- [x] Reuse the Overview queue monitor for queued/running/completed/failed/cancelled tasks, expired leases, and the latest 20 task metadata rows without exposing task contents.
+- [ ] Add the approved dry-run scenario tester, policy-version review/publish experience, and broader task detail/cancel/retry workflows only through existing safe worker contracts.
+
+#### Pricing, plans, credits, wallet, users, ads, and finance
+- [x] Reuse versioned chat-model price records with provider-cost provenance, EGP units, the approved 40% markup, expected-version conflict protection, and audit events.
+- [x] Reuse versioned media-model prices with explicit per-image/per-video-second/per-audio-minute units, 40% markup, and a separate SULY-integration verification flag.
+- [ ] Add subscription-plan price/entitlement version history before claiming plan edits are effective-dated versions; the current plan form updates existing plan rows.
+- [x] Reuse the existing credit command center for confirmed wallet/ledger reads, credit controls, separate transactions/technical logs, and CSV sharing of the latest 20 transactions; unavailable conversion values remain unset rather than guessed.
+- [x] Reuse paginated user management with filters/search, role-checked server service calls, confirmation for account actions, and required reasons for credit adjustments/subscription grants.
+- [x] Keep the current Ads & Rewards screen explicitly limited to AdMob application/rewarded/banner IDs and state that impression/revenue/settlement data is unavailable rather than displaying estimates.
+- [ ] Complete reward eligibility/rates/settlement administration and connect a verified ads revenue source.
+- [x] Reuse the read-only 30-day company cost ledger that distinguishes confirmed, estimated, and unknown costs and leaves missing revenue/profit uncalculated.
+- [ ] Complete finance reconciliation and profit/loss reporting only when confirmed subscription, ad-settlement, credit-value, FX, and operating-expense sources are available.
+
+#### Activity, HIMS, and system services
+- [x] Reuse the paginated admin audit screen with actor/action/table/target/date filtering; database audit capture redacts credentials and sensitive system-setting values for the tables wired to the audit trigger.
+- [ ] Expand verified audit coverage to every required mutation path and add the approved audited export workflow.
+- [x] Preserve HIMS as a core capability: activation codes are stored as SHA-256 hashes, the raw code is returned only by the creation RPC, and list responses return no plaintext code (fingerprint only).
+- [x] Reuse the existing HIMS resource administration and protected resource-upload flow.
+- [ ] Complete HIMS retention/deletion governance and verify the full entitlement-to-chat behavior through the acceptance campaign.
+- [x] Reuse the existing storage/settings/integration screens without exposing provider credentials or adding a parallel settings store.
+- [ ] Complete the centralized System & Security overview, notification source, role/permission matrix, and approved export destination only when configured services and authorization contracts exist.
+
 ### Current implementation blockers
 - The repository currently has no admin RPC for registering a new canonical `suly_model_registry` model. The existing `sync-models` Edge Function only discovers and inserts missing chat models into `ai_models`; its insert path assigns placeholder defaults (including context window and zero prices) and keeps them disabled. Do not use those placeholders as verified specifications or route a manual Add Model wizard through that discovery action.
 - The five-step Add Model wizard remains blocked until a reviewed server-side registration contract can create a Draft/Pending Validation model without guessed limits/prices, preserve provider-specific validation, and keep new records out of routing until separately verified. No client-side direct insert or ad-hoc schema/RPC was introduced to bypass this boundary.
+- The legacy `/admin/brain` compatibility route and `BrainSystemAdminScreen` still exist and edit overlapping legacy model/capability/tier surfaces. The canonical navigation intentionally does not expose them as a second Agent brain. The unified queued path delegates execution to the central `ai-router`; do not delete or disable the compatibility route/tables until legacy synchronous callers are replaced, production behavior is verified, and a separate owner-approved retirement change exists.
 
 ### Remaining admin domains and acceptance
 - [x] Add route-aware breadcrumbs to the desktop shell without replacing the domain pages’ own content titles.
