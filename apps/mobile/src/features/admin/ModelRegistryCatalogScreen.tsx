@@ -160,7 +160,7 @@ export function ModelRegistryCatalogScreen() {
       <View style={styles.modelHeading}>
         <View style={styles.modelCopy}>
           <Text style={styles.modelName}>{model.display_name}</Text>
-          <Text style={styles.meta}>اسم المفتاح: {model.provider_name ?? `مزود #${model.provider_id}`} · المزود: {model.provider_type ?? "—"}</Text>
+          <Text style={styles.meta}>اسم المفتاح: {model.provider_name ?? `مزود #${model.provider_id}`} · المزود: {model.provider_type ?? "—"} · المزود: {model.provider_type ?? "—"}</Text>
           <Text style={styles.meta}>المعرّف: {model.model_identifier} · النوع: {model.service_type}</Text>
         </View>
         <View style={[styles.status, model.operational_state === "active" ? styles.statusActive : model.operational_state === "restricted" ? styles.statusRestricted : styles.statusDisabled]}>
