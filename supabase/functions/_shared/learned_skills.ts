@@ -26,7 +26,10 @@ function normalizeText(value: string): string {
 
 function safeSkillText(value: unknown, maxLength: number): string {
   if (typeof value !== "string") return "";
-  const text = value.trim().slice(0, maxLength);
+  const text = value.trim().slice(0, maxLength)
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[email]")
+    .replace(/https?:\/\/[^\s]+/gi, "[link]")
+    .replace(/\+?\d[\d\s().-]{7,}\d/g, "[phone]");
   return containsSensitiveText(text) ? "" : text;
 }
 
