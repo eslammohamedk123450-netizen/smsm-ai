@@ -46,7 +46,7 @@ const REPLIES: Record<string, string> = {
   "thanks": "You're welcome. Let me know if you need anything else.",
   "thank you": "You're welcome.",
   "ok": "Okay. I'm ready for your next request.",
-};;
+};
 
 /** Aggressive normalization: diacritics, tatweel, letter variants, punctuation. */
 export function normalizeQuickReply(text: string): string {
