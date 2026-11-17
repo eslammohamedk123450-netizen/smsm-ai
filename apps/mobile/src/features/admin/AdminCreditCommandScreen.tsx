@@ -5,6 +5,7 @@ import { adminService } from "./admin-service";
 import { confirmAdminAction } from "./admin-confirm";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
+import { AdminMobileBreadcrumb } from "./AdminMobileBreadcrumb";
 
 type Tx = { id?: string; user_id?: string; event_type: string; amount: number; balance_delta?: number; balance_after: number; actual_cost?: number | null; input_tokens?: number; output_tokens?: number; model_id?: number | null; source?: string; reason?: string | null; created_at: string };
 const fmt = (value: number) => Number(value || 0).toLocaleString("ar-EG");
@@ -63,6 +64,7 @@ export function AdminCreditCommandScreen() {
   };
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <AdminMobileBreadcrumb />
     <View style={styles.heading}><View style={styles.headingCopy}><Text style={styles.eyebrow}>الأرصدة والمعاملات</Text><Text style={styles.title}>إدارة الرصيد</Text><Text style={styles.subtitle}>ملخص حديث · آخر 20 معاملة · البيانات الخام في السجلات التقنية</Text></View><Pressable onPress={() => void load()} style={styles.refresh}><Text style={styles.refreshText}>↻ تحديث</Text></Pressable></View>
     {loading ? <ActivityIndicator color={colors.primary} /> : null}{error ? <Text style={styles.error}>{error}</Text> : null}
     <View style={styles.summaryGrid}><View style={styles.summary}><Text style={styles.summaryLabel}>استهلاك مُسوّى (آخر 100)</Text><Text style={styles.summaryValue}>{dataAvailable ? fmt(totalConsumed) : "—"}</Text></View><View style={styles.summary}><Text style={styles.summaryLabel}>المعاملات المحمّلة</Text><Text style={styles.summaryValue}>{dataAvailable ? fmt(transactions.length) : "—"}</Text></View><View style={styles.summary}><Text style={styles.summaryLabel}>مستخدمون مميّزون</Text><Text style={styles.summaryValue}>{dataAvailable ? fmt(uniqueUsers) : "—"}</Text></View></View>

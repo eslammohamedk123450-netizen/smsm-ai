@@ -6,6 +6,7 @@ import { supabase } from "../../lib/supabase/client";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
 import { useAppLocale } from "../../theme/LocaleProvider";
+import { AdminMobileBreadcrumb } from "./AdminMobileBreadcrumb";
 
 type Component = { id?: string; type: string; title?: string; content?: string; label?: string; value?: string; source?: string; items?: string[]; columns?: string[]; rows?: string[][] };
 type Page = { page_key: string; title: string; status: string; config: { components: Component[] } };
@@ -84,6 +85,7 @@ export function AdminCustomPageScreen() {
   </View>;
 
   return <ScrollView style={styles.root} contentContainerStyle={styles.content}>
+    <AdminMobileBreadcrumb />
     <Text style={styles.heading}>{page?.title ?? t("صفحة الإدارة","Admin page")}</Text>
     {loading ? <ActivityIndicator color={colors.primary} /> : error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : page?.config.components.map(renderComponent)}
   </ScrollView>;

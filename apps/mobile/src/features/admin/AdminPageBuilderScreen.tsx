@@ -6,6 +6,7 @@ import { supabase } from "../../lib/supabase/client";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
 import { useAppLocale } from "../../theme/LocaleProvider";
+import { AdminMobileBreadcrumb } from "./AdminMobileBreadcrumb";
 
 type ComponentType = "text" | "notice" | "metric" | "status" | "list" | "table";
 type DataSource = "none" | "system_health_summary" | "model_catalog_summary" | "admin_activity_summary";
@@ -196,6 +197,7 @@ export function AdminPageBuilderScreen() {
   );
 
   return <ScrollView style={styles.root} contentContainerStyle={styles.content}>
+    <AdminMobileBreadcrumb />
     <View style={styles.header}>
       <View style={styles.headerCopy}>
         <Text style={styles.heading}>{t("منشئ صفحات الإدارة","Admin page builder")}</Text>

@@ -4,6 +4,7 @@ import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
 import { supportService } from "../support/support-service";
+import { AdminMobileBreadcrumb } from "./AdminMobileBreadcrumb";
 
 type FrictionRow = { event_day: string; event_kind: string; feature_key: string; screen_key: string; event_count: number; user_count: number; latest_at: string };
 type FeedbackRow = { reaction: string; rating_count: number; latest_at: string };
@@ -31,6 +32,7 @@ export function FrictionDashboardScreen() {
   const likes = Number(feedback.find((row) => row.reaction === "like")?.rating_count ?? 0);
   const dislikes = Number(feedback.find((row) => row.reaction === "dislike")?.rating_count ?? 0);
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <AdminMobileBreadcrumb />
     <View style={styles.header}><Text style={styles.title}>التقييمات ونقاط التعثر</Text><Pressable onPress={() => void load()}><Text style={styles.link}>تحديث</Text></Pressable></View>
     <Text style={styles.subtitle}>ملخص مجمّع لآخر 30 يومًا. لا يعرض نصوص المحادثات أو معرفات المستخدمين.</Text>
     {error ? <Text style={styles.error}>{error}</Text> : null}{loading ? <ActivityIndicator color={colors.primary} /> : null}

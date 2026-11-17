@@ -4,6 +4,7 @@ import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { adminService } from "./admin-service";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
+import { AdminMobileBreadcrumb } from "./AdminMobileBreadcrumb";
 
 export function ComposioAdminScreen() {
   const { colors } = useSulyTheme();
@@ -36,6 +37,7 @@ export function ComposioAdminScreen() {
   };
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <AdminMobileBreadcrumb />
     <Text style={styles.title}>Composio Platform</Text>
     <Text style={styles.explainer}>أضف مفتاح Composio من لوحة الإدارة. لا يُحفظ المفتاح داخل التطبيق ولا يظهر بعد الحفظ، ويُستخدم لاحقًا لإنشاء جلسات أدوات المستخدمين.</Text>
     <View style={styles.card}>
