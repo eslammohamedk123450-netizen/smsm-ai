@@ -245,6 +245,7 @@ begin
   values(p_model_id,p_capability_key,case when p_review_status='approved' then 'capability_approved' when p_review_status='rejected' then 'capability_rejected' else 'capability_upsert' end,v_before,v_after,v_actor);
 
   -- Compatibility writes keep existing runtime/admin readers coherent during cutover.
+  perform set_config('suly.central_sync','on',true);
   if v_model.service_type='chat' and v_model.legacy_chat_model_id is not null then
     insert into public.ai_model_capability_evidence
       (model_id,capability_key,vendor_claim_status,vendor_evidence_url,provider_test_status,
@@ -276,9 +277,10 @@ begin
       suly_evidence_url=excluded.suly_evidence_url,suly_tested_at=excluded.suly_tested_at,
       notes=excluded.notes,updated_by=v_actor,updated_at=now();
   end if;
+  perform set_config('suly.central_sync','off',true);
   return jsonb_build_object('success',true,'model_id',p_model_id,'capability_key',p_capability_key);
 end;
-$$;
+$;
 
 create or replace function public.suly_admin_list_model_registry_audit()
 returns table (
@@ -382,6 +384,9 @@ declare
   v_identifier text;
   v_chat_id integer;
   v_model_id uuid;
+  v_before jsonb;
+  v_after jsonb;
+  v_is_central_sync boolean := coalesce(current_setting('suly.central_sync',true),'off')='on';
 begin
   if tg_table_name='ai_model_capability_evidence' then
     select provider_id,model_identifier into v_provider_id,v_identifier
@@ -399,9 +404,11 @@ begin
   values(v_provider_id,v_service_type,v_identifier,v_identifier,'candidate',v_chat_id,
     jsonb_build_object('source_table',tg_table_name,'legacy_model_id',case when v_chat_id is not null then v_chat_id::text else null end))
   on conflict(provider_id,service_type,model_identifier) do update set
-    legacy_chat_model_id=coalesce(excluded.legacy_chat_model_id,public.suly_model_registry.legacy_chat_model_id),
+    legacy_chat_model_id=coalesce(excluded.legacy_chat_model_id,suly_model_registry.legacy_chat_model_id),
     updated_at=now()
   returning id into v_model_id;
+  select to_jsonb(c) into v_before from public.suly_model_capabilities c
+    where c.model_id=v_model_id and c.capability_key=new.capability_key;
   insert into public.suly_model_capabilities
     (model_id,capability_key,review_status,vendor_claim_status,vendor_evidence_url,provider_test_status,
      provider_evidence_url,provider_tested_at,suly_test_status,suly_evidence_url,suly_tested_at,
@@ -411,12 +418,18 @@ begin
      new.suly_test_status,new.suly_evidence_url,new.suly_tested_at,
      new.notes,new.updated_by,new.updated_at,jsonb_build_object('source_table',tg_table_name))
   on conflict(model_id,capability_key) do update set
+     review_status=case when v_is_central_sync then suly_model_capabilities.review_status else 'legacy_unreviewed' end,
      vendor_claim_status=excluded.vendor_claim_status,vendor_evidence_url=excluded.vendor_evidence_url,
      provider_test_status=excluded.provider_test_status,provider_evidence_url=excluded.provider_evidence_url,
      provider_tested_at=excluded.provider_tested_at,suly_test_status=excluded.suly_test_status,
      suly_evidence_url=excluded.suly_evidence_url,suly_tested_at=excluded.suly_tested_at,
-     notes=excluded.notes,updated_by=excluded.updated_by,updated_at=excluded.updated_at,
-     provenance=excluded.provenance;
+     notes=excluded.notes,updated_by=excluded.updated_by,updated_at=excluded.updated_at;
+  select to_jsonb(c) into v_after from public.suly_model_capabilities c
+    where c.model_id=v_model_id and c.capability_key=new.capability_key;
+  if not v_is_central_sync and v_before is distinct from v_after then
+    insert into public.suly_model_registry_audit(model_id,capability_key,action,before_state,after_state,actor_id)
+    values(v_model_id,new.capability_key,'legacy_capability_synced',v_before,v_after,auth.uid());
+  end if;
   return new;
 end; $$;
 
