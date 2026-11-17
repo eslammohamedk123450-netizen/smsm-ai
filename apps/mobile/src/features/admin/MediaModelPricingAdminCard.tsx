@@ -101,7 +101,7 @@ export function MediaModelPricingAdminCard({ serviceType }: { serviceType?: "ima
     <View style={styles.header}>
       <View style={styles.headerCopy}>
         <Text style={styles.title}>{serviceType === "image" ? "أسعار نماذج الصور" : serviceType === "video" ? "أسعار نماذج الفيديو" : serviceType === "audio" ? "أسعار نماذج الصوت" : "أسعار الصور والفيديو والصوت"}</Text>
-        <Text style={styles.subtitle}>22 نموذجًا · تكلفة المزود وسعر البيع بالجنيه · زيادة ثابتة 40%</Text>
+        <Text style={styles.subtitle}>{visibleRows.length} نموذج · تكلفة المزود وسعر البيع المسجلان بالجنيه</Text>
       </View>
       <Pressable onPress={() => void load()} style={styles.refresh}><Text style={styles.refreshText}>تحديث</Text></Pressable>
     </View>
