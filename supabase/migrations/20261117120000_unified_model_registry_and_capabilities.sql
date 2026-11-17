@@ -24,6 +24,7 @@ create index if not exists suly_model_registry_state_idx
 create table if not exists public.suly_model_capabilities (
   model_id uuid not null references public.suly_model_registry(id) on delete cascade,
   capability_key text not null,
+  review_status text not null default 'suggested' check (review_status in ('suggested','legacy_unreviewed','approved','rejected')),
   vendor_claim_status text not null default 'unknown' check (vendor_claim_status in ('unknown','supported','unsupported')),
   vendor_evidence_url text,
   provider_test_status text not null default 'not_tested' check (provider_test_status in ('not_tested','passed','failed')),
@@ -117,10 +118,10 @@ on conflict (provider_id, service_type, model_identifier) do nothing;
 
 -- Import existing text capability evidence.
 insert into public.suly_model_capabilities
-  (model_id, capability_key, vendor_claim_status, vendor_evidence_url,
+  (model_id, capability_key, review_status, vendor_claim_status, vendor_evidence_url,
    provider_test_status, provider_evidence_url, provider_tested_at,
    suly_test_status, suly_evidence_url, suly_tested_at, notes, updated_by, updated_at, provenance)
-select r.id, e.capability_key, e.vendor_claim_status, e.vendor_evidence_url,
+select r.id, e.capability_key, 'legacy_unreviewed', e.vendor_claim_status, e.vendor_evidence_url,
        e.provider_test_status, e.provider_evidence_url, e.provider_tested_at,
        e.suly_test_status, e.suly_evidence_url, e.suly_tested_at, e.notes,
        e.updated_by, e.updated_at, jsonb_build_object('source_table','ai_model_capability_evidence','legacy_model_id',e.model_id)
@@ -146,7 +147,7 @@ create or replace function public.suly_admin_list_unified_model_capabilities()
 returns table (
   model_id uuid, provider_id integer, service_type text, model_identifier text,
   display_name text, lifecycle_state text, legacy_chat_model_id integer,
-  legacy_media_model_id uuid, capability_key text, vendor_claim_status text,
+  legacy_media_model_id uuid, capability_key text, review_status text, vendor_claim_status text,
   vendor_evidence_url text, provider_test_status text, provider_evidence_url text,
   provider_tested_at timestamptz, suly_test_status text, suly_evidence_url text,
   suly_tested_at timestamptz, notes text, provenance jsonb, updated_at timestamptz
@@ -157,7 +158,7 @@ begin
   if not public.suly_is_admin() then raise exception 'admin_required' using errcode='42501'; end if;
   return query
   select r.id,r.provider_id,r.service_type,r.model_identifier,r.display_name,r.lifecycle_state,
-         r.legacy_chat_model_id,r.legacy_media_model_id,c.capability_key,c.vendor_claim_status,
+         r.legacy_chat_model_id,r.legacy_media_model_id,c.capability_key,c.review_status,c.vendor_claim_status,
          c.vendor_evidence_url,c.provider_test_status,c.provider_evidence_url,c.provider_tested_at,
          c.suly_test_status,c.suly_evidence_url,c.suly_tested_at,c.notes,c.provenance,c.updated_at
   from public.suly_model_registry r
@@ -170,7 +171,8 @@ create or replace function public.suly_admin_save_unified_model_capability(
   p_model_id uuid, p_capability_key text, p_vendor_claim_status text default 'unknown',
   p_vendor_evidence_url text default null, p_provider_test_status text default 'not_tested',
   p_provider_evidence_url text default null, p_suly_test_status text default 'not_tested',
-  p_suly_evidence_url text default null, p_notes text default null
+  p_suly_evidence_url text default null, p_notes text default null,
+  p_review_status text default 'legacy_unreviewed'
 )
 returns jsonb language plpgsql security definer set search_path=public,pg_temp
 as $$
@@ -183,6 +185,9 @@ begin
   if not public.suly_is_admin() then raise exception 'admin_required' using errcode='42501'; end if;
   if p_capability_key not in ('chat','text','vision','pdf','pdf_input','word','file_input','video','video_input','audio_input','audio_output','image_generation','video_generation','transcription','function_calling','structured_output','streaming','web_search','file_search','computer_use','code_interpreter','mcp_tools','gmail','google_drive','github') then
     raise exception 'invalid_capability_key' using errcode='22023';
+  end if;
+  if p_review_status not in ('suggested','legacy_unreviewed','approved','rejected') then
+    raise exception 'invalid_review_status' using errcode='22023';
   end if;
   if p_vendor_claim_status not in ('unknown','supported','unsupported')
      or p_provider_test_status not in ('not_tested','passed','failed')
@@ -206,17 +211,17 @@ begin
   select to_jsonb(c) into v_before from public.suly_model_capabilities c
     where c.model_id=p_model_id and c.capability_key=p_capability_key;
   insert into public.suly_model_capabilities
-    (model_id,capability_key,vendor_claim_status,vendor_evidence_url,provider_test_status,
+    (model_id,capability_key,review_status,vendor_claim_status,vendor_evidence_url,provider_test_status,
      provider_evidence_url,provider_tested_at,suly_test_status,suly_evidence_url,suly_tested_at,
      notes,updated_by,updated_at,provenance)
-  values (p_model_id,p_capability_key,p_vendor_claim_status,nullif(p_vendor_evidence_url,''),
+  values (p_model_id,p_capability_key,p_review_status,p_vendor_claim_status,nullif(p_vendor_evidence_url,''),
      p_provider_test_status,nullif(p_provider_evidence_url,''),
      case when p_provider_test_status='passed' then now() else null end,
      p_suly_test_status,nullif(p_suly_evidence_url,''),
      case when p_suly_test_status='passed' then now() else null end,
      nullif(p_notes,''),v_actor,now(),jsonb_build_object('source','unified_model_control_center'))
   on conflict (model_id,capability_key) do update set
-    vendor_claim_status=excluded.vendor_claim_status,vendor_evidence_url=excluded.vendor_evidence_url,
+    review_status=excluded.review_status,vendor_claim_status=excluded.vendor_claim_status,vendor_evidence_url=excluded.vendor_evidence_url,
     provider_test_status=excluded.provider_test_status,provider_evidence_url=excluded.provider_evidence_url,
     provider_tested_at=case when excluded.provider_test_status='passed' then now() else null end,
     suly_test_status=excluded.suly_test_status,suly_evidence_url=excluded.suly_evidence_url,
@@ -267,9 +272,9 @@ revoke all on public.suly_model_registry, public.suly_model_capabilities, public
 grant select,insert,update,delete on public.suly_model_registry, public.suly_model_capabilities to authenticated;
 grant select on public.suly_model_registry_audit to authenticated;
 revoke all on function public.suly_admin_list_unified_model_capabilities() from public,anon;
-revoke all on function public.suly_admin_save_unified_model_capability(uuid,text,text,text,text,text,text,text,text) from public,anon;
+revoke all on function public.suly_admin_save_unified_model_capability(uuid,text,text,text,text,text,text,text,text,text) from public,anon;
 grant execute on function public.suly_admin_list_unified_model_capabilities() to authenticated;
-grant execute on function public.suly_admin_save_unified_model_capability(uuid,text,text,text,text,text,text,text,text) to authenticated;
+grant execute on function public.suly_admin_save_unified_model_capability(uuid,text,text,text,text,text,text,text,text,text) to authenticated;
 
 -- Keep the canonical projection synchronized with legacy runtime writes while
 -- existing routing/media services are migrated in later steps.
