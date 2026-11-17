@@ -841,7 +841,6 @@ async function handleRequest(req: Request): Promise<Response> {
   ];
   const uniqueRequiredCapabilities = [...new Set(requiredCapabilities)];
   let latestUserMessage = originalUserInstruction;
-  const recentUserMessagesForFeature = messages.filter((message) => message.role === "user").slice(-3).map((message) => message.content);
   // "The mind thinks first": a zero-token internal decision made before any
   // response or orchestration. It is never surfaced to the user.
   // Internal Brain jobs use the same intent classifier as every other request;
