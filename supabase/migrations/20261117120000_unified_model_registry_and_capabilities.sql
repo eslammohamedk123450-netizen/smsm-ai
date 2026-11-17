@@ -270,3 +270,107 @@ revoke all on function public.suly_admin_list_unified_model_capabilities() from 
 revoke all on function public.suly_admin_save_unified_model_capability(uuid,text,text,text,text,text,text,text,text) from public,anon;
 grant execute on function public.suly_admin_list_unified_model_capabilities() to authenticated;
 grant execute on function public.suly_admin_save_unified_model_capability(uuid,text,text,text,text,text,text,text,text) to authenticated;
+
+-- Keep the canonical projection synchronized with legacy runtime writes while
+-- existing routing/media services are migrated in later steps.
+alter table public.suly_model_capabilities
+  add constraint suly_model_capabilities_key_check check (capability_key in
+  ('chat','text','vision','pdf','pdf_input','word','file_input','video','video_input',
+   'audio_input','audio_output','image_generation','video_generation','transcription',
+   'function_calling','structured_output','streaming','web_search','file_search',
+   'computer_use','code_interpreter','mcp_tools','gmail','google_drive','github'));
+
+create or replace function public.suly_sync_chat_model_to_registry()
+returns trigger language plpgsql security definer set search_path=public,pg_temp as $$
+begin
+  insert into public.suly_model_registry
+    (provider_id,service_type,model_identifier,display_name,lifecycle_state,legacy_chat_model_id,source_metadata)
+  values (new.provider_id,'chat',new.model_identifier,new.name,
+    case when new.enabled then 'active' else 'candidate' end,new.id,
+    jsonb_build_object('source_table','ai_models','legacy_model_id',new.id))
+  on conflict(provider_id,service_type,model_identifier) do update set
+    display_name=excluded.display_name,legacy_chat_model_id=excluded.legacy_chat_model_id,
+    lifecycle_state=excluded.lifecycle_state,
+    source_metadata=public.suly_model_registry.source_metadata || excluded.source_metadata,
+    updated_at=now();
+  return new;
+end; $$;
+
+create or replace function public.suly_sync_media_model_to_registry()
+returns trigger language plpgsql security definer set search_path=public,pg_temp as $$
+begin
+  insert into public.suly_model_registry
+    (provider_id,service_type,model_identifier,display_name,lifecycle_state,legacy_media_model_id,source_metadata)
+  values (new.provider_id,new.service_type,new.model_identifier,new.display_name,
+    case when new.is_active then 'active' else 'candidate' end,new.id,
+    jsonb_build_object('source_table','suly_media_generation_models','legacy_model_id',new.id,'protocol',new.protocol))
+  on conflict(provider_id,service_type,model_identifier) do update set
+    display_name=excluded.display_name,legacy_media_model_id=excluded.legacy_media_model_id,
+    lifecycle_state=excluded.lifecycle_state,
+    source_metadata=public.suly_model_registry.source_metadata || excluded.source_metadata,
+    updated_at=now();
+  return new;
+end; $$;
+
+create or replace function public.suly_sync_legacy_capability_to_registry()
+returns trigger language plpgsql security definer set search_path=public,pg_temp as $$
+declare
+  v_provider_id integer;
+  v_service_type text;
+  v_identifier text;
+  v_chat_id integer;
+  v_model_id uuid;
+begin
+  if tg_table_name='ai_model_capability_evidence' then
+    select provider_id,model_identifier into v_provider_id,v_identifier
+      from public.ai_models where id=new.model_id;
+    v_service_type := 'chat';
+    v_chat_id := new.model_id;
+  else
+    v_provider_id := new.provider_id;
+    v_service_type := new.service_type;
+    v_identifier := new.model_identifier;
+  end if;
+  if v_provider_id is null or v_identifier is null then return new; end if;
+  insert into public.suly_model_registry
+    (provider_id,service_type,model_identifier,display_name,lifecycle_state,legacy_chat_model_id,source_metadata)
+  values(v_provider_id,v_service_type,v_identifier,v_identifier,'candidate',v_chat_id,
+    jsonb_build_object('source_table',tg_table_name,'legacy_model_id',case when v_chat_id is not null then v_chat_id::text else null end))
+  on conflict(provider_id,service_type,model_identifier) do update set
+    legacy_chat_model_id=coalesce(excluded.legacy_chat_model_id,public.suly_model_registry.legacy_chat_model_id),
+    updated_at=now()
+  returning id into v_model_id;
+  insert into public.suly_model_capabilities
+    (model_id,capability_key,vendor_claim_status,vendor_evidence_url,provider_test_status,
+     provider_evidence_url,provider_tested_at,suly_test_status,suly_evidence_url,suly_tested_at,
+     notes,updated_by,updated_at,provenance)
+  values(v_model_id,new.capability_key,new.vendor_claim_status,new.vendor_evidence_url,
+     new.provider_test_status,new.provider_evidence_url,new.provider_tested_at,
+     new.suly_test_status,new.suly_evidence_url,new.suly_tested_at,
+     new.notes,new.updated_by,new.updated_at,jsonb_build_object('source_table',tg_table_name))
+  on conflict(model_id,capability_key) do update set
+     vendor_claim_status=excluded.vendor_claim_status,vendor_evidence_url=excluded.vendor_evidence_url,
+     provider_test_status=excluded.provider_test_status,provider_evidence_url=excluded.provider_evidence_url,
+     provider_tested_at=excluded.provider_tested_at,suly_test_status=excluded.suly_test_status,
+     suly_evidence_url=excluded.suly_evidence_url,suly_tested_at=excluded.suly_tested_at,
+     notes=excluded.notes,updated_by=excluded.updated_by,updated_at=excluded.updated_at,
+     provenance=excluded.provenance;
+  return new;
+end; $$;
+
+drop trigger if exists suly_sync_chat_model_registry on public.ai_models;
+create trigger suly_sync_chat_model_registry after insert or update of provider_id,model_identifier,name,enabled
+  on public.ai_models for each row execute function public.suly_sync_chat_model_to_registry();
+drop trigger if exists suly_sync_media_model_registry on public.suly_media_generation_models;
+create trigger suly_sync_media_model_registry after insert or update of provider_id,service_type,model_identifier,display_name,is_active,protocol
+  on public.suly_media_generation_models for each row execute function public.suly_sync_media_model_to_registry();
+drop trigger if exists suly_sync_chat_capability_registry on public.ai_model_capability_evidence;
+create trigger suly_sync_chat_capability_registry after insert or update
+  on public.ai_model_capability_evidence for each row execute function public.suly_sync_legacy_capability_to_registry();
+drop trigger if exists suly_sync_media_capability_registry on public.suly_media_model_capability_evidence;
+create trigger suly_sync_media_capability_registry after insert or update
+  on public.suly_media_model_capability_evidence for each row execute function public.suly_sync_legacy_capability_to_registry();
+
+revoke all on function public.suly_sync_chat_model_to_registry() from public,anon,authenticated;
+revoke all on function public.suly_sync_media_model_to_registry() from public,anon,authenticated;
+revoke all on function public.suly_sync_legacy_capability_to_registry() from public,anon,authenticated;
