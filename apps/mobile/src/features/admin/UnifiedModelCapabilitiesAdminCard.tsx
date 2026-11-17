@@ -85,12 +85,12 @@ export function UnifiedModelCapabilitiesAdminCard() {
         supabase.rpc("suly_admin_list_model_registry_audit"),
         supabase.from("ai_models").select("id,enabled,provider_id,routing_group").limit(1000),
         supabase.from("suly_media_generation_models").select("id,is_active,provider_id").limit(1000),
-        supabase.from("ai_providers").select("id,enabled").limit(500),
+        supabase.rpc("suly_admin_list_providers"),
         supabase.from("ai_model_health").select("model_id,auto_restricted").limit(1000),
       ]);
       if(capabilityResult.error) throw capabilityResult.error;
       if(auditResult.error) throw auditResult.error;
-      const providerEnabled = new Map<number,boolean>((providersResult.data ?? []).map((row) => [Number(row.id), row.enabled === true]));
+      const providerEnabled = new Map<number,boolean>(((providersResult.data ?? []) as Array<{ id: number; enabled: boolean }>).map((row) => [Number(row.id), row.enabled === true]));
       const chatById = new Map<number,{enabled:boolean;routing_group:string}>((chatModelsResult.data ?? []).map((row) => [Number(row.id), {enabled:row.enabled === true,routing_group:String(row.routing_group ?? "")}]));
       const mediaById = new Map<string,{is_active:boolean}>((mediaModelsResult.data ?? []).map((row) => [String(row.id), {is_active:row.is_active === true}]));
       const restrictedById = new Map<number,boolean>((healthResult.data ?? []).map((row) => [Number(row.model_id), row.auto_restricted === true]));
