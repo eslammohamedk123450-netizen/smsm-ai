@@ -16,6 +16,7 @@ export interface PricingPlan {
   name: string;
   price: number;
   max_requests: number;
+  monthly_credits: number;
   daily_credits: number;
   enabled: boolean;
   updated_at?: string;
@@ -868,13 +869,14 @@ export const adminService = {
   async getPricingPlans(): Promise<PricingPlan[]> {
     await requireAdmin();
     const { data, error } = await supabase.from("subscription_plans")
-      .select("id,name,price,max_requests,daily_credits,is_active,updated_at")
+      .select("id,name,price,max_requests,monthly_credits,daily_credits,is_active,updated_at")
       .order("id", { ascending: true });
     if (error) throw error;
     return (data ?? []).map((plan) => ({
       ...plan,
       price: Number(plan.price ?? 0),
       max_requests: Number(plan.max_requests ?? 0),
+      monthly_credits: Number(plan.monthly_credits ?? 0),
       daily_credits: Number(plan.daily_credits ?? 0),
       enabled: plan.is_active !== false,
     })) as PricingPlan[];
@@ -908,15 +910,16 @@ export const adminService = {
     const { error } = await supabase.from("subscription_plan_features").delete().eq("id", id);
     if (error) throw error;
   },
-  async updatePricingPlan(planId: number, data: { price: number; max_requests: number; daily_credits: number }) {
+  async updatePricingPlan(planId: number, data: { price: number; max_requests: number; monthly_credits: number; daily_credits: number }) {
     await requireAdmin();
     if (![1, 2, 3, 4, 5].includes(planId)) throw new Error("الباقة غير معروفة.");
-    if (!Number.isFinite(data.price) || data.price < 0 || data.price > 1_000_000 || !Number.isInteger(data.max_requests) || data.max_requests < 0 || data.max_requests > 1_000_000_000 || !Number.isInteger(data.daily_credits) || data.daily_credits < 0 || data.daily_credits > 1_000_000_000) {
+    if (!Number.isFinite(data.price) || data.price < 0 || data.price > 1_000_000 || !Number.isInteger(data.max_requests) || data.max_requests < 0 || data.max_requests > 1_000_000_000 || !Number.isInteger(data.monthly_credits) || data.monthly_credits < 0 || data.monthly_credits > 1_000_000_000 || !Number.isInteger(data.daily_credits) || data.daily_credits < 0 || data.daily_credits > 1_000_000_000) {
       throw new Error("أدخل سعرًا وحدودًا صحيحة غير سالبة.");
     }
     const { error } = await supabase.from("subscription_plans").update({
       price: Number(data.price.toFixed(2)),
       max_requests: data.max_requests,
+      monthly_credits: data.monthly_credits,
       daily_credits: data.daily_credits,
       updated_at: new Date().toISOString(),
     }).eq("id", planId);
