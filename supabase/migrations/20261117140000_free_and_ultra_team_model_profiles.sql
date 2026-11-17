@@ -79,10 +79,7 @@ update public.suly_model_profiles
 set minimum_subscription_tier='lite',updated_at=now()
 where profile_key='lite' and minimum_subscription_tier='free';
 
--- Pro and Max are aligned with their respective paid subscription tiers.
-update public.suly_model_profiles
-set minimum_subscription_tier='max',updated_at=now()
-where profile_key='max' and minimum_subscription_tier='pro';
+-- Preserve the existing Max profile entitlement: Pro and higher plans may select the Max profile.
 
 -- Prepare Ultra Team in a fail-closed state. Do not sell or enable it until
 -- team membership, team wallet, shared projects and billing are implemented.
@@ -110,7 +107,7 @@ begin
   if p_user_id is null then
     raise exception 'user id required' using errcode = '22023';
   end if;
-  if coalesce(auth.role(), '') <> 'service_role'
+  if coalesce(auth.jwt() ->> 'role', '') <> 'service_role'
     and auth.uid() is distinct from p_user_id
     and not public.suly_is_admin() then
     raise exception 'not authorized to read subscription entitlement' using errcode = '42501';
