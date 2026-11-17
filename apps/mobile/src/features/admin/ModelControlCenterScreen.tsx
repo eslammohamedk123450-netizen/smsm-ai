@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
+import { AdminMobileBreadcrumb } from "./AdminMobileBreadcrumb";
 
 function HubTile({ href, title, description, icon }: { href: string; title: string; description: string; icon: keyof typeof Ionicons.glyphMap }) {
   const { colors } = useSulyTheme();
@@ -22,6 +23,7 @@ export function ModelControlCenterScreen() {
   const { colors } = useSulyTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <AdminMobileBreadcrumb />
     <View style={styles.header}>
       <Text style={styles.eyebrow}>SULY · ADMIN CONTROL</Text>
       <Text style={styles.title}>إدارة النماذج والقدرات</Text>
