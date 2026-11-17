@@ -80,7 +80,12 @@ export async function lookupSemanticCache(input: CacheLookupInput): Promise<Cach
   const [promptHash, contextHash] = await Promise.all([buildPromptHash(keyInput), buildContextHash(keyInput)]);
   let embedding = input.embedding ?? null;
   try {
-    if (!embedding) embedding = await createEmbedding(input.supabase, input.userMessage);
+    if (!embedding) {
+      // Semantic cache is optional and must never make an ordinary chat feel slow.
+      // Use one embedding provider and a short budget; the normal chat route can
+      // proceed without waiting through a chain of slow embedding providers.
+      embedding = await createEmbedding(input.supabase, input.userMessage, { limit: 1, timeoutMs: 1_000 });
+    }
     if (!embedding) {
       return { hit: null, embedding: null, promptHash, contextHash, skipped: true, reason: "embedding_unavailable" };
     }
