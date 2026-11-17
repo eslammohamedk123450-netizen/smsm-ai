@@ -14,7 +14,7 @@ type Kind = "image" | "video" | "transcription" | "voice";
 type ServiceType = "image" | "video" | "audio";
 type MediaModelRow = {
   id: string; provider_id: number; provider_name: string; provider_type: string; service_type: ServiceType;
-  model_identifier: string; display_name: string; unit_type: string;
+  model_identifier: string; display_name: string; unit_type: "image" | "video_second" | "audio_minute";
   provider_cost_egp_per_unit: number; selling_price_egp_per_unit: number;
   price_version: number; provider_tested: boolean; suly_integration_verified: boolean;
 };
@@ -108,7 +108,7 @@ export function MediaModelsCatalogScreen() {
       {(["image", "video", "transcription", "voice"] as Kind[]).map((item) => <Link key={item} href={`/admin/media-catalog?kind=${item}`} asChild><Pressable style={[styles.tab, item === kind && styles.tabActive]}><Text style={[styles.tabText, item === kind && styles.tabTextActive]}>{TITLES[item]}</Text></Pressable></Link>)}
     </View>
     <TextInput value={search} onChangeText={setSearch} placeholder="ابحث باسم النموذج أو المزود أو المعرّف" placeholderTextColor={colors.textMuted} style={styles.search} />
-    {error ? <Text style={styles.errorText}>{error}</Text> : null}
+    {error ? <View style={styles.errorBox}><Text style={styles.errorText}>{error}</Text><Pressable onPress={() => void load()} style={styles.retryButton}><Text style={styles.retryText}>إعادة المحاولة</Text></Pressable></View> : null}
     {loading ? <ActivityIndicator color={colors.primary} /> : <Text style={styles.count}>{visibleRows.length} نموذج ضمن هذا القسم</Text>}
     <View style={styles.viewControls}>
       <Text style={styles.count}>طريقة العرض</Text>
@@ -191,8 +191,8 @@ export function MediaModelsCatalogScreen() {
       {selected.capability.notes ? <Text style={styles.meta}>ملاحظات: {selected.capability.notes}</Text> : null}
       {selected.capability.vendor_evidence_url ? <Text selectable style={styles.meta}>وثائق: {selected.capability.vendor_evidence_url}</Text> : null}
     </View> : null}
-    <MediaModelPricingAdminCard serviceType={SERVICE_FOR[kind]} capabilityKey={CAPABILITY_FOR[kind] as "transcription" | "audio_output" | undefined} />
-    <MediaModelCapabilityEvidenceAdminCard serviceType={SERVICE_FOR[kind]} capabilityKey={CAPABILITY_FOR[kind] as "transcription" | "audio_output" | undefined} />
+    <MediaModelPricingAdminCard serviceType={SERVICE_FOR[kind]} capabilityKey={CAPABILITY_FOR[kind] as "transcription" | "audio_output" | undefined} initialRows={rows} initialEvidence={evidence} initialLoading={loading} skipInitialLoad />
+    <MediaModelCapabilityEvidenceAdminCard serviceType={SERVICE_FOR[kind]} capabilityKey={CAPABILITY_FOR[kind] as "transcription" | "audio_output" | undefined} initialModels={rows} initialEvidence={evidence} initialLoading={loading} skipInitialLoad />
     <View style={styles.footerLinks}>
       <Link href="/admin/api-keys" asChild><Pressable><Text style={styles.link}>إدارة المزودين ومفاتيح API</Text></Pressable></Link>
       {kind === "image" ? <Link href="/admin/image-generation" asChild><Pressable><Text style={styles.link}>إضافة / تعديل نموذج صور</Text></Pressable></Link> : null}
@@ -202,7 +202,7 @@ export function MediaModelsCatalogScreen() {
 }
 
 const createStyles = (c: ThemePalette) => StyleSheet.create({
-  screen: { flex: 1, backgroundColor: c.background }, content: { padding: 14, gap: 10, maxWidth: 1200, width: "100%", alignSelf: "center" }, errorText: { color: c.error, fontSize: 10, textAlign: "right" },
+  screen: { flex: 1, backgroundColor: c.background }, content: { padding: 14, gap: 10, maxWidth: 1200, width: "100%", alignSelf: "center" }, errorBox: { borderWidth: 1, borderColor: c.error, borderRadius: 8, padding: 10, gap: 8 }, errorText: { color: c.error, fontSize: 10, textAlign: "right" }, retryButton: { alignSelf: "flex-end", borderWidth: 1, borderColor: c.divider, borderRadius: 7, paddingHorizontal: 12, paddingVertical: 7 }, retryText: { color: c.primary, fontSize: 10, fontWeight: "800" },
   header: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", gap: 10 }, headerCopy: { flex: 1, alignItems: "flex-end", gap: 3 },
   title: { color: c.textPrimary, fontSize: 19, fontWeight: "900", textAlign: "right" }, subtitle: { color: c.textMuted, fontSize: 9, textAlign: "right" }, link: { color: c.primary, fontSize: 10, fontWeight: "800" },
   tabs: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 6 }, tab: { borderWidth: 1, borderColor: c.divider, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 8 }, tabActive: { borderColor: c.primary, backgroundColor: c.surfaceElevated }, tabText: { color: c.textSecondary, fontSize: 9 }, tabTextActive: { color: c.primary, fontWeight: "800" },

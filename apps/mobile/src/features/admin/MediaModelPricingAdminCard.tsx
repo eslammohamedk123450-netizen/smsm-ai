@@ -23,14 +23,21 @@ type MediaPriceRow = {
 const money = (value: number) => Number(value).toLocaleString("en-EG", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
 const serviceLabel: Record<MediaPriceRow["service_type"], string> = { image: "صورة", video: "ثانية فيديو", audio: "دقيقة صوت" };
 
-export function MediaModelPricingAdminCard({ serviceType, capabilityKey }: { serviceType?: "image" | "video" | "audio"; capabilityKey?: "transcription" | "audio_output" } = {}) {
+export function MediaModelPricingAdminCard({ serviceType, capabilityKey, initialRows, initialEvidence, initialLoading = false, skipInitialLoad = false }: {
+  serviceType?: "image" | "video" | "audio";
+  capabilityKey?: "transcription" | "audio_output";
+  initialRows?: MediaPriceRow[];
+  initialEvidence?: Array<{ provider_id: number; service_type: string; model_identifier: string; capability_key: string; vendor_claim_status: string }>;
+  initialLoading?: boolean;
+  skipInitialLoad?: boolean;
+} = {}) {
   const { colors } = useSulyTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const [rows, setRows] = useState<MediaPriceRow[]>([]);
+  const [rows, setRows] = useState<MediaPriceRow[]>(initialRows ?? []);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [cost, setCost] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(initialLoading);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -60,7 +67,23 @@ export function MediaModelPricingAdminCard({ serviceType, capabilityKey }: { ser
       setLoading(false);
     }
   };
-  useEffect(() => { void load(); }, [serviceType, capabilityKey]);
+  useEffect(() => {
+    if (skipInitialLoad) {
+      if (!initialLoading && initialRows) {
+        let visible = initialRows;
+        if (capabilityKey && initialEvidence) {
+          const supported = new Set(initialEvidence
+            .filter((item) => item.capability_key === capabilityKey && item.vendor_claim_status === "supported")
+            .map((item) => `${item.provider_id}:${item.service_type}:${item.model_identifier}`));
+          visible = initialRows.filter((row) => supported.has(`${row.provider_id}:${row.service_type}:${row.model_identifier}`));
+        }
+        setRows(visible);
+      }
+      setLoading(initialLoading);
+      return;
+    }
+    void load();
+  }, [serviceType, capabilityKey, skipInitialLoad, initialLoading, initialRows, initialEvidence]);
 
   const visibleRows = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
