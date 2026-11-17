@@ -137,7 +137,7 @@ export function ModelCapabilitiesScreen() {
       if (linkedIds.has(model.model_id)) return false;
       if (model.service_type !== "chat" && !MEDIA_CAPABILITIES[model.service_type as Exclude<ServiceType, "chat">]?.includes(selected.key)) return false;
       if (!isStatus(model, statusFilter)) return false;
-      if (capabilityFilter !== "all" && !capabilityMap.get(model.model_id)?.has(capabilityFilter)) return false;
+      if (capabilityFilter !== "all" && ![capabilityFilter, ...(ALIASES[capabilityFilter] ?? [])].some((key) => capabilityMap.get(model.model_id)?.has(key) === true)) return false;
       return !q || `${model.display_name} ${model.model_identifier} ${model.provider_name ?? ""}`.toLocaleLowerCase().includes(q);
     });
   }, [models, linked, selected, search, statusFilter, capabilityFilter, capabilityMap]);
