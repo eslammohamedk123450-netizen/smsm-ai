@@ -868,9 +868,8 @@ async function handleRequest(req: Request): Promise<Response> {
   const maxOutputChars = outputLimitForRequest(mind.intent, latestUserMessage, maxTokens);
   const streamRequested = body.stream === true;
   let himsActivated = profile.hims_activated === true;
-  const previousUserAskedAboutHims = recentUserMessagesForFeature.slice(0, -1).some(containsHimsReference);
-  const isShortFeatureFollowup = latestUserMessage.length <= 100 && /^(?:طب|طيب|وده|دي|ده|كمان|ممكن توضح|وضحلي|اشرحلي|what about|and|also)(?:\s|$)/iu.test(latestUserMessage.trim());
-  let himsContextAllowed = himsActivated && (containsHimsReference(latestUserMessage) || (previousUserAskedAboutHims && isShortFeatureFollowup));
+  const discussesEducationalResources = /(?:محاضر|كورسات|دروس|منهج|شهادة|مواد دراسية|مقرر|lectures?|courses?|lessons?|syllabus|certificates?)/iu.test(latestUserMessage);
+  let himsContextAllowed = himsActivated && (containsHimsReference(latestUserMessage) || discussesEducationalResources);
   let identityContext = buildSulyIdentityContext(himsActivated, himsContextAllowed);
   let userMetadata = identityContext.userMetadata;
   let systemPrompt = identityContext.systemPrompt;
