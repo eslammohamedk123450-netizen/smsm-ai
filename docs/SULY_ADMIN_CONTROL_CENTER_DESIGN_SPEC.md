@@ -25,7 +25,9 @@
 - [ ] Confirm every capability/test action and model state transition against its existing server authorization and evidence source.
 
 ### Remaining admin domains and acceptance
-- [ ] Complete section-level page headers, breadcrumbs, per-domain filters, and consistent loading/empty/error/unknown/no-permission states.
+- [x] Add route-aware breadcrumbs to the desktop shell without replacing the domain pages’ own content titles.
+- [x] Add working administrator session menu and sign-out through the existing Supabase Auth session; show explicit unavailable states for help and notifications because no verified destination/event source is configured.
+- [ ] Complete section-level page headers, per-domain filters, and consistent loading/empty/error/unknown/no-permission states.
 - [x] Add 7-day and 30-day consumption windows to the Overview chart and show when its 2000-row data cap may make the view partial.
 - [x] Keep the Overview alert state explicitly unavailable when model-health/error evidence is incomplete instead of showing a false “no alerts” result.
 - [ ] Complete the remaining operational Overview metrics, service-health evidence, and real task/alert links without inventing unavailable values.

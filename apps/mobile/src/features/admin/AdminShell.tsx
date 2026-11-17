@@ -82,6 +82,8 @@ export function AdminShell() {
   const [systemOk, setSystemOk] = useState<boolean | null>(null);
   const [checking, setChecking] = useState(false);
   const [adminName, setAdminName] = useState("A");
+  const [adminEmail, setAdminEmail] = useState("");
+  const [shellDialog, setShellDialog] = useState<"help" | "notifications" | "account" | "signout-error" | null>(null);
   const [openGroups, setOpenGroups] = useState<string[]>(DEFAULT_OPEN_GROUPS);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -93,7 +95,10 @@ export function AdminShell() {
   useEffect(() => {
     let active = true;
     void supabase.auth.getUser().then(({ data }) => {
-      if (active) setAdminName((data.user?.email?.[0] ?? "A").toLocaleUpperCase(isArabic ? "ar" : "en"));
+      if (active) {
+        setAdminName((data.user?.email?.[0] ?? "A").toLocaleUpperCase(isArabic ? "ar" : "en"));
+        setAdminEmail(data.user?.email ?? "");
+      }
     });
     return () => { active = false; };
   }, [isArabic]);
@@ -204,6 +209,14 @@ export function AdminShell() {
   };
 
   const activeItem = navGroups.flatMap((group) => group.items).find((item) => isActive(item.path));
+  const activeGroup = navGroups.find((group) => group.key === activeGroupKey);
+
+  const signOutAdmin = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) { setShellDialog("signout-error"); return; }
+    setShellDialog(null);
+    router.replace("/login");
+  };
 
   const searchResults = useMemo(() => {
     const value = query.trim().toLocaleLowerCase();
@@ -277,13 +290,49 @@ export function AdminShell() {
     <View style={styles.main}>
       <View style={styles.topbar}>
         <Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "الانتقال إلى التطبيق" : "Go to app"} onPress={() => router.replace("/home")} style={styles.appLink}><Ionicons name="home-outline" size={15} color={colors.primary} /><Text style={styles.appLinkText}>{isArabic ? "التطبيق" : "App"}</Text></Pressable>
+        {wide ? <View style={styles.breadcrumbs}>
+          <Text style={styles.breadcrumbRoot}>{isArabic ? "مركز التحكم" : "Control Center"}</Text>
+          <Text style={styles.breadcrumbSeparator}>/</Text>
+          <Text style={styles.breadcrumbText}>{isArabic ? activeGroup?.label : activeGroup?.labelEn}</Text>
+          {activeItem ? <><Text style={styles.breadcrumbSeparator}>/</Text><Text style={styles.breadcrumbCurrent}>{isArabic ? activeItem.label : activeItem.labelEn}</Text></> : null}
+        </View> : null}
         <View style={styles.searchBox}><Ionicons name="search-outline" size={17} color={colors.textMuted} /><TextInput ref={searchInputRef} value={query} onChangeText={(value) => { setQuery(value); setSearchOpen(true); }} onFocus={() => setSearchOpen(true)} onSubmitEditing={submitSearch} returnKeyType="search" style={styles.searchInput} placeholder={isArabic ? "بحث: مستخدم، نموذج، UUID…" : "Search: user, model, UUID…"} placeholderTextColor={colors.textMuted} autoCapitalize="none" /><Pressable accessibilityRole="button" onPress={submitSearch}><Text style={styles.searchAction}>{isArabic ? "بحث" : "Search"}</Text></Pressable></View>
         <View style={styles.topActions}>
           <View style={styles.healthPill}><View style={[styles.healthDot, systemOk === false && styles.healthDotBad, systemOk === null && styles.healthDotUnknown]} /><Text style={styles.healthText}>{systemOk === null ? (isArabic ? "الحالة غير متاحة" : "Status unavailable") : systemOk ? (isArabic ? "النظام سليم" : "System healthy") : (isArabic ? "يحتاج مراجعة" : "Needs review")}</Text></View>
+          <Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "المساعدة" : "Help"} accessibilityHint={isArabic ? "عرض حالة وجهة المساعدة" : "Show help availability"} onPress={() => setShellDialog("help")} style={styles.actionIconButton}><Ionicons name="help-circle-outline" size={18} color={colors.textSecondary} /></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "الإشعارات" : "Notifications"} accessibilityHint={isArabic ? "عرض حالة مركز الإشعارات" : "Show notification center availability"} onPress={() => setShellDialog("notifications")} style={styles.actionIconButton}><Ionicons name="notifications-outline" size={18} color={colors.textSecondary} /></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "قائمة المشرف والجلسة" : "Administrator and session menu"} onPress={() => setShellDialog("account")} style={styles.adminAvatar}><Text style={styles.avatarText}>{adminName}</Text></Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "تحديث الصفحة" : "Refresh page"} onPress={refreshPage} style={styles.refreshButton}><Ionicons name="refresh-outline" size={17} color={colors.textPrimary} /></Pressable>
-          <View style={styles.adminAvatar}><Text style={styles.avatarText}>{adminName}</Text></View>
         </View>
       </View>
+      <Modal visible={shellDialog !== null} transparent animationType="fade" onRequestClose={() => setShellDialog(null)}>
+        <View style={styles.dialogBackdrop}>
+          <Pressable style={styles.dialogScrim} onPress={() => setShellDialog(null)} accessibilityRole="button" accessibilityLabel={isArabic ? "إغلاق النافذة" : "Close dialog"} />
+          <View style={styles.shellDialog}>
+            <View style={styles.dialogHeader}>
+              <Text style={styles.dialogTitle}>
+                {shellDialog === "notifications" ? (isArabic ? "مركز الإشعارات" : "Notifications")
+                  : shellDialog === "help" ? (isArabic ? "المساعدة" : "Help")
+                  : shellDialog === "account" ? (isArabic ? "حساب المشرف" : "Administrator account")
+                  : (isArabic ? "تعذر إنهاء الجلسة" : "Could not end session")}
+              </Text>
+              <Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "إغلاق" : "Close"} onPress={() => setShellDialog(null)}><Ionicons name="close" size={20} color={colors.textMuted} /></Pressable>
+            </View>
+            {shellDialog === "notifications" ? <Text style={styles.dialogBody}>{isArabic ? "مركز الإشعارات غير متاح حاليًا؛ لا يوجد مصدر إشعارات موصول يمكن تأكيده. لن نعرض إشعارات أو عدّادًا وهميًا." : "The notification center is unavailable because no verified notification source is connected. No synthetic notifications or unread count are shown."}</Text> : null}
+            {shellDialog === "help" ? <Text style={styles.dialogBody}>{isArabic ? "لم يتم إعداد وجهة مساعدة داخلية لهذه النسخة بعد. لا يوجد رابط مساعدة نشط حاليًا." : "An internal help destination is not configured for this build. No active help link is available."}</Text> : null}
+            {shellDialog === "account" ? <>
+              <Text style={styles.dialogBody}>{adminEmail || (isArabic ? "بريد الحساب غير متاح" : "Account email unavailable")}</Text>
+              <Text style={styles.dialogHint}>{isArabic ? "تظل كل صلاحيات الإدارة محمية بالتحقق من الخادم." : "Administrative permissions remain enforced by server-side authorization."}</Text>
+              <Pressable accessibilityRole="button" onPress={() => { setShellDialog(null); router.replace("/home"); }} style={styles.dialogSecondaryAction}><Text style={styles.dialogSecondaryText}>{isArabic ? "العودة إلى التطبيق" : "Return to app"}</Text></Pressable>
+              <Pressable accessibilityRole="button" onPress={() => void signOutAdmin()} style={styles.dialogDangerAction}><Text style={styles.dialogDangerText}>{isArabic ? "تسجيل الخروج" : "Sign out"}</Text></Pressable>
+            </> : null}
+            {shellDialog === "signout-error" ? <>
+              <Text style={styles.dialogBody}>{isArabic ? "لم يؤكد نظام المصادقة إنهاء الجلسة. لا تزال لوحة الإدارة مفتوحة." : "Authentication did not confirm session termination. The admin workspace remains open."}</Text>
+              <Pressable accessibilityRole="button" onPress={() => void signOutAdmin()} style={styles.dialogDangerAction}><Text style={styles.dialogDangerText}>{isArabic ? "إعادة المحاولة" : "Try again"}</Text></Pressable>
+            </> : null}
+          </View>
+        </View>
+      </Modal>
       {searchOpen && query.trim() ? <View style={styles.searchResults}>
         {searchResults.length ? searchResults.map((item) => <Pressable key={item.path} accessibilityRole="button" onPress={() => openSearchResult(item.path)} style={styles.searchResult}>
           <Text style={styles.searchResultGroup}>{item.groupLabel}</Text>
@@ -323,8 +372,11 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   navTooltip: { position: "absolute", top: 2, zIndex: 100, minWidth: 132, maxWidth: 210, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.divider, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, elevation: 8 }, navTooltipLtr: { left: 60 }, navTooltipRtl: { right: 60 }, navTooltipText: { color: colors.textPrimary, fontSize: 10, fontWeight: "700", textAlign: "center" },
   railFooter: { borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 12, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 7, justifyContent: "flex-start", flexWrap: "wrap" }, railFooterCollapsed: { justifyContent: "center" }, secureDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.success }, secureText: { color: colors.textMuted, fontSize: 10 }, collapseButton: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 30, paddingHorizontal: 8, borderRadius: 8, borderWidth: 1, borderColor: colors.divider, marginTop: 4 }, collapseButtonText: { color: colors.textSecondary, fontSize: 9, fontWeight: "700" },
   main: { flex: 1, minWidth: 0 }, topbar: { minHeight: 62, borderBottomWidth: 1, borderBottomColor: colors.divider, backgroundColor: colors.surface, paddingHorizontal: 18, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "space-between", gap: 14 },
-  appLink: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 5, borderWidth: 1, borderColor: colors.primary, borderRadius: 9, paddingHorizontal: 10, paddingVertical: 7 }, appLinkText: { color: colors.primary, fontSize: 12, fontWeight: "800" },
+  appLink: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 5, borderWidth: 1, borderColor: colors.primary, borderRadius: 9, paddingHorizontal: 10, paddingVertical: 7 },
+  actionIconButton: { width: 32, height: 32, borderRadius: 9, borderWidth: 1, borderColor: colors.divider, alignItems: "center", justifyContent: "center" }, appLinkText: { color: colors.primary, fontSize: 12, fontWeight: "800" },
+  breadcrumbs: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 6, minWidth: 0, maxWidth: 280 }, breadcrumbRoot: { color: colors.textMuted, fontSize: 9, fontWeight: "700" }, breadcrumbSeparator: { color: colors.textMuted, fontSize: 9 }, breadcrumbText: { color: colors.textSecondary, fontSize: 9 }, breadcrumbCurrent: { color: colors.textPrimary, fontSize: 9, fontWeight: "800", flexShrink: 1 },
   searchBox: { flex: 1, maxWidth: 560, height: 38, borderRadius: 9, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.background, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", paddingHorizontal: 10, gap: 8 }, searchInput: { flex: 1, minWidth: 0, color: colors.textPrimary, textAlign: isArabic ? "right" : "left", fontSize: 12, paddingVertical: 0 }, searchAction: { color: colors.primary, fontSize: 11, fontWeight: "700" }, topActions: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 10 }, healthPill: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 6, borderRadius: 20, borderWidth: 1, borderColor: colors.divider, paddingHorizontal: 9, paddingVertical: 6 }, healthDot: { width: 7, height: 7, borderRadius: 5, backgroundColor: colors.success }, healthDotBad: { backgroundColor: colors.error }, healthDotUnknown: { backgroundColor: colors.textMuted }, healthText: { color: colors.textSecondary, fontSize: 10 }, refreshButton: { width: 34, height: 34, borderRadius: 9, borderWidth: 1, borderColor: colors.divider, alignItems: "center", justifyContent: "center" }, adminAvatar: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.divider, alignItems: "center", justifyContent: "center" }, avatarText: { color: colors.primary, fontSize: 12, fontWeight: "800" },
+  dialogBackdrop: { flex: 1, alignItems: "center", justifyContent: "center", padding: 20 }, dialogScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.modalOverlay }, shellDialog: { width: "100%", maxWidth: 420, borderRadius: 16, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface, padding: 16, gap: 11, elevation: 12 }, dialogHeader: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "space-between", gap: 12 }, dialogTitle: { color: colors.textPrimary, fontSize: 14, fontWeight: "900", textAlign: isArabic ? "right" : "left" }, dialogBody: { color: colors.textSecondary, fontSize: 11, lineHeight: 19, textAlign: isArabic ? "right" : "left" }, dialogHint: { color: colors.textMuted, fontSize: 9, textAlign: isArabic ? "right" : "left" }, dialogSecondaryAction: { minHeight: 40, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.divider, borderRadius: 9, paddingHorizontal: 12 }, dialogSecondaryText: { color: colors.textPrimary, fontSize: 10, fontWeight: "800" }, dialogDangerAction: { minHeight: 40, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.error, borderRadius: 9, paddingHorizontal: 12 }, dialogDangerText: { color: colors.error, fontSize: 10, fontWeight: "800" },
   searchResults: { position: "relative", zIndex: 20, borderBottomWidth: 1, borderBottomColor: colors.divider, backgroundColor: colors.surface, paddingHorizontal: 18, paddingVertical: 7, gap: 5 },
   searchResult: { minHeight: 42, borderRadius: 8, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.divider, paddingHorizontal: 10, paddingVertical: 6, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 10 },
   searchResultGroup: { color: colors.textMuted, fontSize: 9 },
