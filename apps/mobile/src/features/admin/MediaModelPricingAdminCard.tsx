@@ -52,7 +52,7 @@ export function MediaModelPricingAdminCard({ serviceType, capabilityKey, initial
         const { data: evidence, error: evidenceError } = await supabase.rpc("suly_admin_list_unified_model_capabilities");
         if (evidenceError) throw evidenceError;
         const supported = new Set((evidence ?? [])
-          .filter((item: { capability_key: string; vendor_claim_status: string }) =>
+          .filter((item: { capability_key: string; vendor_claim_status: string; review_status: string }) =>
             item.capability_key === capabilityKey && item.vendor_claim_status === "supported" && item.review_status === "approved")
           .map((item: { provider_id: number; service_type: string; model_identifier: string }) =>
             `${item.provider_id}:${item.service_type}:${item.model_identifier}`));
