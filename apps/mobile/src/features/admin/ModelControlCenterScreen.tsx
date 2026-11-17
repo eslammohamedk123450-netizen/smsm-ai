@@ -9,6 +9,7 @@ import { UnifiedModelCapabilitiesAdminCard } from "./UnifiedModelCapabilitiesAdm
 import { MediaModelPricingAdminCard } from "./MediaModelPricingAdminCard";
 import { RouteModelChainsCard } from "./RouteModelChainsCard";
 import { AgentRoleProfilesAdminCard } from "./AgentRoleProfilesAdminCard";
+import { ModelTierEligibilityAdminCard } from "./ModelTierEligibilityAdminCard";
 
 type ModelRow = {
   id: number; name: string; model_identifier: string; provider_name: string;
@@ -79,6 +80,10 @@ export function ModelControlCenterScreen() {
 
     <Section title="سجل مركزي موحد للقدرات" description="كتالوج واحد لكل أنواع النماذج، مع اقتراحات ومراجعة واعتماد الأدلة من مكان واحد.">
       <UnifiedModelCapabilitiesAdminCard />
+    </Section>
+
+    <Section title="أهلية النماذج حسب الباقة" description="تحديد أقل مستوى اشتراك يسمح لكل نموذج؛ Free محصور في مجموعة Free، والباقات الأعلى ترث النماذج الأدنى.">
+      <ModelTierEligibilityAdminCard />
     </Section>
 
     <Section title="توجيه النماذج داخل الوكيل المركزي" description="تحديد النماذج الأساسية والاحتياطية المؤهلة لكل مسار، دون إنشاء وكلاء أو عقول مستقلة.">
