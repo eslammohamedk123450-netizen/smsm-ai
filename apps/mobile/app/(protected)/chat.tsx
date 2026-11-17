@@ -409,7 +409,7 @@ export default function ChatPage() {
           conversationId: conversationKey,
           content,
           modelProfileKey: selectedModelProfile,
-          executionMode: isAgentMode ? "agent" : "auto",
+          executionMode: isAgentMode ? "agent" : "chat",
           writeApproval,
           mediaAsset: uploadedAsset,
           signal: controller.signal,
@@ -465,7 +465,7 @@ export default function ChatPage() {
               conversationId: id,
               userMessageId: savedUserMessageId,
               modelProfileKey: selectedModelProfile,
-              executionMode: isAgentMode ? "agent" : "auto",
+              executionMode: isAgentMode ? "agent" : "chat",
               signal: controller.signal,
               onChunk(text) {
                 streamedTextRef.current += text;
@@ -515,7 +515,7 @@ export default function ChatPage() {
         await chatService.retryAssistant({
           ...failed,
           modelProfileKey: selectedModelProfile,
-          executionMode: isAgentMode ? "agent" : "auto",
+          executionMode: isAgentMode ? "agent" : "chat",
           signal: controller.signal,
           
           onChunk(text) {
@@ -680,7 +680,7 @@ export default function ChatPage() {
         conversationId,
         history,
         modelProfileKey: selectedModelProfile,
-        executionMode: isAgentMode ? "agent" : "auto",
+        executionMode: isAgentMode ? "agent" : "chat",
         signal: controller.signal,
         onChunk(text) {
           streamedTextRef.current += text;
@@ -723,7 +723,7 @@ export default function ChatPage() {
         conversationId,
         history,
         modelProfileKey: selectedModelProfile,
-        executionMode: isAgentMode ? "agent" : "auto",
+        executionMode: isAgentMode ? "agent" : "chat",
         signal: controller.signal,
         onChunk(text) {
           setMessages((current) => {
