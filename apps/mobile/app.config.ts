@@ -39,7 +39,7 @@ const config: ExpoConfig & { splash?: { image: string; resizeMode: "contain"; ba
     ["expo-speech-recognition", {
       microphonePermission: "اسمح لـ SULY باستخدام الميكروفون لإملاء رسالتك الصوتية.",
       speechRecognitionPermission: "اسمح لـ SULY بتحويل كلامك إلى نص داخل المحادثة.",
-      androidSpeechServicePackages: ["com.google.android.googlequicksearchbox"],
+      androidSpeechServicePackages: ["com.google.android.googlequicksearchbox", "com.google.android.tts"],
     }],
     ["expo-splash-screen", {
       image: "./assets/splash.png",
