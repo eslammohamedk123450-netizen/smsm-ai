@@ -263,26 +263,29 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
             >
               <Ionicons name="stop" size={17} color={colors.onPrimary} />
             </Pressable>
-          ) : text.trim() || attachment ? (
-            <Pressable
-              style={[styles.blueButton, Platform.OS === "web" && styles.webSendButton]}
-              onPress={submit}
-              disabled={disabled}
-              accessibilityRole="button"
-              accessibilityLabel={isArabic ? "إرسال" : "Send"}
-            >
-              <><Ionicons name="arrow-up" size={18} color={colors.onPrimary} />{Platform.OS === "web" ? <Text style={styles.webSendLabel}>{isArabic ? "إرسال" : "Send"}</Text> : null}</>
-            </Pressable>
           ) : (
-            <Pressable
-              style={[styles.micButton, disabled && styles.controlDisabled]}
-              onPress={() => void handleVoicePress()}
-              disabled={disabled}
-              accessibilityRole="button"
-              accessibilityLabel={isArabic ? "إملاء رسالة صوتيًا" : "Dictate a message"}
-            >
-              <Ionicons name="mic-outline" size={19} color={colors.textPrimary} />
-            </Pressable>
+            <>
+              <Pressable
+                style={[styles.micButton, disabled && styles.controlDisabled]}
+                onPress={() => void handleVoicePress()}
+                disabled={disabled}
+                accessibilityRole="button"
+                accessibilityLabel={isArabic ? "إملاء رسالة صوتيًا" : "Dictate a message"}
+              >
+                <Ionicons name="mic-outline" size={19} color={colors.textPrimary} />
+              </Pressable>
+              {text.trim() || attachment ? (
+                <Pressable
+                  style={[styles.blueButton, Platform.OS === "web" && styles.webSendButton]}
+                  onPress={submit}
+                  disabled={disabled}
+                  accessibilityRole="button"
+                  accessibilityLabel={isArabic ? "إرسال" : "Send"}
+                >
+                  <><Ionicons name="arrow-up" size={18} color={colors.onPrimary} />{Platform.OS === "web" ? <Text style={styles.webSendLabel}>{isArabic ? "إرسال" : "Send"}</Text> : null}</>
+                </Pressable>
+              ) : null}
+            </>
           )}
         </View>
       </View>
