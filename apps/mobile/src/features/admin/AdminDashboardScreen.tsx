@@ -11,6 +11,7 @@ import { SulyFinanceOverviewCard } from "./SulyFinanceOverviewCard";
 import { NegativeBalanceSettingsCard } from "./NegativeBalanceSettingsCard";
 import { WelcomeTrialSettingsCard } from "./WelcomeTrialSettingsCard";
 import { adminService } from "./admin-service";
+import { AdminMobileBreadcrumb } from "./AdminMobileBreadcrumb";
 
 type Model = { id: number; enabled: boolean; health?: { auto_restricted?: boolean; last_status?: string | null; total_attempts?: number; successful_attempts?: number; average_latency_ms?: number | null } | null };
 type Tx = { amount: number | null; event_type: string; created_at: string };
@@ -149,6 +150,7 @@ export function AdminDashboardScreen() {
   ];
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <AdminMobileBreadcrumb />
     <View style={styles.heading}><View style={styles.headingCopy}><Text style={styles.eyebrow}>نظرة تشغيلية مباشرة</Text><Text style={styles.title}>مركز تحكم الأدمن</Text><Text style={styles.subtitle}>مؤشرات الخدمة والإجراءات الإدارية في مساحة واحدة.</Text></View><Pressable accessibilityRole="button" onPress={() => void load(true)} style={styles.refresh}><Text style={styles.refreshText}>{refreshing ? "جارٍ التحديث…" : "↻ تحديث"}</Text></Pressable></View>
     {error ? <View style={styles.inlineWarning}><Text style={styles.inlineWarningText}>{error}</Text></View> : null}
     {loading ? <ActivityIndicator color={colors.primary} style={styles.loader} /> : null}
