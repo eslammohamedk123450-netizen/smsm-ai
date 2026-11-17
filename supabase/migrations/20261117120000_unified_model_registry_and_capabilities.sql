@@ -299,8 +299,6 @@ end;
 $;
 
 revoke all on public.suly_model_registry, public.suly_model_capabilities, public.suly_model_registry_audit from anon, authenticated;
-grant select,insert,update,delete on public.suly_model_registry, public.suly_model_capabilities to authenticated;
-grant select on public.suly_model_registry_audit to authenticated;
 revoke all on function public.suly_admin_list_unified_model_capabilities() from public,anon;
 revoke all on function public.suly_admin_list_model_registry_audit() from public,anon;
 revoke all on function public.suly_admin_save_unified_model_capability(uuid,text,text,text,text,text,text,text,text,text) from public,anon;
@@ -526,7 +524,6 @@ end;
 $$;
 
 revoke all on public.suly_model_route_assignments from anon,authenticated;
-grant select,insert,update,delete on public.suly_model_route_assignments to authenticated;
 revoke all on function public.suly_sync_legacy_route_assignment() from public,anon,authenticated;
 revoke all on function public.suly_admin_list_unified_route_assignments() from public,anon;
 grant execute on function public.suly_admin_list_unified_route_assignments() to authenticated;
