@@ -782,3 +782,46 @@ Finance / Profitability / Alerts / Audit
 - زر Rewarded Ads متوقف في العميل حاليًا. كما تم التحقق من أن `claim_rewarded_ad(uuid)` لا يملك صلاحية EXECUTE لـ authenticated أو anon أو PUBLIC في قاعدة الإنتاج وقت الفحص؛ لذلك لم تُجرَ migration أمنية إضافية ولم يتم فتح المطالبة. يظل إثبات المشاهدة server-side مطلوبًا قبل التفعيل.
 - لم يظهر مصدر `paid_topup` في سجل معاملات الكريدت الحالي، ولم يظهر جدول payment/top-up في الجرد الأولي. لذلك لا يمكن تفعيل شحن حقيقي أو سياسة وصول مدفوع دون اشتراك قبل ربط بوابة الدفع وتسجيل مصدر الشحن وتسوية الدفع.
 - توجد خطط Free وLite وPro وMax نشطة حاليًا، وخطة Ultra قديمة غير نشطة. لا توجد خطة Ultra Team فعالة في الإنتاج وقت الفحص.
+
+
+### دفعة 2 — فصل Free عن Lite وتجهيز Ultra Team وسياسات أهلية النماذج
+**الحالة: IMPLEMENTED IN FEATURE BRANCH — MIGRATION NOT APPLIED**
+- إضافة migration `20261117140000_free_and_ultra_team_model_profiles.sql`:
+  - توسيع tier constraints لدعم `ultra_team` في الاشتراكات والملفات وسجلات النماذج.
+  - إنشاء profile مستقل `free` من قدرات Lite الحالية.
+  - جعل `lite` يتطلب اشتراك Lite بدل Free.
+  - جعل `max` يتطلب Max بدل Pro.
+  - تجهيز profile `ultra_team` غير نشط حتى اكتمال نظام الفرق.
+  - توسيع `allowed_tiers` للنماذج النصية والوسائط.
+  - إزالة أهلية Free من النماذج الموجودة خارج `free_race`، مع قيد يمنع منح Free لنموذج خارج المجموعة.
+  - تحديث `suly_effective_subscription_tier` لقبول Ultra Team.
+- نتيجة التدقيق التي تعالجها migration: 240 نموذجًا معطلًا خارج `free_race` كانت تحمل أهلية Free بسبب القيمة الافتراضية القديمة. تُزال أهلية Free عنها؛ لا تتغير حالة تشغيلها.
+- النماذج الثمانية المفعّلة داخل `free_race` تبقى ضمن سياسة Free الحالية؛ لم يتم اختيار نموذج بعينه أو تغيير أولوية النماذج.
+- `supabase/functions/ai-router/agent/suly_profile_routing.ts`:
+  - إضافة Free كملف مستقل وعدم تحويل Free تلقائيًا إلى Lite.
+  - دعم Lite/Pro/Max/Ultra Team بترتيب أهلية هرمي.
+  - Auto للمجاني يبقى Free؛ Auto للمهام المعقدة يختار أعلى ملف يحق للمستخدم استخدامه.
+  - اختيار يدوي غير مؤهل يُرفض بدل تخفيضه بصمت.
+- `model_eligibility.ts` و`image-generator/index.ts`: إضافة Ultra Team إلى فحص أهلية النماذج النصية والوسائط.
+- `apps/mobile/app/(protected)/chat.tsx`: إضافة اختيار Free وUltra Team، وتغيير الاختيار الافتراضي للمجاني إلى Free، والتحقق من minimum tier لكل ملف.
+- `UpgradeScreen.tsx`: تحديث وصف المجاني، وإظهار رصيد الاشتراك الشهري بدل daily_credits، والتعرف على Ultra Team عند وجود خطة فعالة.
+- `balance.tsx`: التعرف على Ultra Team وعرض تجدد رصيد الاشتراك شهريًا للمشتركين.
+- `admin-service.ts` و`AdminScreens.tsx`: إدارة monthly_credits والتحقق من allowed_tiers، وإضافة Ultra Team.
+- `MediaGenerationModelsAdminScreen.tsx`: النماذج الجديدة تبدأ من Max بدل منح Free افتراضيًا، مع خيار Ultra Team.
+- `sync-models/index.ts`: النماذج المكتشفة حديثًا تبدأ معطلة وبأهلية Max فقط حتى يراجعها المدير.
+- `ModelTierEligibilityAdminCard.tsx`: إضافة واجهة تحدد أقل باقة مؤهلة لكل نموذج، مع قيد Free على مجموعة free_race.
+- `SulyModelProfilesAdminCard.tsx`: جعل تعيينات `suly_model_profile_models` القديمة للعرض فقط؛ مصدر أهلية النماذج الفعلي هو `ai_models.allowed_tiers` وسلاسل التوجيه.
+- تحديث اختبارات المصدر لسياسة Free/Lite/Pro/Max/Ultra Team؛ لم يتم تشغيلها.
+- migration لم تُطبق على Supabase الإنتاج، ولم يتم تغيير أي اشتراك أو رصيد أو سعر أو نموذج فعّال في الإنتاج. لا يُنشر الكود قبل تطبيق migration المتوافقة واجتياز الاختبارات.
+
+### تدقيق إضافي — المهام والرصيد
+- `agent_task_jobs.status` يدعم حاليًا queued/running/completed/failed/cancelled فقط؛ لا توجد حالة paused_insufficient_credits.
+- `brain_task_contexts.status` يدعم running/completed/failed/cancelled فقط.
+- `suly_credit_holds.status` يدعم held/settled/expired فقط.
+- عند عدم كفاية الرصيد في enqueue، `brain-router` ينهي محاولة الاستخدام ويرجع 402 `insufficient_credits` قبل إدخال المهمة إلى الطابور؛ لذلك لا يبدأ تنفيذ جزء من المهمة بالرصيد المتاح حاليًا.
+- توجد checkpoints وtool-result recovery تمنع إعادة تنفيذ الخطوات المكتملة بعد استعادة العامل، لكن هذا لا يساوي بعدُ إيقافًا بسبب نفاد الكريدت ثم استكمالًا بعد الشحن.
+- لا يجوز إضافة حالة pause فقط إلى الواجهة؛ يلزم تعديل دورة الحجز والتسوية لكل خطوة، وحفظ نقطة الاستئناف، وفحص idempotency للأدوات الخارجية، وإعادة تقدير الرصيد المتبقي قبل استكمال المهمة.
+- محفظة الرصيد الحاليّة لا تحتوي buckets/lots حسب المصدر، لذا لا يمكن بعدُ ضمان أن الشحن المدفوع ومكافآت الإعلان ورصيد الاشتراك تُستهلك بترتيب مستقل ودقيق بعد كل حجز وتسوية.
+- شاشة الرصيد الحالية تعرض صراحةً أن الشحن غير مفعّل ولا يوجد تدفق دفع متصل. لذلك لا يوجد حتى الآن شراء حقيقي للكريدت بمبلغ صغير أو سياسة وصول No-subscription Paid Wallet.
+- لا توجد خطة Ultra Team فعالة أو نظام عضويات/رصيد مشترك؛ profile Ultra Team أُنشئ غير نشط في migration فقط.
+- المكافأة الترحيبية الحالية 200 كريدت لكل حساب جديد ما زالت موجودة في الإنتاج؛ لم تتغير في هذه الدفعة. يجب تحويلها إلى إعداد قابل للتحكم مع حواجز إساءة الاستخدام قبل الإطلاق العام.
