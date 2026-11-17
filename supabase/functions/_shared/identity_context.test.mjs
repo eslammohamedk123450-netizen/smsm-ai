@@ -24,6 +24,14 @@ test("SULY identity is consistent, concise, and professional", () => {
   assert.deepEqual(context.userMetadata, { badges: [] });
 });
 
+test("Agent activation guidance reflects the real execution mode", () => {
+  const inactive = buildSulyIdentityContext(false, false);
+  assert.ok(inactive.systemPrompt.includes("كتلة agent"));
+  const active = buildSulyIdentityContext(false, true);
+  assert.ok(active.systemPrompt.includes("وضع الوكيل نشط"));
+  assert.equal(active.systemPrompt.includes("اعرض بطاقة تفعيل داخل الرد"), false);
+});
+
 test("active identity context preserves verified feature guidance and badge metadata", () => {
   const context = buildSulyIdentityContext(true);
   assert.ok(context.systemPrompt.includes("أنت SULY"));
