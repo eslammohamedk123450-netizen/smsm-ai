@@ -7,6 +7,8 @@ import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
 import { supabase } from "../../lib/supabase/client";
 import { adminService } from "./admin-service";
+import { MediaModelPricingAdminCard } from "./MediaModelPricingAdminCard";
+import { MediaModelCapabilityEvidenceAdminCard } from "./MediaModelCapabilityEvidenceAdminCard";
 
 type Kind = "image" | "video" | "transcription" | "voice";
 type ServiceType = "image" | "video" | "audio";
@@ -146,6 +148,8 @@ export function MediaModelsCatalogScreen() {
       {selected.capability.notes ? <Text style={styles.meta}>ملاحظات: {selected.capability.notes}</Text> : null}
       {selected.capability.vendor_evidence_url ? <Text selectable style={styles.meta}>وثائق: {selected.capability.vendor_evidence_url}</Text> : null}
     </View> : null}
+    <MediaModelPricingAdminCard serviceType={SERVICE_FOR[kind]} />
+    <MediaModelCapabilityEvidenceAdminCard serviceType={SERVICE_FOR[kind]} />
     <View style={styles.footerLinks}>
       <Link href="/admin/api-keys" asChild><Pressable><Text style={styles.link}>إدارة المزودين ومفاتيح API</Text></Pressable></Link>
       {kind === "image" ? <Link href="/admin/image-generation" asChild><Pressable><Text style={styles.link}>إضافة / تعديل نموذج صور</Text></Pressable></Link> : null}
