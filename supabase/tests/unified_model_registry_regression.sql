@@ -11,6 +11,9 @@ declare
   v_chat_registered bigint;
   v_media_total bigint;
   v_media_registered bigint;
+  v_legacy_routes bigint;
+  v_canonical_routes bigint;
+  v_route_fn regprocedure := 'public.suly_admin_list_unified_route_assignments()'::regprocedure;
   v_list_fn regprocedure := 'public.suly_admin_list_unified_model_capabilities()'::regprocedure;
   v_audit_fn regprocedure := 'public.suly_admin_list_model_registry_audit()'::regprocedure;
   v_save_fn regprocedure := 'public.suly_admin_save_unified_model_capability(uuid,text,text,text,text,text,text,text,text,text)'::regprocedure;
@@ -21,11 +24,12 @@ begin
   if not (select relrowsecurity from pg_class where oid='public.suly_model_capabilities'::regclass) then
     raise exception 'RLS must be enabled on suly_model_capabilities';
   end if;
-  if has_function_privilege('anon',v_list_fn,'EXECUTE') or has_function_privilege('anon',v_audit_fn,'EXECUTE') or has_function_privilege('anon',v_save_fn,'EXECUTE') then
+  if has_function_privilege('anon',v_list_fn,'EXECUTE') or has_function_privilege('anon',v_audit_fn,'EXECUTE') or has_function_privilege('anon',v_route_fn,'EXECUTE') or has_function_privilege('anon',v_save_fn,'EXECUTE') then
     raise exception 'anon must not execute unified model admin RPCs';
   end if;
   if not has_function_privilege('authenticated',v_list_fn,'EXECUTE')
      or not has_function_privilege('authenticated',v_audit_fn,'EXECUTE')
+     or not has_function_privilege('authenticated',v_route_fn,'EXECUTE')
      or not has_function_privilege('authenticated',v_save_fn,'EXECUTE') then
     raise exception 'authenticated must be able to call admin-gated RPCs';
   end if;
@@ -40,6 +44,15 @@ begin
   select count(*) into v_media_registered from public.suly_model_registry where service_type in ('image','video') and legacy_media_model_id is not null;
   if v_media_total<>v_media_registered then
     raise exception 'media model identity mismatch: source %, registry %',v_media_total,v_media_registered;
+  end if;
+
+  select count(*) into v_legacy_routes from public.ai_route_model_assignments;
+  select count(*) into v_canonical_routes
+  from public.suly_model_route_assignments a
+  join public.suly_model_registry r on r.id=a.model_id
+  where r.legacy_chat_model_id is not null;
+  if v_legacy_routes<>v_canonical_routes then
+    raise exception 'route assignment mismatch: legacy %, canonical %',v_legacy_routes,v_canonical_routes;
   end if;
 
   select count(*) into v_missing_chat
