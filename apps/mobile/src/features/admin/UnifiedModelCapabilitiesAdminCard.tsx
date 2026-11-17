@@ -11,7 +11,7 @@ type ReviewStatus = "suggested" | "legacy_unreviewed" | "approved" | "rejected";
 type TestStatus = "not_tested" | "passed" | "failed";
 type AuditRow = { id: number; display_name: string | null; capability_key: string | null; action: string; created_at: string };
 type ModelRow = {
-  model_id: string; provider_id: number; service_type: ServiceType; model_identifier: string;
+  model_id: string; provider_id: number; provider_name?: string | null; service_type: ServiceType; model_identifier: string;
   display_name: string; lifecycle_state: "active" | "candidate" | "archived";
   legacy_chat_model_id: number | null; legacy_media_model_id: string | null;
   capability_key: string | null; review_status: ReviewStatus | null;
@@ -88,7 +88,7 @@ export function UnifiedModelCapabilitiesAdminCard() {
   },[rows]);
   const visibleModels = useMemo(() => {
     const q=search.trim().toLocaleLowerCase();
-    return models.filter(m => !q || `${m.display_name} ${m.model_identifier} ${m.service_type}`.toLocaleLowerCase().includes(q)).slice(0,60);
+    return models.filter(m => !q || `${m.display_name} ${m.provider_name ?? ""} ${m.model_identifier} ${m.service_type}`.toLocaleLowerCase().includes(q)).slice(0,60);
   },[models,search]);
   const selected = models.find(m=>m.model_id===selectedId) ?? null;
   const availableCapabilities = selected && selected.service_type!=="chat"
@@ -161,9 +161,9 @@ export function UnifiedModelCapabilitiesAdminCard() {
       <Text style={styles.metric}>المعتمدة: {rows.filter(r=>r.review_status==="approved").length}</Text>
     </View>
     <TextInput value={search} onChangeText={setSearch} placeholder="ابحث عن نموذج أو معرّف" placeholderTextColor={colors.textMuted} style={styles.input}/>
-    <View style={styles.wrap}>{visibleModels.map(m=><Pressable key={m.model_id} onPress={()=>setSelectedId(m.model_id)} style={[styles.chip,selectedId===m.model_id&&styles.selected]}><Text style={styles.chipText}>{m.display_name} · {m.service_type}</Text></Pressable>)}</View>
+    <View style={styles.wrap}>{visibleModels.map(m=><Pressable key={m.model_id} onPress={()=>setSelectedId(m.model_id)} style={[styles.chip,selectedId===m.model_id&&styles.selected]}><Text style={styles.chipText}>{m.display_name} · {m.provider_name ?? `مزود #${m.provider_id}`} · {m.service_type}</Text></Pressable>)}</View>
     {models.length>60?<Text style={styles.hint}>يتم عرض أول 60 نتيجة؛ استخدم البحث لتضييق القائمة.</Text>:null}
-    {selected?<Text style={styles.selectedName}>{selected.display_name} · {selected.model_identifier} · المزود #{selected.provider_id} · {selected.lifecycle_state==="active"?"مفعّل في الكتالوج":selected.lifecycle_state==="archived"?"مؤرشف":"مرشح للمراجعة"}</Text>:null}
+    {selected?<Text style={styles.selectedName}>{selected.display_name} · {selected.provider_name ?? `المزود #${selected.provider_id}`} · {selected.model_identifier} · {selected.lifecycle_state==="active"?"مفعّل في الكتالوج":selected.lifecycle_state==="archived"?"مؤرشف":"مرشح للمراجعة"}</Text>:null}
     <View style={styles.wrap}>{availableCapabilities.map(([key,label])=><Pressable key={key} onPress={()=>setCapability(key)} style={[styles.chip,capability===key&&styles.selected]}><Text style={styles.chipText}>{label}</Text></Pressable>)}</View>
     {current?<Text style={styles.review}>حالة المراجعة الحالية: {REVIEW[current.review_status ?? "suggested"]}</Text>:<Text style={styles.hint}>لا يوجد سجل لهذه القدرة بعد. حفظها ينشئ سجلًا جديدًا.</Text>}
     {capability==="text" && selected?.legacy_chat_model_id ? <View style={styles.probeRow}><View style={styles.copy}><Text style={styles.label}>اختبار اتصال النص الفعلي</Text><Text style={styles.hint}>الاختبار لا يعتمد القدرة تلقائيًا ولا يغير إعدادات التوجيه.</Text></View><Pressable disabled={testing||loading} onPress={()=>void runTextProbe()} style={[styles.probe, (testing||loading)&&styles.disabled]}><Text style={styles.saveText}>{testing?"جارٍ الاختبار…":"اختبار النص"}</Text></Pressable></View>:null}
