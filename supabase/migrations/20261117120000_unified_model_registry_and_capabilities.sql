@@ -280,7 +280,7 @@ begin
   perform set_config('suly.central_sync','off',true);
   return jsonb_build_object('success',true,'model_id',p_model_id,'capability_key',p_capability_key);
 end;
-$;
+$$;
 
 create or replace function public.suly_admin_list_model_registry_audit()
 returns table (
