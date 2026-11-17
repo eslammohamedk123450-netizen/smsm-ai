@@ -168,15 +168,17 @@ export default function ChatPage() {
           supabase.rpc("suly_effective_subscription_tier", { p_user_id: user.id }),
           supabase.from("suly_model_profiles")
             .select("profile_key,display_name,tagline,minimum_subscription_tier,is_active")
-            .eq("is_active", true)
             .order("sort_order", { ascending: true }),
         ]);
         if (tierError || profilesError || typeof tier !== "string") throw new Error("profile catalog unavailable");
         if (!active) return;
         setCurrentSubscriptionTier(tier.toLowerCase());
-        const visibleProfiles = ((profiles ?? []) as SulyModelProfileOption[]).filter((profile) => profile.is_active === true);
-        setModelProfileOptions(visibleProfiles.length ? visibleProfiles : DEFAULT_MODEL_PROFILE_OPTIONS);
-        setSelectedModelProfile((current) => visibleProfiles.some((item) => item.profile_key === current) ? current : "lite");
+        const configuredProfiles = (profiles ?? []) as SulyModelProfileOption[];
+        const mergedProfiles = DEFAULT_MODEL_PROFILE_OPTIONS.map((fallback) => (
+          configuredProfiles.find((profile) => profile.profile_key === fallback.profile_key) ?? fallback
+        ));
+        setModelProfileOptions(mergedProfiles);
+        setSelectedModelProfile((current) => mergedProfiles.some((item) => item.profile_key === current && item.is_active) ? current : "lite");
       } catch {
         if (active) {
           setCurrentSubscriptionTier("free");
@@ -195,6 +197,11 @@ export default function ChatPage() {
   const chooseModelProfile = (profile: SulyModelProfileOption) => {
     const currentRank = SUBSCRIPTION_TIER_RANK[currentSubscriptionTier] ?? 0;
     const requiredRank = SUBSCRIPTION_TIER_RANK[profile.minimum_subscription_tier];
+    if (!profile.is_active) {
+      setModelProfileMenuVisible(false);
+      show(isArabic ? "هذا المستوى غير مفعّل حاليًا." : "This model profile is not active yet.", "info");
+      return;
+    }
     if (!Number.isFinite(requiredRank) || currentRank < requiredRank) {
       setModelProfileMenuVisible(false);
       router.push("/(protected)/upgrade");
@@ -816,7 +823,7 @@ export default function ChatPage() {
                   <Text style={styles.modelPickerDescription}>{profile.tagline || profile.display_name}</Text>
                 </View>
                 {selectedModelProfile === profile.profile_key ? <Ionicons name="checkmark-circle" size={19} color={colors.primary} /> : null}
-                {profile.profile_key !== "lite" && (SUBSCRIPTION_TIER_RANK[currentSubscriptionTier] ?? 0) < SUBSCRIPTION_TIER_RANK.pro ? <Ionicons name="lock-closed-outline" size={16} color={colors.textMuted} /> : null}
+                {!profile.is_active || (profile.profile_key !== "lite" && (SUBSCRIPTION_TIER_RANK[currentSubscriptionTier] ?? 0) < SUBSCRIPTION_TIER_RANK.pro) ? <Ionicons name="lock-closed-outline" size={16} color={colors.textMuted} /> : null}
               </Pressable>
             ))}
             <Pressable onPress={chooseXProfile} style={[styles.modelPickerOption, styles.modelPickerOptionDisabled]} accessibilityRole="button">
