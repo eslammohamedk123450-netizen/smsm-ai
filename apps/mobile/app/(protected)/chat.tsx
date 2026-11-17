@@ -814,7 +814,7 @@ export default function ChatPage() {
                 {!profile.is_active ? <Ionicons name="lock-closed-outline" size={16} color={colors.textMuted} /> : null}
               </Pressable>
             ))}
-            <Pressable onPress={chooseXProfile} style={[styles.modelPickerOption, styles.modelPickerOptionDisabled]} accessibilityRole="button">
+            <Pressable onPress={() => chooseModelProfile(profile)} style={[styles.modelPickerOption, styles.modelPickerOptionDisabled]} accessibilityRole="button">
               <View style={styles.modelPickerCopy}>
                 <Text style={styles.modelPickerName}>SULY 2.0 X</Text>
                 <Text style={styles.modelPickerDescription}>{isArabic ? "يتطلب اعتماد النموذج ومزود الخدمة." : "Requires model and provider approval."}</Text>
