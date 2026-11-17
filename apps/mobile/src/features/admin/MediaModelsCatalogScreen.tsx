@@ -5,6 +5,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View }
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
+import { AdminMobileBreadcrumb } from "./AdminMobileBreadcrumb";
 import { supabase } from "../../lib/supabase/client";
 import { adminService } from "./admin-service";
 import { MediaModelPricingAdminCard } from "./MediaModelPricingAdminCard";
@@ -99,6 +100,7 @@ export function MediaModelsCatalogScreen() {
   const unitLabel = (row: MediaModelRow) => row.unit_type === "image" ? "صورة" : row.unit_type === "video_second" ? "ثانية فيديو" : row.unit_type === "audio_minute" ? "دقيقة صوت" : row.unit_type;
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <AdminMobileBreadcrumb />
     <View style={styles.header}>
       <Link href="/admin" asChild><Pressable><Text style={styles.link}>‹ لوحة المشرف</Text></Pressable></Link>
       <View style={styles.headerCopy}><Text style={styles.title}>{TITLES[kind]}</Text><Text style={styles.subtitle}>كتالوج موحد · الأسعار الفعلية المسجلة · القدرات الموثقة</Text></View>
