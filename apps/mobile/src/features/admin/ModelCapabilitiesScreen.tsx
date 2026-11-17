@@ -11,7 +11,7 @@ type ServiceType = "chat" | "image" | "video" | "audio";
 type OperationalState = "active" | "disabled" | "restricted" | "candidate" | "archived" | "unknown";
 type StatusFilter = "all" | "active" | "restricted" | "disabled";
 type RegistryModel = {
-  model_id: string; provider_id: number; provider_name: string | null; service_type: ServiceType;
+  model_id: string; provider_id: number; provider_name: string | null; provider_type?: string | null; service_type: ServiceType;
   model_identifier: string; display_name: string; lifecycle_state: "active" | "candidate" | "archived";
   legacy_chat_model_id: number | null; legacy_media_model_id: string | null; capability_key: string | null;
   operational_state: OperationalState;
@@ -77,14 +77,14 @@ export function ModelCapabilitiesScreen() {
     try {
       const [registry, providers, chat, media, health] = await Promise.all([
         supabase.rpc("suly_admin_list_unified_model_capabilities"),
-        supabase.from("ai_providers").select("id,name,enabled").limit(500),
+        supabase.from("ai_providers").select("id,name,provider_type,enabled").limit(500),
         supabase.from("ai_models").select("id,enabled,routing_group").limit(1000),
         supabase.from("suly_media_generation_models").select("id,is_active").limit(1000),
         supabase.from("ai_model_health").select("model_id,auto_restricted").limit(1000),
       ]);
       if (registry.error) throw registry.error;
       if (providers.error) throw providers.error;
-      const providerMap = new Map<number, { name: string; enabled: boolean }>((providers.data ?? []).map((p) => [Number(p.id), { name: String(p.name ?? "—"), enabled: p.enabled === true }]));
+      const providerMap = new Map<number, { name: string; provider_type: string; enabled: boolean }>((providers.data ?? []).map((p) => [Number(p.id), { name: String(p.name ?? "—"), provider_type: String(p.provider_type ?? "—"), enabled: p.enabled === true }]));
       const chatMap = new Map<number, { enabled: boolean; routing_group: string }>((chat.data ?? []).map((m) => [Number(m.id), { enabled: m.enabled === true, routing_group: String(m.routing_group ?? "") }]));
       const mediaMap = new Map<string, boolean>((media.data ?? []).map((m) => [String(m.id), m.is_active === true]));
       const restricted = new Set<number>((health.data ?? []).filter((h) => h.auto_restricted === true).map((h) => Number(h.model_id)));
@@ -103,7 +103,7 @@ export function ModelCapabilitiesScreen() {
           if (active === false) operational_state = "disabled";
           else if (active === true && provider?.enabled) operational_state = "active";
         } else if (model.lifecycle_state === "candidate") operational_state = "candidate";
-        return { ...model, provider_name: provider?.name ?? model.provider_name ?? null, operational_state };
+        return { ...model, provider_name: provider?.name ?? model.provider_name ?? null, provider_type: provider?.provider_type ?? null, operational_state };
       });
       setRows(next);
     } catch (cause) {
@@ -197,7 +197,7 @@ export function ModelCapabilitiesScreen() {
       {linked.map((model) => <View key={model.model_id} style={styles.modelCard}>
         <View style={styles.modelCopy}>
           <Text style={styles.modelName}>{model.display_name}</Text>
-          <Text style={styles.meta}>المفتاح/المزود: {model.provider_name ?? `مزود #${model.provider_id}`}</Text>
+          <Text style={styles.meta}>اسم المفتاح: {model.provider_name ?? `مزود #${model.provider_id}`} · المزود: {model.provider_type ?? "—"}</Text>
           <Text style={styles.meta}>{model.model_identifier} · {model.service_type}</Text>
         </View>
         <View style={styles.modelFooter}>
