@@ -491,6 +491,14 @@ begin
     end if;
     return old;
   end if;
+  if tg_op='UPDATE' then
+    if old.model_id<>new.model_id or old.route_role<>new.route_role then
+      select id into v_registry_id from public.suly_model_registry where legacy_chat_model_id=old.model_id;
+      if v_registry_id is not null then
+        delete from public.suly_model_route_assignments where model_id=v_registry_id and route_role=old.route_role;
+      end if;
+    end if;
+  end if;
   select id into v_registry_id from public.suly_model_registry where legacy_chat_model_id=new.model_id;
   if v_registry_id is null then return new; end if;
   insert into public.suly_model_route_assignments(model_id,route_role,priority,enabled)
