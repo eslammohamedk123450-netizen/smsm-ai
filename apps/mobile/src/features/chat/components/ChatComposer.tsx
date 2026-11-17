@@ -174,7 +174,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
             onPress={onOpenConnectors}
             disabled={disabled || isStreaming}
             activeOpacity={0.7}
-            style={styles.micButton}
+            style={styles.connectorButton}
             accessibilityLabel={isArabic ? "فتح الموصلات" : "Open connectors"}
           >
             <Ionicons name="git-network-outline" size={20} color={colors.textMuted} />
@@ -269,7 +269,7 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
     writingDirection: "rtl",
   },
   leftControls: { flexDirection: "row", alignItems: "center", gap: 4 },
-  micButton: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 18 },
+  connectorButton: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 18 },
   blueButton: {
     width: 38,
     height: 38,
