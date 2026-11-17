@@ -14,6 +14,7 @@ type AuditRow = { id: number; display_name: string | null; capability_key: strin
 type ModelRow = {
   model_id: string; provider_id: number; provider_name?: string | null; service_type: ServiceType; model_identifier: string;
   display_name: string; lifecycle_state: "active" | "candidate" | "archived";
+  operational_state?: "active" | "disabled" | "restricted" | "candidate" | "archived" | "unknown";
   legacy_chat_model_id: number | null; legacy_media_model_id: string | null;
   capability_key: string | null; review_status: ReviewStatus | null;
   vendor_claim_status: "unknown" | "supported" | "unsupported" | null;
@@ -41,6 +42,7 @@ const CAPABILITY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
 };
 const VENDOR: Array<[string,string]> = [["unknown","غير معروف"],["supported","مدعوم رسميًا"],["unsupported","غير مدعوم"]];
 const TEST: Array<[string,string]> = [["not_tested","لم يُختبر"],["passed","نجح"],["failed","فشل"]];
+const OPERATIONAL_LABEL: Record<NonNullable<ModelRow["operational_state"]>, string> = { active: "مفعّل", disabled: "معطّل", restricted: "مقيّد", candidate: "مرشح", archived: "مؤرشف", unknown: "غير معلوم" };
 const REVIEW: Record<ReviewStatus,string> = {
   suggested:"اقتراح جديد", legacy_unreviewed:"قديم - يحتاج مراجعة", approved:"معتمد", rejected:"مرفوض",
 };
@@ -77,13 +79,40 @@ export function UnifiedModelCapabilitiesAdminCard() {
   const load = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const [capabilityResult,auditResult] = await Promise.all([
+      const [capabilityResult,auditResult,chatModelsResult,mediaModelsResult,providersResult,healthResult] = await Promise.all([
         supabase.rpc("suly_admin_list_unified_model_capabilities"),
         supabase.rpc("suly_admin_list_model_registry_audit"),
+        supabase.from("ai_models").select("id,enabled,provider_id,routing_group").limit(1000),
+        supabase.from("suly_media_generation_models").select("id,is_active,provider_id").limit(1000),
+        supabase.from("ai_providers").select("id,enabled").limit(500),
+        supabase.from("ai_model_health").select("model_id,auto_restricted").limit(1000),
       ]);
       if(capabilityResult.error) throw capabilityResult.error;
       if(auditResult.error) throw auditResult.error;
-      const next = (capabilityResult.data ?? []) as ModelRow[];
+      const providerEnabled = new Map<number,boolean>((providersResult.data ?? []).map((row) => [Number(row.id), row.enabled === true]));
+      const chatById = new Map<number,{enabled:boolean;routing_group:string}>((chatModelsResult.data ?? []).map((row) => [Number(row.id), {enabled:row.enabled === true,routing_group:String(row.routing_group ?? "")}]));
+      const mediaById = new Map<string,{is_active:boolean}>((mediaModelsResult.data ?? []).map((row) => [String(row.id), {is_active:row.is_active === true}]));
+      const restrictedById = new Map<number,boolean>((healthResult.data ?? []).map((row) => [Number(row.model_id), row.auto_restricted === true]));
+      const operationalDataAvailable = !providersResult.error;
+      const next = ((capabilityResult.data ?? []) as ModelRow[]).map((model) => {
+        let operational_state: NonNullable<ModelRow["operational_state"]> = "unknown";
+        const providerState = providerEnabled.get(Number(model.provider_id));
+        if (model.lifecycle_state === "archived") operational_state = "archived";
+        else if (providerState === false) operational_state = "disabled";
+        else if (providerState === true && model.legacy_chat_model_id !== null) {
+          const legacy = chatById.get(Number(model.legacy_chat_model_id));
+          if (chatModelsResult.error || !legacy || healthResult.error) operational_state = "unknown";
+          else if (!legacy.enabled || legacy.routing_group === "disabled") operational_state = "disabled";
+          else if (restrictedById.get(Number(model.legacy_chat_model_id)) === true) operational_state = "restricted";
+          else operational_state = "active";
+        } else if (providerState === true && model.legacy_media_model_id) {
+          const legacy = mediaById.get(model.legacy_media_model_id);
+          if (mediaModelsResult.error || !legacy) operational_state = "unknown";
+          else operational_state = legacy.is_active ? "active" : "disabled";
+        } else if (model.lifecycle_state === "candidate") operational_state = "candidate";
+        else operational_state = operationalDataAvailable ? "unknown" : "unknown";
+        return {...model,operational_state};
+      });
       setRows(next);
       setAudit((auditResult.data ?? []) as AuditRow[]);
       setSelectedId((current) => current && next.some((r) => r.model_id === current) ? current : (next[0]?.model_id ?? ""));
@@ -233,7 +262,11 @@ export function UnifiedModelCapabilitiesAdminCard() {
       <Pressable onPress={()=>void load()}><Text style={styles.action}>تحديث</Text></Pressable>
     </View>
     <View style={styles.metrics}>
-      <Text style={styles.metric}>النماذج: {models.length}</Text>
+      <Text style={styles.metric}>إجمالي النماذج: {models.length}</Text>
+      <Text style={styles.metric}>مفعّل: {models.filter((model) => model.operational_state === "active").length}</Text>
+      <Text style={styles.metric}>معطّل: {models.filter((model) => model.operational_state === "disabled").length}</Text>
+      <Text style={styles.metric}>مقيّد: {models.filter((model) => model.operational_state === "restricted").length}</Text>
+      <Text style={styles.metric}>غير معلوم: {models.filter((model) => model.operational_state === "unknown").length}</Text>
       <Text style={styles.metric}>قدرات تحتاج مراجعة: {rows.filter(r=>r.capability_key && (r.review_status==="suggested"||r.review_status==="legacy_unreviewed")).length}</Text>
       <Text style={styles.metric}>المعتمدة: {rows.filter(r=>r.review_status==="approved").length}</Text>
     </View>
@@ -267,7 +300,7 @@ export function UnifiedModelCapabilitiesAdminCard() {
       return <Pressable key={model.model_id} onPress={() => setSelectedId(model.model_id)} style={styles.modelListRow}>
         <View style={styles.modelListCopy}>
           <Text style={styles.modelListName}>{model.display_name}</Text>
-          <Text style={styles.modelListMeta}>{model.provider_name ?? `المزود #${model.provider_id}`} · {model.service_type} · {model.lifecycle_state === "active" ? "نشط في السجل" : model.lifecycle_state === "archived" ? "مؤرشف" : "مرشح"}</Text>
+          <Text style={styles.modelListMeta}>{model.provider_name ?? `المزود #${model.provider_id}`} · {model.service_type} · {model.lifecycle_state === "active" ? "نشط في السجل" : model.lifecycle_state === "archived" ? "مؤرشف" : "مرشح"} · التشغيل: {OPERATIONAL_LABEL[model.operational_state ?? "unknown"]}</Text>
           <Text style={styles.modelListMeta}>المراجعة: {REVIEW[evidence?.review_status ?? "suggested"]} · الاختبار: {evidence?.suly_test_status === "passed" ? "نجح" : evidence?.suly_test_status === "failed" ? "فشل" : "لم يُختبر"}</Text>
         </View>
         <Ionicons name="chevron-forward-outline" size={18} color={colors.textMuted}/>
@@ -301,7 +334,7 @@ export function UnifiedModelCapabilitiesAdminCard() {
     <TextInput value={editorSearch} onChangeText={setEditorSearch} placeholder="ابحث عن نموذج لفتح ملف مراجعته..." placeholderTextColor={colors.textMuted} style={styles.input}/>
     <View style={styles.wrap}>{visibleModels.map(m=><Pressable key={m.model_id} onPress={()=>setSelectedId(m.model_id)} style={[styles.chip,selectedId===m.model_id&&styles.selected]}><Text style={styles.chipText}>{m.display_name} · {m.provider_name ?? `مزود #${m.provider_id}`} · {m.service_type}</Text></Pressable>)}</View>
     {models.length>60?<Text style={styles.hint}>يتم عرض أول 60 نتيجة؛ استخدم البحث لتضييق القائمة.</Text>:null}
-    {selected?<Text style={styles.selectedName}>{selected.display_name} · {selected.provider_name ?? `المزود #${selected.provider_id}`} · {selected.model_identifier} · {selected.lifecycle_state==="active"?"مفعّل في الكتالوج":selected.lifecycle_state==="archived"?"مؤرشف":"مرشح للمراجعة"}</Text>:null}
+    {selected?<Text style={styles.selectedName}>{selected.display_name} · {selected.provider_name ?? `المزود #${selected.provider_id}`} · {selected.model_identifier} · {selected.lifecycle_state==="active"?"مفعّل في الكتالوج":selected.lifecycle_state==="archived"?"مؤرشف":"مرشح للمراجعة"} · حالة التشغيل: {OPERATIONAL_LABEL[selected.operational_state ?? "unknown"]}</Text>:null}
     <View style={styles.wrap}>{availableCapabilities.map(([key,label])=><Pressable key={key} onPress={()=>setCapability(key)} style={[styles.chip,capability===key&&styles.selected]}><Text style={styles.chipText}>{label}</Text></Pressable>)}</View>
     {current?<Text style={styles.review}>حالة المراجعة الحالية: {REVIEW[current.review_status ?? "suggested"]}</Text>:<Text style={styles.hint}>لا يوجد سجل لهذه القدرة بعد. حفظها ينشئ سجلًا جديدًا.</Text>}
     {capability==="text" && selected?.legacy_chat_model_id ? <View style={styles.probeRow}><View style={styles.copy}><Text style={styles.label}>اختبار اتصال النص الفعلي</Text><Text style={styles.hint}>الاختبار لا يعتمد القدرة تلقائيًا ولا يغير إعدادات التوجيه.</Text></View><Pressable disabled={testing||loading} onPress={()=>void runTextProbe()} style={[styles.probe, (testing||loading)&&styles.disabled]}><Text style={styles.saveText}>{testing?"جارٍ الاختبار…":"اختبار النص"}</Text></Pressable></View>:null}
