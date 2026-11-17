@@ -44,13 +44,13 @@ describe("SULY shared theme tokens", () => {
 });
 
 
-  it("preserves the approved Midnight Gold Luxury identity", () => {
+  it("preserves the approved monochrome minimal identity", () => {
     const dark = getThemeColors("dark");
     const light = getThemeColors("light");
-    expect(dark.primary).toBe("#D4AF37");
-    expect(dark.background).toBe("#080B14");
-    expect(dark.surface).toBe("#151A27");
-    expect(dark.surfaceElevated).toBe("#252B3A");
-    expect(dark.textPrimary).toBe("#F5F0E2");
-    expect(light.primary).toBe("#8F6A12");
+    expect(dark.primary).toBe("#F5F5F5");
+    expect(dark.background).toBe("#0A0A0A");
+    expect(dark.surface).toBe("#141414");
+    expect(dark.surfaceElevated).toBe("#242424");
+    expect(dark.textPrimary).toBe("#F7F7F7");
+    expect(light.primary).toBe("#111111");
   });
