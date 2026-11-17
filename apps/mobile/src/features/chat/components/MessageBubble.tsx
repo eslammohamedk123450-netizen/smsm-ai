@@ -247,16 +247,6 @@ export function MessageBubble({
             </>
           ) : (
             <>
-              {/* Header inside assistant bubble matching web */}
-              <View style={styles.assistantHeader}>
-                <View style={styles.assistantBrand}>
-                  <Image source={require("../../../../assets/suly-icon.png")} style={styles.sulySmallIcon} resizeMode="cover" />
-                  <Text style={styles.assistantTitle}>Suly</Text>
-                </View>
-                {content ? <TouchableOpacity onPress={() => void copyToClipboard(content, true)} style={styles.headerCopyBtn} accessibilityLabel="نسخ الرد">
-                  <Ionicons name={copied ? "checkmark" : "copy-outline"} size={14} color={copied ? colors.primary : colors.textMuted} />
-                </TouchableOpacity> : null}
-              </View>
               {responseVariants.length > 1 ? (
                 <View style={styles.variantNav} accessibilityLabel={`نسخة الرد ${responseIndex + 1} من ${responseVariants.length}`}>
                   <Pressable onPress={() => onResponseIndexChange?.(Math.max(0, responseIndex - 1))} disabled={responseIndex === 0} style={styles.variantArrow} accessibilityLabel="الرد القديم"><Text style={[styles.variantArrowText, responseIndex === 0 && styles.variantDisabled]}>&gt;</Text></Pressable>
@@ -271,13 +261,9 @@ export function MessageBubble({
                   <Text style={styles.generationLabel}>{generationState === "pending" ? "جاري توليد الصورة…" : "تعذر توليد الصورة. أرسل الطلب مجددًا للمحاولة."}</Text>
                 </View>
               ) : <>
-                {!isStreaming ? (
-                  <View style={styles.markdown}>
-                    <MarkdownView content={content} onCopyCode={(code) => void copyToClipboard(code)} />
-                  </View>
-                ) : (
-                  <Text style={styles.assistantText}>{content}</Text>
-                )}
+                <View style={styles.markdown}>
+                  <MarkdownView content={content} onCopyCode={(code) => void copyToClipboard(code)} />
+                </View>
                 {attachments.length ? <View style={styles.assistantAttachments}>{attachments.map((asset) => {
                   const isImage = asset.kind === "image" || asset.mimeType?.toLowerCase().startsWith("image/");
                   return isImage ? (
@@ -341,14 +327,12 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
     elevation: 2,
   },
   assistantBubble: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.divider,
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+    padding: 0,
+    borderRadius: 0,
+    backgroundColor: "transparent",
+    borderWidth: 0,
+    shadowOpacity: 0,
+    elevation: 0,
   },
   assistantHeader: {
     flexDirection: "row",
