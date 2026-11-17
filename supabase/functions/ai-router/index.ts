@@ -5,7 +5,7 @@ import { prepareAgentMemory, saveAgentMemory } from "./agent/memory.ts";
 import { activationOutcomeMessage, parseActivationCommand, shouldReportActivationFailure } from "../_shared/activation_command.ts";
 import { activateFeatureByCode, checkFeatureActivationRateLimit, getFeatureContext } from "../_shared/feature_flags.ts";
 import { buildFeatureSystemContext, isFeatureResourceRequest, shouldSearchWebForMessage } from "../_shared/feature_resource_context.ts";
-import { buildSulyIdentityContext, containsHimsReference, getIdentityAnswer, INACTIVE_UNKNOWN_ANSWER, sanitizeContextText } from "../_shared/identity_context.ts";
+import { buildSulyIdentityContext, containsHimsReference, getIdentityAnswer, getSulyProductAnswer, INACTIVE_UNKNOWN_ANSWER, sanitizeContextText } from "../_shared/identity_context.ts";
 import { normalizeFeatureKey } from "../_shared/prompt_keys.ts";
 import { capabilityForMime, supportsModelCapabilities, type ModelCapability } from "../_shared/model_capabilities.ts";
 import { extractDocxText, extractPdfText, fetchCloudinaryBytes, MAX_EXTRACTED_DOCUMENT_CHARS, MediaProcessingError } from "../_shared/media_content.ts";
@@ -1018,7 +1018,12 @@ async function handleRequest(req: Request): Promise<Response> {
   // Study questions remain ordinary SULY conversations. Access to private course
   // resources is still enforced server-side: getFeatureContext only returns
   // resources for features activated by this authenticated user.
-  const identityAnswer = !internalBrainCall && executionMode !== "agent" && trustedAttachments.length === 0 ? getIdentityAnswer(latestUserMessage) : null;
+  const productAnswer = !internalBrainCall && trustedAttachments.length === 0 ? getSulyProductAnswer(latestUserMessage) : null;
+  if (productAnswer) {
+    return respondDeterministically(productAnswer, { billing: null }, "verified_product_knowledge");
+  }
+
+  const identityAnswer = !internalBrainCall && trustedAttachments.length === 0 ? getIdentityAnswer(latestUserMessage) : null;
   if (identityAnswer) {
     return respondDeterministically(identityAnswer, { billing: null }, "identity_question");
   }
