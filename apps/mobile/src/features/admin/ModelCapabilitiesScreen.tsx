@@ -78,7 +78,7 @@ export function ModelCapabilitiesScreen() {
     try {
       const [registry, providers, chat, media, health] = await Promise.all([
         supabase.rpc("suly_admin_list_unified_model_capabilities"),
-        supabase.from("ai_providers").select("id,name,provider_type,enabled").limit(500),
+        supabase.rpc("suly_admin_list_providers"),
         supabase.from("ai_models").select("id,enabled,routing_group").limit(1000),
         supabase.from("suly_media_generation_models").select("id,is_active").limit(1000),
         supabase.from("ai_model_health").select("model_id,auto_restricted").limit(1000),
