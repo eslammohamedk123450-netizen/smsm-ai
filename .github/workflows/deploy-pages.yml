@@ -56,7 +56,7 @@ jobs:
       - name: Export stable production web app
         working-directory: production-source/apps/mobile
         env:
-          EXPO_PUBLIC_WEB_BASE_URL: /smsm-ai
+          EXPO_PUBLIC_WEB_BASE_URL: ""
           EXPO_PUBLIC_SUPABASE_URL: https://razvryvazmqvvqkzetuo.supabase.co
           EXPO_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_t5xrzZNN6Uj9zhhBLUYQVg_mj7qPjQL
           EXPO_PUBLIC_EDGE_FUNCTION_BASE_URL: https://razvryvazmqvvqkzetuo.supabase.co/functions/v1
@@ -69,7 +69,7 @@ jobs:
       - name: Export development preview
         working-directory: preview-source/apps/mobile
         env:
-          EXPO_PUBLIC_WEB_BASE_URL: /smsm-ai/preview
+          EXPO_PUBLIC_WEB_BASE_URL: /preview
           EXPO_PUBLIC_SUPABASE_URL: https://razvryvazmqvvqkzetuo.supabase.co
           EXPO_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_t5xrzZNN6Uj9zhhBLUYQVg_mj7qPjQL
           EXPO_PUBLIC_EDGE_FUNCTION_BASE_URL: https://razvryvazmqvvqkzetuo.supabase.co/functions/v1
@@ -81,11 +81,38 @@ jobs:
           cp -R production-source/apps/mobile/dist/. site/
           cp -R preview-source/apps/mobile/dist/. site/preview/
 
-      - name: Verify generated route bundles
+      - name: Verify generated route bundles and deployment asset paths
         run: |
           set -euo pipefail
           test -n "$(find site/_expo/static/js/web -maxdepth 1 -type f -name 'media-catalog-*.js' -print -quit)"
           test -n "$(find site/preview/_expo/static/js/web -maxdepth 1 -type f -name 'media-catalog-*.js' -print -quit)"
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          site = Path("site")
+          builds = [
+              (site / "index.html", ""),
+              (site / "preview" / "index.html", "/preview"),
+          ]
+          for html_path, prefix in builds:
+              if not html_path.is_file():
+                  raise SystemExit(f"Missing exported page: {html_path}")
+              html = html_path.read_text(encoding="utf-8")
+              script_paths = re.findall(r'<script[^>]+src="([^"]+)"', html)
+              if not script_paths:
+                  raise SystemExit(f"No JavaScript bundles found in {html_path}")
+              expected_prefix = f"{prefix}/_expo/static/js/web/"
+              for url in script_paths:
+                  if not url.startswith(expected_prefix):
+                      raise SystemExit(f"Unexpected bundle URL in {html_path}: {url}; expected prefix {expected_prefix}")
+                  if not (site / url.lstrip("/")).is_file():
+                      raise SystemExit(f"Referenced JavaScript bundle is missing: {url}")
+              for url in re.findall(r'url\(["\']?([^"\')]+\.ttf)["\']?\)', html):
+                  if not (site / url.lstrip("/")).is_file():
+                      raise SystemExit(f"Referenced font is missing: {url}")
+              print(f"Verified {html_path}: {len(script_paths)} script references, base prefix {prefix or '/'}")
+          PY
 
       # Keep immutable hashed assets from recent deployments so cached HTML
       # can still load its old route chunks after a new GitHub Pages deploy.
