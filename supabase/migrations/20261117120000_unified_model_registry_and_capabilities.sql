@@ -197,6 +197,11 @@ begin
   if p_suly_test_status='passed' and p_provider_test_status<>'passed' then
     raise exception 'provider_test_required_before_suly_pass' using errcode='23514';
   end if;
+  if p_review_status='approved'
+     and p_vendor_claim_status<>'supported'
+     and p_provider_test_status<>'passed' then
+    raise exception 'evidence_required_for_approval' using errcode='23514';
+  end if;
   if length(coalesce(p_notes,''))>2000
      or (p_vendor_evidence_url is not null and p_vendor_evidence_url !~* '^https://')
      or (p_provider_evidence_url is not null and p_provider_evidence_url !~* '^https://')
