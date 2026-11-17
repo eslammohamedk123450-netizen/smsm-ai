@@ -24,6 +24,7 @@
 - [x] Add a read-only model detail inspector to both catalog presentations, showing provider identity, service type, lifecycle/operational status, and only registered capability keys.
 - [x] Link catalog detail to the existing capability review, operations/health, pricing, audit, provider, and model-management pages without creating new data paths.
 - [ ] Complete the remaining model detail (including model-specific historical price/health/audit timelines) and five-step Add Model workflow only where existing provider contracts, evidence, pricing, and reviewed server operations support it.
+- [x] Fix the unified capability-list RPC provider-name return-type mismatch with an explicit `varchar` to `text` cast and add a regression test for administrator access and non-administrator denial. The new migration is committed but is not applied to the shared live database in this preview-only change.
 - [ ] Confirm every capability/test action and model state transition against its existing server authorization and evidence source.
 
 ### Verified existing domain capabilities reused
