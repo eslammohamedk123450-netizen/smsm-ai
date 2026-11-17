@@ -23,7 +23,7 @@ type ModelRow = {
   suly_evidence_url: string | null; notes: string | null;
 };
 const CAPABILITIES: Array<[string, string]> = [
-  ["text","إدخال النص"],["chat","المحادثة"],["vision","فهم الصور"],["pdf_input","إدخال PDF"],
+  ["text","إدخال وإخراج النص"],["chat","المحادثة"],["vision","فهم الصور"],["pdf_input","إدخال PDF"],
   ["file_input","إدخال الملفات"],["video_input","إدخال الفيديو"],["audio_input","إدخال الصوت"],
   ["audio_output","إخراج الصوت"],["image_generation","توليد الصور"],["video_generation","توليد الفيديو"],
   ["transcription","تفريغ الصوت"],["function_calling","استدعاء الدوال"],["structured_output","مخرجات منظمة"],
@@ -31,6 +31,7 @@ const CAPABILITIES: Array<[string, string]> = [
   ["computer_use","استخدام الكمبيوتر"],["code_interpreter","تنفيذ الكود"],["mcp_tools","أدوات MCP"],
   ["gmail","Gmail"],["google_drive","Google Drive"],["github","GitHub"],
 ];
+const CAPABILITY_ALIASES: Record<string,string[]> = { pdf_input: ["pdf"], file_input: ["word"], video_input: ["video"] };
 const CAPABILITY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   text: "text-outline", chat: "chatbubble-ellipses-outline", vision: "eye-outline",
   pdf_input: "document-text-outline", file_input: "folder-outline", video_input: "videocam-outline",
@@ -135,7 +136,8 @@ export function UnifiedModelCapabilitiesAdminCard() {
   const availableCapabilities = selected && selected.service_type!=="chat"
     ? CAPABILITIES.filter(([key])=>MEDIA_CAPABILITIES[selected.service_type as Exclude<ServiceType,"chat">].includes(key))
     : CAPABILITIES;
-  const current = rows.find(r=>r.model_id===selectedId && r.capability_key===capability) ?? null;
+  const currentCapabilityKeys = new Set([capability, ...(CAPABILITY_ALIASES[capability] ?? [])]);
+  const current = rows.find(r=>r.model_id===selectedId && r.capability_key !== null && currentCapabilityKeys.has(r.capability_key)) ?? null;
   useEffect(() => {
     if(availableCapabilities.length && !availableCapabilities.some(([key])=>key===capability)) {
       setCapability(availableCapabilities[0][0]);
@@ -180,7 +182,8 @@ export function UnifiedModelCapabilitiesAdminCard() {
   };
 
   const linkedModels = useMemo(() => {
-    const ids = new Set(rows.filter((row) => row.capability_key === capability).map((row) => row.model_id));
+    const capabilityKeys = new Set([capability, ...(CAPABILITY_ALIASES[capability] ?? [])]);
+    const ids = new Set(rows.filter((row) => row.capability_key !== null && capabilityKeys.has(row.capability_key)).map((row) => row.model_id));
     return models.filter((model) => ids.has(model.model_id));
   }, [models, rows, capability]);
 
@@ -266,6 +269,8 @@ export function UnifiedModelCapabilitiesAdminCard() {
       <Text style={styles.metric}>مفعّل: {models.filter((model) => model.operational_state === "active").length}</Text>
       <Text style={styles.metric}>معطّل: {models.filter((model) => model.operational_state === "disabled").length}</Text>
       <Text style={styles.metric}>مقيّد: {models.filter((model) => model.operational_state === "restricted").length}</Text>
+      <Text style={styles.metric}>مرشح: {models.filter((model) => model.operational_state === "candidate").length}</Text>
+      <Text style={styles.metric}>مؤرشف: {models.filter((model) => model.operational_state === "archived").length}</Text>
       <Text style={styles.metric}>غير معلوم: {models.filter((model) => model.operational_state === "unknown").length}</Text>
       <Text style={styles.metric}>قدرات تحتاج مراجعة: {rows.filter(r=>r.capability_key && (r.review_status==="suggested"||r.review_status==="legacy_unreviewed")).length}</Text>
       <Text style={styles.metric}>المعتمدة: {rows.filter(r=>r.review_status==="approved").length}</Text>
@@ -279,7 +284,8 @@ export function UnifiedModelCapabilitiesAdminCard() {
     </View>
     <View style={styles.capabilityGrid}>
       {CAPABILITIES.map(([key, label]) => {
-        const count = new Set(rows.filter((row) => row.capability_key === key).map((row) => row.model_id)).size;
+        const capabilityKeys = new Set([key, ...(CAPABILITY_ALIASES[key] ?? [])]);
+        const count = new Set(rows.filter((row) => row.capability_key !== null && capabilityKeys.has(row.capability_key)).map((row) => row.model_id)).size;
         const active = capability === key;
         return <Pressable key={key} onPress={() => { setCapability(key); setSelectedToAdd([]); setNotice(null); }} style={[styles.capabilityTile, active && styles.capabilityTileActive]}>
           <Ionicons name={CAPABILITY_ICONS[key] ?? "apps-outline"} size={20} color={active ? colors.primary : colors.textSecondary}/>
