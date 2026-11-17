@@ -134,6 +134,7 @@ jobs:
           deno test --node-modules-dir=auto supabase/functions/model-health-check/capability_evidence_test.ts
           deno test --node-modules-dir=auto supabase/functions/ai-router/agent/agent_budget_policy.test.ts
           deno test --node-modules-dir=auto supabase/functions/ai-router/agent/suly_profile_routing.test.ts
+          deno test --node-modules-dir=auto supabase/functions/ai-router/agent/routing_mode.test.ts
           deno test --node-modules-dir=auto supabase/functions/ai-router/execution_mode.test.ts
           deno test --node-modules-dir=auto supabase/functions/_shared/ai_request_idempotency_test.ts
           deno test --node-modules-dir=auto supabase/functions/_shared/intent_classifier_test.ts
