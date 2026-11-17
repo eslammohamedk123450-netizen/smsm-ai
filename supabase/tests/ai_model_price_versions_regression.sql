@@ -53,7 +53,7 @@ begin
   join public.ai_models model on model.id = price.model_id
   where model.provider_id = 22 and model.model_identifier = 'o3-pro' and price.is_current;
 
-  if v_source_total <> 44 or v_source_current <> 42
+  if v_source_total <> 44 or v_source_current <> 43
      or v_reconciled_total <> 2 or v_reconciled_current <> 2
      or v_bad_markup <> 0 or v_formula_mismatch <> 0 or v_bad_provider <> 0
      or v_duplicate_current <> 0
