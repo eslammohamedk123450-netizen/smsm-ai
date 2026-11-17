@@ -58,6 +58,8 @@ export function UnifiedModelCapabilitiesAdminCard() {
   const [selectedId,setSelectedId] = useState("");
   const [capability,setCapability] = useState("text");
   const [search,setSearch] = useState("");
+  const [editorSearch,setEditorSearch] = useState("");
+  const [selectedToAdd,setSelectedToAdd] = useState<string[]>([]);
   const [vendor,setVendor] = useState<ModelRow["vendor_claim_status"]>("unknown");
   const [vendorUrl,setVendorUrl] = useState("");
   const [provider,setProvider] = useState<TestStatus>("not_tested");
@@ -97,9 +99,9 @@ export function UnifiedModelCapabilitiesAdminCard() {
     return [...seen.values()];
   },[rows]);
   const visibleModels = useMemo(() => {
-    const q=search.trim().toLocaleLowerCase();
+    const q=editorSearch.trim().toLocaleLowerCase();
     return models.filter(m => !q || `${m.display_name} ${m.provider_name ?? ""} ${m.model_identifier} ${m.service_type}`.toLocaleLowerCase().includes(q)).slice(0,60);
-  },[models,search]);
+  },[models,editorSearch]);
   const selected = models.find(m=>m.model_id===selectedId) ?? null;
   const availableCapabilities = selected && selected.service_type!=="chat"
     ? CAPABILITIES.filter(([key])=>MEDIA_CAPABILITIES[selected.service_type as Exclude<ServiceType,"chat">].includes(key))
@@ -156,6 +158,7 @@ export function UnifiedModelCapabilitiesAdminCard() {
   const addableModels = useMemo(() => {
     const linkedIds = new Set(linkedModels.map((model) => model.model_id));
     const query = search.trim().toLocaleLowerCase();
+    if (query.length < 2) return [];
     return models.filter((model) => {
       if (linkedIds.has(model.model_id)) return false;
       if (model.service_type !== "chat") {
@@ -166,28 +169,61 @@ export function UnifiedModelCapabilitiesAdminCard() {
     }).slice(0, 40);
   }, [models, linkedModels, capability, search]);
 
+  const saveCapabilityLink = async (model: ModelRow) => {
+    const { data, error: rpcError } = await supabase.rpc("suly_admin_save_unified_model_capability", {
+      p_model_id: model.model_id,
+      p_capability_key: capability,
+      p_vendor_claim_status: "unknown",
+      p_vendor_evidence_url: null,
+      p_provider_test_status: "not_tested",
+      p_provider_evidence_url: null,
+      p_suly_test_status: "not_tested",
+      p_suly_evidence_url: null,
+      p_notes: "أضيف من دليل القدرات؛ يحتاج مراجعة واختبار قبل الاعتماد.",
+      p_review_status: "suggested",
+    });
+    if (rpcError) throw rpcError;
+    if (data?.success !== true) throw new Error(`لم تؤكد قاعدة البيانات إضافة ${model.display_name}.`);
+  };
+
   const addModelToCapability = async (model: ModelRow) => {
     setSaving(true); setError(null); setNotice(null);
     try {
-      const { data, error: rpcError } = await supabase.rpc("suly_admin_save_unified_model_capability", {
-        p_model_id: model.model_id,
-        p_capability_key: capability,
-        p_vendor_claim_status: "unknown",
-        p_vendor_evidence_url: null,
-        p_provider_test_status: "not_tested",
-        p_provider_evidence_url: null,
-        p_suly_test_status: "not_tested",
-        p_suly_evidence_url: null,
-        p_notes: "أضيف من دليل القدرات؛ يحتاج مراجعة واختبار قبل الاعتماد.",
-        p_review_status: "suggested",
-      });
-      if (rpcError) throw rpcError;
-      if (data?.success !== true) throw new Error("لم تؤكد قاعدة البيانات إضافة القدرة.");
+      await saveCapabilityLink(model);
       setSelectedId(model.model_id);
       setNotice(`تمت إضافة ${model.display_name} إلى القدرة كاقتراح يحتاج مراجعة.`);
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "تعذرت إضافة النموذج إلى القدرة.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleAddSelection = (modelId: string) => {
+    setSelectedToAdd((current) => current.includes(modelId) ? current.filter((id) => id !== modelId) : [...current, modelId]);
+  };
+
+  const addSelectedModels = async () => {
+    const selectedModels = addableModels.filter((model) => selectedToAdd.includes(model.model_id));
+    if (!selectedModels.length) return;
+    setSaving(true); setError(null); setNotice(null);
+    let added = 0;
+    let failure: string | null = null;
+    try {
+      for (const model of selectedModels) {
+        try {
+          await saveCapabilityLink(model);
+          added += 1;
+        } catch (cause) {
+          failure = cause instanceof Error ? cause.message : `تعذرت إضافة ${model.display_name}.`;
+          break;
+        }
+      }
+      setSelectedToAdd([]);
+      await load();
+      if (failure) setError(`تمت إضافة ${added} نموذجًا قبل توقف الدفعة: ${failure}`);
+      else setNotice(`تمت إضافة ${added} نموذجًا كاقتراحات تحتاج مراجعة واختبار.`);
     } finally {
       setSaving(false);
     }
@@ -227,7 +263,7 @@ export function UnifiedModelCapabilitiesAdminCard() {
         const count = new Set(rows.filter((row) => row.capability_key === key).map((row) => row.model_id)).size;
         const active = capability === key;
         return <Pressable key={key} onPress={() => { setCapability(key); setNotice(null); }} style={[styles.capabilityTile, active && styles.capabilityTileActive]}>
-          <Ionicons name={CAPABILITY_ICONS[key] ?? "extension-puzzle-outline"} size={20} color={active ? colors.primary : colors.textSecondary}/>
+          <Ionicons name={CAPABILITY_ICONS[key] ?? "apps-outline"} size={20} color={active ? colors.primary : colors.textSecondary}/>
           <Text style={styles.capabilityTileLabel}>{label}</Text>
           <Text style={styles.capabilityCount}>{count} نموذج</Text>
         </Pressable>;
@@ -251,19 +287,32 @@ export function UnifiedModelCapabilitiesAdminCard() {
         <Ionicons name="chevron-forward-outline" size={18} color={colors.textMuted}/>
       </Pressable>;
     }) : <Text style={styles.hint}>لا توجد نماذج مرتبطة بهذه القدرة حتى الآن.</Text>}
-    <TextInput value={search} onChangeText={setSearch} placeholder="ابحث لإضافة نموذج بالاسم أو جزء من المعرف..." placeholderTextColor={colors.textMuted} style={styles.input}/>
-    {addableModels.length ? addableModels.map((model) => <View key={model.model_id} style={styles.modelListRow}>
-      <View style={styles.modelListCopy}>
-        <Text style={styles.modelListName}>{model.display_name}</Text>
-        <Text style={styles.modelListMeta}>{model.provider_name ?? `المزود #${model.provider_id}`} · {model.model_identifier} · {model.service_type}</Text>
+    <TextInput value={search} onChangeText={setSearch} placeholder="ابحث بحرفين أو أكثر لإضافة نموذج..." placeholderTextColor={colors.textMuted} style={styles.input}/>
+    {search.trim().length < 2 ? <Text style={styles.hint}>اكتب حرفين على الأقل لعرض النماذج غير المرتبطة بهذه القدرة.</Text> : addableModels.length ? <>
+      <View style={styles.directoryHeader}>
+        <Text style={styles.metric}>{addableModels.length} نتيجة · اختر نموذجًا أو أكثر</Text>
+        <Pressable disabled={saving || selectedToAdd.length === 0} onPress={() => void addSelectedModels()} style={[styles.addModelButton, (saving || selectedToAdd.length === 0) && styles.disabled]}>
+          <Ionicons name="add" size={16} color={colors.onPrimary}/>
+          <Text style={styles.addModelText}>إضافة المحدد ({selectedToAdd.length})</Text>
+        </Pressable>
       </View>
-      <Pressable disabled={saving} onPress={() => void addModelToCapability(model)} style={[styles.addModelButton, saving && styles.disabled]}>
+      {addableModels.map((model) => {
+        const chosen = selectedToAdd.includes(model.model_id);
+        return <Pressable key={model.model_id} onPress={() => toggleAddSelection(model.model_id)} style={[styles.modelListRow, chosen && styles.capabilityTileActive]}>
+          <View style={styles.modelListCopy}>
+            <Text style={styles.modelListName}>{model.display_name}</Text>
+            <Text style={styles.modelListMeta}>{model.provider_name ?? `المزود #${model.provider_id}`} · {model.model_identifier} · {model.service_type}</Text>
+          </View>
+          <Ionicons name={chosen ? "checkbox-outline" : "square-outline"} size={20} color={chosen ? colors.primary : colors.textMuted}/>
+        </Pressable>;
+      })}
+      <Pressable disabled={saving || selectedToAdd.length === 0} onPress={() => void addSelectedModels()} style={[styles.addModelButton, (saving || selectedToAdd.length === 0) && styles.disabled]}>
         <Ionicons name="add" size={16} color={colors.onPrimary}/>
-        <Text style={styles.addModelText}>إضافة</Text>
+        <Text style={styles.addModelText}>إضافة النماذج المحددة</Text>
       </Pressable>
-    </View>) : <Text style={styles.hint}>لا توجد نماذج أخرى مطابقة لهذه القدرة والبحث الحالي.</Text>}
+    </> : <Text style={styles.hint}>لا توجد نماذج غير مرتبطة تطابق البحث لهذه القدرة.</Text>}
     <Text style={styles.label}>مراجعة أدلة النموذج</Text>
-    <TextInput value={search} onChangeText={setSearch} placeholder="ابحث عن نموذج لفتح ملف مراجعته..." placeholderTextColor={colors.textMuted} style={styles.input}/>
+    <TextInput value={editorSearch} onChangeText={setEditorSearch} placeholder="ابحث عن نموذج لفتح ملف مراجعته..." placeholderTextColor={colors.textMuted} style={styles.input}/>
     <View style={styles.wrap}>{visibleModels.map(m=><Pressable key={m.model_id} onPress={()=>setSelectedId(m.model_id)} style={[styles.chip,selectedId===m.model_id&&styles.selected]}><Text style={styles.chipText}>{m.display_name} · {m.provider_name ?? `مزود #${m.provider_id}`} · {m.service_type}</Text></Pressable>)}</View>
     {models.length>60?<Text style={styles.hint}>يتم عرض أول 60 نتيجة؛ استخدم البحث لتضييق القائمة.</Text>:null}
     {selected?<Text style={styles.selectedName}>{selected.display_name} · {selected.provider_name ?? `المزود #${selected.provider_id}`} · {selected.model_identifier} · {selected.lifecycle_state==="active"?"مفعّل في الكتالوج":selected.lifecycle_state==="archived"?"مؤرشف":"مرشح للمراجعة"}</Text>:null}
