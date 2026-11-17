@@ -6,6 +6,7 @@ import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { supabase } from "../../lib/supabase/client";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
+import { AdminMobileBreadcrumb } from "./AdminMobileBreadcrumb";
 
 type ServiceType = "chat" | "image" | "video" | "audio";
 type OperationalState = "active" | "disabled" | "restricted" | "candidate" | "archived" | "unknown";
@@ -141,6 +142,7 @@ export function ModelRegistryCatalogScreen() {
   }, [models, search, status, capability, capabilitiesByModel]);
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <AdminMobileBreadcrumb />
     <View style={styles.header}>
       <Text style={styles.eyebrow}>SULY · MODEL REGISTRY</Text>
       <Text style={styles.title}>نماذج التطبيق</Text>
