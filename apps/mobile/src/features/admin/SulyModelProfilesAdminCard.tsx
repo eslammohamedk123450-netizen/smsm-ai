@@ -6,7 +6,7 @@ import { adminService } from "./admin-service";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 
 type Profile = {
-  profile_key: "lite" | "pro" | "max";
+  profile_key: "free" | "lite" | "pro" | "max" | "ultra_team";
   display_name: string;
   tagline: string;
   description: string;
