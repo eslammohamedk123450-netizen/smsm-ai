@@ -88,6 +88,7 @@ export function ProvidersAdminScreen() {
   const { colors } = useSulyTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [providers, setProviders] = useState<ProviderRow[]>([]);
+  const [archivedProviders, setArchivedProviders] = useState<ProviderRow[]>([]);
   const [providerModels, setProviderModels] = useState<ModelRow[]>([]);
   const [selectedType, setSelectedType] = useState("");
   const [name, setName] = useState("");
@@ -109,8 +110,11 @@ export function ProvidersAdminScreen() {
     if (showInitialLoader) setLoading(true);
     setError(null);
     try {
-      const [providerRows, modelOverview] = await Promise.all([adminService.getProviders(), adminService.getModelsOverview()]);
+      const [providerRows, archivedRows, modelOverview] = await Promise.all([
+        adminService.getProviders(), adminService.getArchivedProviders(), adminService.getModelsOverview(),
+      ]);
       setProviders(providerRows as ProviderRow[]);
+      setArchivedProviders(archivedRows as ProviderRow[]);
       setProviderModels(modelOverview.models as ModelRow[]);
     }
     catch { setError("تعذر تحميل مزودي الخدمة. تحقق من الصلاحيات وسياسات RLS."); }
@@ -135,7 +139,7 @@ export function ProvidersAdminScreen() {
     setBusyId(provider.id); setError(null); setNotice(null);
     try {
       await adminService.setProviderLifecycle(provider.id, !provider.enabled, true);
-      setNotice(`${provider.name}: تم ${provider.enabled ? "تجميد" : "تفعيل"} المزود. يلزم إعادة ربط النماذج يدويًا بعد إعادة التفعيل.`);
+      setNotice(`${provider.name}: تم إيقاف المزود وإخفاؤه من الكتالوج. حُفظت إعداداته لاستعادتها لاحقًا، والسجلات المالية لم تتغير.`);
       await load();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر تغيير حالة المزود."); }
     finally { setBusyId(null); }
@@ -221,7 +225,7 @@ export function ProvidersAdminScreen() {
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
     <PageHeader title="مزودو الخدمة" />
     <Text style={styles.explainer}>أضف أكثر من مفتاح للخدمة نفسها عند الحاجة. كل مفتاح يُحفظ كحساب مستقل، وتُربط به نماذجه وسجل صحته وحده؛ قيم المفاتيح لا تظهر بعد الحفظ.</Text>
-    <Card><Text style={styles.detail}>تعطيل أي مفتاح يجمّد نماذجه فورًا: تُزال من أقسام التوجيه ومستويات SULY والاختيارات الجديدة، وتُلغى التعيينات المباشرة المرتبطة به. إعادة التفعيل لا تعيد النماذج تلقائيًا؛ راجعها وأعد اختيارها يدويًا.</Text></Card>
+    <Card><Text style={styles.detail}>إيقاف المفتاح يؤرشفه ويخفيه من الكتالوجات النشطة، ويوقف نماذجه ومساراته. تُحفظ إعداداته السابقة لاستعادتها عند إعادة التفعيل، بينما تظل جميع سجلات التكلفة والاستهلاك والأرصدة والمعاملات محفوظة دون تعديل.</Text></Card>
     <Card>
       <View style={styles.providerFormHeading}><View style={styles.sectionIcon}><Text style={styles.sectionIconText}>⌘</Text></View><View style={styles.providerFormHeadingText}><Text style={styles.sectionTitle}>إضافة مفتاح API</Text><Text style={styles.detail}>كل إضافة تنشئ حسابًا ومجموعة نماذج مستقلين</Text></View></View>
       <Text style={styles.sectionTitle}>١. اختر الخدمة</Text>
@@ -310,6 +314,36 @@ export function ProvidersAdminScreen() {
         </View>
       </Card>;
     })}
+    <Card>
+      <View style={styles.sectionRow}>
+        <View><Text style={styles.sectionTitle}>المفاتيح المؤرشفة</Text><Text style={styles.detail}>{archivedProviders.length} مفتاح متوقف · مخفي من الكتالوجات النشطة</Text></View>
+        <Pressable accessibilityRole="button" onPress={() => void load()}><Text style={styles.link}>تحديث</Text></Pressable>
+      </View>
+      {archivedProviders.length === 0
+        ? <Text style={styles.detail}>لا توجد مفاتيح مؤرشفة.</Text>
+        : archivedProviders.map((provider) => <View key={provider.id} style={styles.providerModelRow}>
+          <View style={styles.providerModelInfo}>
+            <Text style={styles.cardTitle}>{provider.name}</Text>
+            <Text style={styles.detail}>{provider.provider_type} · {provider.base_url ?? ""}</Text>
+            <Text style={styles.detail}>يمكن استعادة إعدادات التوجيه السابقة إذا كانت محفوظة. ستظل صلاحية النموذج والصحة الحالية خاضعتين لفحوص التوجيه.</Text>
+          </View>
+          <PrimaryButton
+            label={busyId === provider.id ? "جارٍ الاستعادة…" : "استعادة المفتاح وإعداداته"}
+            onPress={() => void (async () => {
+              setBusyId(provider.id); setError(null); setNotice(null);
+              try {
+                const result = await adminService.setProviderLifecycle(provider.id, true, true);
+                setNotice(result.restored
+                  ? `تمت استعادة ${provider.name} وإعداداته السابقة. راجع صحة النماذج قبل التشغيل.`
+                  : `تم تفعيل ${provider.name}. لم توجد لقطة إعدادات سابقة لاستعادتها؛ راجع التعيينات يدويًا.`);
+                await load();
+              } catch (cause) { setError(cause instanceof Error ? cause.message : "تعذرت استعادة المفتاح."); }
+              finally { setBusyId(null); }
+            })()}
+            disabled={busyId !== null || testingModelId !== null}
+          />
+        </View>)}
+    </Card>
   </ScrollView>;
 }
 
