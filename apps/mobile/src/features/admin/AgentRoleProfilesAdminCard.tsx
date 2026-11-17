@@ -79,7 +79,6 @@ export function AgentRoleProfilesAdminCard() {
   }, [currentProfile?.id, currentProfile?.updated_at, role]);
 
   const eligibleModels = useMemo(() => models.filter((model) => supportsRole(model, role)), [models, role]);
-  const selectedModels = useMemo(() => selectedIds.map((id) => models.find((model) => String(model.id) === id)).filter(Boolean) as ModelOption[], [models, selectedIds]);
   const query = search.trim().toLocaleLowerCase();
   const availableModels = eligibleModels.filter((model) =>
     !selectedIds.includes(String(model.id))
