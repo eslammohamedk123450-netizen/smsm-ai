@@ -132,8 +132,6 @@ begin
 end;
 $function$;
 
-commit;
-
 
 -- Keep daily-credit and legacy Brain quotas aligned with the effective tier.
 create or replace function public.suly_claim_daily_credits(p_user_id uuid default null)
@@ -303,3 +301,5 @@ begin
     'daily_tokens_limit', v_plan.daily_tokens_limit);
 end;
 $function$;
+
+commit;
