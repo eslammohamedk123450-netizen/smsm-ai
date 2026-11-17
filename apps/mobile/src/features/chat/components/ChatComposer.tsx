@@ -117,11 +117,11 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
       <View style={styles.container}>
         {/* Right side (RTL start): + Button */}
         <TouchableOpacity
-          onPress={() => setAttachVisible(true)}
-          disabled={disabled || isStreaming}
+          onPress={onOpenConnectors}
+          disabled={disabled || isStreaming || !onOpenConnectors}
           activeOpacity={0.7}
           style={styles.plusButton}
-          accessibilityLabel={isArabic ? "إضافة ملف" : "Add attachment"}
+          accessibilityLabel={isArabic ? "فتح الموصلات والأدوات" : "Open connectors and tools"}
         >
           <Ionicons name="add" size={22} color={colors.textMuted} />
         </TouchableOpacity>
@@ -151,13 +151,13 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
         {/* Connectors shortcut replaces voice input; voice capture is not part of this chat UI. */}
         <View style={styles.leftControls}>
           <TouchableOpacity
-            onPress={onOpenConnectors}
+            onPress={() => setAttachVisible(true)}
             disabled={disabled || isStreaming}
             activeOpacity={0.7}
             style={styles.connectorButton}
-            accessibilityLabel={isArabic ? "فتح الموصلات" : "Open connectors"}
+            accessibilityLabel={isArabic ? "إرفاق صورة أو ملف" : "Attach an image or file"}
           >
-            <Ionicons name="git-network-outline" size={20} color={colors.textMuted} />
+            <Ionicons name="attach-outline" size={20} color={colors.textMuted} />
           </TouchableOpacity>
 
           {isStreaming ? (
