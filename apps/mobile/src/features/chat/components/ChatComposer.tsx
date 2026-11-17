@@ -92,24 +92,8 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
     setText(""); setInputHeight(MIN_INPUT_HEIGHT); setSelection(undefined); setAttachment(null);
   };
 
-  const hasLowBalance = creditBalance !== null && creditBalance < 500;
-
   return (
     <View style={styles.wrapper}>
-      {/* Low Balance Warning Banner */}
-      {hasLowBalance && (
-        <View style={styles.lowBalanceBanner}>
-          <View style={styles.bannerTextRow}>
-            <Ionicons name="alert-circle" size={16} color={colors.error} />
-            <Text style={styles.bannerText}>
-              {isArabic ? `رصيدك أوشك على النفاد (المتبقي: ${creditBalance?.toLocaleString("en-US")} نقطة)` : `Your credits are running low (${creditBalance?.toLocaleString("en-US")} remaining).`}
-            </Text>
-          </View>
-          <TouchableOpacity onPress={onOpenRecharge} style={styles.bannerRechargeBtn} activeOpacity={0.8}>
-            <Text style={styles.bannerRechargeText}>{isArabic ? "اشحن الآن" : "Recharge"}</Text>
-          </TouchableOpacity>
-        </View>
-      )}
 
       {attachment ? attachment.kind === "image" && attachmentPreviewUri ? (
         <View style={styles.imageAttachmentPreview}>
