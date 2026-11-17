@@ -305,34 +305,33 @@ export function ProvidersAdminScreen() {
         <View><Text style={styles.sectionTitle}>المفاتيح المؤرشفة</Text><Text style={styles.detail}>المفاتيح المتوقفة مخفية عن الكتالوجات والإحصاءات التشغيلية. افتح الأرشيف فقط عند الحاجة للاستعادة.</Text></View>
         <Pressable accessibilityRole="button" accessibilityState={{ expanded: showArchivedProviders }} onPress={() => setShowArchivedProviders((value) => !value)}><Text style={styles.link}>{showArchivedProviders ? "إخفاء الأرشيف" : `عرض الأرشيف (${archivedProviders.length})`}</Text></Pressable>
       </View>
-      {showArchivedProviders ? <>
-      {archivedProviders.length === 0
-        ? <Text style={styles.detail}>لا توجد مفاتيح مؤرشفة.</Text>
-        : archivedProviders.map((provider) => <View key={provider.id} style={styles.providerModelRow}>
-          <View style={styles.providerModelInfo}>
-            <Text style={styles.cardTitle}>{provider.name}</Text>
-            <Text style={styles.detail}>{provider.provider_type} · {provider.base_url ?? ""}</Text>
-            <Text style={styles.detail}>يمكن استعادة إعدادات التوجيه السابقة إذا كانت محفوظة. ستظل صلاحية النموذج والصحة الحالية خاضعتين لفحوص التوجيه.</Text>
-          </View>
-          <PrimaryButton
-            label={busyId === provider.id ? "جارٍ الاستعادة…" : "استعادة المفتاح وإعداداته"}
-            onPress={() => void (async () => {
-              setBusyId(provider.id); setError(null); setNotice(null);
-              try {
-                const result = await adminService.setProviderLifecycle(provider.id, true, true);
-                setNotice(result.restored
-                  ? `تمت استعادة ${provider.name} وإعداداته السابقة. راجع صحة النماذج قبل التشغيل.`
-                  : `تم تفعيل ${provider.name}. لم توجد لقطة إعدادات سابقة لاستعادتها؛ راجع التعيينات يدويًا.`);
-                await load();
-              } catch (cause) { setError(cause instanceof Error ? cause.message : "تعذرت استعادة المفتاح."); }
-              finally { setBusyId(null); }
-            })()}
-            disabled={busyId !== null || testingModelId !== null}
-          />
-        </View>)}
-    </Card
-      </> : null}
-    </Card>>
+      {showArchivedProviders ? (
+        archivedProviders.length === 0
+          ? <Text style={styles.detail}>لا توجد مفاتيح مؤرشفة.</Text>
+          : archivedProviders.map((provider) => <View key={provider.id} style={styles.providerModelRow}>
+              <View style={styles.providerModelInfo}>
+                <Text style={styles.cardTitle}>{provider.name}</Text>
+                <Text style={styles.detail}>{provider.provider_type} · {provider.base_url ?? ""}</Text>
+                <Text style={styles.detail}>يمكن استعادة إعدادات التوجيه السابقة إذا كانت محفوظة. ستظل صلاحية النموذج والصحة الحالية خاضعتين لفحوص التوجيه.</Text>
+              </View>
+              <PrimaryButton
+                label={busyId === provider.id ? "جارٍ الاستعادة…" : "استعادة المفتاح وإعداداته"}
+                onPress={() => void (async () => {
+                  setBusyId(provider.id); setError(null); setNotice(null);
+                  try {
+                    const result = await adminService.setProviderLifecycle(provider.id, true, true);
+                    setNotice(result.restored
+                      ? `تمت استعادة ${provider.name} وإعداداته السابقة. راجع صحة النماذج قبل التشغيل.`
+                      : `تم تفعيل ${provider.name}. لم توجد لقطة إعدادات سابقة لاستعادتها؛ راجع التعيينات يدويًا.`);
+                    await load();
+                  } catch (cause) { setError(cause instanceof Error ? cause.message : "تعذرت استعادة المفتاح."); }
+                  finally { setBusyId(null); }
+                })()}
+                disabled={busyId !== null || testingModelId !== null}
+              />
+            </View>)
+      ) : null}
+    </Card>
   </ScrollView>;
 }
 
