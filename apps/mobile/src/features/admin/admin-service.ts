@@ -395,14 +395,18 @@ export const adminService = {
 
   async getMediaModelPriceVersions() {
     await requireAdmin();
-    const { data, error } = await supabase
-      .from("suly_media_model_price_versions")
-      .select("id,provider_id,service_type,model_identifier,display_name,unit_type,provider_cost_egp_per_unit,selling_price_egp_per_unit,markup_rate,price_version,provider_tested,suly_integration_verified,is_current")
-      .eq("is_current", true)
-      .order("service_type")
-      .order("display_name");
+    const [{ data, error }, providers] = await Promise.all([
+      supabase
+        .from("suly_media_model_price_versions")
+        .select("id,provider_id,service_type,model_identifier,display_name,unit_type,provider_cost_egp_per_unit,selling_price_egp_per_unit,markup_rate,price_version,provider_tested,suly_integration_verified,is_current")
+        .eq("is_current", true)
+        .order("service_type")
+        .order("display_name"),
+      this.getProviders(),
+    ]);
     if (error) throw error;
-    return data ?? [];
+    const providerNames = new Map<number, string>(providers.map((provider: { id: number; name?: string | null }) => [Number(provider.id), String(provider.name ?? "—")]));
+    return (data ?? []).map((row) => ({ ...row, provider_name: providerNames.get(Number(row.provider_id)) ?? "—" }));
   },
 
   async updateMediaModelPrice(input: {
