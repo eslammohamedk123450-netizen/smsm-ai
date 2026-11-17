@@ -11,6 +11,7 @@ import type { ThemePalette } from "../../theme/colors";
 import { GmailModelPickerCard } from "./GmailModelPickerCard";
 import { RouteModelChainsCard } from "./RouteModelChainsCard";
 import { ModelCapabilityEvidenceAdminCard } from "./ModelCapabilityEvidenceAdminCard";
+import { ModelPricingAdminCard } from "./ModelPricingAdminCard";
 
 type ProviderRow = { id: number; name: string; provider_type: string; base_url: string | null; enabled: boolean; last_test_status: string | null };
 type ModelRow = {
@@ -549,6 +550,7 @@ export function ModelsAdminScreen() {
           </> : null}
         </View>}
         ListEmptyComponent={loading ? <ActivityIndicator color={colors.primary} style={styles.listLoading} /> : <Card><Text style={styles.emptyIcon}>⌕</Text><Text style={styles.detail}>لا توجد نماذج تطابق البحث أو عامل التصفية المحدد.</Text></Card>}
+        ListFooterComponent={<View style={{ paddingTop: 14 }}><ModelPricingAdminCard /></View>}
         renderItem={({ item: model }) => {
           const providerIsOff = model.provider_enabled === false;
           const isManuallyOff = !model.enabled || model.routing_group === "disabled";
