@@ -13,6 +13,20 @@ Deno.test("allows only the exact configured GitHub Pages origin", () => {
   assertEquals(denied["Access-Control-Allow-Origin"], undefined);
 });
 
+Deno.test("allows the exact SULY production domain but rejects lookalike origins", () => {
+  const production = corsHeadersForRequest(new Request("https://api.example.test", {
+    method: "OPTIONS",
+    headers: { origin: "https://suly.cloud" },
+  }));
+  assertEquals(production["Access-Control-Allow-Origin"], "https://suly.cloud");
+
+  const lookalike = corsHeadersForRequest(new Request("https://api.example.test", {
+    method: "OPTIONS",
+    headers: { origin: "https://www.suly.cloud" },
+  }));
+  assertEquals(lookalike["Access-Control-Allow-Origin"], undefined);
+});
+
 Deno.test("supports explicitly configured exact origins and local development", () => {
   const configured = corsHeadersForRequest(new Request("https://api.example.test", {
     headers: { origin: "https://preview.suly.example" },
