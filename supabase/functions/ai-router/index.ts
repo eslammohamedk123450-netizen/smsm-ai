@@ -1032,7 +1032,7 @@ async function handleRequest(req: Request): Promise<Response> {
   // quick-replies-cache: repeated chit-chat and previously answered exact
   // questions are served with zero model calls and zero credit spend.
   const quickReply = internalBrainCall || executionMode === "agent" || trustedAttachments.length ? { reply: null } : await lookupQuickReply(supabase, user.id, latestUserMessage);
-  if (quickReply.reply) {
+  if (quickReply.reply && (himsContextAllowed || !containsHimsReference(quickReply.reply))) {
     return respondDeterministically(quickReply.reply, {
       route: "quick_reply",
       cache_source: quickReply.source,
