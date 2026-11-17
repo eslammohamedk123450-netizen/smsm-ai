@@ -44,6 +44,8 @@ export function AgentRoleProfilesAdminCard() {
   const [role, setRole] = useState<AgentRole>("coordinator");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [search, setSearch] = useState("");
+  const [newProfileName, setNewProfileName] = useState("");
+  const [newProfilePrompt, setNewProfilePrompt] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -171,6 +173,23 @@ export function AgentRoleProfilesAdminCard() {
     </> : <View style={styles.emptyBox}>
       <Text style={styles.sectionTitle}>لا يوجد ملف إرشادي محفوظ لهذا الدور</Text>
       <Text style={styles.description}>لم يتم إنشاء ملف تلقائي أو اختراع تعليمات. يمكن أن يظل الدور يعمل بسياسة الوكيل المضمنة وسلسلة التوجيه الأساسية حتى إعداد ملفه واعتماده.</Text>
+      <TextInput value={newProfileName} onChangeText={setNewProfileName} placeholder="اسم ملف الدور" placeholderTextColor={colors.textMuted} style={styles.input}/>
+      <TextInput value={newProfilePrompt} onChangeText={setNewProfilePrompt} placeholder="تعليمات الدور (10 أحرف على الأقل)" placeholderTextColor={colors.textMuted} style={[styles.input, styles.promptInput]} multiline/>
+      <Pressable disabled={saving || loading || newProfileName.trim().length < 2 || newProfilePrompt.trim().length < 10} onPress={async () => {
+        setSaving(true); setError(null); setNotice(null);
+        try {
+          await adminService.createAgent({ name: newProfileName, role, systemPrompt: newProfilePrompt, modelFallbackChain: selectedIds });
+          setNewProfileName(""); setNewProfilePrompt("");
+          await load();
+          setNotice("تم إنشاء ملف الدور داخل الوكيل المركزي؛ لم يتم إنشاء وكيل مستقل.");
+        } catch (cause) {
+          setError(cause instanceof Error ? cause.message : "تعذر إنشاء ملف الدور.");
+        } finally {
+          setSaving(false);
+        }
+      }} style={[styles.saveButton, (saving || loading || newProfileName.trim().length < 2 || newProfilePrompt.trim().length < 10) && styles.disabled]}>
+        <Text style={styles.saveText}>{saving ? "جارٍ الإنشاء…" : "إنشاء ملف الدور"}</Text>
+      </Pressable>
     </View>}
     {error ? <Text style={styles.error}>{error}</Text> : null}
     {notice ? <Text style={styles.success}>{notice}</Text> : null}
@@ -199,6 +218,7 @@ const createStyles = (c: ThemePalette) => StyleSheet.create({
   modelMeta: { color: c.textMuted, fontSize: 8, textAlign: "right" },
   priority: { color: c.primary, fontSize: 10, fontWeight: "900" },
   input: { borderWidth: 1, borderColor: c.divider, borderRadius: 8, backgroundColor: c.background, color: c.textPrimary, padding: 9, fontSize: 10, textAlign: "right" },
+  promptInput: { minHeight: 110, textAlignVertical: "top" },
   saveButton: { borderRadius: 8, backgroundColor: c.primary, padding: 11, alignItems: "center" },
   saveText: { color: c.onPrimary, fontSize: 10, fontWeight: "900" },
   emptyBox: { borderWidth: 1, borderColor: c.divider, borderRadius: 9, padding: 10, gap: 5 },
