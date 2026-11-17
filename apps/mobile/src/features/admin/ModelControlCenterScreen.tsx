@@ -1,132 +1,61 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { useMemo } from "react";
 import { Link } from "expo-router";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
-import { adminService } from "./admin-service";
-import { UnifiedModelCapabilitiesAdminCard } from "./UnifiedModelCapabilitiesAdminCard";
-import { MediaModelPricingAdminCard } from "./MediaModelPricingAdminCard";
-import { RouteModelChainsCard } from "./RouteModelChainsCard";
-import { AgentRoleProfilesAdminCard } from "./AgentRoleProfilesAdminCard";
-import { ModelTierEligibilityAdminCard } from "./ModelTierEligibilityAdminCard";
 
-type ModelRow = {
-  id: number; name: string; model_identifier: string; provider_name: string;
-  enabled: boolean; provider_enabled?: boolean; routing_group: string;
-  task_roles?: string[] | null; capabilities_json?: string | Record<string, unknown> | null;
-  health?: { auto_restricted?: boolean } | null;
-};
-
-function Section({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
+function HubTile({ href, title, description, icon }: { href: string; title: string; description: string; icon: keyof typeof Ionicons.glyphMap }) {
   const { colors } = useSulyTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  return <View style={styles.section}>
-    <View style={styles.sectionHeading}><Text style={styles.sectionTitle}>{title}</Text><Text style={styles.description}>{description}</Text></View>
-    {children}
-  </View>;
+  return <Link href={href as never} asChild>
+    <Pressable style={styles.tile}>
+      <View style={styles.tileIcon}><Ionicons name={icon} size={25} color={colors.primary}/></View>
+      <View style={styles.tileCopy}><Text style={styles.tileTitle}>{title}</Text><Text style={styles.tileDescription}>{description}</Text></View>
+      <Ionicons name="chevron-back-outline" size={18} color={colors.textMuted}/>
+    </Pressable>
+  </Link>;
 }
 
 export function ModelControlCenterScreen() {
   const { colors } = useSulyTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const [models, setModels] = useState<ModelRow[]>([]);
-  const [mediaCount, setMediaCount] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true); setError(null);
-    try {
-      const [overview, media] = await Promise.all([
-        adminService.getModelsOverview(),
-        adminService.getMediaModelPriceVersions(),
-      ]);
-      setModels((overview.models ?? []) as ModelRow[]);
-      setMediaCount((media ?? []).length);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "تعذر تحميل مركز إدارة النماذج.");
-    } finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => { void load(); }, [load]);
-
-  const activeCount = models.filter((model) => model.enabled && model.provider_enabled === true && model.routing_group !== "disabled" && !model.health?.auto_restricted).length;
-
-  return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+  return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     <View style={styles.header}>
       <Text style={styles.eyebrow}>SULY · ADMIN CONTROL</Text>
-      <Text style={styles.title}>مركز إدارة النماذج</Text>
-      <Text style={styles.subtitle}>إدارة مركزية للنماذج والقدرات والتعيينات والاختبارات، مع الحفاظ على إعدادات التسعير والتشغيل الحالية.</Text>
+      <Text style={styles.title}>إدارة النماذج والقدرات</Text>
+      <Text style={styles.subtitle}>اختر القسم المطلوب. كتالوج النماذج منفصل عن دليل القدرات، والربط بينهما لا يغير التفعيل أو الأسعار أو مسارات التوجيه.</Text>
     </View>
-
-    {error ? <View style={styles.errorBox}><Text style={styles.error}>{error}</Text><Pressable onPress={() => void load()}><Text style={styles.retry}>إعادة المحاولة</Text></Pressable></View> : null}
-    {loading ? <ActivityIndicator color={colors.primary} /> : <View style={styles.metrics}>
-      <View style={styles.metric}><Text style={styles.metricValue}>{models.length}</Text><Text style={styles.metricLabel}>نماذج المحادثة المسجلة</Text></View>
-      <View style={styles.metric}><Text style={styles.metricValue}>{mediaCount}</Text><Text style={styles.metricLabel}>سجلات خدمات الوسائط</Text></View>
-      <View style={styles.metric}><Text style={styles.metricValue}>{activeCount}</Text><Text style={styles.metricLabel}>نماذج مؤهلة حاليًا للتوجيه</Text></View>
-    </View>}
-
-    <View style={styles.quickLinks}>
-      <Link href="/admin/api-keys" asChild><Pressable style={styles.quickLink}><Text style={styles.quickLinkText}>مزودو الخدمة ومفاتيح API</Text></Pressable></Link>
-      <Link href="/admin/media-catalog" asChild><Pressable style={styles.quickLink}><Text style={styles.quickLinkText}>كتالوج خدمات الوسائط</Text></Pressable></Link>
-      <Link href="/admin/image-generation" asChild><Pressable style={styles.quickLink}><Text style={styles.quickLinkText}>إعدادات تشغيل الصور</Text></Pressable></Link>
+    <HubTile href="/admin/models-catalog" title="نماذج التطبيق" description="كل النماذج المسجلة: المتوفر، المقيّد، المعطّل، والنماذج المرشحة، مع البحث باسم النموذج واسم المفتاح." icon="layers-outline"/>
+    <HubTile href="/admin/model-capabilities" title="قدرات النماذج" description="افتح قدرات التطبيق كأيقونات مستقلة، ثم اعرض النماذج المرتبطة بكل قدرة وأضف نماذج أخرى." icon="grid-outline"/>
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>أدوات الإدارة المتقدمة</Text>
+      <View style={styles.links}>
+        <Link href="/admin/models-operations" asChild><Pressable style={styles.link}><Ionicons name="pulse-outline" size={15} color={colors.primary}/><Text style={styles.linkText}>التشغيل والاختبارات وسجل الصحة</Text></Pressable></Link>
+        <Link href="/admin/api-keys" asChild><Pressable style={styles.link}><Ionicons name="key-outline" size={15} color={colors.primary}/><Text style={styles.linkText}>مزودو الخدمة وأسماء المفاتيح</Text></Pressable></Link>
+        <Link href="/admin/media-catalog" asChild><Pressable style={styles.link}><Ionicons name="images-outline" size={15} color={colors.primary}/><Text style={styles.linkText}>إعدادات نماذج الصور والفيديو والصوت</Text></Pressable></Link>
+        <Link href="/admin/model-capability-review" asChild><Pressable style={styles.link}><Ionicons name="clipboard-outline" size={15} color={colors.primary}/><Text style={styles.linkText}>مراجعة أدلة القدرات واعتمادها</Text></Pressable></Link>
+      </View>
     </View>
-
-    <Section title="كتالوج النماذج النصية" description="إدارة النماذج المسجلة وحالتها التشغيلية واختبار اتصال المزود.">
-      <View style={styles.note}><Text style={styles.noteText}>المصدر الحالي: ai_models. النماذج المكتشفة حديثًا تظل معطلة حتى مراجعة قدراتها وتعيينها صراحةً.</Text></View>
-      <Link href="/admin/models-catalog" asChild><Pressable style={styles.action}><Text style={styles.actionText}>فتح إدارة النماذج النصية</Text></Pressable></Link>
-    </Section>
-
-    <Section title="سجل مركزي موحد للقدرات" description="كتالوج واحد لكل أنواع النماذج، مع اقتراحات ومراجعة واعتماد الأدلة من مكان واحد.">
-      <UnifiedModelCapabilitiesAdminCard />
-    </Section>
-
-    <Section title="أهلية النماذج حسب الباقة" description="تحديد أقل مستوى اشتراك يسمح لكل نموذج؛ Free محصور في مجموعة Free، والباقات الأعلى ترث النماذج الأدنى.">
-      <ModelTierEligibilityAdminCard />
-    </Section>
-
-    <Section title="توجيه النماذج داخل الوكيل المركزي" description="تحديد النماذج الأساسية والاحتياطية المؤهلة لكل مسار، دون إنشاء وكلاء أو عقول مستقلة.">
-      {!loading ? <RouteModelChainsCard models={models} /> : null}
-    </Section>
-
-    <Section title="أدوار الوكيل المركزي" description="إدارة تفضيلات نماذج المدير/المنسق والمخطط والمفكر والمنفذ والمراجع والملخص. تظل جميع الأدوار تحت قرار الوكيل المركزي الواحد.">
-      <AgentRoleProfilesAdminCard />
-    </Section>
-
-    <Section title="تسعير خدمات الوسائط" description="إعدادات التكلفة وسعر البيع محفوظة كما هي، ولا تتغير بسبب توحيد واجهة الإدارة.">
-      <MediaModelPricingAdminCard />
-    </Section>
-
-    <View style={styles.footer}><Text style={styles.footerText}>واجهة وسجل مركزيان للهوية والقدرات. تظل جداول التشغيل والأسعار والتعيينات متوافقة عبر طبقة ترحيل آمنة إلى أن يكتمل نقل كل المستهلكين.</Text></View>
   </ScrollView>;
 }
 
 const createStyles = (c: ThemePalette) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: c.background },
-  content: { padding: 14, gap: 14, paddingBottom: 40 },
+  content: { padding: 15, gap: 12, paddingBottom: 38 },
   header: { gap: 5, alignItems: "flex-end", paddingVertical: 8 },
-  eyebrow: { color: c.primary, fontSize: 9, fontWeight: "900", letterSpacing: 1.5 },
+  eyebrow: { color: c.primary, fontSize: 9, fontWeight: "900", letterSpacing: 1.4 },
   title: { color: c.textPrimary, fontSize: 22, fontWeight: "900", textAlign: "right" },
-  subtitle: { color: c.textMuted, fontSize: 11, lineHeight: 18, textAlign: "right" },
-  metrics: { flexDirection: "row-reverse", gap: 7 },
-  metric: { flex: 1, borderWidth: 1, borderColor: c.divider, borderRadius: 11, padding: 10, backgroundColor: c.surface, alignItems: "center", gap: 4 },
-  metricValue: { color: c.primary, fontSize: 20, fontWeight: "900" },
-  metricLabel: { color: c.textMuted, fontSize: 8, textAlign: "center" },
-  quickLinks: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 7 },
-  quickLink: { borderWidth: 1, borderColor: c.divider, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: c.surface },
-  quickLinkText: { color: c.textSecondary, fontSize: 9, fontWeight: "800" },
-  section: { gap: 9 },
-  sectionHeading: { alignItems: "flex-end", gap: 3 },
-  sectionTitle: { color: c.textPrimary, fontSize: 14, fontWeight: "900", textAlign: "right" },
-  description: { color: c.textMuted, fontSize: 9, textAlign: "right", lineHeight: 15 },
-  note: { borderWidth: 1, borderColor: c.divider, borderRadius: 9, padding: 10, backgroundColor: c.surface },
-  noteText: { color: c.textMuted, fontSize: 9, textAlign: "right", lineHeight: 15 },
-  action: { borderRadius: 9, backgroundColor: c.primary, padding: 11, alignItems: "center" },
-  actionText: { color: c.onPrimary, fontSize: 10, fontWeight: "900" },
-  errorBox: { borderWidth: 1, borderColor: c.error, borderRadius: 9, padding: 10, gap: 6 },
-  error: { color: c.error, textAlign: "right", fontSize: 10 },
-  retry: { color: c.primary, textAlign: "right", fontSize: 10, fontWeight: "800" },
-  footer: { borderTopWidth: 1, borderColor: c.divider, paddingTop: 12 },
-  footerText: { color: c.textMuted, fontSize: 9, lineHeight: 15, textAlign: "right" },
+  subtitle: { color: c.textMuted, fontSize: 10, lineHeight: 17, textAlign: "right" },
+  tile: { flexDirection: "row-reverse", alignItems: "center", gap: 11, borderWidth: 1, borderColor: c.divider, borderRadius: 14, padding: 13, backgroundColor: c.surface, minHeight: 94 },
+  tileIcon: { width: 48, height: 48, borderRadius: 13, backgroundColor: c.primary + "14", alignItems: "center", justifyContent: "center" },
+  tileCopy: { flex: 1, alignItems: "flex-end", gap: 5 },
+  tileTitle: { color: c.textPrimary, fontSize: 13, fontWeight: "900", textAlign: "right" },
+  tileDescription: { color: c.textMuted, fontSize: 9, lineHeight: 15, textAlign: "right" },
+  section: { borderTopWidth: 1, borderTopColor: c.divider, paddingTop: 12, gap: 9 },
+  sectionTitle: { color: c.textPrimary, fontSize: 11, fontWeight: "900", textAlign: "right" },
+  links: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 7 },
+  link: { flexDirection: "row-reverse", alignItems: "center", gap: 6, borderWidth: 1, borderColor: c.divider, borderRadius: 9, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: c.surface },
+  linkText: { color: c.textSecondary, fontSize: 8, fontWeight: "800" },
 });
