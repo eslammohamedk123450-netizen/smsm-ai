@@ -39,6 +39,7 @@ const CAPABILITIES: Array<[CapabilityKey, string, keyof typeof Ionicons.glyphMap
   ["mcp_tools", "أدوات MCP", "hardware-chip-outline"], ["gmail", "Gmail", "mail-outline"],
   ["google_drive", "Google Drive", "cloud-outline"], ["github", "GitHub", "logo-github"],
 ];
+const CAPABILITY_ALIASES: Record<string, string[]> = { pdf_input: ["pdf"], file_input: ["word"], video_input: ["video"] };
 const STATUS_LABEL: Record<OperationalState, string> = {
   active: "متوفر", disabled: "معطّل", restricted: "مقيّد", candidate: "مرشح", archived: "مؤرشف", unknown: "غير معلوم",
 };
@@ -120,7 +121,7 @@ export function ModelRegistryCatalogScreen() {
     return models.filter((model) => {
       const matchesSearch = !q || `${model.display_name} ${model.model_identifier} ${model.provider_name ?? ""} ${model.service_type}`.toLocaleLowerCase().includes(q);
       const matchesStatus = status === "all" || (status === "active" ? model.operational_state === "active" : status === "restricted" ? model.operational_state === "restricted" : status === "disabled" ? model.operational_state === "disabled" || model.operational_state === "archived" : model.operational_state === "candidate" || model.operational_state === "unknown");
-      const matchesCapability = capability === "all" || capabilitiesByModel.get(model.model_id)?.has(capability) === true;
+      const matchesCapability = capability === "all" || [capability, ...(CAPABILITY_ALIASES[capability] ?? [])].some((key) => capabilitiesByModel.get(model.model_id)?.has(key) === true);
       return matchesSearch && matchesStatus && matchesCapability;
     });
   }, [models, search, status, capability, capabilitiesByModel]);
