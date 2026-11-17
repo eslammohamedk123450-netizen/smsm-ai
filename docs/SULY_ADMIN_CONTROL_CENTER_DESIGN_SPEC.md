@@ -26,7 +26,9 @@
 
 ### Remaining admin domains and acceptance
 - [ ] Complete section-level page headers, breadcrumbs, per-domain filters, and consistent loading/empty/error/unknown/no-permission states.
-- [ ] Complete operational Overview metrics, supported date windows, service-health evidence, and real task/alert links without inventing unavailable values.
+- [x] Add 7-day and 30-day consumption windows to the Overview chart and show when its 2000-row data cap may make the view partial.
+- [x] Keep the Overview alert state explicitly unavailable when model-health/error evidence is incomplete instead of showing a false “no alerts” result.
+- [ ] Complete the remaining operational Overview metrics, service-health evidence, and real task/alert links without inventing unavailable values.
 - [ ] Review Routing & Agent controls against the single central Agent and existing bounded worker/task execution model.
 - [ ] Review Pricing & Plans, Credits & Wallet, Users & Accounts, Ads & Rewards, and Finance & Profit against existing audited RPCs and immutable financial history.
 - [ ] Review Activity & Audit and HIMS & Content while preserving HIMS as a core entitlement/resource capability.
