@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { supabase } from "../../lib/supabase/client";
 import { adminService } from "./admin-service";
@@ -143,7 +143,7 @@ export function UnifiedModelCapabilitiesAdminCard() {
     <TextInput value={search} onChangeText={setSearch} placeholder="ابحث عن نموذج أو معرّف" placeholderTextColor={colors.textMuted} style={styles.input}/>
     <View style={styles.wrap}>{visibleModels.map(m=><Pressable key={m.model_id} onPress={()=>setSelectedId(m.model_id)} style={[styles.chip,selectedId===m.model_id&&styles.selected]}><Text style={styles.chipText}>{m.display_name} · {m.service_type}</Text></Pressable>)}</View>
     {models.length>60?<Text style={styles.hint}>يتم عرض أول 60 نتيجة؛ استخدم البحث لتضييق القائمة.</Text>:null}
-    {selected?<Text style={styles.selectedName}>{selected.display_name} · {selected.model_identifier} · المزود #{selected.provider_id} · {selected.lifecycle_state==="active"?"نشط حاليًا":selected.lifecycle_state==="archived"?"مؤرشف":"مرشح للمراجعة"}</Text>:null}
+    {selected?<Text style={styles.selectedName}>{selected.display_name} · {selected.model_identifier} · المزود #{selected.provider_id} · {selected.lifecycle_state==="active"?"مفعّل في الكتالوج":selected.lifecycle_state==="archived"?"مؤرشف":"مرشح للمراجعة"}</Text>:null}
     <View style={styles.wrap}>{CAPABILITIES.map(([key,label])=><Pressable key={key} onPress={()=>setCapability(key)} style={[styles.chip,capability===key&&styles.selected]}><Text style={styles.chipText}>{label}</Text></Pressable>)}</View>
     {current?<Text style={styles.review}>حالة المراجعة الحالية: {REVIEW[current.review_status ?? "suggested"]}</Text>:<Text style={styles.hint}>لا يوجد سجل لهذه القدرة بعد. حفظها ينشئ سجلًا جديدًا.</Text>}
     {capability==="text" && selected?.legacy_chat_model_id ? <View style={styles.probeRow}><View style={styles.copy}><Text style={styles.label}>اختبار اتصال النص الفعلي</Text><Text style={styles.hint}>الاختبار لا يعتمد القدرة تلقائيًا ولا يغير إعدادات التوجيه.</Text></View><Pressable disabled={testing||loading} onPress={()=>void runTextProbe()} style={[styles.probe, (testing||loading)&&styles.disabled]}><Text style={styles.saveText}>{testing?"جارٍ الاختبار…":"اختبار النص"}</Text></Pressable></View>:null}
