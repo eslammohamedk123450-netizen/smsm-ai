@@ -79,7 +79,7 @@ export function MainNavigation({ children }: Props) {
   if (pathname.startsWith("/admin")) return <>{children}</>;
 
   const openDrawer = () => setDrawerVisible(true);
-  const navigate = (href: string) => {
+  const goHome = () => {\n    setDrawerVisible(false);\n    setPlusVisible(false);\n    router.replace("/chat");\n  };\n\n  const navigate = (href: string) => {
     setDrawerVisible(false);
     setPlusVisible(false);
     if (href === "/chat") router.replace("/chat");
@@ -92,15 +92,17 @@ export function MainNavigation({ children }: Props) {
       <View style={[styles.root, { backgroundColor: colors.background }]}>
         {!isChat ? (
           <SafeAreaView edges={["top"]} style={[styles.topSafe, { backgroundColor: colors.background }]}>
-            <View style={[styles.topBar, { borderColor: colors.divider, flexDirection: isArabic ? "row-reverse" : "row" }]}>
+            <View style={[styles.topBar, { borderColor: colors.divider, flexDirection: "row", direction: isArabic ? "rtl" : "ltr" }]}>
               <Pressable onPress={openDrawer} style={styles.headerButton} accessibilityRole="button" accessibilityLabel={isArabic ? "فتح القائمة الجانبية" : "Open sidebar"}>
                 <Ionicons name="menu-outline" size={23} color={colors.textPrimary} />
               </Pressable>
               <View style={styles.brand}>
                 <Text style={[styles.brandName, { color: colors.textPrimary }]}>SULY</Text>
               </View>
-              <Pressable onPress={() => setPlusVisible(true)} style={styles.headerButton} accessibilityRole="button" accessibilityLabel={isArabic ? "إضافة ملف أو أداة" : "Add file or tool"}>
-                <Ionicons name="add" size={25} color={colors.textPrimary} />
+              <Pressable onPress={goHome} style={styles.homeButton} accessibilityRole="button" accessibilityLabel={isArabic ? "العودة إلى الصفحة الرئيسية" : "Return to home"}>
+                <View style={[styles.homeMark, { backgroundColor: colors.primary }]}>
+                  <Text style={[styles.homeMarkLetter, { color: colors.onPrimary }]}>S</Text>
+                </View>
               </Pressable>
             </View>
           </SafeAreaView>
@@ -110,7 +112,7 @@ export function MainNavigation({ children }: Props) {
         <Modal visible={drawerVisible} transparent animationType="fade" onRequestClose={() => setDrawerVisible(false)}>
           <View style={styles.modalRoot}>
             <Pressable style={styles.scrim} onPress={() => setDrawerVisible(false)} accessibilityRole="button" accessibilityLabel={isArabic ? "إغلاق القائمة" : "Close menu"} />
-            <SafeAreaView edges={["top", "bottom"]} style={[styles.drawer, { alignSelf: isArabic ? "flex-start" : "flex-end", backgroundColor: colors.surface, borderColor: colors.divider }]}>
+            <SafeAreaView edges={["top", "bottom"]} style={[styles.drawer, { alignSelf: isArabic ? "flex-end" : "flex-start", backgroundColor: colors.surface, borderColor: colors.divider }]}>
               <View style={[styles.drawerHeader, { flexDirection: isArabic ? "row-reverse" : "row" }]}>
                 <View style={[styles.brandMark, { backgroundColor: colors.primary }]}><Text style={[styles.brandLetter, { color: colors.onPrimary }]}>S</Text></View>
                 <View style={styles.drawerBrandCopy}>
@@ -216,7 +218,7 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
   root: { flex: 1, minWidth: 0 },
   topSafe: { zIndex: 1 },
   topBar: { minHeight: 54, alignItems: "center", paddingHorizontal: 14, borderBottomWidth: 1, gap: 12 },
-  headerButton: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  headerButton: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },\n  homeButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },\n  homeMark: { width: 32, height: 32, borderRadius: 11, alignItems: "center", justifyContent: "center" },\n  homeMarkLetter: { fontSize: 20, fontWeight: "900" },
   brand: { flex: 1, alignItems: "center", justifyContent: "center" },
   brandName: { fontSize: 16, fontWeight: "900", letterSpacing: 1.5 },
   content: { flex: 1, minWidth: 0, minHeight: 0 },
