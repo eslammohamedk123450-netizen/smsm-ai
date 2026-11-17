@@ -146,7 +146,7 @@ export function AdminShell() {
   };
   useEffect(() => { void refreshHealth(); }, []);
 
-  const isActive = (path: string) => path === "/admin" ? pathname === path : pathname === path || pathname.startsWith(path);
+  const isActive = (path: string) => { const route = path.split("?")[0]; return route === "/admin" ? pathname === route : pathname === route || pathname.startsWith(route); };
   const activeGroupKey = navGroups.find((group) => group.items.some((item) => isActive(item.path)))?.key ?? "overview";
 
   useEffect(() => {
