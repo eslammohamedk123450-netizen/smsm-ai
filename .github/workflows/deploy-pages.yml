@@ -1,17 +1,11 @@
-name: Deploy Suly Production + Development Preview
+name: Deploy SULY Production
 
 on:
   push:
-    branches: [release/v1, develop, 'fix/**']
+    branches: [release/v1]
   pull_request:
     branches: [release/v1]
   workflow_dispatch:
-    inputs:
-      deploy_production:
-        description: "Explicitly approve publishing the combined production and preview site"
-        required: true
-        default: false
-        type: boolean
 
 permissions:
   actions: read
@@ -20,41 +14,30 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages-${{ github.ref }}
+  group: pages-production
   cancel-in-progress: true
 
 jobs:
   build:
-    if: github.event_name == 'pull_request' || (github.event_name == 'push' && (github.ref == 'refs/heads/release/v1' || github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/heads/fix/'))) || (github.event_name == 'workflow_dispatch' && inputs.deploy_production == true)
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/release/v1'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout stable production source
+      - name: Checkout production source
         uses: actions/checkout@v4
-        with:
-          ref: release/v1
-          path: production-source
-
-      - name: Checkout development preview source
-        uses: actions/checkout@v4
-        with:
-          ref: develop
-          path: preview-source
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: |
-            production-source/apps/mobile/package-lock.json
-            preview-source/apps/mobile/package-lock.json
+          cache-dependency-path: apps/mobile/package-lock.json
 
       - name: Install production dependencies
-        working-directory: production-source/apps/mobile
+        working-directory: apps/mobile
         run: npm ci --ignore-scripts
 
-      - name: Export stable production web app
-        working-directory: production-source/apps/mobile
+      - name: Export production web app
+        working-directory: apps/mobile
         env:
           EXPO_PUBLIC_WEB_BASE_URL: ""
           EXPO_PUBLIC_SUPABASE_URL: https://razvryvazmqvvqkzetuo.supabase.co
@@ -62,124 +45,60 @@ jobs:
           EXPO_PUBLIC_EDGE_FUNCTION_BASE_URL: https://razvryvazmqvvqkzetuo.supabase.co/functions/v1
         run: npx expo export --platform web --clear
 
-      - name: Install development dependencies
-        working-directory: preview-source/apps/mobile
-        run: npm ci --ignore-scripts
-
-      - name: Export development preview
-        working-directory: preview-source/apps/mobile
-        env:
-          EXPO_PUBLIC_WEB_BASE_URL: /preview
-          EXPO_PUBLIC_SUPABASE_URL: https://razvryvazmqvvqkzetuo.supabase.co
-          EXPO_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_t5xrzZNN6Uj9zhhBLUYQVg_mj7qPjQL
-          EXPO_PUBLIC_EDGE_FUNCTION_BASE_URL: https://razvryvazmqvvqkzetuo.supabase.co/functions/v1
-        run: npx expo export --platform web --clear
-
-      - name: Assemble production and preview site
-        run: |
-          mkdir -p site/preview
-          cp -R production-source/apps/mobile/dist/. site/
-          cp -R preview-source/apps/mobile/dist/. site/preview/
-
-      - name: Verify generated route bundles and deployment asset paths
+      - name: Assemble single production site
         run: |
           set -euo pipefail
+          mkdir -p site
+          cp -R apps/mobile/dist/. site/
+
+      - name: Verify production export
+        run: |
+          set -euo pipefail
+          test -f site/index.html
           test -n "$(find site/_expo/static/js/web -maxdepth 1 -type f -name 'media-catalog-*.js' -print -quit)"
-          test -n "$(find site/preview/_expo/static/js/web -maxdepth 1 -type f -name 'media-catalog-*.js' -print -quit)"
           python3 - <<'PY'
           from pathlib import Path
           import re
-
           site = Path("site")
-          builds = [
-              (site / "index.html", ""),
-              (site / "preview" / "index.html", "/preview"),
-          ]
-          for html_path, prefix in builds:
-              if not html_path.is_file():
-                  raise SystemExit(f"Missing exported page: {html_path}")
-              html = html_path.read_text(encoding="utf-8")
-              script_paths = re.findall(r'<script[^>]+src="([^"]+)"', html)
-              if not script_paths:
-                  raise SystemExit(f"No JavaScript bundles found in {html_path}")
-              expected_prefix = f"{prefix}/_expo/static/js/web/"
-              for url in script_paths:
-                  if not url.startswith(expected_prefix):
-                      raise SystemExit(f"Unexpected bundle URL in {html_path}: {url}; expected prefix {expected_prefix}")
-                  if not (site / url.lstrip("/")).is_file():
-                      raise SystemExit(f"Referenced JavaScript bundle is missing: {url}")
-              for url in re.findall(r'url\(["\']?([^"\')]+\.ttf)["\']?\)', html):
-                  if not (site / url.lstrip("/")).is_file():
-                      raise SystemExit(f"Referenced font is missing: {url}")
-              print(f"Verified {html_path}: {len(script_paths)} script references, base prefix {prefix or '/'}")
+          html = (site / "index.html").read_text(encoding="utf-8")
+          scripts = re.findall(r'<script[^>]+src="([^"]+)"', html)
+          if not scripts:
+              raise SystemExit("No JavaScript bundles found in production index.html")
+          for url in scripts:
+              if not url.startswith("/_expo/static/js/web/"):
+                  raise SystemExit(f"Unexpected production bundle URL: {url}")
+              if not (site / url.lstrip("/")).is_file():
+                  raise SystemExit(f"Missing JavaScript bundle: {url}")
+          if (site / "preview").exists():
+              raise SystemExit("Preview content must not be deployed")
+          print(f"Verified single production export with {len(scripts)} JavaScript bundles.")
           PY
 
-      # Keep immutable hashed assets from recent deployments so cached HTML
-      # can still load its old route chunks after a new GitHub Pages deploy.
-      - name: Archive current web assets for stale-client recovery
+      - name: Archive production assets for stale-client recovery
         uses: actions/upload-artifact@v4
         with:
           name: suly-web-assets-${{ github.run_id }}
-          path: |
-            site/_expo/
-            site/preview/_expo/
+          path: site/_expo/
           retention-days: 30
 
-      - name: Retain recent hashed web assets
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          api="https://api.github.com/repos/${GITHUB_REPOSITORY}"
-          mkdir -p /tmp/suly-old-assets
-          run_ids=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$api/actions/workflows/deploy-pages.yml/runs?status=success&per_page=20" | python3 -c 'import json,sys; print(" ".join(str(x["id"]) for x in json.load(sys.stdin).get("workflow_runs", [])))')
-          retained=0
-          for run_id in $run_ids; do
-            [ "$run_id" = "$GITHUB_RUN_ID" ] && continue
-            artifact_id=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$api/actions/runs/$run_id/artifacts?per_page=100" | python3 -c 'import json,sys; a=[x for x in json.load(sys.stdin).get("artifacts",[]) if x["name"].startswith("suly-web-assets-") and not x.get("expired",False)]; print(a[0]["id"] if a else "")')
-            [ -n "$artifact_id" ] || continue
-            archive="/tmp/suly-old-assets/$run_id.zip"
-            if ! curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$api/actions/artifacts/$artifact_id/zip" -o "$archive"; then continue; fi
-            python3 - "$archive" site <<'PY'
-          import pathlib, sys, zipfile
-          archive, site = sys.argv[1], pathlib.Path(sys.argv[2])
-          copied = 0
-          with zipfile.ZipFile(archive) as bundle:
-              for item in bundle.infolist():
-                  name = item.filename.replace("\\\\", "/").lstrip("./")
-                  if item.is_dir() or not (name.startswith("_expo/") or name.startswith("preview/_expo/")):
-                      continue
-                  target = (site / name).resolve()
-                  if site.resolve() not in target.parents:
-                      continue
-                  target.parent.mkdir(parents=True, exist_ok=True)
-                  if not target.exists():
-                      target.write_bytes(bundle.read(item))
-                      copied += 1
-          print(f"Retained {copied} immutable assets from a previous deployment")
-          PY
-            retained=$((retained + 1))
-            [ "$retained" -ge 8 ] && break
-          done
-          echo "Merged retained assets from $retained previous deployments."
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
         with:
           enablement: true
 
-      - name: Upload combined Pages artifact
+      - name: Upload production Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: site
 
   deploy:
-    if: (github.event_name == 'push' && (github.ref == 'refs/heads/release/v1' || github.ref == 'refs/heads/develop')) || (github.event_name == 'workflow_dispatch' && inputs.deploy_production == true)
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     needs: build
     steps:
-      - name: Deploy combined production and preview site
+      - name: Deploy SULY production site
         id: deployment
         uses: actions/deploy-pages@v4
