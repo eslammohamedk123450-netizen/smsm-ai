@@ -758,6 +758,7 @@ export default function ChatPage() {
       generationState={item.generationState}
       studioIntent={item.role === "user" ? getStudioIntent(item.content) : null}
       onOpenStudio={() => router.push("/studio")}
+      onEnableAgent={() => { setIsAgentMode(true); show(isArabic ? "تم تفعيل وضع الوكيل. اكتب «ابدأ» للمتابعة." : "Agent mode is on. Type “start” to continue.", "success"); }}
       feedback={feedbackByMessage[item.id] ?? null}
       edited={Boolean(item.editedAt)}
       responseVariants={item.responseVariants}
