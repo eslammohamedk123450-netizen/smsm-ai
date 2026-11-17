@@ -774,7 +774,7 @@ Finance / Profitability / Alerts / Audit
 **التاريخ: 2026-11-17 — قراءة فقط**
 - يوجد حاليًا 8 نماذج مفعّلة في `free_race` ونموذج واحد معطل ضمن المجموعة. النماذج المفعّلة الحالية تسمح في `allowed_tiers` بالقيم free/lite/pro/max، ويضبط `max_parallel_free_models=3`.
 - `paid_fallback_enabled=true` حاليًا. كود التوجيه يطبق أهلية `allowed_tiers` قبل الاختيار؛ يجب إثبات ذلك باختبار حساب Free مع فشل كل نماذج Free قبل اعتبار عدم التحويل إلى مدفوع مضمونًا.
-- ملفات مستويات النماذج الحالية هي lite/pro/max فقط. ملف lite يسمح حاليًا بالحد الأدنى free، ولا يوجد ملف model profile مستقل باسم free أو ultra_team. لذلك الفصل النهائي بين Free وبين اشتراك Lite ما زال فجوة، ولا يجوز الادعاء أنه مطبق بالكامل.
+- ملفات مستويات النماذج الحالية هي lite/pro/max فقط. ملف lite يسمح حاليًا بالحد الأدنى free، ولا يوجد ملف model profile مستقل باسم free أو ultra_team. ملف Max متاح لمشتركي Pro وفق السياسة الحالية. لذلك الفصل النهائي بين Free وبين اشتراك Lite ما زال فجوة، ولا يجوز الادعاء أنه مطبق بالكامل.
 - توجد ملفات أدوار فعالة في `agent_registry` للأدوار coordinator وplanner وthinker وworker وreviewer. لا يوجد ملف summarizer مستقل، رغم وجود route assignment للتلخيص. ملفات coordinator وplanner وthinker أدوار داخل الوكيل المركزي الواحد.
 - سلاسل التوجيه المركزية الحالية تدعم chat/planner/worker/reviewer/summarizer، ولا تتضمن coordinator كـ route role. لا نضيف coordinator إلى جدول التوجيه دون حاجة runtime؛ المنسق الحالي ملف دور يُستخدم ضمن تخطيط الوكيل.
 - المحفظة الحالية تحتوي إجمالي `balance` و`reserved_balance`، وسجل معاملات فيه `source`، لكنها لا تحتوي أرصدة فرعية/credit lots حسب المصدر. لذلك لا يمكن بعدُ ضمان ترتيب استهلاك منفصل ودقيق بين رصيد مدفوع واشتراك ومكافأة بعد كل عملية صرف. يتطلب ذلك تصميم buckets/lots وتسوية كل عمليات reserve/settle معًا، لا مجرد عرض مصدر الإضافة.
@@ -790,7 +790,7 @@ Finance / Profitability / Alerts / Audit
   - توسيع tier constraints لدعم `ultra_team` في الاشتراكات والملفات وسجلات النماذج.
   - إنشاء profile مستقل `free` من قدرات Lite الحالية.
   - جعل `lite` يتطلب اشتراك Lite بدل Free.
-  - جعل `max` يتطلب Max بدل Pro.
+  - الحفاظ على السياسة الحالية التي تسمح لمشترك Pro باستخدام ملف SULY Max؛ أهلية كل نموذج فعلي تظل محكومة بـ `allowed_tiers` المستقل.
   - تجهيز profile `ultra_team` غير نشط حتى اكتمال نظام الفرق.
   - توسيع `allowed_tiers` للنماذج النصية والوسائط.
   - إزالة أهلية Free من النماذج الموجودة خارج `free_race`، مع قيد يمنع منح Free لنموذج خارج المجموعة.
