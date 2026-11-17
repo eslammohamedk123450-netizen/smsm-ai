@@ -29,10 +29,9 @@ const NAV_GROUPS: readonly NavGroup[] = [
     label: "المزودون والنماذج", labelEn: "Providers & models",
     hint: "الكتالوج والاختبارات والقدرات", hintEn: "Catalogue, tests and capabilities",
     items: [
-      { path: "/admin/models", label: "النماذج والمزودون", labelEn: "Models & providers", icon: "git-branch-outline" },
+      { path: "/admin/models", label: "النماذج", labelEn: "Models", icon: "git-branch-outline" },
+      { path: "/admin/api-keys", label: "المزودون والمفاتيح", labelEn: "Providers & API keys", icon: "key-outline" },
       { path: "/admin/image-generation", label: "نماذج الوسائط", labelEn: "Media models", icon: "images-outline" },
-      { path: "/admin/brain", label: "القدرات والتحقق", labelEn: "Capabilities & verification", icon: "shield-checkmark-outline" },
-      { path: "/admin/agents", label: "الوكيل والتوجيه", labelEn: "Agent & routing", icon: "git-network-outline" },
     ],
   },
   {
@@ -67,7 +66,6 @@ const NAV_GROUPS: readonly NavGroup[] = [
     label: "النظام والتكاملات", labelEn: "System & integrations",
     hint: "الأمان والمفاتيح والخدمات", hintEn: "Security, keys and services",
     items: [
-      { path: "/admin/api-keys", label: "مفاتيح API", labelEn: "API keys", icon: "key-outline" },
       { path: "/admin/composio", label: "Composio", labelEn: "Composio", icon: "apps-outline" },
       { path: "/admin/tavily", label: "Tavily · بحث الويب", labelEn: "Tavily · Web search", icon: "search-outline" },
       { path: "/admin/storage", label: "التخزين", labelEn: "Storage", icon: "cloud-upload-outline" },
