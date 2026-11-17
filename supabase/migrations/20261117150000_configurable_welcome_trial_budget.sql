@@ -69,6 +69,9 @@ begin
       and coalesce(v_welcome_credits,0) > 0
       and coalesce(v_max_accounts_per_24h,0) > 0 then
 
+      -- Serialize signup grants so concurrent registrations cannot exceed the global rolling cap.
+      perform pg_advisory_xact_lock(hashtext('suly_welcome_trial_signup_cap'));
+
       select count(*) into v_recent_claims
       from public.suly_credit_transactions
       where source = 'signup_bonus'
