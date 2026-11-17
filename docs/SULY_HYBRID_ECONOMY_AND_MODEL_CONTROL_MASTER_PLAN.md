@@ -794,9 +794,10 @@ Finance / Profitability / Alerts / Audit
   - تجهيز profile `ultra_team` غير نشط حتى اكتمال نظام الفرق.
   - توسيع `allowed_tiers` للنماذج النصية والوسائط.
   - إزالة أهلية Free من النماذج الموجودة خارج `free_race`، مع قيد يمنع منح Free لنموذج خارج المجموعة.
-  - تحديث `suly_effective_subscription_tier` لقبول Ultra Team.
+  - تحديث `suly_effective_subscription_tier` و`suly_claim_daily_credits` لقبول Ultra Team، وتحديث `brain_reserve_usage` لاستخدام الاستحقاق الفعلي مع مطابقة Ultra Team مؤقتًا لحدود Max حتى إعداد حدود الفريق.
 - نتيجة التدقيق التي تعالجها migration: 240 نموذجًا معطلًا خارج `free_race` كانت تحمل أهلية Free بسبب القيمة الافتراضية القديمة. تُزال أهلية Free عنها؛ لا تتغير حالة تشغيلها.
 - النماذج الثمانية المفعّلة داخل `free_race` تبقى ضمن سياسة Free الحالية؛ لم يتم اختيار نموذج بعينه أو تغيير أولوية النماذج.
+- `supabase/functions/ai-router/index.ts` و`apps/mobile/src/features/chat/chat-service.ts` و`apps/mobile/src/lib/network/sse-transport.ts`: تمرير مفاتيح Free وUltra Team وقبولها كاختيار يدوي صحيح في مسار المحادثة.
 - `supabase/functions/ai-router/agent/suly_profile_routing.ts`:
   - إضافة Free كملف مستقل وعدم تحويل Free تلقائيًا إلى Lite.
   - دعم Lite/Pro/Max/Ultra Team بترتيب أهلية هرمي.
@@ -807,6 +808,7 @@ Finance / Profitability / Alerts / Audit
 - `UpgradeScreen.tsx`: تحديث وصف المجاني، وإظهار رصيد الاشتراك الشهري بدل daily_credits، والتعرف على Ultra Team عند وجود خطة فعالة.
 - `balance.tsx`: التعرف على Ultra Team وعرض تجدد رصيد الاشتراك شهريًا للمشتركين.
 - `admin-service.ts` و`AdminScreens.tsx`: إدارة monthly_credits والتحقق من allowed_tiers، وإضافة Ultra Team.
+- شاشة إدارة الباقات تعرض رصيد الاشتراك الشهري، وتتيح لوحة الإدارة تحريره مع بقاء الحد اليومي منفصلًا.
 - `MediaGenerationModelsAdminScreen.tsx`: النماذج الجديدة تبدأ من Max بدل منح Free افتراضيًا، مع خيار Ultra Team.
 - `sync-models/index.ts`: النماذج المكتشفة حديثًا تبدأ معطلة وبأهلية Max فقط حتى يراجعها المدير.
 - `ModelTierEligibilityAdminCard.tsx`: إضافة واجهة تحدد أقل باقة مؤهلة لكل نموذج، مع قيد Free على مجموعة free_race.
