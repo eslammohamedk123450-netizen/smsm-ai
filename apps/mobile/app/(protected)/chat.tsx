@@ -767,7 +767,7 @@ export default function ChatPage() {
             </TouchableOpacity>
             {creditBalance !== null ? (
               <TouchableOpacity onPress={() => router.push("/(protected)/balance")} style={styles.creditPill} accessibilityRole="button" accessibilityLabel={isArabic ? "رصيد Suly" : "SULY credits"}>
-                <Ionicons name="diamond-outline" size={14} color={colors.warning} />
+                <Ionicons name="flash-outline" size={14} color={colors.textSecondary} />
                 <Text style={styles.creditPillText}>{creditBalance.toLocaleString("en-US")}</Text>
               </TouchableOpacity>
             ) : null}
@@ -824,8 +824,8 @@ export default function ChatPage() {
         {retryFailure ? <View style={styles.retryWarning} accessibilityRole="alert"><Text style={styles.retryWarningText}>{isArabic ? "حُفظت رسالتك، لكن تعذّر إكمال الرد." : "Your message was saved, but the response could not be completed."}</Text><Pressable onPress={() => void retryResponse()} disabled={isSending} accessibilityRole="button" accessibilityLabel={isArabic ? "إعادة محاولة الرد" : "Retry response"} style={styles.retryButton}><Text style={styles.retryButtonText}>{isSending ? (isArabic ? "جارٍ إعادة المحاولة…" : "Retrying…") : (isArabic ? "إعادة المحاولة" : "Retry")}</Text></Pressable></View> : null}
         {isLoading ? <View style={styles.loading}><ActivityIndicator color={colors.primary} /><Text style={styles.loadingText}>{isArabic ? "جارٍ تحميل المحادثة…" : "Loading conversation…"}</Text></View> : messages.length === 0 ? (
           <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>{isArabic ? "أهلًا بك في SULY" : "What can I help with?"}</Text>
-            <Text style={styles.emptySubtitle}>{isArabic ? "اكتب ما تحتاجه بطريقتك العادية، والوكيل سيتولى اختيار طريقة المساعدة المناسبة." : "Describe what you need in your own words. The central Agent will decide how best to help."}</Text>
+            <Text style={styles.emptyTitle}>{isArabic ? "اجعل SULY يعمل من أجلك" : "Make SULY work for you"}</Text>
+            <Text style={styles.emptySubtitle}>{isArabic ? "اكتب ما تحتاجه، وسيتولى SULY مساعدتك." : "Write what you need, and SULY will help you get it done."}</Text>
             <View style={styles.taskGrid}>
               {suggestions.map((suggestion) => (
                 <Pressable
@@ -866,14 +866,12 @@ export default function ChatPage() {
         )}
         {isUploadingAttachment ? <View style={styles.uploadStatus}><ActivityIndicator size="small" color={colors.primary} /><Text style={styles.loadingText}>{isArabic ? "جارٍ رفع المرفق…" : "Uploading attachment…"}</Text></View> : null}
         <StreamingStatus isStreaming={isSending && !isUploadingAttachment} taskLabel={activeTaskLabel} onCancel={() => abortRef.current?.abort()} />
-        <ChatComposer ref={composerRef} onSend={handleSend} disabled={isSending || Boolean(connectorApproval)} isStreaming={isSending} onCancel={() => abortRef.current?.abort()} creditBalance={creditBalance} onOpenRecharge={() => router.push("/(protected)/balance")} />
+        <ChatComposer ref={composerRef} onSend={handleSend} disabled={isSending || Boolean(connectorApproval)} isStreaming={isSending} onCancel={() => abortRef.current?.abort()} creditBalance={creditBalance} onOpenRecharge={() => router.push("/(protected)/balance")} onOpenConnectors={() => router.push("/integrations")} />
       </KeyboardAvoidingView>
       <ShareConversationSheet visible={shareVisible} conversationId={conversationId} title={shareTitle} plainText={shareText} onClose={closeShareSheet} />
       <BottomSheet visible={usageVisible} title={isArabic ? "إحصائيات المهمة الحالية" : "Current task usage"} onClose={() => setUsageVisible(false)}>
         {usageLoading ? <ActivityIndicator color={colors.primary} /> : taskUsage ? <View style={styles.usageSheet}>
           <Text style={styles.usageTaskTitle}>{taskUsage.taskTitle}</Text>
-          <View style={styles.usageMetric}><Text style={styles.usageMetricLabel}>{isArabic ? "الرصيد المحجوز للمهمة" : "Credits reserved for this task"}</Text><Text style={styles.usageMetricValue}>{taskUsage.reserved.toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text></View>
-          <View style={styles.usageMetric}><Text style={styles.usageMetricLabel}>{isArabic ? "الرصيد المخصوم فعليًا" : "Credits actually charged"}</Text><Text style={styles.usageMetricValue}>{taskUsage.charged.toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text></View>
           <Text style={styles.usageStatus}>{isArabic ? `الحالة: ${taskUsage.status === "settled" ? "مكتملة" : taskUsage.status === "held" ? "قيد التنفيذ" : taskUsage.status}` : `Status: ${taskUsage.status === "settled" ? "Completed" : taskUsage.status === "held" ? "In progress" : taskUsage.status}`}</Text>
           <Text style={styles.ratingPrompt}>{taskRating ? (isArabic ? "تقييمك لهذه المهمة" : "Your task rating") : (isArabic ? "قيّم هذه المهمة" : "Rate this task")}</Text>
           <View style={styles.starsRow}>{[1, 2, 3, 4, 5].map((star) => <Pressable key={star} onPress={() => setRatingStars(star)} accessibilityRole="button" accessibilityLabel={isArabic ? `تقييم ${star} نجوم` : `Rate ${star} stars`}><Text style={[styles.star, star <= (taskRating?.stars ?? ratingStars) && styles.starSelected]}>★</Text></Pressable>)}</View>
