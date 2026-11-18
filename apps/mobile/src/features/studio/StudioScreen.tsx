@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -38,22 +38,27 @@ export function StudioScreen() {
   const styles = useMemo(() => createStyles(colors, isArabic), [colors, isArabic]);
   const [imageReady, setImageReady] = useState(false);
   const [checkingImage, setCheckingImage] = useState(true);
+  const [imageCheckError, setImageCheckError] = useState(false);
 
-  useEffect(() => {
-    let active = true;
-    const checkImageAvailability = async () => {
-      try {
-        const { data, error } = await supabase.rpc("suly_list_public_image_models");
-        if (active) setImageReady(!error && hasVerifiedImageModel(data));
-      } catch {
-        if (active) setImageReady(false);
-      } finally {
-        if (active) setCheckingImage(false);
+  const checkImageAvailability = useCallback(async () => {
+    setCheckingImage(true);
+    setImageCheckError(false);
+    try {
+      const { data, error } = await supabase.rpc("suly_list_public_image_models");
+      if (error) {
+        setImageReady(false);
+        setImageCheckError(true);
+      } else {
+        setImageReady(hasVerifiedImageModel(data));
       }
-    };
-    void checkImageAvailability();
-    return () => { active = false; };
+    } catch {
+      setImageReady(false);
+      setImageCheckError(true);
+    } finally {
+      setCheckingImage(false);
+    }
   }, []);
+  useEffect(() => { void checkImageAvailability(); }, [checkImageAvailability]);
 
   const services = [
     {
@@ -61,13 +66,16 @@ export function StudioScreen() {
       title: isArabic ? "توليد الصور" : "Image generation",
       description: checkingImage
         ? (isArabic ? "جارٍ التحقق من النماذج والأسعار المعتمدة…" : "Checking active models and verified prices…")
-        : imageReady
-          ? (isArabic ? "توجد نماذج صور نشطة بأسعار رصيد معتمدة. يمكنك فتح الاستوديو." : "Active image models with verified credit prices are available.")
-          : (isArabic ? "لا يوجد نموذج صور نشط بسعر رصيد معتمد حاليًا. لن يتم حجز أو خصم رصيد." : "No active image model with a verified credit price is available. No credits can be reserved or charged."),
+        : imageCheckError
+          ? (isArabic ? "تعذر فحص سجل النماذج الآن. اضغط لإعادة المحاولة." : "Could not check the model registry. Tap to retry.")
+          : imageReady
+            ? (isArabic ? "توجد نماذج صور نشطة بأسعار رصيد معتمدة. يمكنك فتح الاستوديو." : "Active image models with verified credit prices are available.")
+            : (isArabic ? "لا يوجد نموذج صور نشط بسعر رصيد معتمد حاليًا. لن يتم حجز أو خصم رصيد." : "No active image model with a verified credit price is available. No credits can be reserved or charged."),
       icon: "image-outline" as const,
       route: "/image-studio",
       ready: imageReady && !checkingImage,
       checking: checkingImage,
+      retry: imageCheckError,
     },
     {
       key: "video",
@@ -77,6 +85,7 @@ export function StudioScreen() {
       route: "/video-studio",
       ready: false,
       checking: false,
+      retry: false,
     },
     {
       key: "audio",
@@ -108,16 +117,16 @@ export function StudioScreen() {
           <Pressable
             key={item.key}
             accessibilityRole="button"
-            accessibilityState={{ disabled: !item.ready }}
+            accessibilityState={{ disabled: !item.ready && !item.retry }}
             accessibilityLabel={`${item.title}. ${item.description}`}
-            disabled={!item.ready}
-            onPress={() => router.push(item.route as never)}
-            style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.divider }, !item.ready && styles.disabled]}
+            disabled={!item.ready && !item.retry}
+            onPress={() => item.retry ? void checkImageAvailability() : router.push(item.route as never)}
+            style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.divider }, !item.ready && !item.retry && styles.disabled]}
           >
             <View style={[styles.iconBox, { backgroundColor: colors.surfaceElevated }]}>
               {item.checking
                 ? <ActivityIndicator size="small" color={colors.textPrimary} />
-                : <Ionicons name={item.icon} size={25} color={colors.textPrimary} />}
+                : <Ionicons name={item.retry ? "refresh-outline" : item.icon} size={25} color={colors.textPrimary} />}
             </View>
             <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{item.title}</Text>
             <Text style={[styles.cardDescription, { color: colors.textSecondary }]}>{item.description}</Text>
@@ -125,11 +134,13 @@ export function StudioScreen() {
               <Text style={[styles.status, { color: item.ready ? colors.textPrimary : colors.textMuted }]}>
                 {item.checking
                   ? (isArabic ? "جارٍ التحقق" : "Checking")
-                  : item.ready
-                    ? (isArabic ? "متاح الآن" : "Available")
-                    : (isArabic ? "غير متاح حاليًا" : "Currently unavailable")}
+                  : item.retry
+                    ? (isArabic ? "إعادة الفحص" : "Retry check")
+                    : item.ready
+                      ? (isArabic ? "متاح الآن" : "Available")
+                      : (isArabic ? "غير متاح حاليًا" : "Currently unavailable")}
               </Text>
-              <Ionicons name={item.ready ? "arrow-back" : "time-outline"} size={16} color={colors.textMuted} />
+              <Ionicons name={item.retry ? "refresh-outline" : item.ready ? "arrow-back" : "time-outline"} size={16} color={colors.textMuted} />
             </View>
           </Pressable>
         ))}

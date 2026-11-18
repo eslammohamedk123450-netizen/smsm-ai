@@ -59,7 +59,7 @@ export default function ConnectedAppsScreen() {
         setStatuses(result.toolkits);
         setServiceReady(result.serviceReady);
         const account = result.toolkits.find((item) => item.toolkit === toolkit);
-        if (account?.connected) {
+        if (result.serviceReady && account?.connected) {
           show(isArabic ? `تم ربط ${account.label} والتحقق من نشاط الحساب.` : `${account.label} connected and verified active.`, "success");
         } else {
           show(isArabic ? "عادت صفحة التفويض، لكن لم يؤكد الخادم اتصال الحساب بعد. راجع الحالة قبل استخدام الموصل." : "Authorization returned, but the server has not confirmed an active connection yet. Check the status before using this connector.", "info");
@@ -69,6 +69,8 @@ export default function ConnectedAppsScreen() {
         show(isArabic ? "لم يكتمل ربط التطبيق. يمكنك المحاولة مرة أخرى." : "The app connection was not completed. You can try again.", "info");
       }
     } catch (cause) {
+      setStatuses([]);
+      setServiceReady(false);
       show(cause instanceof Error ? cause.message : (isArabic ? "تعذّر بدء ربط التطبيق." : "Could not start app connection."), "error");
     } finally {
       setConnecting(null);
@@ -95,6 +97,8 @@ export default function ConnectedAppsScreen() {
       show(isArabic ? `تم قطع اتصال ${status.label}.` : `Disconnected ${status.label}.`, "success");
       await load();
     } catch (cause) {
+      setStatuses([]);
+      setServiceReady(false);
       show(cause instanceof Error ? cause.message : (isArabic ? "تعذّر قطع اتصال التطبيق." : "Could not disconnect the app."), "error");
     } finally {
       setConnecting(null);
