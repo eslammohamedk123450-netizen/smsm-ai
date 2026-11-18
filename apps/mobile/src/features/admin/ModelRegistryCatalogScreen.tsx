@@ -401,7 +401,9 @@ export function ModelRegistryCatalogScreen() {
               <View style={styles.detailMetaCell}><Text style={styles.detailMetaLabel}>دورة الحياة</Text><Text style={styles.detailMetaValue}>{selectedModel.lifecycle_state === "active" ? "مفعل في السجل" : selectedModel.lifecycle_state === "archived" ? "مؤرشف" : "مرشح"}</Text></View>
               <View style={styles.detailMetaCell}><Text style={styles.detailMetaLabel}>حالة التشغيل</Text><Text style={styles.detailMetaValue}>{STATUS_LABEL[selectedModel.operational_state]}</Text></View>
               <View style={styles.detailMetaCell}><Text style={styles.detailMetaLabel}>حالة المزود</Text><Text style={styles.detailMetaValue}>{selectedModel.provider_enabled ? "مفعّل" : "معطّل أو غير متاح"}</Text></View>
-            </View> : null}
+            </View>
+            {selectedModel.service_type === "image" ? <Pressable accessibilityRole="button" onPress={() => { setSelectedModel(null); setMediaEditorOpen(true); }} style={styles.detailLink}><Text style={styles.detailLinkText}>تعديل إعدادات نموذج الصور</Text></Pressable> : null}
+            : null}
             {selectedDetailTab === "capabilities" ? <>
               <View style={styles.capabilityHeader}><Text style={styles.detailSectionTitle}>القدرات المسجلة وحالة اعتماد كل قدرة</Text><Pressable accessibilityRole="button" onPress={() => setCapabilityPickerOpen((value) => !value)} style={styles.detailLink}><Ionicons name="add" size={14} color={colors.primary}/><Text style={styles.detailLinkText}>إضافة قدرة</Text></Pressable></View>
               <View style={styles.capabilityLine}>
