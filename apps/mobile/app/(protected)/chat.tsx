@@ -217,6 +217,8 @@ export default function ChatPage() {
     setConversationId(routeConversationId || null);
     setMessages([]);
     setAgentProgress([]);
+    setActiveTaskMessageId(null);
+    setCancelPendingMessageId(null);
     setResponseIndexByUser({});
     setFeedbackByMessage({});
     setError(null);
