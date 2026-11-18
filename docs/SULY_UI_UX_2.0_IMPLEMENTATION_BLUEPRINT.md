@@ -567,7 +567,7 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 - **Deliverable:** task lifecycle, cancellation, reconnect, partial billing, and safe-rendering tests.
 
 ### Phase 5 — Studio, library, projects, and connected tools
-**Status: 🟡 78% — core failure states, retry behavior, duplicate-mutation guards, bilingual Studio capability screens, and server-confirmed status checks are implemented; live provider/device verification and final permission-matrix review remain.**
+**Status: 🟡 80% — core failure states, retry behavior, immediate duplicate-submission guards, bilingual Studio capability screens, server-confirmed status checks, and a source-level integration matrix are implemented; live provider/device verification and owner-scoped permission-matrix tests remain.**
 
 - ☑️ Confirm Studio, media/library, projects, and integrations areas exist in the current application source/inventory.
 - ☑️ Add an explicit accessible loading indicator to the Library while files, generation jobs, folders, favorites, and folder assignments are being fetched; this prevents a blank screen from being mistaken for an empty library. Commit: `3d4dc1a07b79d6c736f8ae9039e46782f70dae35`. The current CI gate passed on `b58f60c89e2c27e5ccef5012188c20bcdca755d6` (run `44319558439`); rendered device verification remains in Phase 7.
@@ -584,7 +584,8 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 - ☑️ Make Studio registry lookup failures distinct from a genuinely unavailable image model, and let the user retry the registry check; localize the disabled Video Studio explanation and Library action in Arabic/English. Commit: `12fe56e54f52d1e38ad759c5326ccab4df2d24c5`, `174681b2b0fa3403d002c1f371096f126646b3f7`.
 - ☑️ Require both provider service readiness and a fresh connected-account result before showing connector OAuth success; clear stale account rows after connect/disconnect errors. Commit: `12fe56e54f52d1e38ad759c5326ccab4df2d24c5`.
 - ☑️ Harden Image Studio model/balance loading with retry and reuse the same request ID when a generation request is retried after polling timeout, preventing a second reservation for the same in-flight image request. Commits: `9f6faba4367efe89c6fef4f6d30e6296a690da98`, `b58f60c89e2c27e5ccef5012188c20bcdca755d6`.
-- 🟡 Map each visible action to its service, permission boundary, and real connection/capability status.
+- ☑️ Add synchronous in-flight guards for Project create/archive/restore, connector connect/disconnect, Library upload/favorite/folder/delete, and Image Studio generation/conversation launch so rapid repeated taps cannot race React state updates. Commits: `b3515a7adcf50303553bff0f96e604a44a524b44`, `1de77c4aa327bb47b14d4753b54004d0e6a4c3b5`, `ac7c6e302323b462bb73499728a8606fa30c2d5c`, `57139e4598aa4040c1fc2cfa9a7a208029ca3250`. Verified by CI run `44326186700`.
+- ◐ Source-level service and capability matrix recorded in Section 15; live server-permission checks for each action remain.
 - ⬜ Inspect every Studio action, upload/delivery path, library operation, project CRUD action, and connector connect/disconnect flow against its actual service and server permission.
 - ⬜ Verify loading, empty, error, unavailable, connected, disconnected, and revoked states; remove or relabel any decorative/unwired control without removing working features.
 - ⬜ Apply the shared monochrome page patterns without removing existing working capabilities or HIMS.
@@ -613,7 +614,7 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 - ⬜ Test Light / Dark / System.
 - ⬜ Test keyboard, touch targets, reduced motion, focus order, screen-reader labels, and modal dismissal.
 - ⬜ Run the chat composer interaction matrix in Arabic RTL and English LTR: plus/connectors, paperclip attachments, send, voice permissions, Stop/cancel, retry, and draft preservation.
-- ☑️ Pass Expo TypeScript typecheck, full Jest suite (25 suites / 161 tests), Deno Agent/scheduler tests (22 files / 126 tests), and Web/Android/iOS Expo exports in CI run `44324117457`. This verifies JS bundle exports, not native APK/AAB installation.
+- ☑️ Pass Expo TypeScript typecheck, full Jest suite (25 suites / 161 tests), Deno Agent/scheduler tests (22 files / 126 tests), and Web/Android/iOS Expo exports in CI runs `44324117457` and `44326186700`. This verifies JS bundle exports, not native APK/AAB installation.
 - ☑️ Add accessible labels/roles and selected states to conversation-history actions, task-history rows, attachment choices, image preview, HIMS filters, and Agent task form controls; provide bilingual Agent task templates. Commits: `48c54351cb43d4168f894040672eab677c9d34d2`, `6135e4a8cda72139c9fc0147e26cb9134174219b`.
 - ⬜ Inspect actual browser and native screenshots. No rendered screenshots or real-device session have been captured; do not claim visual verification.
 - **Deliverable:** exact test report, screenshots, changed-file list, and known limitations.
@@ -624,6 +625,7 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 - ⬜ Reconcile every checklist item against code, tests, and rendered evidence.
 - ⬜ Publish final report with branch/commit, files, completed/partial items, exact test results, screenshots, and known gaps.
 - ⬜ Confirm HIMS, admin, auth, chat, credits, memory, permissions, and data boundaries remain intact.
+- ⚠️ The successful `npm ci` step reported 68 high-severity dependency advisories. No automatic dependency upgrades were applied; a separate reviewed dependency/security remediation is required.
 - ⬜ Request separate explicit approval before promoting implementation phases to production.
 - **Deliverable:** final review report and explicit promotion decision.
 
@@ -640,7 +642,7 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 | Plans | apps/mobile/src/features/billing/UpgradeScreen.tsx | Reads active plan/features and current tier; paid upgrade action is explicitly unavailable (“coming soon”) | 6 |
 | Settings and credits | apps/mobile/src/features/settings/SettingsScreen.tsx | Theme/language controls and credit history are present; broader security/account sections need audit | 6 |
 | HIMS and admin | docs/PHASES_1_4_BUILD_AUDIT.md, src/features/hims/, src/features/admin/, Supabase functions/migrations | Existing HIMS/admin are protected product areas; preserve them and their authorization boundaries | All |
-| Automated checks | apps/mobile/package.json, .github/workflows/verify-agent-queue.yml | CI run `44324117457` passed: TypeScript, full Jest (25/25 suites, 161/161 tests), Deno tests (22 files, 126 passed / 0 failed), and Web/Android/iOS exports | 1 / 7 |
+| Automated checks | apps/mobile/package.json, .github/workflows/verify-agent-queue.yml | CI run `44326186700` passed: TypeScript, full Jest (25/25 suites, 161/161 tests), Deno tests (22 files, 126 passed / 0 failed), and Web/Android/iOS exports | 1 / 7 |
 
 ## 12. Acceptance criteria (must all pass)
 
@@ -738,7 +740,7 @@ The following immediate in-flight locks were added to prevent rapid repeated tap
 - Library upload, favorite/folder organization, and asset deletion — commit `ac7c6e302323b462bb73499728a8606fa30c2d5c`.
 - Image generation and start-conversation action — commit `57139e4598aa4040c1fc2cfa9a7a208029ca3250`.
 
-These locks are client-side duplicate-submission safeguards only. Server-side authentication, ownership checks, RLS, request idempotency, and credit-ledger controls remain authoritative. CI for the latest UI commit must pass before these changes are marked verified.
+These locks are client-side duplicate-submission safeguards only. Server-side authentication, ownership checks, RLS, request idempotency, and credit-ledger controls remain authoritative. CI run `44326186700` passed: Expo TypeScript typecheck, 25 Jest suites / 161 tests, 22 Deno test files / 126 passed / 0 failed, and Web/Android/iOS JavaScript exports. This still does not prove native APK/AAB installation or visual rendering on real devices.
 
 ### Phase 6 account/security findings
 
