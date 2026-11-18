@@ -38,6 +38,7 @@ type ModelUsageTransaction = {
   balance_delta: number; input_tokens: number; output_tokens: number; model_id: number | null;
   source: string; reason: string | null; created_at: string;
 };
+type ModelProbeLog = { run_type: string; status: string; duration_ms: number; error_code: string | null; checked_at: string; model_name: string; provider_name: string };
 type ModelCompanyCost = {
   request_id: string; user_id: string | null; provider_cost_usd: number; cost_status: string;
   user_credits_charged: number; revenue_egp: number; provider_cost_egp: number;
@@ -90,6 +91,7 @@ export function ModelRegistryCatalogScreen() {
   const [savingCapability, setSavingCapability] = useState<string | null>(null);
   const [usageTransactions, setUsageTransactions] = useState<ModelUsageTransaction[]>([]);
   const [companyCosts, setCompanyCosts] = useState<ModelCompanyCost[]>([]);
+  const [probeLogs, setProbeLogs] = useState<ModelProbeLog[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<RegistryModel | null>(null);
@@ -162,6 +164,7 @@ export function ModelRegistryCatalogScreen() {
     if (modelId == null) {
       setUsageTransactions([]);
       setCompanyCosts([]);
+      setProbeLogs([]);
       setHistoryError(null);
       return;
     }
@@ -176,16 +179,19 @@ export function ModelRegistryCatalogScreen() {
       supabase.from("suly_company_cost_ledger")
         .select("request_id,user_id,provider_cost_usd,cost_status,user_credits_charged,revenue_egp,provider_cost_egp,other_cost_egp,gross_profit_egp,price_version,created_at")
         .eq("model_id", modelId).order("created_at", { ascending: false }).limit(100),
-    ]).then(([transactions, costs]) => {
+      adminService.getModelProbeLogs(modelId),
+    ]).then(([transactions, costs, probes]) => {
       if (!active) return;
       if (transactions.error) throw transactions.error;
       if (costs.error) throw costs.error;
       setUsageTransactions((transactions.data ?? []) as ModelUsageTransaction[]);
       setCompanyCosts((costs.data ?? []) as ModelCompanyCost[]);
+      setProbeLogs((probes ?? []) as ModelProbeLog[]);
     }).catch((cause) => {
       if (!active) return;
       setUsageTransactions([]);
       setCompanyCosts([]);
+      setProbeLogs([]);
       setHistoryError(cause instanceof Error ? cause.message : "تعذر تحميل سجل الاستخدام والتكلفة.");
     }).finally(() => {
       if (active) setHistoryLoading(false);
@@ -380,7 +386,8 @@ export function ModelRegistryCatalogScreen() {
         <ScrollView style={styles.detailModal} contentContainerStyle={styles.detailModalContent} keyboardShouldPersistTaps="handled">
           <View style={styles.detailModalHeader}>
             <View style={styles.detailModalCopy}>
-              <Text style={styles.detailModalEyebrow}>MODEL DETAILS · READ ONLY</Text>
+              <View style={styles.detailModelIcon}><Ionicons name={selectedModel?.service_type === "image" ? "image-outline" : selectedModel?.service_type === "video" ? "videocam-outline" : selectedModel?.service_type === "audio" ? "volume-high-outline" : "hardware-chip-outline"} size={28} color={colors.primary}/></View>
+              <Text style={styles.detailModalEyebrow}>MODEL DETAILS</Text>
               <Text style={styles.detailModalTitle}>{selectedModel?.display_name ?? "تفاصيل النموذج"}</Text>
             </View>
             <Pressable accessibilityRole="button" accessibilityLabel="إغلاق" onPress={() => setSelectedModel(null)}><Ionicons name="close-circle-outline" size={23} color={colors.textMuted}/></Pressable>
@@ -426,13 +433,17 @@ export function ModelRegistryCatalogScreen() {
               <Pressable accessibilityRole="button" onPress={() => { setSelectedModel(null); router.push("/admin/agents"); }} style={styles.detailLink}><Text style={styles.detailLinkText}>فتح إعدادات التوجيه والتعيينات</Text></Pressable>
             </> : null}
             {selectedDetailTab === "tests" ? <>
-              <Text style={styles.detailSectionTitle}>نتائج الأدلة والاختبارات المسجلة</Text>
+              <Text style={styles.detailSectionTitle}>سجل اختبارات الاتصال والقدرات</Text>
               {rows.filter((row) => row.model_id === selectedModel.model_id && row.capability_key).map((row) => <View key={row.capability_key} style={styles.detailMetaCell}>
-                <Text style={styles.detailMetaLabel}>{CAPABILITIES.find(([key]) => key === row.capability_key)?.[1] ?? row.capability_key} · {REVIEW_LABEL[row.review_status ?? "legacy_unreviewed"]}</Text>
-                <Text style={styles.detailMetaValue}>المزود: {row.provider_test_status ?? "غير متاح"} · SULY: {row.suly_test_status ?? "غير متاح"}</Text>
+                <Text style={styles.detailMetaLabel}>{CAPABILITIES.find(([key]) => key === row.capability_key)?.[1] ?? row.capability_key}</Text>
+                <Text style={styles.detailMetaValue}>دعم المزود: {row.vendor_claim_status ?? "غير معروف"} · اختبار المزود: {row.provider_test_status ?? "غير مختبر"} · SULY: {row.suly_test_status ?? "غير مختبر"}</Text>
               </View>)}
-              {!rows.some((row) => row.model_id === selectedModel.model_id && row.capability_key) ? <Text style={styles.meta}>لا توجد نتائج اختبار مسجلة.</Text> : null}
-              <Pressable accessibilityRole="button" onPress={() => { setSelectedModel(null); router.push("/admin/models-operations"); }} style={styles.detailLink}><Text style={styles.detailLinkText}>فتح التشغيل والاختبارات</Text></Pressable>
+              {probeLogs.map((log, index) => <View key={`${log.checked_at}-${index}`} style={styles.historyRow}>
+                <Text style={styles.detailMetaLabel}>{new Date(log.checked_at).toLocaleString("ar-EG")} · {log.run_type === "manual" ? "يدوي" : "دوري"}</Text>
+                <Text style={styles.detailMetaValue}>{log.status === "success" ? "ناجح" : log.status === "skipped" ? "تخطّي" : "فشل"} · {log.duration_ms}ms</Text>
+                {log.error_code ? <Text style={styles.meta}>{log.error_code}</Text> : null}
+              </View>)}
+              {!probeLogs.length && !rows.some((row) => row.model_id === selectedModel.model_id && row.capability_key) ? <Text style={styles.meta}>لا توجد نتائج اختبار مسجلة لهذا النموذج.</Text> : null}
             </> : null}
             {selectedDetailTab === "history" ? <>
               <Text style={styles.detailSectionTitle}>سجل الاستخدام والتكلفة لهذا النموذج</Text>
@@ -541,6 +552,7 @@ const createStyles = (c: ThemePalette) => StyleSheet.create({
   empty: { color: c.textMuted, fontSize: 10, textAlign: "center", padding: 20 },
   detailModal: { flex: 1, width: "100%", maxWidth: 900, alignSelf: "center", borderWidth: 1, borderColor: c.divider, borderRadius: 14, backgroundColor: c.surface },
   detailModalContent: { padding: 15, gap: 11, paddingBottom: 28 },
+  detailModelIcon: { width: 58, height: 58, borderRadius: 16, backgroundColor: c.primary + "14", borderWidth: 1, borderColor: c.divider, alignItems: "center", justifyContent: "center" },
   detailModalHeader: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", gap: 12 }, detailModalCopy: { flex: 1, alignItems: "flex-end", gap: 3 }, detailModalEyebrow: { color: c.primary, fontSize: 8, fontWeight: "900", letterSpacing: 1 }, detailModalTitle: { color: c.textPrimary, fontSize: 17, fontWeight: "900", textAlign: "right" },
   historyRow: { borderWidth: 1, borderColor: c.divider, borderRadius: 9, padding: 10, gap: 5, backgroundColor: c.surfaceElevated },
   detailMetaGrid: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 7 }, detailMetaCell: { flexBasis: "48%", flexGrow: 1, minWidth: 120, backgroundColor: c.surfaceElevated, borderRadius: 8, padding: 9, gap: 4 }, detailMetaLabel: { color: c.textMuted, fontSize: 8, textAlign: "right" }, detailMetaValue: { color: c.textPrimary, fontSize: 9, fontWeight: "700", textAlign: "right" },
