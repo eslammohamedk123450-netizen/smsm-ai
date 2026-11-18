@@ -151,11 +151,6 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
 
   return (
     <View style={styles.wrapper}>
-      <View style={styles.agentStatus} accessibilityRole="text">
-        <Ionicons name="sparkles" size={13} color={colors.primary} />
-        <Text style={styles.agentStatusText}>{isArabic ? "SULY AI · محادثة مباشرة" : "SULY AI · Direct chat"}</Text>
-      </View>
-
       {isListening ? <Text style={styles.voiceListening}>{isArabic ? "جارٍ الاستماع… اضغط إيقاف عند الانتهاء." : "Listening… tap stop when finished."}</Text> : null}
       {voiceError ? <Text accessibilityRole="alert" style={styles.voiceError}>{voiceError}</Text> : null}
 
@@ -291,15 +286,13 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
 const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.create({
   wrapper: {
     width: "100%",
-    maxWidth: 920,
+    maxWidth: 980,
     alignSelf: "center",
-    paddingHorizontal: 20,
+    paddingHorizontal: Platform.OS === "web" ? 24 : 16,
     paddingTop: 10,
     paddingBottom: 14,
     backgroundColor: colors.background,
   },
-  agentStatus: { minHeight: 28, alignSelf: "center", flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 12, paddingVertical: 5, marginBottom: 9, borderRadius: 999, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surfaceElevated },
-  agentStatusText: { color: colors.textSecondary, fontSize: 10, fontWeight: "700" },
   voiceError: { color: colors.error, fontSize: 10, lineHeight: 15, textAlign: isArabic ? "right" : "left", paddingHorizontal: 4, marginBottom: 5 },
   voiceListening: { color: colors.textSecondary, fontSize: 10, lineHeight: 15, textAlign: isArabic ? "right" : "left", paddingHorizontal: 4, marginBottom: 5 },
   controlDisabled: { opacity: 0.45 },
