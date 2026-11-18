@@ -22,7 +22,7 @@
 5. Do not delete, disable, hide permanently, or replace existing working capabilities merely to simplify the UI. Reorganize them and preserve access. If a feature is not operational end-to-end, do not present it as working: mark it unavailable, explain why, and record the dependency.
 6. Every visible interactive control must have a real action, a real data source, a loading state, an error state, and a success/empty state as applicable. No decorative buttons, fake progress, fabricated counts, mock model availability, or placeholder actions in the shipped UI.
 7. Before changing a screen, inspect its current implementation, services, route, database/RPC/Edge Function dependencies, and tests. Reuse existing functionality and shared components where possible.
-8. Keep one central SULY Agent/AI Router decision authority. UI mode selection must not introduce a second independent planner or competing agent brain.
+8. Keep one central SULY Agent/AI Router decision authority. The end-user UI has no mode selection and must not introduce a second independent planner or competing agent brain.
 9. Do not change database schemas, RLS, billing rules, credit prices, subscriptions, provider configuration, model activation policy, or server authorization as a side effect of a visual redesign. If a real UI requirement exposes a backend gap, document it and implement only through an explicitly scoped, separately reviewed backend change.
 10. Do not expose service-role keys, provider secrets, privileged RPCs, or admin-only data to the client.
 11. Preserve Expo universal-client parity: one shared application and shared feature logic for Android, iOS, and Web. Platform-specific presentation is allowed only where the platform requires it (file picker, keyboard, safe areas, pointer/hover, responsive layout).
@@ -267,16 +267,13 @@ The visual grouping should be one single composer container, not a row of unrela
 
 ## 6. Chat and Agent behavior — one conversation, one central brain
 
-### 6.1 One conversation surface
+### 6.1 One unified mode and automatic execution
 
-Do not create separate “Chat” and “Agent Chat” products. The user remains in one conversation and may choose:
-- **Auto:** the central router decides whether a request is a normal conversational response or an executable task, according to existing server policy.
-- **Agent:** the user explicitly asks the central agent to execute a task, when the capability is enabled and authorized.
-- **Chat:** optional explicit conversational mode only if the existing request contract supports it; it must not bypass safety, entitlement, or server-side routing.
-
-Recommended default: **Auto**, because it reduces friction. Keep a visible Agent toggle for deliberate execution. The UI must not infer that every sentence containing an imperative is a paid task. If the central router classifies a request as an executable/credit-consuming task while the user is in Auto, show a clear confirmation before starting when the existing billing policy requires confirmation. State the estimated cost only when the server provides a trustworthy estimate. Do not charge for a task before the server's authorized hold/settlement flow.
-
-If the existing router currently cannot accept a mode field, do not invent a client-only flag and pretend it works. Document the contract gap and request an explicit backend change before exposing the toggle as functional.
+- The user has one conversation surface and one interaction mode. There are no separate Chat and Agent modes, no Auto/Agent choice, and no visible Agent ON/OFF toggle.
+- The central SULY Agent is always available behind the conversation. It decides automatically whether a request needs a direct answer, planning, tools, or multi-step execution using the existing server policy.
+- The user writes a normal message. The client submits it through the automatic request contract; the server remains authoritative for classification, model selection, tool permissions, entitlement, safety, and execution.
+- Do not infer that every imperative sentence is a paid task. Any required cost confirmation must follow the existing server-authorized billing/hold policy. Show an estimated cost only when the server provides a trustworthy estimate.
+- Do not charge before the authorized hold/settlement flow. Never add a client-only mode flag or UI switch that the backend does not support.
 
 ### 6.2 Agent execution card
 
@@ -425,7 +422,7 @@ Do not promise pixel-identical geometry across a phone and desktop. The requirem
 ## 9. Accessibility, usability, and error prevention
 
 - All icon-only controls need accessible names.
-- Keyboard navigation must cover drawer, dialogs, menus, composer, model selector, and task card.
+- Keyboard navigation must cover drawer, dialogs, menus, composer, and task card.
 - Focus returns to the trigger after a modal closes.
 - Escape closes the topmost non-destructive overlay on web.
 - Touch targets >= 44 px.
