@@ -495,14 +495,18 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 - **Deliverable:** this updated blueprint plus the source-level baseline matrix in §14. Phase 0 is not 100% until the working-tree and fresh baseline checks are recorded.
 
 ### Phase 1 — Monochrome design system and shared tokens
-**Status: ◐ 70% — semantic grayscale tokens and theme foundation exist; full UI migration remains.**
+**Status: ◐ 85% — shared palette and theme persistence confirmed; legacy inline status colors were normalized and contrast tests expanded. CI execution and visual screenshot review remain.**
 
-- ☑️ Confirm shared light/dark semantic palettes exist in apps/mobile/src/theme/colors.ts.
-- ☑️ Confirm ThemeProvider supports System / Light / Dark and persists the preference.
-- ◐ Audit every shared component and feature screen for hard-coded legacy colors and replace only within the approved scope.
-- ⬜ Verify WCAG contrast, focus, disabled, loading, error, and status states across both themes with current automated tests.
+- ☑️ Confirm shared light/dark semantic grayscale palettes exist in apps/mobile/src/theme/colors.ts with matching token keys.
+- ☑️ Confirm ThemeProvider supports System / Light / Dark, persists the preference, and follows the system appearance when selected.
+- ☑️ Search application source for legacy gold/purple brand colors and explicit inline color overrides; no legacy gold/purple palette values were found in app source. Neutral black/white splash and overlay values remain intentional.
+- ☑️ Make the AppLogo wrapper use shared theme background/divider tokens instead of fixed black/gray values.
+- ☑️ Replace custom green/red connector status borders and the unused success badge treatment with semantic theme tokens, preserving success/error meaning through the shared palette.
+- ◐ Expand automated theme tests to validate matching token sets, neutral grayscale values, text contrast across shared surfaces, primary button contrast, and approved palette identity. Token contrast calculations were checked; the Jest suite has not yet been run in CI.
+- ⬜ Verify focus, disabled, loading, error, and status states in rendered light/dark screens, including actual contrast in context.
 - ⬜ Capture and inspect screenshots for representative routes in light and dark themes.
-- **Deliverable:** token diff, contrast report, and reviewed screenshots.
+- **Changed files:** apps/mobile/src/components/ui/AppLogo.tsx; apps/mobile/src/features/integrations/ConnectedAppsScreen.tsx; apps/mobile/src/theme/colors.test.ts.
+- **Deliverable:** source-level token audit, contrast test coverage, CI result, and reviewed screenshots.
 
 ### Phase 2 — Responsive application shell and global navigation
 **Status: ◐ 45% — mobile drawer and core destinations exist; desktop behavior and exact information architecture remain.**
