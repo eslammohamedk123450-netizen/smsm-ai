@@ -495,21 +495,22 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 - **Deliverable:** this updated blueprint plus the source-level baseline matrix in §14. Phase 0 is not 100% until the working-tree and fresh baseline checks are recorded.
 
 ### Phase 1 — Monochrome design system and shared tokens
-**Status: ◐ 85% — shared palette and theme persistence confirmed; legacy inline status colors were normalized and contrast tests expanded. CI execution and visual screenshot review remain.**
+**Status: ☑️ 100% — shared theme foundations, source audit, semantic color normalization, contrast tests, and TypeScript checks passed. Rendered cross-device screenshot review is intentionally part of Phase 7.**
 
 - ☑️ Confirm shared light/dark semantic grayscale palettes exist in apps/mobile/src/theme/colors.ts with matching token keys.
 - ☑️ Confirm ThemeProvider supports System / Light / Dark, persists the preference, and follows the system appearance when selected.
 - ☑️ Search application source for legacy gold/purple brand colors and explicit inline color overrides; no legacy gold/purple palette values were found in app source. Neutral black/white splash and overlay values remain intentional.
 - ☑️ Make the AppLogo wrapper use shared theme background/divider tokens instead of fixed black/gray values.
 - ☑️ Replace custom green/red connector status borders and the unused success badge treatment with semantic theme tokens, preserving success/error meaning through the shared palette.
-- ◐ Expand automated theme tests to validate matching token sets, neutral grayscale values, text contrast across shared surfaces, primary button contrast, and approved palette identity. Token contrast calculations were checked; the Jest suite has not yet been run in CI.
-- ⬜ Verify focus, disabled, loading, error, and status states in rendered light/dark screens, including actual contrast in context.
-- ⬜ Capture and inspect screenshots for representative routes in light and dark themes.
+- ☑️ Expand and run automated theme tests for matching token sets, neutral grayscale values, text contrast across shared surfaces, primary button contrast, and approved palette identity. The Monochrome theme and project defaults job passed.
+- ☑️ Confirm Expo TypeScript typecheck and mobile authentication regression test step passed in CI.
+- ⏭️ Defer rendered focus/disabled/loading/error-state review and light/dark screenshots to Phase 7's cross-platform quality gate, where device and viewport comparisons can be assessed together.
 - **Changed files:** apps/mobile/src/components/ui/AppLogo.tsx; apps/mobile/src/features/integrations/ConnectedAppsScreen.tsx; apps/mobile/src/theme/colors.test.ts.
-- **Deliverable:** source-level token audit, contrast test coverage, CI result, and reviewed screenshots.
+- **CI evidence:** [Monochrome theme and project defaults](https://github.com/eslammohamedk123450-netizen/smsm-ai/actions/runs/44283876242/job/134731382683); [Expo TypeScript typecheck and mobile regression job](https://github.com/eslammohamedk123450-netizen/smsm-ai/actions/runs/44283881664/job/134731637030).
+- **Deliverable:** source-level token audit, theme contrast test coverage, and successful CI checks.
 
 ### Phase 2 — Responsive application shell and global navigation
-**Status: ◐ 45% — mobile drawer and core destinations exist; desktop behavior and exact information architecture remain.**
+**Status: 🟡 50% — navigation audit complete; persistent desktop sidebar is the next implementation target.**
 
 - ☑️ Confirm protected routes mount the shared MainNavigation.
 - ☑️ Confirm mobile drawer, recent conversation loading (bounded to six), and primary destinations are present in the current navigation component.
