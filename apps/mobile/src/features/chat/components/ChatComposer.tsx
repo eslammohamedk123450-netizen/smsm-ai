@@ -31,6 +31,7 @@ export interface ChatComposerProps {
   disabled?: boolean;
   isStreaming?: boolean;
   onCancel?(): void;
+  basicMode?: boolean;
 }
 
 const MIN_INPUT_HEIGHT = 42;
@@ -43,6 +44,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
     disabled = false,
     isStreaming = false,
     onCancel,
+    basicMode = false,
   },
   ref
 ) {
@@ -151,7 +153,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
     <View style={styles.wrapper}>
       <View style={styles.agentStatus} accessibilityRole="text">
         <Ionicons name="sparkles" size={13} color={colors.primary} />
-        <Text style={styles.agentStatusText}>{isArabic ? "SULY AI · يفهم وينفّذ تلقائيًا" : "SULY AI · Understands & acts automatically"}</Text>
+        <Text style={styles.agentStatusText}>{isArabic ? "SULY AI · محادثة مباشرة" : "SULY AI · Direct chat"}</Text>
       </View>
 
       {isListening ? <Text style={styles.voiceListening}>{isArabic ? "جارٍ الاستماع… اضغط إيقاف عند الانتهاء." : "Listening… tap stop when finished."}</Text> : null}
@@ -182,7 +184,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
       {/* Unified composer: connectors, attachments, message input, voice, and send/stop. */}
       <View style={styles.container}>
         {/* RTL: connectors (+), attachments (paperclip), input, microphone, send/stop. */}
-        <TouchableOpacity
+        {!basicMode ? <TouchableOpacity
           onPress={openPlusMenu}
           disabled={disabled || isStreaming || isListening}
           activeOpacity={0.7}
@@ -191,9 +193,9 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
           accessibilityLabel={isArabic ? "فتح الموصلات والأدوات" : "Open tools and connectors"}
         >
           <Ionicons name="add" size={22} color={colors.textMuted} />
-        </TouchableOpacity>
+        </TouchableOpacity> : null}
 
-        <TouchableOpacity
+        {!basicMode ? <TouchableOpacity
           onPress={() => setAttachVisible(true)}
           disabled={disabled || isStreaming || isListening}
           activeOpacity={0.7}
@@ -202,7 +204,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
           accessibilityLabel={isArabic ? "إرفاق صورة أو ملف" : "Attach an image or file"}
         >
           <Ionicons name="attach-outline" size={20} color={colors.textMuted} />
-        </TouchableOpacity>
+        </TouchableOpacity> : null}
 
         {/* Center: multiline message input. */}
         <TextInput
@@ -235,7 +237,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
             <Pressable style={styles.blueButton} onPress={onCancel} disabled={!onCancel} accessibilityRole="button" accessibilityLabel={isArabic ? "إيقاف الرد" : "Stop response"}>
               <Ionicons name="stop" size={16} color={colors.onPrimary} />
             </Pressable>
-          ) : isListening ? (
+          ) : !basicMode && isListening ? (
             <Pressable
               style={[styles.micButton, styles.micButtonActive]}
               onPress={() => void handleVoicePress()}
@@ -244,6 +246,8 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
             >
               <Ionicons name="stop" size={17} color={colors.onPrimary} />
             </Pressable>
+          ) : basicMode ? (
+            text.trim() ? <Pressable style={[styles.blueButton, Platform.OS === "web" && styles.webSendButton]} onPress={submit} disabled={disabled}><Ionicons name="arrow-up" size={17} color={colors.onPrimary}/></Pressable> : <Pressable style={[styles.micButton, styles.controlDisabled]} disabled><Ionicons name="send-outline" size={17} color={colors.textMuted}/></Pressable>
           ) : (
             <>
               <Pressable
@@ -271,7 +275,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
         </View>
       </View>
 
-      <AttachSheet visible={attachVisible} onClose={() => setAttachVisible(false)} onPicked={setAttachment} />
+      {!basicMode ? <AttachSheet visible={attachVisible} onClose={() => setAttachVisible(false)} onPicked={setAttachment} /> : null}
       <Modal visible={previewVisible} transparent animationType="fade" onRequestClose={() => setPreviewVisible(false)}>
         <Pressable style={styles.previewOverlay} onPress={() => setPreviewVisible(false)} accessibilityRole="button" accessibilityLabel={isArabic ? "إغلاق معاينة الصورة" : "Close image preview"}>
           <Pressable style={styles.previewClose} onPress={() => setPreviewVisible(false)} accessibilityRole="button" accessibilityLabel={isArabic ? "إغلاق" : "Close"}>

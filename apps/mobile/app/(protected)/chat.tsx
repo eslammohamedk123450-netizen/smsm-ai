@@ -8,7 +8,7 @@ import { useAuth } from "../../src/features/auth/auth-provider";
 import { useSulyTheme } from "../../src/theme/ThemeProvider";
 import { useAppLocale } from "../../src/theme/LocaleProvider";
 import type { ThemePalette } from "../../src/theme/colors";
-import { chatService, type ChatMessage } from "../../src/features/chat/chat-service";
+import { chatService, type ChatMessage, type ChatModel } from "../../src/features/chat/chat-service";
 import { getRotatingSuggestions } from "../../src/features/chat/suggestions";
 import { getStudioIntent } from "../../src/features/chat/image-generation";
 import { chatStreamManager } from "../../src/features/chat/chat-stream-manager";
@@ -29,6 +29,7 @@ import { useNavigationMenu } from "../../src/components/navigation/MainNavigatio
 import { AgentExecutionCard } from "../../src/features/chat/components/AgentExecutionCard";
 import { listConversationAgentProgress, type ChatAgentProgress } from "../../src/features/brain/task-service";
 
+const BASIC_CHAT_ONLY = true;
 const STREAMING_ID = "local-streaming-assistant";
 const TASK_SUGGESTIONS = getRotatingSuggestions(Date.now(), 4);
 const TASK_SUGGESTIONS_EN = [
@@ -114,6 +115,9 @@ export default function ChatPage() {
   const routeConversationId = Array.isArray(params.conversationId) ? params.conversationId[0] : params.conversationId;
   const routeProjectId = Array.isArray(params.projectId) ? params.projectId[0] : params.projectId;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [availableModels, setAvailableModels] = useState<ChatModel[]>([]);
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+  const [modelPickerVisible, setModelPickerVisible] = useState(false);
   const [agentProgress, setAgentProgress] = useState<ChatAgentProgress[]>([]);
   const [activeTaskMessageId, setActiveTaskMessageId] = useState<string | null>(null);
   const [cancelPendingMessageId, setCancelPendingMessageId] = useState<string | null>(null);
@@ -138,6 +142,7 @@ export default function ChatPage() {
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const openNavigationDrawer = useNavigationMenu();
   const suggestions = isArabic ? TASK_SUGGESTIONS : TASK_SUGGESTIONS_EN;
+  const selectedModel = availableModels.find((model) => model.id === selectedModelId) ?? null;
   const [connectorApproval, setConnectorApproval] = useState<{ content: string; toolkit: ToolkitStatus["toolkit"]; intent: "read" | "write"; connected: boolean; accountExists: boolean; disabled: boolean; writeApproval: ConnectorWriteApproval | null } | null>(null);
   const closeShareSheet = useCallback(() => setShareVisible(false), []);
   const composerRef = useRef<ChatComposerHandle>(null);
@@ -176,6 +181,16 @@ export default function ChatPage() {
   }, [conversationId]);
 
   useEffect(() => { void loadTaskUsage(); }, [loadTaskUsage, messages.length]);
+  useEffect(() => {
+    let active = true;
+    void chatService.getAvailableModels().then((models) => {
+      if (!active) return;
+      const usable = models.filter((model) => model.enabled && model.routingGroup !== "disabled" && model.serviceType === "chat");
+      setAvailableModels(usable);
+      setSelectedModelId((current) => current && usable.some((model) => model.id === current) ? current : usable[0]?.id ?? null);
+    }).catch((cause) => { if (active) setError(cause instanceof Error ? cause.message : "تعذر تحميل النماذج."); });
+    return () => { active = false; };
+  }, []);
   useEffect(() => {
     if (!conversationId) { setTaskRating(null); return; }
     void getTaskRating(conversationId).then((value) => { setTaskRating(value); if (value) { setRatingStars(value.stars); setRatingNote(value.note ?? ""); } }).catch(() => undefined);
@@ -272,7 +287,7 @@ export default function ChatPage() {
   }, []);
 
   useEffect(() => {
-    if (!conversationId) { setAgentProgress([]); setActiveTaskMessageId(null); setCancelPendingMessageId(null); return; }
+    if (BASIC_CHAT_ONLY || !conversationId) { setAgentProgress([]); setActiveTaskMessageId(null); setCancelPendingMessageId(null); return; }
     let active = true;
     const refresh = async () => {
       try {
@@ -370,7 +385,8 @@ export default function ChatPage() {
           conversationId: conversationKey,
           content,
           modelProfileKey: "auto",
-          executionMode: "auto",
+          modelId: selectedModelId ? Number(selectedModelId) : undefined,
+          executionMode: "chat",
           writeApproval,
           mediaAsset: uploadedAsset,
           signal: controller.signal,
@@ -427,7 +443,8 @@ export default function ChatPage() {
               conversationId: id,
               userMessageId: savedUserMessageId,
               modelProfileKey: "auto",
-              executionMode: "auto",
+              modelId: selectedModelId ? Number(selectedModelId) : undefined,
+              executionMode: "chat",
               signal: controller.signal,
               onChunk(text) {
                 streamedTextRef.current += text;
@@ -483,7 +500,8 @@ export default function ChatPage() {
         await chatService.retryAssistant({
           ...failed,
           modelProfileKey: "auto",
-          executionMode: "auto",
+          modelId: selectedModelId ? Number(selectedModelId) : undefined,
+          executionMode: "chat",
           signal: controller.signal,
           
           onChunk(text) {
@@ -573,47 +591,7 @@ export default function ChatPage() {
   };
 
   const handleSend = (content: string, attachment?: ChatAttachment) => {
-    const text = content.trim();
-    const requested = requestedConnectorTask(text);
-    if (!user || attachment || !text || !requested) {
-      void sendText(content, attachment);
-      return;
-    }
-    if (preflightLock.current) return;
-    preflightLock.current = true;
-    setIsSending(true);
-    setActiveTaskLabel(isArabic ? "جارٍ فحص اتصال التطبيق المطلوب…" : "Checking the requested app connection…");
-    void integrationService.preflight(text).then((result) => {
-      if (!result.required) {
-        throw new Error(isArabic ? "تعذّر التحقق من موصل الطلب، ولم يبدأ التنفيذ." : "Could not verify the requested connector. Execution did not start.");
-      }
-      const toolkit = result.toolkit ?? requested.toolkit;
-      const intent = result.intent ?? requested.intent;
-      if (toolkit !== requested.toolkit) throw new Error(isArabic ? "تعذّر التحقق من التطبيق المطلوب، ولم يبدأ التنفيذ." : "Could not verify the requested app. Execution did not start.");
-      if (result.connected && intent === "read") {
-        preflightLock.current = false;
-        setIsSending(false);
-        setActiveTaskLabel(null);
-        void sendText(content);
-        return;
-      }
-      setConnectorApproval({
-        content,
-        toolkit,
-        intent,
-        connected: result.connected === true,
-        accountExists: result.accountExists === true,
-        disabled: result.disabled === true,
-        writeApproval: intent === "write" ? { requestId: randomUUID(), originalText: text } : null,
-      });
-      setIsSending(false);
-      setActiveTaskLabel(null);
-    }).catch((cause) => {
-      preflightLock.current = false;
-      show(cause instanceof Error ? cause.message : isArabic ? "تعذّر فحص الاتصال، ولم يبدأ الطلب." : "Could not check the connection. The request did not start.", "error");
-      setIsSending(false);
-      setActiveTaskLabel(null);
-    });
+    void sendText(content, attachment);
   };
 
   const updateFeedback = async (messageId: string, value: MessageFeedback | null) => {
@@ -651,7 +629,8 @@ export default function ChatPage() {
         conversationId,
         history,
         modelProfileKey: "auto",
-        executionMode: "auto",
+        modelId: selectedModelId ? Number(selectedModelId) : undefined,
+        executionMode: "chat",
         signal: controller.signal,
         onChunk(text) {
           streamedTextRef.current += text;
@@ -697,7 +676,8 @@ export default function ChatPage() {
         conversationId,
         history,
         modelProfileKey: "auto",
-        executionMode: "auto",
+        modelId: selectedModelId ? Number(selectedModelId) : undefined,
+        executionMode: "chat",
         signal: controller.signal,
         onChunk(text) {
           setMessages((current) => {
@@ -720,7 +700,7 @@ export default function ChatPage() {
   };
 
   const renderMessage = ({ item }: { item: DisplayMessage }) => {
-    const execution = item.role === "user" ? agentProgress.find((progress) => progress.userMessageId === item.id) : undefined;
+    const execution = BASIC_CHAT_ONLY ? undefined : item.role === "user" ? agentProgress.find((progress) => progress.userMessageId === item.id) : undefined;
     return (
       <View>
     <MessageBubble
@@ -730,7 +710,7 @@ export default function ChatPage() {
       attachments={item.attachments}
       isStreaming={item.status === "streaming"}
       generationState={item.generationState}
-      studioIntent={item.role === "user" ? getStudioIntent(item.content) : null}
+      studioIntent={BASIC_CHAT_ONLY ? null : item.role === "user" ? getStudioIntent(item.content) : null}
       onOpenStudio={() => router.push("/studio")}
       feedback={feedbackByMessage[item.id] ?? null}
       edited={Boolean(item.editedAt)}
@@ -757,6 +737,12 @@ export default function ChatPage() {
             <Ionicons name="menu-outline" size={22} color={colors.textPrimary} />
           </Pressable>
 
+          <Pressable onPress={() => setModelPickerVisible(true)} disabled={availableModels.length === 0} style={styles.modelSelector} accessibilityRole="button" accessibilityLabel={isArabic ? "اختيار النموذج" : "Select model"}>
+            <Ionicons name="hardware-chip-outline" size={16} color={colors.primary}/>
+            <Text numberOfLines={1} style={styles.modelSelectorText}>{selectedModel?.name ?? (isArabic ? "تحميل النماذج…" : "Loading models…")}</Text>
+            <Ionicons name="chevron-down" size={14} color={colors.textMuted}/>
+          </Pressable>
+
           <View style={styles.headerActions}>
             {isAdmin ? (
               <TouchableOpacity
@@ -776,9 +762,7 @@ export default function ChatPage() {
                 <Text style={styles.creditPillText}>{creditBalance.toLocaleString("en-US")}</Text>
               </TouchableOpacity>
             ) : null}
-            <TouchableOpacity onPress={() => { setUsageVisible(true); void loadTaskUsage(); }} style={styles.headerButton} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={isArabic ? "إحصائيات استخدام المهمة" : "Task usage statistics"}>
-              <Ionicons name="analytics-outline" size={20} color={colors.textMuted} />
-            </TouchableOpacity>
+
             <TouchableOpacity onPress={() => setShareVisible(true)} style={styles.headerButton} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={isArabic ? "مشاركة المحادثة" : "Share conversation"}>
               <Ionicons name="share-social-outline" size={18} color={colors.textMuted} />
             </TouchableOpacity>
@@ -794,28 +778,30 @@ export default function ChatPage() {
             </View>
             <Text style={styles.welcomeEyebrow}>{isArabic ? "مساحة عملك الذكية" : "YOUR INTELLIGENT WORKSPACE"}</Text>
             <Text style={styles.emptyTitle}>{isArabic ? "أهلًا بك، نبدأ بإيه؟" : "What would you like to do?"}</Text>
-            <Text style={styles.emptySubtitle}>{isArabic ? "اكتب طلبك بطريقتك. SULY يفهم المطلوب ويختار الأدوات والخطوات المناسبة تلقائيًا." : "Tell SULY what you need. It understands your goal and chooses the right tools and steps automatically."}</Text>
-            <View style={styles.suggestionHeading}>
-              <Text style={styles.suggestionHeadingText}>{isArabic ? "ابدأ بفكرة" : "GET STARTED"}</Text>
-              <View style={styles.suggestionHeadingLine} />
-            </View>
-            <View style={styles.taskGrid}>
-              {suggestions.map((suggestion) => (
-                <Pressable
-                  key={suggestion.text}
-                  onPress={() => composerRef.current?.editMessage(suggestion.text)}
-                  style={styles.taskCard}
-                  accessibilityRole="button"
-                  accessibilityLabel={isArabic ? `استخدام اقتراح: ${suggestion.text}` : `Use suggestion: ${suggestion.text}`}
-                >
-                  <View style={styles.taskIconCircle}>
-                    <Ionicons name={suggestion.icon} size={18} color={colors.textPrimary} />
-                  </View>
-                  <Text numberOfLines={2} style={styles.taskCardText}>{suggestion.text}</Text>
-                  <Ionicons name={isArabic ? "arrow-back" : "arrow-forward"} size={15} color={colors.textMuted} style={styles.taskArrow} />
-                </Pressable>
-              ))}
-            </View>
+            <Text style={styles.emptySubtitle}>{isArabic ? "اختر النموذج، اكتب رسالتك، وسيجيبك مباشرة." : "Choose a model, write your message, and get a direct response."}</Text>
+            {!BASIC_CHAT_ONLY ? <>
+              <View style={styles.suggestionHeading}>
+                <Text style={styles.suggestionHeadingText}>{isArabic ? "ابدأ بفكرة" : "GET STARTED"}</Text>
+                <View style={styles.suggestionHeadingLine} />
+              </View>
+              <View style={styles.taskGrid}>
+                {suggestions.map((suggestion) => (
+                  <Pressable
+                    key={suggestion.text}
+                    onPress={() => composerRef.current?.editMessage(suggestion.text)}
+                    style={styles.taskCard}
+                    accessibilityRole="button"
+                    accessibilityLabel={isArabic ? `استخدام اقتراح: ${suggestion.text}` : `Use suggestion: ${suggestion.text}`}
+                  >
+                    <View style={styles.taskIconCircle}>
+                      <Ionicons name={suggestion.icon} size={18} color={colors.textPrimary} />
+                    </View>
+                    <Text numberOfLines={2} style={styles.taskCardText}>{suggestion.text}</Text>
+                    <Ionicons name={isArabic ? "arrow-back" : "arrow-forward"} size={15} color={colors.textMuted} style={styles.taskArrow} />
+                  </Pressable>
+                ))}
+              </View>
+            </> : null}
           </View>
         ) : (
           <View style={styles.messageListContainer}>
@@ -844,13 +830,23 @@ export default function ChatPage() {
         <StreamingStatus isStreaming={isSending && !isUploadingAttachment && !messages.some((message) => message.id === STREAMING_ID && message.content.length > 0)} taskLabel={activeTaskLabel} onCancel={() => abortRef.current?.abort()} />
         <ChatComposer
           ref={composerRef}
+          basicMode={BASIC_CHAT_ONLY}
           onSend={handleSend}
-          disabled={isSending || Boolean(connectorApproval)}
+          disabled={isSending || Boolean(connectorApproval) || !selectedModelId}
           isStreaming={isSending}
           onCancel={() => abortRef.current?.abort()}
         />
       </KeyboardAvoidingView>
       <ShareConversationSheet visible={shareVisible} conversationId={conversationId} title={shareTitle} plainText={shareText} onClose={closeShareSheet} />
+      <BottomSheet visible={modelPickerVisible} title={isArabic ? "اختر النموذج" : "Select model"} onClose={() => setModelPickerVisible(false)}>
+        <View style={{ gap: 8, paddingBottom: 8 }}>
+          {availableModels.length ? availableModels.map((model) => <Pressable key={model.id} onPress={() => { setSelectedModelId(model.id); setModelPickerVisible(false); }} style={[styles.modelPickerOption, selectedModelId === model.id && styles.modelPickerOptionSelected]}>
+            <Ionicons name="hardware-chip-outline" size={20} color={selectedModelId === model.id ? colors.primary : colors.textMuted}/>
+            <View style={styles.modelPickerCopy}><Text style={styles.modelPickerName}>{model.name}</Text><Text style={styles.modelPickerDescription}>{model.provider} · {model.modelIdentifier}</Text></View>
+            {selectedModelId === model.id ? <Ionicons name="checkmark-circle" size={18} color={colors.primary}/> : null}
+          </Pressable>) : <Text style={styles.modelPickerHint}>{isArabic ? "لا توجد نماذج متاحة. أضف مفتاح مزود وفعّل نموذجًا من لوحة الإدارة." : "No models available. Add a provider key and enable a model in Admin."}</Text>}
+        </View>
+      </BottomSheet>
       <BottomSheet visible={usageVisible} title={isArabic ? "إحصائيات المهمة الحالية" : "Current task usage"} onClose={() => setUsageVisible(false)}>
         {usageLoading ? <ActivityIndicator color={colors.primary} /> : taskUsage ? <View style={styles.usageSheet}>
           <Text style={styles.usageTaskTitle}>{taskUsage.taskTitle}</Text>
@@ -894,6 +890,8 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   headerButton: { width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 14, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.divider },
   headerSpacer: { width: 42, height: 42 },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 6 },
+  modelSelector: { flex: 1, maxWidth: 320, minWidth: 90, height: 38, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 6, borderWidth: 1, borderColor: colors.divider, borderRadius: 12, backgroundColor: colors.surfaceElevated, paddingHorizontal: 8 },
+  modelSelectorText: { flex: 1, color: colors.textPrimary, fontSize: 11, fontWeight: "700", textAlign: isArabic ? "right" : "left" },
   navigationMenuScroll: { maxHeight: 560 },
   navigationMenu: { gap: 7, paddingBottom: 8 },
   navigationMenuItem: { minHeight: 48, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 11, paddingHorizontal: 12, borderRadius: 11, backgroundColor: colors.surfaceElevated },

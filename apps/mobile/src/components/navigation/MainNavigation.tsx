@@ -23,11 +23,9 @@ export function usePlusMenu() {
   return useContext(PlusMenuContext) ?? (() => undefined);
 }
 
+const BASIC_CHAT_ONLY = true;
+
 const ITEMS = [
-  { key: "studio", labelAr: "Studio", labelEn: "Studio", href: "/studio", icon: "sparkles-outline" as const },
-  { key: "library", labelAr: "المكتبة", labelEn: "Library", href: "/media", icon: "albums-outline" as const },
-  { key: "projects", labelAr: "المشاريع", labelEn: "Projects", href: "/projects", icon: "folder-open-outline" as const },
-  { key: "tools", labelAr: "الأدوات والموصلات", labelEn: "Tools & connectors", href: "/integrations", icon: "git-network-outline" as const },
   { key: "account", labelAr: "الحساب", labelEn: "Account", href: "/settings", icon: "person-circle-outline" as const },
 ] as const;
 
@@ -60,6 +58,10 @@ export function MainNavigation({ children }: Props) {
   const [recentRefresh, setRecentRefresh] = useState(0);
   const active = activeSection(pathname);
   const isChat = pathname.startsWith("/chat");
+
+  useEffect(() => {
+    if (BASIC_CHAT_ONLY && !pathname.startsWith("/chat") && !pathname.startsWith("/admin") && !pathname.startsWith("/settings")) router.replace("/chat");
+  }, [pathname, router]);
 
   useEffect(() => {
     let activeRequest = true;
