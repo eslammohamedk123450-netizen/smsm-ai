@@ -227,20 +227,20 @@ export function BrainTaskScreen() {
         <TextInput
           value={objective}
           onChangeText={setObjective}
-          placeholder="مثال: حلّل خطة إطلاق المنتج وحدد المخاطر والاعتماديات…"
+          placeholder={isArabic ? "مثال: حلّل خطة إطلاق المنتج وحدد المخاطر والاعتماديات…" : "Example: Analyze a product launch plan and identify risks and dependencies…"}
           placeholderTextColor={colors.textMuted}
           multiline
           maxLength={50000}
           textAlignVertical="top"
           style={styles.input}
-          accessibilityLabel="هدف المهمة"
+          accessibilityLabel={isArabic ? "هدف المهمة" : "Task objective"}
         />
         <View style={styles.actions}>
-          <Pressable onPress={() => { setObjective(""); setResult(null); setError(null); }} style={styles.secondary} disabled={busy}>
-            <Text style={styles.secondaryText}>مسح</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "مسح هدف المهمة" : "Clear task objective"} onPress={() => { setObjective(""); setResult(null); setError(null); }} style={styles.secondary} disabled={busy}>
+            <Text style={styles.secondaryText}>{isArabic ? "مسح" : "Clear"}</Text>
           </Pressable>
           <Pressable onPress={() => void submit()} style={[styles.primary, busy && styles.disabled]} disabled={busy} accessibilityRole="button">
-            {busy ? <ActivityIndicator color={colors.onPrimary} /> : <Text style={styles.primaryText}>تشغيل المهمة</Text>}
+            {busy ? <ActivityIndicator color={colors.onPrimary} /> : <Text style={styles.primaryText}>{isArabic ? "تشغيل المهمة" : "Run task"}</Text>}
           </Pressable>
         </View>
         {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}

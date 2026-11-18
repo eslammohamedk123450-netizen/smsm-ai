@@ -125,8 +125,8 @@ export function ConversationsScreen() {
       </Pressable>
       <View style={[styles.search, { backgroundColor: colors.surface, borderColor: colors.divider }]}>
         <Ionicons name="search" size={18} color={colors.textMuted} />
-        <TextInput value={query} onChangeText={setQuery} placeholder={isArabic ? "ابحث في السجل…" : "Search history…"} placeholderTextColor={colors.textMuted} style={[styles.searchInput, { color: colors.textPrimary }]} />
-        {query ? <Pressable onPress={() => setQuery("")}><Ionicons name="close-circle" size={18} color={colors.textMuted} /></Pressable> : null}
+        <TextInput accessibilityLabel={isArabic ? "البحث في سجل المحادثات" : "Search conversation history"} value={query} onChangeText={setQuery} placeholder={isArabic ? "ابحث في السجل…" : "Search history…"} placeholderTextColor={colors.textMuted} style={[styles.searchInput, { color: colors.textPrimary }]} />
+        {query ? <Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "مسح البحث" : "Clear search"} onPress={() => setQuery("")}><Ionicons name="close-circle" size={18} color={colors.textMuted} /></Pressable> : null}
       </View>
       {error ? <Text style={[styles.error, { color: colors.error }]}>{error}</Text> : null}
       {notice ? <Text style={[styles.notice, { color: colors.textSecondary }]}>{notice}</Text> : null}
@@ -134,7 +134,7 @@ export function ConversationsScreen() {
         <View style={[styles.empty, { backgroundColor: colors.surface, borderColor: colors.divider }]}><Ionicons name="chatbubbles-outline" size={32} color={colors.textMuted} /><Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>{query ? (isArabic ? "لا توجد نتائج" : "No results") : (isArabic ? "ابدأ أول محادثة" : "Start your first chat")}</Text><Text style={[styles.subtitle, { color: colors.textSecondary }]}>{query ? (isArabic ? "جرّب كلمة بحث مختلفة." : "Try a different search term.") : (isArabic ? "كل محادثة جديدة ستظهر هنا." : "New chats will appear here.")}</Text></View>
       ) : filtered.map((entry) => entry.kind === "conversation" ? (
         <View key={`chat-${entry.conversation.id}`} style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.divider }]}>
-          <Pressable style={styles.rowMain} onPress={() => router.push({ pathname: "/chat", params: { conversationId: entry.conversation.id } })}>
+          <Pressable accessibilityRole="button" accessibilityLabel={entry.conversation.title || (isArabic ? "فتح المحادثة" : "Open conversation")} style={styles.rowMain} onPress={() => router.push({ pathname: "/chat", params: { conversationId: entry.conversation.id } })}>
             <View style={[styles.rowIcon, { backgroundColor: colors.surfaceElevated }]}><Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.textPrimary} /></View>
             <View style={styles.rowCopy}><Text numberOfLines={1} style={[styles.rowTitle, { color: colors.textPrimary }]}>{entry.conversation.title || (isArabic ? "محادثة جديدة" : "New conversation")}</Text><Text style={[styles.rowDate, { color: colors.textMuted }]}>{new Date(entry.updatedAt).toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text></View>
             {entry.conversation.isPinned ? <Ionicons name="pin" size={16} color={colors.textMuted} /> : null}
@@ -142,7 +142,7 @@ export function ConversationsScreen() {
           <Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "إجراءات المحادثة" : "Chat actions"} onPress={() => setSelected(entry.conversation)} style={styles.moreButton}><Ionicons name="ellipsis-horizontal" size={20} color={colors.textMuted} /></Pressable>
         </View>
       ) : (
-        <Pressable key={`task-${entry.task.jobId}`} onPress={() => setSelectedTask(entry.task)} style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.divider }]}>
+        <Pressable key={`task-${entry.task.jobId}`} accessibilityRole="button" accessibilityLabel={entry.task.objective || (isArabic ? "تفاصيل المهمة" : "Task details")} onPress={() => setSelectedTask(entry.task)} style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.divider }]}>
           <View style={[styles.rowIcon, { backgroundColor: colors.surfaceElevated }]}><Ionicons name={entry.task.status === "completed" ? "checkmark-circle-outline" : entry.task.status === "failed" ? "alert-circle-outline" : "git-branch-outline"} size={18} color={colors.textPrimary} /></View>
           <View style={styles.rowCopy}>
             <Text numberOfLines={2} style={[styles.rowTitle, { color: colors.textPrimary }]}>{entry.task.objective}</Text>
@@ -152,27 +152,27 @@ export function ConversationsScreen() {
           <View style={[styles.taskStatus, { backgroundColor: colors.surfaceElevated }]}><Text style={[styles.taskStatusText, { color: colors.textSecondary }]}>{isArabic ? TASK_STATUS_AR[entry.task.status] : TASK_STATUS_EN[entry.task.status]}</Text></View>
         </Pressable>
       ))}
-      <Pressable onPress={() => void load()} style={styles.refresh}><Ionicons name="refresh" size={15} color={colors.textMuted} /><Text style={[styles.refreshText, { color: colors.textMuted }]}>{isArabic ? "تحديث القائمة" : "Refresh list"}</Text></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "تحديث القائمة" : "Refresh list"} onPress={() => void load()} style={styles.refresh}><Ionicons name="refresh" size={15} color={colors.textMuted} /><Text style={[styles.refreshText, { color: colors.textMuted }]}>{isArabic ? "تحديث القائمة" : "Refresh list"}</Text></Pressable>
       <BottomSheet visible={Boolean(selected)} title={selected?.title ?? (isArabic ? "إجراءات المحادثة" : "Chat actions")} onClose={() => setSelected(null)}>
         <View style={styles.sheetActions}>
-          <Pressable onPress={() => void togglePin()} style={styles.sheetAction}><Text style={styles.sheetActionText}>{selected?.isPinned ? (isArabic ? "إلغاء التثبيت" : "Unpin chat") : (isArabic ? "تثبيت المحادثة" : "Pin chat")}</Text></Pressable>
-          <Pressable onPress={beginRename} style={styles.sheetAction}><Text style={styles.sheetActionText}>{isArabic ? "إعادة تسمية" : "Rename"}</Text></Pressable>
-          <Pressable onPress={() => { setDeleteTarget(selected); setSelected(null); }} style={[styles.sheetAction, styles.dangerAction]}><Text style={styles.dangerText}>{isArabic ? "حذف المحادثة" : "Delete chat"}</Text></Pressable>
-          <Pressable onPress={() => void archiveSelected()} style={styles.sheetAction}><Text style={styles.sheetActionText}>{isArabic ? "أرشفة المحادثة" : "Archive chat"}</Text></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={selected?.isPinned ? (isArabic ? "إلغاء تثبيت المحادثة" : "Unpin chat") : (isArabic ? "تثبيت المحادثة" : "Pin chat")} onPress={() => void togglePin()} style={styles.sheetAction}><Text style={styles.sheetActionText}>{selected?.isPinned ? (isArabic ? "إلغاء التثبيت" : "Unpin chat") : (isArabic ? "تثبيت المحادثة" : "Pin chat")}</Text></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "إعادة تسمية المحادثة" : "Rename chat"} onPress={beginRename} style={styles.sheetAction}><Text style={styles.sheetActionText}>{isArabic ? "إعادة تسمية" : "Rename"}</Text></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "حذف المحادثة" : "Delete chat"} onPress={() => { setDeleteTarget(selected); setSelected(null); }} style={[styles.sheetAction, styles.dangerAction]}><Text style={styles.dangerText}>{isArabic ? "حذف المحادثة" : "Delete chat"}</Text></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "أرشفة المحادثة" : "Archive chat"} onPress={() => void archiveSelected()} style={styles.sheetAction}><Text style={styles.sheetActionText}>{isArabic ? "أرشفة المحادثة" : "Archive chat"}</Text></Pressable>
         </View>
       </BottomSheet>
       <BottomSheet visible={Boolean(renameTarget)} title={isArabic ? "إعادة تسمية المحادثة" : "Rename chat"} onClose={() => setRenameTarget(null)}>
-        <TextInput value={renameValue} onChangeText={setRenameValue} maxLength={120} style={[styles.renameInput, { color: colors.textPrimary, borderColor: colors.divider }]} placeholder={isArabic ? "اسم المحادثة" : "Chat name"} placeholderTextColor={colors.textMuted} />
+        <TextInput accessibilityLabel={isArabic ? "اسم المحادثة الجديد" : "New chat name"} value={renameValue} onChangeText={setRenameValue} maxLength={120} style={[styles.renameInput, { color: colors.textPrimary, borderColor: colors.divider }]} placeholder={isArabic ? "اسم المحادثة" : "Chat name"} placeholderTextColor={colors.textMuted} />
         <View style={styles.sheetButtons}>
-          <Pressable onPress={() => setRenameTarget(null)} style={styles.sheetAction}><Text style={styles.sheetActionText}>{isArabic ? "إلغاء" : "Cancel"}</Text></Pressable>
-          <Pressable onPress={() => void saveRename()} style={[styles.sheetAction, { backgroundColor: colors.primary }]}><Text style={styles.primarySheetText}>{isArabic ? "حفظ" : "Save"}</Text></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "إلغاء إعادة التسمية" : "Cancel rename"} onPress={() => setRenameTarget(null)} style={styles.sheetAction}><Text style={styles.sheetActionText}>{isArabic ? "إلغاء" : "Cancel"}</Text></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "حفظ الاسم" : "Save name"} onPress={() => void saveRename()} style={[styles.sheetAction, { backgroundColor: colors.primary }]}><Text style={styles.primarySheetText}>{isArabic ? "حفظ" : "Save"}</Text></Pressable>
         </View>
       </BottomSheet>
       <BottomSheet visible={Boolean(deleteTarget)} title={isArabic ? "حذف المحادثة؟" : "Delete chat?"} onClose={() => setDeleteTarget(null)}>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{isArabic ? "سيتم حذف المحادثة ورسائلها نهائيًا. لا يمكن التراجع عن هذا الإجراء." : "This will permanently delete the chat and its messages. This action cannot be undone."}</Text>
         <View style={styles.sheetButtons}>
-          <Pressable onPress={() => setDeleteTarget(null)} style={styles.sheetAction}><Text style={styles.sheetActionText}>{isArabic ? "إلغاء" : "Cancel"}</Text></Pressable>
-          <Pressable onPress={() => void deleteSelected()} style={[styles.sheetAction, styles.dangerAction]}><Text style={styles.dangerText}>{isArabic ? "حذف نهائي" : "Delete permanently"}</Text></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "إلغاء الحذف" : "Cancel delete"} onPress={() => setDeleteTarget(null)} style={styles.sheetAction}><Text style={styles.sheetActionText}>{isArabic ? "إلغاء" : "Cancel"}</Text></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "تأكيد الحذف النهائي" : "Confirm permanent delete"} onPress={() => void deleteSelected()} style={[styles.sheetAction, styles.dangerAction]}><Text style={styles.dangerText}>{isArabic ? "حذف نهائي" : "Delete permanently"}</Text></Pressable>
         </View>
       </BottomSheet>
       <BottomSheet visible={Boolean(selectedTask)} title={isArabic ? "تفاصيل التنفيذ" : "Task details"} onClose={() => setSelectedTask(null)}>

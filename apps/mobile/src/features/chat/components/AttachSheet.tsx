@@ -33,6 +33,9 @@ export function AttachSheet({ visible, onClose, onPicked }: Props) {
         {choices.map((choice) => (
           <Pressable
             key={choice.kind}
+            accessibilityRole="button"
+            accessibilityLabel={choice.title}
+            accessibilityHint={choice.subtitle}
             onPress={() => void choose(choice.kind)}
             disabled={busy !== null}
             style={({ pressed }) => [styles.card, { backgroundColor: pressed ? palette.surfaceElevated : palette.surface, borderColor: pressed ? palette.primary : palette.divider, shadowColor: palette.primary, opacity: busy && busy !== choice.kind ? 0.5 : 1 }]}
