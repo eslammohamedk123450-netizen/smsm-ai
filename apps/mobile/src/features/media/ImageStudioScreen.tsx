@@ -48,19 +48,32 @@ export function ImageStudioScreen() {
   }, [result, resultOpacity]);
 
   const load = useCallback(async () => {
-    setLoading(true); setError(null);
-    const [modelResult, balanceResult] = await Promise.all([
-      supabase.rpc("suly_list_public_image_models"),
-      getCurrentCreditBalance().catch(() => null),
-    ]);
-    if (modelResult.error) setError("تعذر تحميل إعدادات استوديو الصور.");
-    else {
-      const allowed = (modelResult.data ?? []) as Model[];
+    setLoading(true);
+    setError(null);
+    try {
+      const [modelResult, balanceResult] = await Promise.all([
+        supabase.rpc("suly_list_public_image_models"),
+        getCurrentCreditBalance().catch(() => null),
+      ]);
+      if (modelResult.error) {
+        setModels([]);
+        setSelectedModelId(null);
+        setBalance(null);
+        setError("تعذر تحميل إعدادات استوديو الصور. أعد المحاولة قبل إنشاء أي صورة.");
+        return;
+      }
+      const allowed = (Array.isArray(modelResult.data) ? modelResult.data : []) as Model[];
       setModels(allowed);
       setSelectedModelId((current) => current && allowed.some((model) => model.id === current) ? current : allowed[0]?.id ?? null);
       setBalance(typeof balanceResult === "number" ? balanceResult : null);
+    } catch {
+      setModels([]);
+      setSelectedModelId(null);
+      setBalance(null);
+      setError("تعذر الاتصال باستوديو الصور. تحقق من الاتصال ثم أعد المحاولة.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, []);
   useEffect(() => { void load(); }, [load]);
 
@@ -183,7 +196,12 @@ export function ImageStudioScreen() {
       <Text style={{ color: colors.textSecondary, textAlign: "right", lineHeight: 21 }}>حوّل وصفك إلى صورة. اختر نموذج SULY وجودة النتيجة قبل بدء التنفيذ.</Text>
     </View>
 
-    {error ? <Text style={{ color: colors.error, textAlign: "right" }}>{error}</Text> : null}
+    {error ? <View style={{ gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.error, backgroundColor: colors.surface }}>
+      <Text accessibilityRole="alert" style={{ color: colors.error, textAlign: "right" }}>{error}</Text>
+      <Pressable disabled={loading} onPress={() => void load()} accessibilityRole="button" style={{ alignSelf: "flex-start", minHeight: 42, justifyContent: "center", paddingHorizontal: 14, borderRadius: 10, backgroundColor: colors.primary, opacity: loading ? 0.5 : 1 }}>
+        <Text style={{ color: colors.onPrimary, fontWeight: "700" }}>{loading ? "جارٍ إعادة المحاولة…" : "إعادة المحاولة"}</Text>
+      </Pressable>
+    </View> : null}
     {notice ? <Text style={{ color: colors.success, textAlign: "right" }}>{notice}</Text> : null}
 
     <View style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 16, padding: 14, gap: 10 }}>
