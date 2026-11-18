@@ -7,17 +7,16 @@ import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
 import { AdminMobileBreadcrumb } from "./AdminMobileBreadcrumb";
 
-function HubTile({ href, title, description, icon }: { href: string; title: string; description: string; icon: keyof typeof Ionicons.glyphMap }) {
-  const { colors } = useSulyTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
-  return <Link href={href as never} asChild>
-    <Pressable style={styles.tile}>
-      <View style={styles.tileIcon}><Ionicons name={icon} size={25} color={colors.primary}/></View>
-      <View style={styles.tileCopy}><Text style={styles.tileTitle}>{title}</Text><Text style={styles.tileDescription}>{description}</Text></View>
-      <Ionicons name="chevron-back-outline" size={18} color={colors.textMuted}/>
-    </Pressable>
-  </Link>;
-}
+const HUB_SECTIONS = [
+  { href: "/admin", title: "نظرة عامة", description: "حالة النظام والنشاط التشغيلي", icon: "home-outline" as const },
+  { href: "/admin/models-catalog", title: "كتالوج النماذج", description: "البطاقات والمعرفات والمزودون والقدرات", icon: "layers-outline" as const },
+  { href: "/admin/api-keys", title: "مصادر واكتشاف النماذج", description: "المزودون ومفاتيح API ومصادر النماذج", icon: "key-outline" as const },
+  { href: "/admin/model-capabilities", title: "دليل القدرات", description: "تصنيف القدرات والنماذج المرتبطة بها", icon: "grid-outline" as const },
+  { href: "/admin/agents", title: "التعيينات والتوجيه", description: "اختيار النماذج والأدوار وسلاسل البدائل", icon: "git-network-outline" as const },
+  { href: "/admin/models-operations", title: "الاختبارات والصحة", description: "التحقق التشغيلي وحالة النماذج", icon: "pulse-outline" as const },
+  { href: "/admin/pricing", title: "التكلفة والأسعار", description: "الأسعار والإصدارات واستحقاقات الباقات", icon: "pricetags-outline" as const },
+  { href: "/admin/audit", title: "سجل التغييرات", description: "المراجعات والقرارات وسجل التدقيق", icon: "time-outline" as const },
+] as const;
 
 export function ModelControlCenterScreen() {
   const { colors } = useSulyTheme();
@@ -25,22 +24,28 @@ export function ModelControlCenterScreen() {
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     <AdminMobileBreadcrumb />
     <View style={styles.header}>
-      <Text style={styles.eyebrow}>SULY · MODEL CENTER</Text>
-      <Text style={styles.title}>مركز النماذج والوكيل</Text>
-      <Text style={styles.subtitle}>إدارة مبسطة للنماذج وقدراتها وطريقة استخدامها في الشات والوكيل الموحد.</Text>
+      <Text style={styles.eyebrow}>SULY · MODEL CONTROL CENTER</Text>
+      <Text style={styles.title}>مركز النماذج والقدرات</Text>
+      <Text style={styles.subtitle}>مركز موحد لإدارة سجل النماذج والقدرات والأدلة والتوجيه والتكلفة والاختبارات. كل الأقسام تستخدم السجلات الحالية نفسها دون إنشاء كتالوج موازٍ.</Text>
+    </View>
+    <View style={styles.notice}>
+      <Ionicons name="shield-checkmark-outline" size={17} color={colors.primary}/>
+      <Text style={styles.noticeText}>اعتماد القدرة منفصل عن تفعيل النموذج أو تغيير التوجيه أو الأسعار. الاقتراحات والقدرات القديمة تظل قيد المراجعة حتى اعتمادها.</Text>
     </View>
     <View style={styles.grid}>
-      <HubTile href="/admin/models-catalog" title="النماذج" description="بطاقات النماذج ومعرف API والمزود والتكلفة والحالة." icon="layers-outline"/>
-      <HubTile href="/admin/model-capabilities" title="القدرات" description="اختر قدرة مثل الشات أو الكودينج واربط بها النماذج." icon="grid-outline"/>
-      <HubTile href="/admin/agents" title="الشات والوكيل" description="إعداد نماذج الشات وترتيبها واختيار الوكيل للنموذج الأنسب." icon="sparkles-outline"/>
+      {HUB_SECTIONS.map((section) => <Link key={section.href} href={section.href as never} asChild>
+        <Pressable style={styles.tile}>
+          <View style={styles.tileIcon}><Ionicons name={section.icon} size={23} color={colors.primary}/></View>
+          <View style={styles.tileCopy}><Text style={styles.tileTitle}>{section.title}</Text><Text style={styles.tileDescription}>{section.description}</Text></View>
+          <Ionicons name="chevron-back-outline" size={17} color={colors.textMuted}/>
+        </Pressable>
+      </Link>)}
     </View>
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>إعدادات متقدمة</Text>
+      <Text style={styles.sectionTitle}>مراجعة متقدمة</Text>
       <View style={styles.links}>
-        <Link href="/admin/models-operations" asChild><Pressable style={styles.link}><Ionicons name="pulse-outline" size={15} color={colors.primary}/><Text style={styles.linkText}>التشغيل والاختبارات وسجل الصحة</Text></Pressable></Link>
-        <Link href="/admin/api-keys" asChild><Pressable style={styles.link}><Ionicons name="key-outline" size={15} color={colors.primary}/><Text style={styles.linkText}>مزودو الخدمة وأسماء المفاتيح</Text></Pressable></Link>
-        <Link href="/admin/media-catalog" asChild><Pressable style={styles.link}><Ionicons name="images-outline" size={15} color={colors.primary}/><Text style={styles.linkText}>إعدادات نماذج الصور والفيديو والصوت</Text></Pressable></Link>
-        <Link href="/admin/model-capability-review" asChild><Pressable style={styles.link}><Ionicons name="clipboard-outline" size={15} color={colors.primary}/><Text style={styles.linkText}>مراجعة أدلة القدرات واعتمادها</Text></Pressable></Link>
+        <Link href="/admin/model-capability-review" asChild><Pressable style={styles.link}><Ionicons name="clipboard-outline" size={15} color={colors.primary}/><Text style={styles.linkText}>أدلة القدرات واعتمادها</Text></Pressable></Link>
+        <Link href="/admin/media-catalog" asChild><Pressable style={styles.link}><Ionicons name="images-outline" size={15} color={colors.primary}/><Text style={styles.linkText}>نماذج الصور والفيديو والصوت</Text></Pressable></Link>
       </View>
     </View>
   </ScrollView>;
@@ -53,12 +58,14 @@ const createStyles = (c: ThemePalette) => StyleSheet.create({
   eyebrow: { color: c.primary, fontSize: 9, fontWeight: "900", letterSpacing: 1.4 },
   title: { color: c.textPrimary, fontSize: 22, fontWeight: "900", textAlign: "right" },
   subtitle: { color: c.textMuted, fontSize: 10, lineHeight: 17, textAlign: "right" },
+  notice: { flexDirection: "row-reverse", alignItems: "center", gap: 8, borderWidth: 1, borderColor: c.divider, borderRadius: 11, padding: 11, backgroundColor: c.surface },
+  noticeText: { color: c.textSecondary, fontSize: 9, lineHeight: 16, textAlign: "right", flex: 1 },
   grid: { flexDirection: "row-reverse", flexWrap: "wrap", justifyContent: "space-between", gap: 8 },
-  tile: { width: "48%", alignItems: "center", justifyContent: "center", gap: 10, borderWidth: 1, borderColor: c.divider, borderRadius: 14, padding: 12, backgroundColor: c.surface, minHeight: 154 },
-  tileIcon: { width: 48, height: 48, borderRadius: 13, backgroundColor: c.primary + "14", alignItems: "center", justifyContent: "center" },
-  tileCopy: { width: "100%", alignItems: "center", gap: 5 },
-  tileTitle: { color: c.textPrimary, fontSize: 12, fontWeight: "900", textAlign: "center" },
-  tileDescription: { color: c.textMuted, fontSize: 8, lineHeight: 14, textAlign: "center" },
+  tile: { width: "48%", minHeight: 128, flexDirection: "row-reverse", alignItems: "center", gap: 9, borderWidth: 1, borderColor: c.divider, borderRadius: 13, padding: 11, backgroundColor: c.surface },
+  tileIcon: { width: 40, height: 40, borderRadius: 11, backgroundColor: c.primary + "14", alignItems: "center", justifyContent: "center" },
+  tileCopy: { flex: 1, alignItems: "flex-end", gap: 5 },
+  tileTitle: { color: c.textPrimary, fontSize: 11, fontWeight: "900", textAlign: "right" },
+  tileDescription: { color: c.textMuted, fontSize: 8, lineHeight: 14, textAlign: "right" },
   section: { borderTopWidth: 1, borderTopColor: c.divider, paddingTop: 12, gap: 9 },
   sectionTitle: { color: c.textPrimary, fontSize: 11, fontWeight: "900", textAlign: "right" },
   links: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 7 },

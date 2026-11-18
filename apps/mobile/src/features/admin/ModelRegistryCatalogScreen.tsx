@@ -11,6 +11,7 @@ import { AdminMobileBreadcrumb } from "./AdminMobileBreadcrumb";
 
 type ServiceType = "chat" | "image" | "video" | "audio";
 type OperationalState = "active" | "disabled" | "restricted" | "candidate" | "archived" | "unknown";
+type CapabilityReviewStatus = "suggested" | "legacy_unreviewed" | "approved" | "rejected";
 type RegistryModel = {
   model_id: string;
   provider_id: number;
@@ -24,6 +25,9 @@ type RegistryModel = {
   legacy_chat_model_id: number | null;
   legacy_media_model_id: string | null;
   capability_key: string | null;
+  review_status?: CapabilityReviewStatus | null;
+  provider_test_status?: "not_tested" | "passed" | "failed" | null;
+  suly_test_status?: "not_tested" | "passed" | "failed" | null;
   operational_state: OperationalState;
 };
 type CapabilityKey = string;
@@ -43,6 +47,7 @@ const CAPABILITIES: Array<[CapabilityKey, string, keyof typeof Ionicons.glyphMap
   ["google_drive", "Google Drive", "cloud-outline"], ["github", "GitHub", "logo-github"],
 ];
 const CAPABILITY_ALIASES: Record<string, string[]> = { pdf_input: ["pdf"], file_input: ["word"], video_input: ["video"] };
+const REVIEW_LABEL: Record<CapabilityReviewStatus, string> = { approved: "معتمدة", suggested: "مقترحة", legacy_unreviewed: "تحتاج مراجعة", rejected: "مرفوضة" };
 const STATUS_LABEL: Record<OperationalState, string> = {
   active: "متوفر", disabled: "معطّل", restricted: "مقيّد", candidate: "مرشح", archived: "مؤرشف", unknown: "غير معلوم",
 };
@@ -131,6 +136,15 @@ export function ModelRegistryCatalogScreen() {
 
   useEffect(() => { void load(); }, [load]);
   const capabilitiesByModel = useMemo(() => capabilityKeys(rows), [rows]);
+  const capabilityReviewsByModel = useMemo(() => {
+    const result = new Map<string, Map<string, CapabilityReviewStatus>>();
+    for (const row of rows) if (row.capability_key) {
+      const reviews = result.get(row.model_id) ?? new Map<string, CapabilityReviewStatus>();
+      reviews.set(row.capability_key, row.review_status ?? "legacy_unreviewed");
+      result.set(row.model_id, reviews);
+    }
+    return result;
+  }, [rows]);
   const openOperationalRecord = (model: RegistryModel) => {
     if (!model.provider_enabled) {
       router.push("/admin/api-keys");
@@ -211,6 +225,8 @@ export function ModelRegistryCatalogScreen() {
       <Text style={styles.metric}>متوفر: {models.filter((m) => m.operational_state === "active").length}</Text>
       <Text style={styles.metric}>مقيّد: {models.filter((m) => m.operational_state === "restricted").length}</Text>
       <Text style={styles.metric}>معطّل: {models.filter((m) => m.operational_state === "disabled" || m.operational_state === "archived").length}</Text>
+      <Text style={styles.metric}>قدرات معتمدة: {rows.filter((row) => row.capability_key && row.review_status === "approved").length}</Text>
+      <Text style={styles.metric}>تحتاج مراجعة: {rows.filter((row) => row.capability_key && (row.review_status === "suggested" || row.review_status === "legacy_unreviewed")).length}</Text>
     </View>
     <View style={styles.searchBox}>
       <Ionicons name="search-outline" size={18} color={colors.textMuted}/>
@@ -241,7 +257,10 @@ export function ModelRegistryCatalogScreen() {
         </View>
       </View>
       <View style={styles.capabilityLine}>
-        {(CAPABILITIES.filter(([key]) => capabilitiesByModel.get(model.model_id)?.has(key))).map(([key, label, icon]) => <View key={key} style={styles.capabilityBadge}><Ionicons name={icon} size={13} color={colors.textSecondary}/><Text style={styles.capabilityText}>{label}</Text></View>)}
+        {(CAPABILITIES.filter(([key]) => capabilitiesByModel.get(model.model_id)?.has(key))).map(([key, label, icon]) => {
+          const review = capabilityReviewsByModel.get(model.model_id)?.get(key) ?? "legacy_unreviewed";
+          return <View key={key} style={[styles.capabilityBadge, review === "approved" ? styles.capabilityBadgeApproved : review === "rejected" ? styles.capabilityBadgeRejected : styles.capabilityBadgePending]}><Ionicons name={icon} size={13} color={colors.textSecondary}/><View style={styles.capabilityBadgeCopy}><Text style={styles.capabilityText}>{label}</Text><Text style={styles.capabilityReviewText}>{REVIEW_LABEL[review]}</Text></View></View>;
+        })}
         {!capabilitiesByModel.get(model.model_id)?.size ? <Text style={styles.meta}>لا توجد قدرات مسجلة بعد</Text> : null}
       </View>
       {model.legacy_chat_model_id !== null ? <View style={styles.priceLine}>
@@ -266,7 +285,7 @@ export function ModelRegistryCatalogScreen() {
             <Text style={[styles.tableHeaderCell, styles.tableActionsCell]}>الإجراءات</Text>
           </View>
           {filtered.map((model) => {
-            const modelCapabilities = CAPABILITIES.filter(([key]) => capabilitiesByModel.get(model.model_id)?.has(key)).map(([, label]) => label);
+            const modelCapabilities = CAPABILITIES.filter(([key]) => capabilitiesByModel.get(model.model_id)?.has(key)).map(([key, label]) => `${label} (${REVIEW_LABEL[capabilityReviewsByModel.get(model.model_id)?.get(key) ?? "legacy_unreviewed"]})`);
             return <View key={model.model_id} style={styles.tableRow}>
               <View style={[styles.tableCell, styles.tableNameCell]}><Text style={styles.tableModelName}>{model.display_name}</Text><Text style={styles.meta}>{model.model_identifier}</Text></View>
               <View style={[styles.tableCell, styles.tableProviderCell]}><Text style={styles.tableCellText}>{model.provider_name ?? `مزود #${model.provider_id}`}</Text><Text style={styles.meta}>{model.provider_type ?? "—"}</Text></View>
@@ -305,7 +324,10 @@ export function ModelRegistryCatalogScreen() {
             </View>
             <Text style={styles.detailSectionTitle}>القدرات المسجلة — ليست كلها معتمدة</Text>
             <View style={styles.capabilityLine}>
-              {(CAPABILITIES.filter(([key]) => capabilitiesByModel.get(selectedModel.model_id)?.has(key))).map(([key, label, icon]) => <View key={key} style={styles.capabilityBadge}><Ionicons name={icon} size={13} color={colors.textSecondary}/><Text style={styles.capabilityText}>{label}</Text></View>)}
+              {(CAPABILITIES.filter(([key]) => capabilitiesByModel.get(selectedModel.model_id)?.has(key))).map(([key, label, icon]) => {
+                const review = capabilityReviewsByModel.get(selectedModel.model_id)?.get(key) ?? "legacy_unreviewed";
+                return <View key={key} style={[styles.capabilityBadge, review === "approved" ? styles.capabilityBadgeApproved : review === "rejected" ? styles.capabilityBadgeRejected : styles.capabilityBadgePending]}><Ionicons name={icon} size={13} color={colors.textSecondary}/><View style={styles.capabilityBadgeCopy}><Text style={styles.capabilityText}>{label}</Text><Text style={styles.capabilityReviewText}>{REVIEW_LABEL[review]}</Text></View></View>;
+              })}
               {!capabilitiesByModel.get(selectedModel.model_id)?.size ? <Text style={styles.meta}>لا توجد أدلة قدرات مسجلة لهذا النموذج.</Text> : null}
             </View>
             <View style={styles.detailNotice}><Text style={styles.detailNoticeText}>الأسعار وسجل الصحة والتاريخ التفصيلي للتدقيق موجودة في صفحاتها المختصة؛ لم تُنسخ إلى هذا الملخص ولا يتم استنتاج قيم غير متاحة.</Text></View>
@@ -385,7 +407,12 @@ const createStyles = (c: ThemePalette) => StyleSheet.create({
   statusText: { color: c.textSecondary, fontSize: 8, fontWeight: "800" },
   capabilityLine: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 5 },
   capabilityBadge: { flexDirection: "row-reverse", alignItems: "center", gap: 4, borderWidth: 1, borderColor: c.divider, borderRadius: 7, paddingHorizontal: 6, paddingVertical: 4 },
-  capabilityText: { color: c.textSecondary, fontSize: 7 },
+  capabilityBadgeApproved: { borderColor: c.success, backgroundColor: c.success + "10" },
+  capabilityBadgePending: { borderColor: c.warning, backgroundColor: c.warning + "08" },
+  capabilityBadgeRejected: { borderColor: c.error, backgroundColor: c.error + "08" },
+  capabilityBadgeCopy: { gap: 2, alignItems: "flex-end" },
+  capabilityText: { color: c.textSecondary, fontSize: 7, fontWeight: "800" },
+  capabilityReviewText: { color: c.textMuted, fontSize: 6 },
   empty: { color: c.textMuted, fontSize: 10, textAlign: "center", padding: 20 },
   modalBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: c.modalOverlay, padding: 12 }, modalScrim: { ...StyleSheet.absoluteFill }, detailModal: { maxHeight: "88%", width: "100%", maxWidth: 760, alignSelf: "center", borderWidth: 1, borderColor: c.divider, borderTopLeftRadius: 17, borderTopRightRadius: 17, borderBottomLeftRadius: 13, borderBottomRightRadius: 13, backgroundColor: c.surface, padding: 15, gap: 11 },
   detailModalHeader: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", gap: 12 }, detailModalCopy: { flex: 1, alignItems: "flex-end", gap: 3 }, detailModalEyebrow: { color: c.primary, fontSize: 8, fontWeight: "900", letterSpacing: 1 }, detailModalTitle: { color: c.textPrimary, fontSize: 17, fontWeight: "900", textAlign: "right" },
