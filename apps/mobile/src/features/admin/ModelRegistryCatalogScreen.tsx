@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from "react-native";
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
@@ -28,6 +28,7 @@ type RegistryModel = {
   legacy_media_model_id: string | null;
   capability_key: string | null;
   review_status?: CapabilityReviewStatus | null;
+  vendor_claim_status?: "unknown" | "supported" | "unsupported" | null;
   provider_test_status?: "not_tested" | "passed" | "failed" | null;
   suly_test_status?: "not_tested" | "passed" | "failed" | null;
   operational_state: OperationalState;
@@ -74,6 +75,8 @@ export function ModelRegistryCatalogScreen() {
   const router = useRouter();
   const [testingModelId, setTestingModelId] = useState<number | null>(null);
   const [testResults, setTestResults] = useState<Record<number, string>>({});
+  const [capabilityPickerOpen, setCapabilityPickerOpen] = useState(false);
+  const [savingCapability, setSavingCapability] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<RegistryModel | null>(null);
   const [selectedDetailTab, setSelectedDetailTab] = useState<DetailTab>("info");
   const [rows, setRows] = useState<RegistryModel[]>([]);
@@ -191,6 +194,34 @@ export function ModelRegistryCatalogScreen() {
     }
     router.push(`/admin/media-catalog?kind=${model.service_type}&q=${q}` as never);
   };
+  const addCapability = async (capabilityKey: string) => {
+    if (!selectedModel) return;
+    setSavingCapability(capabilityKey);
+    setError(null);
+    try {
+      const { data, error: rpcError } = await supabase.rpc("suly_admin_save_unified_model_capability", {
+        p_model_id: selectedModel.model_id,
+        p_capability_key: capabilityKey,
+        p_vendor_claim_status: "unknown",
+        p_vendor_evidence_url: null,
+        p_provider_test_status: "not_tested",
+        p_provider_evidence_url: null,
+        p_suly_test_status: "not_tested",
+        p_suly_evidence_url: null,
+        p_notes: "أضيفت من بطاقة النموذج؛ تحتاج إثبات دعم واختبار قبل اعتمادها.",
+        p_review_status: "suggested",
+      });
+      if (rpcError) throw rpcError;
+      if (data?.success !== true) throw new Error("لم تؤكد قاعدة البيانات إضافة القدرة.");
+      setCapabilityPickerOpen(false);
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذرت إضافة القدرة.");
+    } finally {
+      setSavingCapability(null);
+    }
+  };
+
   const models = useMemo(() => [...new Map(rows.map((row) => [row.model_id, row])).values()], [rows]);
   const filtered = useMemo(() => {
     const q = search.trim().toLocaleLowerCase();
@@ -250,7 +281,7 @@ export function ModelRegistryCatalogScreen() {
       <View style={styles.capabilityLine}>
         {(CAPABILITIES.filter(([key]) => [key, ...(CAPABILITY_ALIASES[key] ?? [])].some((candidate) => capabilitiesByModel.get(model.model_id)?.has(candidate)))).map(([key, label, icon]) => {
           const review = capabilityReviewsByModel.get(model.model_id)?.get(key) ?? (CAPABILITY_ALIASES[key] ?? []).map((alias) => capabilityReviewsByModel.get(model.model_id)?.get(alias)).find(Boolean) ?? "legacy_unreviewed";
-          return <View key={key} style={[styles.capabilityBadge, review === "approved" ? styles.capabilityBadgeApproved : review === "rejected" ? styles.capabilityBadgeRejected : styles.capabilityBadgePending]}><Ionicons name={icon} size={13} color={colors.textSecondary}/><View style={styles.capabilityBadgeCopy}><Text style={styles.capabilityText}>{label}</Text><Text style={styles.capabilityReviewText}>{REVIEW_LABEL[review]}</Text></View></View>;
+          return <View key={key} style={[styles.capabilityBadge, review === "approved" ? styles.capabilityBadgeApproved : review === "rejected" ? styles.capabilityBadgeRejected : styles.capabilityBadgePending]}><Ionicons name={icon} size={13} color={colors.textSecondary}/><View style={styles.capabilityBadgeCopy}><Text style={styles.capabilityText}>{label}</Text><Text style={styles.capabilityReviewText}>{REVIEW_LABEL[review]} · دعم المزود: {evidence?.vendor_claim_status ?? "غير معروف"}</Text><Text style={styles.capabilityReviewText}>اختبار المزود: {evidence?.provider_test_status ?? "غير مختبر"} · SULY: {evidence?.suly_test_status ?? "غير مختبر"}</Text></View></View>;
         })}
         {!capabilitiesByModel.get(model.model_id)?.size ? <Text style={styles.meta}>لا توجد قدرات مسجلة بعد</Text> : null}
       </View>
@@ -270,7 +301,8 @@ export function ModelRegistryCatalogScreen() {
             setTestResults((current) => ({ ...current, [modelId]: cause instanceof Error ? cause.message : "تعذر تشغيل الاختبار." }));
           } finally { setTestingModelId(null); }
         })()} style={styles.detailAction}><Ionicons name="flask-outline" size={14} color={colors.primary}/><Text style={styles.detailActionText}>{testingModelId === Number(model.legacy_chat_model_id) ? "جارٍ الاختبار…" : "اختبر الآن"}</Text></Pressable> : <Text style={styles.meta}>اختبار هذا النوع غير متاح حالياً</Text>}
-        <Pressable accessibilityRole="button" onPress={() => { setSelectedModel(model); setSelectedDetailTab("info"); }} style={styles.manageAction}><Ionicons name="time-outline" size={14} color={colors.textSecondary}/><Text style={styles.manageActionText}>السجل والتفاصيل</Text></Pressable>
+        <Pressable accessibilityRole="button" onPress={() => { setSelectedModel(model); setSelectedDetailTab("capabilities"); setCapabilityPickerOpen(false); }} style={styles.manageAction}><Ionicons name="add-circle-outline" size={14} color={colors.textSecondary}/><Text style={styles.manageActionText}>القدرات +</Text></Pressable>
+        <Pressable accessibilityRole="button" onPress={() => { setSelectedModel(model); setSelectedDetailTab("info"); setCapabilityPickerOpen(false); }} style={styles.manageAction}><Ionicons name="time-outline" size={14} color={colors.textSecondary}/><Text style={styles.manageActionText}>السجل والتفاصيل</Text></Pressable>
       </View>
       {model.legacy_chat_model_id !== null && testResults[Number(model.legacy_chat_model_id)] ? <Text style={testResults[Number(model.legacy_chat_model_id)].startsWith("نجح") ? styles.success : styles.error}>{testResults[Number(model.legacy_chat_model_id)]}</Text> : null}
     </View>) : null}
@@ -298,16 +330,18 @@ export function ModelRegistryCatalogScreen() {
               <View style={styles.detailMetaCell}><Text style={styles.detailMetaLabel}>حالة المزود</Text><Text style={styles.detailMetaValue}>{selectedModel.provider_enabled ? "مفعّل" : "معطّل أو غير متاح"}</Text></View>
             </View> : null}
             {selectedDetailTab === "capabilities" ? <>
-              <Text style={styles.detailSectionTitle}>القدرات المسجلة وحالة اعتماد كل قدرة</Text>
+              <View style={styles.capabilityHeader}><Text style={styles.detailSectionTitle}>القدرات المسجلة وحالة اعتماد كل قدرة</Text><Pressable accessibilityRole="button" onPress={() => setCapabilityPickerOpen((value) => !value)} style={styles.detailLink}><Ionicons name="add" size={14} color={colors.primary}/><Text style={styles.detailLinkText}>إضافة قدرة</Text></Pressable></View>
               <View style={styles.capabilityLine}>
                 {(CAPABILITIES.filter(([key]) => [key, ...(CAPABILITY_ALIASES[key] ?? [])].some((candidate) => capabilitiesByModel.get(selectedModel.model_id)?.has(candidate)))).map(([key, label, icon]) => {
                   const review = capabilityReviewsByModel.get(selectedModel.model_id)?.get(key) ?? (CAPABILITY_ALIASES[key] ?? []).map((alias) => capabilityReviewsByModel.get(selectedModel.model_id)?.get(alias)).find(Boolean) ?? "legacy_unreviewed";
+                  const evidence = rows.find((row) => row.model_id === selectedModel.model_id && [key, ...(CAPABILITY_ALIASES[key] ?? [])].includes(row.capability_key ?? ""));
                   return <View key={key} style={[styles.capabilityBadge, review === "approved" ? styles.capabilityBadgeApproved : review === "rejected" ? styles.capabilityBadgeRejected : styles.capabilityBadgePending]}><Ionicons name={icon} size={13} color={colors.textSecondary}/><View style={styles.capabilityBadgeCopy}><Text style={styles.capabilityText}>{label}</Text><Text style={styles.capabilityReviewText}>{REVIEW_LABEL[review]}</Text></View></View>;
                 })}
                 {!capabilitiesByModel.get(selectedModel.model_id)?.size ? <Text style={styles.meta}>لا توجد قدرات مسجلة لهذا النموذج.</Text> : null}
               </View>
               <Text style={styles.detailNoticeText}>القدرات المقترحة أو القديمة غير المعتمدة لا تُعرض كقدرات مؤكدة ولا ينبغي استخدامها في التوجيه قبل اعتمادها.</Text>
-              <Pressable accessibilityRole="button" onPress={() => { setSelectedModel(null); router.push("/admin/model-capability-review"); }} style={styles.detailLink}><Text style={styles.detailLinkText}>فتح مراجعة الأدلة واعتماد القدرات</Text></Pressable>
+              {capabilityPickerOpen ? <View style={styles.capabilityPicker}><Text style={styles.detailMetaLabel}>اختر قدرة لإضافتها كاقتراح يحتاج إثباتًا ومراجعة:</Text><View style={styles.capabilityLine}>{CAPABILITIES.filter(([key]) => ![key, ...(CAPABILITY_ALIASES[key] ?? [])].some((candidate) => capabilitiesByModel.get(selectedModel.model_id)?.has(candidate))).map(([key, label, icon]) => <Pressable key={key} accessibilityRole="button" disabled={savingCapability !== null} onPress={() => void addCapability(key)} style={styles.iconChip}><Ionicons name={icon} size={14} color={colors.primary}/><Text style={styles.chipText}>{savingCapability === key ? "جارٍ الإضافة…" : label}</Text></Pressable>)}</View></View> : null}
+              <Text style={styles.detailNoticeText}>إضافة القدرة لا تعني أن النموذج يدعمها أو أنها مفعّلة. لا تعتمد أو تستخدم قبل إثبات دعم المزود ونجاح الاختبار.</Text>
             </> : null}
             {selectedDetailTab === "pricing" ? <>
               <Text style={styles.detailSectionTitle}>التكلفة المسجلة</Text>
@@ -422,6 +456,8 @@ const createStyles = (c: ThemePalette) => StyleSheet.create({
   detailTab: { borderWidth: 1, borderColor: c.divider, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 7 },
   detailTabActive: { borderColor: c.primary, backgroundColor: c.primary + "16" },
   detailTabText: { color: c.textMuted, fontSize: 8, fontWeight: "800" }, detailTabTextActive: { color: c.primary },
+  capabilityHeader: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  capabilityPicker: { borderWidth: 1, borderColor: c.divider, borderRadius: 9, padding: 10, gap: 8, backgroundColor: c.surfaceElevated },
   detailSectionTitle: { color: c.textPrimary, fontSize: 10, fontWeight: "900", textAlign: "right" }, detailNotice: { borderWidth: 1, borderColor: c.divider, borderRadius: 8, padding: 9 }, detailNoticeText: { color: c.textMuted, fontSize: 9, lineHeight: 16, textAlign: "right" }, detailLinks: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 6 }, detailLink: { borderWidth: 1, borderColor: c.divider, borderRadius: 7, paddingHorizontal: 9, paddingVertical: 7 }, detailLinkText: { color: c.textSecondary, fontSize: 8, fontWeight: "800" }, detailPrimaryAction: { minHeight: 40, borderRadius: 9, backgroundColor: c.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: 12 }, detailPrimaryActionText: { color: c.onPrimary, fontSize: 10, fontWeight: "900" },
   errorBox: { borderWidth: 1, borderColor: c.error, borderRadius: 9, padding: 10, gap: 6 },
   error: { color: c.error, fontSize: 9, textAlign: "right" },
