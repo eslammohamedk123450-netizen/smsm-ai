@@ -254,7 +254,7 @@ export function MainNavigation({ children }: Props) {
           <Modal visible={drawerVisible} transparent animationType="fade" onRequestClose={() => setDrawerVisible(false)}>
             <View style={styles.modalRoot}>
               <Pressable style={styles.scrim} onPress={() => setDrawerVisible(false)} accessibilityRole="button" accessibilityLabel={isArabic ? "إغلاق القائمة" : "Close menu"} />
-              <SafeAreaView edges={["top", "bottom"]} style={[styles.drawer, { alignSelf: isArabic ? "flex-end" : "flex-start", backgroundColor: colors.surface, borderColor: colors.divider }]}>
+              <SafeAreaView edges={["top", "bottom"]} style={[styles.drawer, { position: "absolute", top: 0, bottom: 0, right: isArabic ? 0 : undefined, left: isArabic ? undefined : 0, backgroundColor: colors.surface, borderColor: colors.divider }]}>
                 {sidebarContent}
               </SafeAreaView>
             </View>
