@@ -743,7 +743,7 @@ async function handleRequest(req: Request): Promise<Response> {
   // compatible so existing connected-app requests do not silently lose tools.
   // Public chat requests run as direct chat only. Internal Brain workers retain
   // their separately authenticated Agent execution path.
-  const executionMode: "chat" | "agent" = internalBrainCall && body.execution_mode !== "chat" ? "agent" : "chat";
+  let executionMode: "chat" | "agent" = internalBrainCall && body.execution_mode !== "chat" ? "agent" : "chat";
   const temperatureInput = typeof body.temperature === "number" ? body.temperature : 0.7;
   const temperature = Math.min(2, Math.max(0, temperatureInput));
   const maxTokensInput = typeof body.max_tokens === "number" ? body.max_tokens : 1024;
