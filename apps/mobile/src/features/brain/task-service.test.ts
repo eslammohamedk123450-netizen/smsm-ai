@@ -103,6 +103,23 @@ describe("mapChatAgentProgress", () => {
     expect(JSON.stringify(progress)).not.toContain("final_result");
   });
 
+  it("preserves server-confirmed cancellation and falls back to the stable request ID for older rows", () => {
+    const progress = mapChatAgentProgress({
+      id: "workspace-4",
+      request_id: requestId,
+      status: "cancelled",
+      cancelled_at: "2026-11-18T10:05:00Z",
+      metadata: {},
+      plan: [],
+    }, []);
+    expect(progress).toMatchObject({
+      requestId,
+      userMessageId: requestId,
+      status: "cancelled",
+      cancelledAt: "2026-11-18T10:05:00Z",
+    });
+  });
+
   it("rejects unknown workspace statuses and unregistered tool names", () => {
     expect(mapChatAgentProgress({
       id: "workspace-2", request_id: requestId, status: "worker_internal", plan: [], metadata: {},
