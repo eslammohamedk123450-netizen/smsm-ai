@@ -60,6 +60,7 @@ export function MainNavigation({ children }: Props) {
   const sidebarCollapsed = isDesktop && sidebarPreference.key === sidebarStorageKey && sidebarPreference.collapsed;
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [drawerVisible, setDrawerVisible] = useState(false);
+  const [hoveredSidebarItem, setHoveredSidebarItem] = useState<string | null>(null);
   const [plusVisible, setPlusVisible] = useState(false);
   const [recentConversations, setRecentConversations] = useState<Conversation[]>([]);
   const [recentLoading, setRecentLoading] = useState(false);
@@ -139,18 +140,22 @@ export function MainNavigation({ children }: Props) {
 
       <ScrollView style={styles.drawerScroll} contentContainerStyle={styles.drawerScrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.drawerItems}>
-          <Pressable onPress={() => navigate("/chat")} accessibilityRole="button" accessibilityLabel={isArabic ? "محادثة جديدة" : "New conversation"} style={[styles.drawerItem, sidebarCollapsed && styles.collapsedDrawerItem, { flexDirection: isArabic ? "row-reverse" : "row", backgroundColor: colors.surfaceElevated }]}>
+          <Pressable onPress={() => navigate("/chat")} accessibilityRole="button" accessibilityLabel={isArabic ? "محادثة جديدة" : "New conversation"} style={[styles.drawerItem, sidebarCollapsed && styles.collapsedDrawerItem, sidebarCollapsed && styles.sidebarTooltipAnchor, { flexDirection: isArabic ? "row-reverse" : "row", backgroundColor: colors.surfaceElevated }]}
+            onHoverIn={() => setHoveredSidebarItem("new-chat")} onHoverOut={() => setHoveredSidebarItem(null)} onFocus={() => setHoveredSidebarItem("new-chat")} onBlur={() => setHoveredSidebarItem(null)}>
             <Ionicons name="add-circle-outline" size={20} color={colors.textPrimary} />
             {!sidebarCollapsed ? <Text style={[styles.drawerItemText, { color: colors.textPrimary, textAlign: isArabic ? "right" : "left" }]}>{isArabic ? "محادثة جديدة" : "New chat"}</Text> : null}
+            {sidebarCollapsed && hoveredSidebarItem === "new-chat" ? <View pointerEvents="none" style={[styles.sidebarTooltip, isArabic ? { right: "100%" } : { left: "100%" }]}><Text style={[styles.sidebarTooltipText, { color: colors.textPrimary }]}>{isArabic ? "محادثة جديدة" : "New chat"}</Text></View> : null}
           </Pressable>
           {ITEMS.map((item) => {
             const selected = active === item.key;
             return (
               <Pressable key={item.key} onPress={() => navigate(item.href)} accessibilityRole="button" accessibilityLabel={isArabic ? item.labelAr : item.labelEn} accessibilityState={{ selected }}
-                style={[styles.drawerItem, sidebarCollapsed && styles.collapsedDrawerItem, { flexDirection: isArabic ? "row-reverse" : "row", backgroundColor: selected ? colors.surfaceElevated : "transparent" }]}>
+                style={[styles.drawerItem, sidebarCollapsed && styles.collapsedDrawerItem, sidebarCollapsed && styles.sidebarTooltipAnchor, { flexDirection: isArabic ? "row-reverse" : "row", backgroundColor: selected ? colors.surfaceElevated : "transparent" }]}
+                onHoverIn={() => setHoveredSidebarItem(item.key)} onHoverOut={() => setHoveredSidebarItem(null)} onFocus={() => setHoveredSidebarItem(item.key)} onBlur={() => setHoveredSidebarItem(null)}>
                 <Ionicons name={item.icon} size={20} color={selected ? colors.textPrimary : colors.textMuted} />
                 {!sidebarCollapsed ? <Text style={[styles.drawerItemText, { color: selected ? colors.textPrimary : colors.textSecondary, textAlign: isArabic ? "right" : "left" }]}>{isArabic ? item.labelAr : item.labelEn}</Text> : null}
                 {!sidebarCollapsed && selected ? <View style={[styles.selectedMark, { backgroundColor: colors.textPrimary }]} /> : null}
+                {sidebarCollapsed && hoveredSidebarItem === item.key ? <View pointerEvents="none" style={[styles.sidebarTooltip, isArabic ? { right: "100%" } : { left: "100%" }]}><Text style={[styles.sidebarTooltipText, { color: colors.textPrimary }]}>{isArabic ? item.labelAr : item.labelEn}</Text></View> : null}
               </Pressable>
             );
           })}
@@ -185,12 +190,14 @@ export function MainNavigation({ children }: Props) {
         ) : recentConversations.length ? (
           <View style={styles.collapsedRecentList}>
             {recentConversations.slice(0, 6).map((conversation) => (
-              <Pressable key={conversation.id} onPress={() => navigate("/chat?conversationId=" + encodeURIComponent(conversation.id))} style={styles.collapsedRecentButton} accessibilityRole="button" accessibilityLabel={conversation.title}>
+              <Pressable key={conversation.id} onPress={() => navigate("/chat?conversationId=" + encodeURIComponent(conversation.id))} style={[styles.collapsedRecentButton, styles.sidebarTooltipAnchor]} accessibilityRole="button" accessibilityLabel={conversation.title} onHoverIn={() => setHoveredSidebarItem("recent-" + conversation.id)} onHoverOut={() => setHoveredSidebarItem(null)} onFocus={() => setHoveredSidebarItem("recent-" + conversation.id)} onBlur={() => setHoveredSidebarItem(null)}>
                 <Ionicons name={conversation.isPinned ? "pin-outline" : "chatbubble-outline"} size={17} color={colors.textMuted} />
+                {hoveredSidebarItem === "recent-" + conversation.id ? <View pointerEvents="none" style={[styles.sidebarTooltip, isArabic ? { right: "100%" } : { left: "100%" }]}><Text style={[styles.sidebarTooltipText, { color: colors.textPrimary }]}>{conversation.title}</Text></View> : null}
               </Pressable>
             ))}
-            <Pressable onPress={() => navigate("/conversations")} style={styles.collapsedRecentButton} accessibilityRole="button" accessibilityLabel={isArabic ? "عرض كل المحادثات" : "Show all conversations"}>
+            <Pressable onPress={() => navigate("/conversations")} style={[styles.collapsedRecentButton, styles.sidebarTooltipAnchor]} accessibilityRole="button" accessibilityLabel={isArabic ? "عرض كل المحادثات" : "Show all conversations"} onHoverIn={() => setHoveredSidebarItem("all-conversations")} onHoverOut={() => setHoveredSidebarItem(null)} onFocus={() => setHoveredSidebarItem("all-conversations")} onBlur={() => setHoveredSidebarItem(null)}>
               <Ionicons name="ellipsis-horizontal" size={18} color={colors.textPrimary} />
+              {hoveredSidebarItem === "all-conversations" ? <View pointerEvents="none" style={[styles.sidebarTooltip, isArabic ? { right: "100%" } : { left: "100%" }]}><Text style={[styles.sidebarTooltipText, { color: colors.textPrimary }]}>{isArabic ? "عرض كل المحادثات" : "Show all conversations"}</Text></View> : null}
             </Pressable>
           </View>
         ) : null}
@@ -201,7 +208,8 @@ export function MainNavigation({ children }: Props) {
           onPress={() => navigate("/settings")}
           accessibilityRole="button"
           accessibilityLabel={isArabic ? "فتح الحساب وتعديل الملف الشخصي" : "Open account and edit profile"}
-          style={[styles.profileButton, sidebarCollapsed && styles.collapsedProfileButton, { flexDirection: isArabic ? "row-reverse" : "row", backgroundColor: colors.surfaceElevated }]}
+          style={[styles.profileButton, sidebarCollapsed && styles.collapsedProfileButton, sidebarCollapsed && styles.sidebarTooltipAnchor, { flexDirection: isArabic ? "row-reverse" : "row", backgroundColor: colors.surfaceElevated }]}
+          onHoverIn={() => setHoveredSidebarItem("profile")} onHoverOut={() => setHoveredSidebarItem(null)} onFocus={() => setHoveredSidebarItem("profile")} onBlur={() => setHoveredSidebarItem(null)}
         >
           <View style={[styles.profileAvatar, { backgroundColor: colors.primary }]}>
             <Text style={[styles.profileAvatarText, { color: colors.onPrimary }]}>{(profileFullName?.trim()?.[0] || user?.email?.[0] || "S").toLocaleUpperCase(isArabic ? "ar" : "en")}</Text>
@@ -215,6 +223,7 @@ export function MainNavigation({ children }: Props) {
               <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={16} color={colors.textMuted} />
             </>
           ) : null}
+          {sidebarCollapsed && hoveredSidebarItem === "profile" ? <View pointerEvents="none" style={[styles.sidebarTooltip, isArabic ? { right: "100%" } : { left: "100%" }]}><Text style={[styles.sidebarTooltipText, { color: colors.textPrimary }]}>{isArabic ? "الحساب" : "Account"}</Text></View> : null}
         </Pressable>
       </View>
     </>
@@ -296,6 +305,9 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
   collapsedRecentList: { alignItems: "center", gap: 5, marginTop: 12 },
   collapsedRecentButton: { width: 40, height: 40, borderRadius: 11, alignItems: "center", justifyContent: "center" },
   collapsedProfileButton: { justifyContent: "center", paddingHorizontal: 0 },
+  sidebarTooltipAnchor: { position: "relative", overflow: "visible" },
+  sidebarTooltip: { position: "absolute", top: 3, zIndex: 1000, minWidth: 96, maxWidth: 220, paddingHorizontal: 10, paddingVertical: 7, borderWidth: 1, borderRadius: 8, backgroundColor: colors.surfaceElevated, borderColor: colors.divider, elevation: 8 },
+  sidebarTooltipText: { fontSize: 11, fontWeight: "600" },
   topSafe: { zIndex: 1 },
   topBar: { minHeight: 54, alignItems: "center", paddingHorizontal: 14, borderBottomWidth: 1, gap: 12 },
   headerButton: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
