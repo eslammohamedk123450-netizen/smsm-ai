@@ -787,8 +787,8 @@ export default function ChatPage() {
         {isLoading ? <View style={styles.loading}><ActivityIndicator color={colors.primary} /><Text style={styles.loadingText}>{isArabic ? "جارٍ تحميل المحادثة…" : "Loading conversation…"}</Text></View> : messages.length === 0 ? (
           <View style={styles.empty}>
             <Image
-              source={require("../../assets/suly-home-face.png")}
-              style={[styles.welcomeFace, { tintColor: colors.textPrimary }]}
+              source={require("../../assets/suly-icon.jpg")}
+              style={styles.welcomeFace}
               resizeMode="contain"
               accessibilityLabel="SULY"
             />
@@ -942,8 +942,8 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => {
   messageListContainer: { flex: 1, position: "relative" },
   scrollToBottomButton: { position: "absolute", right: 24, bottom: 12, width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.divider, elevation: 5, zIndex: 2 },
   messageContent: { flexGrow: 1, paddingVertical: 12 },
-  empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 22, paddingVertical: 24, gap: 12, width: "100%", maxWidth: 900, alignSelf: "center" },
-  welcomeFace: { width: 132, height: 154, marginBottom: 12 },
+  empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 22, paddingVertical: 24, gap: 12, width: "100%", maxWidth: 1280, alignSelf: "center" },
+  welcomeFace: { width: 160, height: 240, marginBottom: 12 },
   welcomeMark: { width: 58, height: 58, borderRadius: 29, alignItems: "center", justifyContent: "center", backgroundColor: "transparent", marginBottom: 4 },
   welcomeMarkText: { color: colors.primary, fontSize: 48, fontWeight: "900", letterSpacing: -3 },
   welcomeEyebrow: { color: colors.textMuted, fontSize: 10, fontWeight: "800", letterSpacing: 2, textAlign: "center" },
