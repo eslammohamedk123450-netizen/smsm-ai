@@ -789,8 +789,16 @@ export default function ChatPage() {
         {retryFailure ? <View style={styles.retryWarning} accessibilityRole="alert"><Text style={styles.retryWarningText}>{isArabic ? "حُفظت رسالتك، لكن تعذّر إكمال الرد." : "Your message was saved, but the response could not be completed."}</Text><Pressable onPress={() => void retryResponse()} disabled={isSending} accessibilityRole="button" accessibilityLabel={isArabic ? "إعادة محاولة الرد" : "Retry response"} style={styles.retryButton}><Text style={styles.retryButtonText}>{isSending ? (isArabic ? "جارٍ إعادة المحاولة…" : "Retrying…") : (isArabic ? "إعادة المحاولة" : "Retry")}</Text></Pressable></View> : null}
         {isLoading ? <View style={styles.loading}><ActivityIndicator color={colors.primary} /><Text style={styles.loadingText}>{isArabic ? "جارٍ تحميل المحادثة…" : "Loading conversation…"}</Text></View> : messages.length === 0 ? (
           <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>{isArabic ? "اجعل SULY يعمل من أجلك" : "Make SULY work for you"}</Text>
-            <Text style={styles.emptySubtitle}>{isArabic ? "اكتب ما تحتاجه، وسيتولى SULY مساعدتك." : "Write what you need, and SULY will help you get it done."}</Text>
+            <View style={styles.welcomeMark}>
+              <Ionicons name="sparkles" size={30} color={colors.onPrimary} />
+            </View>
+            <Text style={styles.welcomeEyebrow}>{isArabic ? "مساحة عملك الذكية" : "YOUR INTELLIGENT WORKSPACE"}</Text>
+            <Text style={styles.emptyTitle}>{isArabic ? "أهلًا بك، نبدأ بإيه؟" : "What would you like to do?"}</Text>
+            <Text style={styles.emptySubtitle}>{isArabic ? "اكتب طلبك بطريقتك. SULY يفهم المطلوب ويختار الأدوات والخطوات المناسبة تلقائيًا." : "Tell SULY what you need. It understands your goal and chooses the right tools and steps automatically."}</Text>
+            <View style={styles.suggestionHeading}>
+              <Text style={styles.suggestionHeadingText}>{isArabic ? "ابدأ بفكرة" : "GET STARTED"}</Text>
+              <View style={styles.suggestionHeadingLine} />
+            </View>
             <View style={styles.taskGrid}>
               {suggestions.map((suggestion) => (
                 <Pressable
@@ -800,8 +808,11 @@ export default function ChatPage() {
                   accessibilityRole="button"
                   accessibilityLabel={isArabic ? `استخدام اقتراح: ${suggestion.text}` : `Use suggestion: ${suggestion.text}`}
                 >
-                  <Ionicons name={suggestion.icon} size={15} color={colors.primary} />
-                  <Text numberOfLines={1} style={styles.taskCardText}>{suggestion.text}</Text>
+                  <View style={styles.taskIconCircle}>
+                    <Ionicons name={suggestion.icon} size={18} color={colors.textPrimary} />
+                  </View>
+                  <Text numberOfLines={2} style={styles.taskCardText}>{suggestion.text}</Text>
+                  <Ionicons name={isArabic ? "arrow-back" : "arrow-forward"} size={15} color={colors.textMuted} style={styles.taskArrow} />
                 </Pressable>
               ))}
             </View>
@@ -879,8 +890,8 @@ export default function ChatPage() {
 const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
-  appBar: { minHeight: 62, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: colors.divider },
-  headerButton: { width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 21 },
+  appBar: { minHeight: 64, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: colors.divider, backgroundColor: colors.background },
+  headerButton: { width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 14, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.divider },
   headerSpacer: { width: 42, height: 42 },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 6 },
   navigationMenuScroll: { maxHeight: 560 },
@@ -914,15 +925,21 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   messageListContainer: { flex: 1, position: "relative" },
   scrollToBottomButton: { position: "absolute", right: 24, bottom: 12, width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.divider, elevation: 5, zIndex: 2 },
   messageContent: { flexGrow: 1, paddingVertical: 12 },
-  empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 18, paddingVertical: 14, gap: 14 },
-  emptyTitle: { color: colors.textPrimary, fontSize: 23, fontWeight: "800", textAlign: "center" },
-  emptySubtitle: { color: colors.textSecondary, fontSize: 13, lineHeight: 21, textAlign: "center", maxWidth: 420 },
+  empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 22, paddingVertical: 24, gap: 12, width: "100%", maxWidth: 760, alignSelf: "center" },
+  welcomeMark: { width: 66, height: 66, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: colors.primary, marginBottom: 4 },
+  welcomeEyebrow: { color: colors.textMuted, fontSize: 10, fontWeight: "800", letterSpacing: 2, textAlign: "center" },
+  emptyTitle: { color: colors.textPrimary, fontSize: 28, fontWeight: "800", textAlign: "center", letterSpacing: -0.5 },
+  emptySubtitle: { color: colors.textSecondary, fontSize: 14, lineHeight: 23, textAlign: "center", maxWidth: 480, marginBottom: 10 },
+  suggestionHeading: { width: "100%", maxWidth: 620, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 12, marginTop: 4, marginBottom: 2 },
+  suggestionHeadingText: { color: colors.textMuted, fontSize: 10, fontWeight: "800", letterSpacing: 1.2 },
+  suggestionHeadingLine: { flex: 1, height: 1, backgroundColor: colors.divider },
   chooseTaskTitle: { width: "100%", flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 8 },
   chooseTaskText: { color: colors.textPrimary, fontSize: 16, fontWeight: "700", textAlign: isArabic ? "right" : "left" },
-  taskGrid: { width: "100%", flexDirection: isArabic ? "row-reverse" : "row", flexWrap: "wrap", justifyContent: "center", gap: 8, marginTop: 6 },
-  taskCard: { minHeight: 38, maxWidth: "100%", flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 7, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
-  taskIconCircle: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.primarySoft },
-  taskCardText: { color: colors.textSecondary, textAlign: isArabic ? "right" : "left", fontSize: 11, lineHeight: 16 },
+  taskGrid: { width: "100%", maxWidth: 620, flexDirection: isArabic ? "row-reverse" : "row", flexWrap: "wrap", justifyContent: "center", gap: 10, marginTop: 4 },
+  taskCard: { width: "48%", minHeight: 82, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 10, paddingHorizontal: 13, paddingVertical: 12, borderRadius: 15, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
+  taskIconCircle: { width: 36, height: 36, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceElevated },
+  taskCardText: { flex: 1, color: colors.textPrimary, textAlign: isArabic ? "right" : "left", fontSize: 12, lineHeight: 18, fontWeight: "600" },
+  taskArrow: { marginStart: 2 },
   taskHint: { color: colors.textMuted, textAlign: "center", fontSize: 11, lineHeight: 17 },
   starsRow: { flexDirection: "row", alignItems: "center", gap: 2 },
   star: { color: colors.textMuted, fontSize: 25 },
