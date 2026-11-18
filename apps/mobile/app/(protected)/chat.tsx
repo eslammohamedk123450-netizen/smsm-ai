@@ -185,7 +185,7 @@ export default function ChatPage() {
     let active = true;
     void chatService.getAvailableModels().then((models) => {
       if (!active) return;
-      const usable = models.filter((model) => model.enabled && model.routingGroup !== "disabled");
+      const usable = models.filter((model) => model.enabled && model.routingGroup !== "disabled" && model.serviceType === "chat");
       setAvailableModels(usable);
       setSelectedModelId((current) => current && usable.some((model) => model.id === current) ? current : usable[0]?.id ?? null);
     }).catch((cause) => { if (active) setError(cause instanceof Error ? cause.message : "تعذر تحميل النماذج."); });
