@@ -571,6 +571,7 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 
 - ☑️ Confirm Studio, media/library, projects, and integrations areas exist in the current application source/inventory.
 - ☑️ Replace the Studio image tile's hard-coded unavailable state with a live check of the existing `suly_list_public_image_models` registry; enable navigation only when an active model exposes a supported quality with a positive verified credit price. Commit: `d00ba1ce072a084ba79525c468599666e52efe37`. Automated typecheck and rendered device verification are still pending; this item is implementation-complete, not yet QA-complete.
+- ☑️ Change connector OAuth return handling so a success toast is shown only after a fresh server status confirms the selected account is active; incomplete or unconfirmed authorization now produces an informational message. Commit: `265b6bf0fb97af0791292f89a9ed44e917ceebe1`. Automated typecheck and live OAuth provider verification remain pending.
 - 🟡 Map each visible action to its service, permission boundary, and real connection/capability status.
 - ⬜ Inspect every Studio action, upload/delivery path, library operation, project CRUD action, and connector connect/disconnect flow against its actual service and server permission.
 - ⬜ Verify loading, empty, error, unavailable, connected, disconnected, and revoked states; remove or relabel any decorative/unwired control without removing working features.
