@@ -40,6 +40,45 @@ const TASK_SUGGESTIONS_EN = [
 ];
 ;
 
+const WELCOME_MESSAGES = [
+  { ar: "كل فكرة كبيرة تبدأ بسؤال صغير.", en: "Every big idea starts with a small question." },
+  { ar: "أنا هنا، لنفكر فيها معًا.", en: "I’m here. Let’s think it through together." },
+  { ar: "ما الذي يشغل بالك اليوم؟", en: "What’s on your mind today?" },
+  { ar: "ابدأ من حيث أنت، وسنكمل سويًا.", en: "Start where you are; we’ll take it from there." },
+  { ar: "لديك فكرة؟ لنمنحها شكلًا.", en: "Have an idea? Let’s give it shape." },
+  { ar: "خطوة واحدة قد تغيّر الكثير.", en: "One step can change a lot." },
+  { ar: "دعنا نحوّل أفكارك إلى خطوات واضحة.", en: "Let’s turn your ideas into clear steps." },
+  { ar: "ما الذي تريد إنجازه الآن؟", en: "What would you like to accomplish now?" },
+  { ar: "مساحتك للتفكير والتجربة تبدأ هنا.", en: "Your space to think and explore starts here." },
+  { ar: "لا تحتاج إلى خطة كاملة لتبدأ.", en: "You don’t need a perfect plan to begin." },
+  { ar: "احكِ لي الفكرة، ونرتبها معًا.", en: "Tell me the idea, and we’ll organize it." },
+  { ar: "كل سؤال يفتح بابًا جديدًا.", en: "Every question opens a new door." },
+  { ar: "جاهز نبدأ شيئًا مفيدًا؟", en: "Ready to make something useful?" },
+  { ar: "لنبحث عن أبسط طريق للحل.", en: "Let’s find the simplest path to a solution." },
+  { ar: "أفكارك تستحق أن تُستكشف.", en: "Your ideas deserve to be explored." },
+  { ar: "ما أول شيء تريد فهمه؟", en: "What’s the first thing you want to understand?" },
+  { ar: "معًا نجعل المعقد أوضح.", en: "Together, we can make the complex clearer." },
+  { ar: "ابدأ بسؤالك، والباقي خطوة بخطوة.", en: "Start with your question; we’ll go step by step." },
+  { ar: "لنبنِ شيئًا جيدًا اليوم.", en: "Let’s build something good today." },
+  { ar: "أنا مستعد لمساعدتك على التقدم.", en: "I’m ready to help you move forward." },
+  { ar: "فكرة جديدة؟ أنا أسمعك.", en: "A new idea? I’m listening." },
+  { ar: "لنحوّل الحيرة إلى وضوح.", en: "Let’s turn uncertainty into clarity." },
+  { ar: "ما التحدي الذي نعمل عليه؟", en: "What challenge are we working on?" },
+  { ar: "يمكننا تقسيم أي مهمة إلى خطوات.", en: "We can break any task into steps." },
+  { ar: "دعنا نبدأ بسؤال واحد واضح.", en: "Let’s begin with one clear question." },
+  { ar: "التجربة الأولى لا تحتاج إلى الكمال.", en: "The first attempt doesn’t need to be perfect." },
+  { ar: "أخبرني بما تريد، وسنحدد الطريق.", en: "Tell me what you need, and we’ll map the way." },
+  { ar: "هنا تبدأ مساحة الاحتمالات.", en: "This is where possibilities begin." },
+  { ar: "لنكتشف أفضل طريقة لتنفيذ فكرتك.", en: "Let’s discover the best way to bring your idea to life." },
+  { ar: "ما الشيء الذي يمكننا تحسينه اليوم؟", en: "What can we improve today?" },
+  { ar: "كل إنجاز يبدأ بقرار البدء.", en: "Every achievement begins with deciding to start." },
+  { ar: "فكر بصوت عالٍ، وسأساعدك في الترتيب.", en: "Think out loud; I’ll help organize it." },
+  { ar: "لنصل إلى إجابة تستحق وقتك.", en: "Let’s get to an answer worth your time." },
+  { ar: "خطتك تبدأ من أول رسالة.", en: "Your plan starts with the first message." },
+  { ar: "أنا هنا لأجعل خطوتك التالية أسهل.", en: "I’m here to make your next step easier." },
+  { ar: "ما الذي نبتكره أو نحلّه معًا؟", en: "What shall we create or solve together?" },
+] as const;
+
 export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   const { colors } = useSulyTheme();
   const { isArabic } = useAppLocale();
@@ -149,6 +188,18 @@ export default function ChatPage() {
   const listRef = useRef<FlatList<ChatMessage>>(null);
   const isNearBottomRef = useRef(true);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [welcomeMessageIndex, setWelcomeMessageIndex] = useState(() => Math.floor(Math.random() * WELCOME_MESSAGES.length));
+  const previousWelcomeRouteRef = useRef(routeConversationId ?? null);
+  useEffect(() => {
+    const nextRoute = routeConversationId ?? null;
+    if (previousWelcomeRouteRef.current === nextRoute) return;
+    previousWelcomeRouteRef.current = nextRoute;
+    setWelcomeMessageIndex((current) => {
+      let next = Math.floor(Math.random() * (WELCOME_MESSAGES.length - 1));
+      if (next >= current) next += 1;
+      return next;
+    });
+  }, [routeConversationId]);
   const lock = useRef(false);
   const preflightLock = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -786,7 +837,7 @@ export default function ChatPage() {
               resizeMode="contain"
               accessibilityLabel="SULY"
             />
-            <Text style={styles.emptyTitle}>{isArabic ? "متى ما كنت جاهزًا" : "Whenever you're ready"}</Text>
+            <Text style={styles.emptyTitle}>{WELCOME_MESSAGES[welcomeMessageIndex][isArabic ? "ar" : "en"]}</Text>
             {!BASIC_CHAT_ONLY ? <>
               <View style={styles.suggestionHeading}>
                 <Text style={styles.suggestionHeadingText}>{isArabic ? "ابدأ بفكرة" : "GET STARTED"}</Text>
