@@ -590,7 +590,7 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 - ☑️ Confirm credit history/balance surfaces use existing credit/ledger services.
 - ☑️ Confirm theme and language settings are persisted through existing providers/services.
 - ◐ Reorganize account/settings into the approved sections while preserving security and privacy controls.
-- ⬜ Clearly label paid upgrade/checkout as unavailable until a real payment flow is implemented and verified; do not imply that a disabled “coming soon” control is purchasable.
+- ☑️ Clearly label paid upgrade/checkout as unavailable until a real payment flow is implemented and verified; paid plan cards now say purchase is unavailable and explain that the screen is informational only and will not charge the user. No payment or billing behavior was added or changed. Commit: `5af80542d18ec405b18284b06a5ff7cd06a7eb51`. Automated verification is pending.
 - ⬜ Run billing/ledger regression tests and account security/settings persistence tests.
 - **Deliverable:** billing/ledger regression report and settings tests.
 
