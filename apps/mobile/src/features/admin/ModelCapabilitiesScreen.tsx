@@ -179,11 +179,15 @@ export function ModelCapabilitiesScreen() {
         {CAPABILITIES.map((item) => {
           const linkedIds = new Set(models.filter((model) => capabilityMap.get(model.model_id)?.has(item.key) || (ALIASES[item.key] ?? []).some((alias) => capabilityMap.get(model.model_id)?.has(alias))).map((model) => model.model_id));
           const count = linkedIds.size;
-          const approvedCount = rows.filter((row) => linkedIds.has(row.model_id) && row.review_status === "approved" && (row.capability_key === item.key || (ALIASES[item.key] ?? []).includes(row.capability_key ?? ""))).length;
+          const matchingRows = rows.filter((row) => linkedIds.has(row.model_id) && (row.capability_key === item.key || (ALIASES[item.key] ?? []).includes(row.capability_key ?? "")));
+          const approvedCount = matchingRows.filter((row) => row.review_status === "approved").length;
+          const pendingCount = matchingRows.filter((row) => row.review_status === "suggested" || row.review_status === "legacy_unreviewed" || !row.review_status).length;
+          const rejectedCount = matchingRows.filter((row) => row.review_status === "rejected").length;
           return <Pressable key={item.key} onPress={() => { setSelectedCapability(item.key); setSearch(""); setNotice(null); setError(null); }} style={styles.tile}>
             <View style={styles.tileIcon}><Ionicons name={item.icon} size={23} color={colors.primary}/></View>
             <Text style={styles.tileTitle}>{item.label}</Text>
-            <Text style={styles.tileCount}>{count} نموذج · {approvedCount} معتمد</Text>
+            <Text style={styles.tileCount}>{count} نموذج</Text>
+            <Text style={styles.tileMeta}>{approvedCount} معتمد · {pendingCount} للمراجعة · {rejectedCount} مرفوض</Text>
           </Pressable>;
         })}
       </View>
@@ -265,7 +269,7 @@ const createStyles = (c: ThemePalette) => StyleSheet.create({
   grid: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 8 },
   tile: { width: "31.5%", minHeight: 112, borderWidth: 1, borderColor: c.divider, borderRadius: 12, backgroundColor: c.surface, alignItems: "center", justifyContent: "center", padding: 9, gap: 7 },
   tileIcon: { width: 42, height: 42, borderRadius: 12, backgroundColor: c.primary + "14", alignItems: "center", justifyContent: "center" },
-  tileTitle: { color: c.textPrimary, fontSize: 9, fontWeight: "800", textAlign: "center" }, tileCount: { color: c.textMuted, fontSize: 8 },
+  tileTitle: { color: c.textPrimary, fontSize: 9, fontWeight: "800", textAlign: "center" }, tileCount: { color: c.textMuted, fontSize: 8 }, tileMeta: { color: c.textMuted, fontSize: 7, textAlign: "center" },
   back: { flexDirection: "row-reverse", alignItems: "center", gap: 5, alignSelf: "flex-start" }, backText: { color: c.primary, fontSize: 10, fontWeight: "800" },
   detailTitleRow: { flexDirection: "row-reverse", alignItems: "center", gap: 9 }, detailTitleCopy: { flex: 1, alignItems: "flex-end", gap: 2 },
   actions: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 7 },

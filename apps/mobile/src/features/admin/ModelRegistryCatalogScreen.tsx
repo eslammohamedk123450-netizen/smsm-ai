@@ -260,8 +260,8 @@ export function ModelRegistryCatalogScreen() {
         </View>
       </View>
       <View style={styles.capabilityLine}>
-        {(CAPABILITIES.filter(([key]) => capabilitiesByModel.get(model.model_id)?.has(key))).map(([key, label, icon]) => {
-          const review = capabilityReviewsByModel.get(model.model_id)?.get(key) ?? "legacy_unreviewed";
+        {(CAPABILITIES.filter(([key]) => [key, ...(CAPABILITY_ALIASES[key] ?? [])].some((candidate) => capabilitiesByModel.get(model.model_id)?.has(candidate)))).map(([key, label, icon]) => {
+          const review = capabilityReviewsByModel.get(model.model_id)?.get(key) ?? (CAPABILITY_ALIASES[key] ?? []).map((alias) => capabilityReviewsByModel.get(model.model_id)?.get(alias)).find(Boolean) ?? "legacy_unreviewed";
           return <View key={key} style={[styles.capabilityBadge, review === "approved" ? styles.capabilityBadgeApproved : review === "rejected" ? styles.capabilityBadgeRejected : styles.capabilityBadgePending]}><Ionicons name={icon} size={13} color={colors.textSecondary}/><View style={styles.capabilityBadgeCopy}><Text style={styles.capabilityText}>{label}</Text><Text style={styles.capabilityReviewText}>{REVIEW_LABEL[review]}</Text></View></View>;
         })}
         {!capabilitiesByModel.get(model.model_id)?.size ? <Text style={styles.meta}>لا توجد قدرات مسجلة بعد</Text> : null}
@@ -288,7 +288,7 @@ export function ModelRegistryCatalogScreen() {
             <Text style={[styles.tableHeaderCell, styles.tableActionsCell]}>الإجراءات</Text>
           </View>
           {filtered.map((model) => {
-            const modelCapabilities = CAPABILITIES.filter(([key]) => capabilitiesByModel.get(model.model_id)?.has(key)).map(([key, label]) => `${label} (${REVIEW_LABEL[capabilityReviewsByModel.get(model.model_id)?.get(key) ?? "legacy_unreviewed"]})`);
+            const modelCapabilities = CAPABILITIES.filter(([key]) => [key, ...(CAPABILITY_ALIASES[key] ?? [])].some((candidate) => capabilitiesByModel.get(model.model_id)?.has(candidate))).map(([key, label]) => `${label} (${REVIEW_LABEL[capabilityReviewsByModel.get(model.model_id)?.get(key) ?? (CAPABILITY_ALIASES[key] ?? []).map((alias) => capabilityReviewsByModel.get(model.model_id)?.get(alias)).find(Boolean) ?? "legacy_unreviewed"]})`);
             return <View key={model.model_id} style={styles.tableRow}>
               <View style={[styles.tableCell, styles.tableNameCell]}><Text style={styles.tableModelName}>{model.display_name}</Text><Text style={styles.meta}>{model.model_identifier}</Text></View>
               <View style={[styles.tableCell, styles.tableProviderCell]}><Text style={styles.tableCellText}>{model.provider_name ?? `مزود #${model.provider_id}`}</Text><Text style={styles.meta}>{model.provider_type ?? "—"}</Text></View>
@@ -331,8 +331,8 @@ export function ModelRegistryCatalogScreen() {
             {selectedDetailTab === "capabilities" ? <>
               <Text style={styles.detailSectionTitle}>القدرات المسجلة وحالة اعتماد كل قدرة</Text>
               <View style={styles.capabilityLine}>
-                {(CAPABILITIES.filter(([key]) => capabilitiesByModel.get(selectedModel.model_id)?.has(key))).map(([key, label, icon]) => {
-                  const review = capabilityReviewsByModel.get(selectedModel.model_id)?.get(key) ?? "legacy_unreviewed";
+                {(CAPABILITIES.filter(([key]) => [key, ...(CAPABILITY_ALIASES[key] ?? [])].some((candidate) => capabilitiesByModel.get(selectedModel.model_id)?.has(candidate)))).map(([key, label, icon]) => {
+                  const review = capabilityReviewsByModel.get(selectedModel.model_id)?.get(key) ?? (CAPABILITY_ALIASES[key] ?? []).map((alias) => capabilityReviewsByModel.get(selectedModel.model_id)?.get(alias)).find(Boolean) ?? "legacy_unreviewed";
                   return <View key={key} style={[styles.capabilityBadge, review === "approved" ? styles.capabilityBadgeApproved : review === "rejected" ? styles.capabilityBadgeRejected : styles.capabilityBadgePending]}><Ionicons name={icon} size={13} color={colors.textSecondary}/><View style={styles.capabilityBadgeCopy}><Text style={styles.capabilityText}>{label}</Text><Text style={styles.capabilityReviewText}>{REVIEW_LABEL[review]}</Text></View></View>;
                 })}
                 {!capabilitiesByModel.get(selectedModel.model_id)?.size ? <Text style={styles.meta}>لا توجد قدرات مسجلة لهذا النموذج.</Text> : null}
