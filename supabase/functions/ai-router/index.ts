@@ -2031,6 +2031,13 @@ async function handleRequest(req: Request): Promise<Response> {
     if (await checkAgentCancellation()) {
       await updateWorkspace("cancelled", { parts: splitParts.length, completed: resumedResults.size, cancelled: true });
       await clearSharedTaskMemory(supabase, billingTaskId);
+      const completedDuringRun = taskExecution.filter((outcome) => outcome.status === "completed" && Boolean(outcome.result)).length;
+      await finishAiRequest("cancelled", null, null, {
+        route: "task_split",
+        parts: splitParts.length,
+        completed_parts: resumedResults.size + completedDuringRun,
+        partial: true,
+      }, "client_cancelled");
       return jsonResponse({
         agent_status: "cancelled",
         response: "تم إيقاف المهمة بناءً على طلبك، واحتفظت بالخطوات التي اكتملت قبل الإيقاف.",
@@ -2932,7 +2939,7 @@ async function handleRequest(req: Request): Promise<Response> {
       billing,
       user_metadata: userMetadata,
     };
-    await finishAiRequest("completed", messageId, messageId ? null : content, info);
+    await finishAiRequest(agentWorkspaceStatus === "cancelled" ? "cancelled" : "completed", messageId, messageId ? null : content, info, agentWorkspaceStatus === "cancelled" ? "client_cancelled" : null);
     if (streamRequested) return sseTextResponse(content, info, req, taskUpdates);
     return jsonResponse({ ...info, response: { choices: [{ message: { role: "assistant", content } }] } }, 200, req);
   }
