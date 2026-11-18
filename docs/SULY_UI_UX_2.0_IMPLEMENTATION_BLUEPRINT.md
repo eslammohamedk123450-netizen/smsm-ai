@@ -567,10 +567,12 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 - **Deliverable:** task lifecycle, cancellation, reconnect, partial billing, and safe-rendering tests.
 
 ### Phase 5 — Studio, library, projects, and connected tools
-**Status: ◐ 50% — core routes/services exist; end-to-end availability and action audit remains.**
+**Status: 🟡 50% — existing feature routes/services are confirmed; Phase 5 is now active for the end-to-end action, permission, and availability audit.**
 
 - ☑️ Confirm Studio, media/library, projects, and integrations areas exist in the current application source/inventory.
-- ◐ Map each visible action to its service, permission boundary, and real connection/capability status.
+- 🟡 Map each visible action to its service, permission boundary, and real connection/capability status.
+- ⬜ Inspect every Studio action, upload/delivery path, library operation, project CRUD action, and connector connect/disconnect flow against its actual service and server permission.
+- ⬜ Verify loading, empty, error, unavailable, connected, disconnected, and revoked states; remove or relabel any decorative/unwired control without removing working features.
 - ⬜ Apply the shared monochrome page patterns without removing existing working capabilities or HIMS.
 - ⬜ Mark unavailable integrations/capabilities honestly; no decorative or fake actions.
 - ⬜ Run owner-scoped project, upload/delivery, connector authorization, and route tests.
