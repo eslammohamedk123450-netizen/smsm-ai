@@ -111,8 +111,6 @@ export function ModelRegistryCatalogScreen() {
   const [testingModelId, setTestingModelId] = useState<number | null>(null);
   const [updatingModelId, setUpdatingModelId] = useState<number | null>(null);
   const [testResults, setTestResults] = useState<Record<number, string>>({});
-  const [capabilityPickerOpen, setCapabilityPickerOpen] = useState(false);
-  const [savingCapability, setSavingCapability] = useState<string | null>(null);
   const [usageTransactions, setUsageTransactions] = useState<ModelUsageTransaction[]>([]);
   const [companyCosts, setCompanyCosts] = useState<ModelCompanyCost[]>([]);
   const [probeLogs, setProbeLogs] = useState<ModelProbeLog[]>([]);
@@ -283,34 +281,6 @@ export function ModelRegistryCatalogScreen() {
     }
     router.push(`/admin/media-catalog?kind=${model.service_type}&q=${q}` as never);
   };
-  const addCapability = async (capabilityKey: string) => {
-    if (!selectedModel) return;
-    setSavingCapability(capabilityKey);
-    setError(null);
-    try {
-      const { data, error: rpcError } = await supabase.rpc("suly_admin_save_unified_model_capability", {
-        p_model_id: selectedModel.model_id,
-        p_capability_key: capabilityKey,
-        p_vendor_claim_status: "unknown",
-        p_vendor_evidence_url: null,
-        p_provider_test_status: "not_tested",
-        p_provider_evidence_url: null,
-        p_suly_test_status: "not_tested",
-        p_suly_evidence_url: null,
-        p_notes: "أضيفت من بطاقة النموذج؛ تحتاج إثبات دعم واختبار قبل اعتمادها.",
-        p_review_status: "suggested",
-      });
-      if (rpcError) throw rpcError;
-      if (data?.success !== true) throw new Error("لم تؤكد قاعدة البيانات إضافة القدرة.");
-      setCapabilityPickerOpen(false);
-      await load();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "تعذرت إضافة القدرة.");
-    } finally {
-      setSavingCapability(null);
-    }
-  };
-
   const models = useMemo(() => [...new Map(rows.map((row) => [row.model_id, row])).values()], [rows]);
   const mediaEvidenceRows = useMemo(() => rows.map((row) => ({
     provider_id: row.provider_id,
@@ -373,7 +343,7 @@ export function ModelRegistryCatalogScreen() {
     </View>
     <Text style={styles.resultCount}>عرض {filtered.length} من {models.length}</Text>
     {loading ? <ActivityIndicator color={colors.primary}/> : null}
-    {error ? <View style={styles.errorBox}><Text style={styles.error}>{error}</Text><Pressable onPress={() => void load()}><Text style={styles.link}>إعادة المحاولة</Text></Pressable></View> : null}
+    {error ? <View style={styles.errorBox}><Text style={styles.error}>{error}</Text><Pressable onPress={() => void load(true)}><Text style={styles.link}>إعادة المحاولة</Text></Pressable></View> : null}
     {!loading ? <View style={styles.modelGrid}>
       {filtered.map((model) => <View key={model.model_id} style={[styles.modelTile, { width: tileWidth }]}>
         <View style={styles.modelTileTop}>
@@ -428,7 +398,7 @@ export function ModelRegistryCatalogScreen() {
           {model.legacy_chat_model_id !== null && !model.provider_enabled ? <Text style={styles.error}>المزود معطّل؛ لن يُرسل الاختبار.</Text> : null}
         </View>
         <View style={styles.modelTileActions}>
-          <Pressable accessibilityRole="button" accessibilityLabel="القدرات" onPress={() => { setSelectedModel(model); setSelectedDetailTab("capabilities"); setCapabilityPickerOpen(false); }} style={styles.tileAction}><Ionicons name="add-circle-outline" size={16} color={colors.primary}/><Text style={styles.tileActionLabel}>قدرات</Text></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="عرض القدرات المسجلة" onPress={() => { setSelectedModel(model); setSelectedDetailTab("capabilities"); }} style={styles.tileAction}><Ionicons name="eye-outline" size={16} color={colors.primary}/><Text style={styles.tileActionLabel}>القدرات</Text></Pressable>
           {model.legacy_chat_model_id !== null ? <Pressable accessibilityRole="button" accessibilityLabel="اختبار النموذج" disabled={testingModelId !== null || updatingModelId !== null} onPress={() => void (async () => {
             const modelId = Number(model.legacy_chat_model_id); setTestingModelId(modelId);
             try {
@@ -439,7 +409,7 @@ export function ModelRegistryCatalogScreen() {
               setTestResults((current) => ({ ...current, [modelId]: cause instanceof Error ? cause.message : "تعذر تشغيل الاختبار." }));
             } finally { setTestingModelId(null); }
           })()} style={styles.tileAction}><Ionicons name={testingModelId === Number(model.legacy_chat_model_id) ? "hourglass-outline" : "flask-outline"} size={16} color={colors.primary}/><Text style={styles.tileActionLabel}>{testingModelId === Number(model.legacy_chat_model_id) ? "جارٍ" : "اختبار"}</Text></Pressable> : <View style={styles.tileActionDisabled}><Ionicons name="flask-outline" size={16} color={colors.textMuted}/><Text style={styles.tileActionLabel}>اختبار</Text></View>}
-          <Pressable accessibilityRole="button" accessibilityLabel="السجل والتفاصيل" onPress={() => { setSelectedModel(model); setSelectedDetailTab("info"); setCapabilityPickerOpen(false); }} style={styles.tileAction}><Ionicons name="document-text-outline" size={16} color={colors.textSecondary}/><Text style={styles.tileActionLabel}>تفاصيل</Text></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="السجل والتفاصيل" onPress={() => { setSelectedModel(model); setSelectedDetailTab("info");  }} style={styles.tileAction}><Ionicons name="document-text-outline" size={16} color={colors.textSecondary}/><Text style={styles.tileActionLabel}>تفاصيل</Text></Pressable>
         </View>
         {model.legacy_chat_model_id !== null && testResults[Number(model.legacy_chat_model_id)] ? <Text numberOfLines={2} style={testResults[Number(model.legacy_chat_model_id)].startsWith("نجح") || testResults[Number(model.legacy_chat_model_id)].startsWith("تم") ? styles.success : styles.error}>{testResults[Number(model.legacy_chat_model_id)]}</Text> : null}
       </View>)}
@@ -473,7 +443,7 @@ export function ModelRegistryCatalogScreen() {
             {selectedModel.legacy_chat_model_id !== null ? <Pressable accessibilityRole="button" onPress={() => { router.setParams({ q: selectedModel.model_identifier }); setSelectedModel(null); setAdvancedManagementOpen(true); }} style={styles.detailLink}><Text style={styles.detailLinkText}>إعدادات النموذج المتقدمة · القيود والتوجيه والصلاحيات</Text></Pressable> : null}
             </> : null}
             {selectedDetailTab === "capabilities" ? <>
-              <View style={styles.capabilityHeader}><Text style={styles.detailSectionTitle}>القدرات المسجلة وحالة اعتماد كل قدرة</Text><Pressable accessibilityRole="button" onPress={() => setCapabilityPickerOpen((value) => !value)} style={styles.detailLink}><Ionicons name="add" size={14} color={colors.primary}/><Text style={styles.detailLinkText}>إضافة قدرة</Text></Pressable></View>
+              <Text style={styles.detailSectionTitle}>القدرات المسجلة وحالة اعتماد كل قدرة</Text>
               <View style={styles.capabilityLine}>
                 {(CAPABILITIES.filter(([key]) => [key, ...(CAPABILITY_ALIASES[key] ?? [])].some((candidate) => capabilitiesByModel.get(selectedModel.model_id)?.has(candidate)))).map(([key, label, icon]) => {
                   const review = capabilityReviewsByModel.get(selectedModel.model_id)?.get(key) ?? (CAPABILITY_ALIASES[key] ?? []).map((alias) => capabilityReviewsByModel.get(selectedModel.model_id)?.get(alias)).find(Boolean) ?? "legacy_unreviewed";
@@ -483,7 +453,6 @@ export function ModelRegistryCatalogScreen() {
                 {!capabilitiesByModel.get(selectedModel.model_id)?.size ? <Text style={styles.meta}>لا توجد قدرات مسجلة لهذا النموذج.</Text> : null}
               </View>
               <Text style={styles.detailNoticeText}>القدرات المقترحة أو القديمة غير المعتمدة لا تُعرض كقدرات مؤكدة ولا ينبغي استخدامها في التوجيه قبل اعتمادها.</Text>
-              {capabilityPickerOpen ? <View style={styles.capabilityPicker}><Text style={styles.detailMetaLabel}>اختر قدرة لإضافتها كاقتراح يحتاج إثباتًا ومراجعة:</Text><View style={styles.capabilityLine}>{CAPABILITIES.filter(([key]) => ![key, ...(CAPABILITY_ALIASES[key] ?? [])].some((candidate) => capabilitiesByModel.get(selectedModel.model_id)?.has(candidate))).map(([key, label, icon]) => <Pressable key={key} accessibilityRole="button" disabled={savingCapability !== null} onPress={() => void addCapability(key)} style={styles.iconChip}><Ionicons name={icon} size={14} color={colors.primary}/><Text style={styles.chipText}>{savingCapability === key ? "جارٍ الإضافة…" : label}</Text></Pressable>)}</View></View> : null}
               <Text style={styles.detailNoticeText}>إضافة القدرة لا تعني أن النموذج يدعمها أو أنها مفعّلة. لا تعتمد أو تستخدم قبل إثبات دعم المزود ونجاح الاختبار.</Text>
               <Pressable accessibilityRole="button" onPress={() => setCapabilityReviewOpen(true)} style={styles.detailLink}><Text style={styles.detailLinkText}>مراجعة أدلة الدعم والاعتماد والاختبار</Text></Pressable>
             </> : null}
@@ -552,7 +521,7 @@ export function ModelRegistryCatalogScreen() {
       <View style={styles.fullPageDetail}>
         <View style={styles.detailModalHeader}>
           <Text style={styles.detailModalTitle}>مراجعة أدلة القدرات</Text>
-          <Pressable accessibilityRole="button" onPress={() => { setCapabilityReviewOpen(false); void load(); }}>
+          <Pressable accessibilityRole="button" onPress={() => { setCapabilityReviewOpen(false); void load(true); }}>
             <Ionicons name="close-circle-outline" size={24} color={colors.textMuted}/>
           </Pressable>
         </View>
@@ -572,7 +541,7 @@ export function ModelRegistryCatalogScreen() {
     </Modal>
     <Modal visible={mediaEditorOpen} transparent={false} animationType="slide" onRequestClose={() => setMediaEditorOpen(false)}>
       <View style={styles.fullPageDetail}>
-        <View style={styles.detailModalHeader}><Text style={styles.detailModalTitle}>إدارة نماذج الصور</Text><Pressable accessibilityRole="button" onPress={() => { setMediaEditorOpen(false); void load(); }}><Ionicons name="close-circle-outline" size={24} color={colors.textMuted}/></Pressable></View>
+        <View style={styles.detailModalHeader}><Text style={styles.detailModalTitle}>إدارة نماذج الصور</Text><Pressable accessibilityRole="button" onPress={() => { setMediaEditorOpen(false); void load(true); }}><Ionicons name="close-circle-outline" size={24} color={colors.textMuted}/></Pressable></View>
         <View style={{ flex: 1 }}>{mediaEditorOpen ? <MediaGenerationModelsAdminScreen /> : null}</View>
       </View>
     </Modal>
