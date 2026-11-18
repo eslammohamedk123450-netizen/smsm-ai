@@ -23,6 +23,8 @@ export function usePlusMenu() {
   return useContext(PlusMenuContext) ?? (() => undefined);
 }
 
+const BASIC_CHAT_ONLY = true;
+
 const ITEMS = [
   { key: "account", labelAr: "الحساب", labelEn: "Account", href: "/settings", icon: "person-circle-outline" as const },
 ] as const;
@@ -56,6 +58,10 @@ export function MainNavigation({ children }: Props) {
   const [recentRefresh, setRecentRefresh] = useState(0);
   const active = activeSection(pathname);
   const isChat = pathname.startsWith("/chat");
+
+  useEffect(() => {
+    if (BASIC_CHAT_ONLY && !pathname.startsWith("/chat") && !pathname.startsWith("/admin") && !pathname.startsWith("/settings")) router.replace("/chat");
+  }, [pathname, router]);
 
   useEffect(() => {
     let activeRequest = true;
