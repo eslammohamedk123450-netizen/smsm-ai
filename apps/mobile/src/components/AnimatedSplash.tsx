@@ -37,7 +37,7 @@ export function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
       clearTimeout(timer);
       entranceAnimation.stop();
     };
-  }, [onFinish, opacity, rotate]);
+  }, [onFinish, opacity]);
 
   return (
     <View style={styles.container}>
@@ -86,8 +86,8 @@ const styles = StyleSheet.create({
     }),
   },
   icon: {
-    width: 120,
-    height: 120,
-    borderRadius: 30,
+    width: 160,
+    height: 240,
+    borderRadius: 0,
   },
 });
