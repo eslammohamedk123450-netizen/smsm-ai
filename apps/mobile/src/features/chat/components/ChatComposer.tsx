@@ -329,7 +329,6 @@ const createStyles = (colors: ThemePalette, isArabic: boolean, canvasBackground:
     textAlign: isArabic ? "right" : "left",
     textAlignVertical: "top",
     writingDirection: isArabic ? "rtl" : "ltr",
-    ...(Platform.OS === "web" ? { outlineStyle: "none" as const, outlineWidth: 0 } : {}),
   },
   actionsRow: {
     flexDirection: "row",
