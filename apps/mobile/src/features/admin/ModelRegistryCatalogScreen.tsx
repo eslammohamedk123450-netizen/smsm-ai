@@ -502,7 +502,7 @@ export function ModelRegistryCatalogScreen() {
             <Ionicons name="close-circle-outline" size={24} color={colors.textMuted}/>
           </Pressable>
         </View>
-        <View style={{ flex: 1 }}><UnifiedModelCapabilitiesAdminCard/></View>
+        <View style={{ flex: 1 }}>{capabilityReviewOpen ? <UnifiedModelCapabilitiesAdminCard/> : null}</View>
       </View>
     </Modal>
     <Modal visible={advancedManagementOpen} transparent={false} animationType="slide" onRequestClose={() => { setAdvancedManagementOpen(false); router.setParams({ q: "" }); }}>
@@ -513,13 +513,13 @@ export function ModelRegistryCatalogScreen() {
             <Ionicons name="close-circle-outline" size={24} color={colors.textMuted}/>
           </Pressable>
         </View>
-        <View style={{ flex: 1 }}><ModelsAdminScreen showPricing={false}/></View>
+        <View style={{ flex: 1 }}>{advancedManagementOpen ? <ModelsAdminScreen showPricing={false}/> : null}</View>
       </View>
     </Modal>
     <Modal visible={mediaEditorOpen} transparent={false} animationType="slide" onRequestClose={() => setMediaEditorOpen(false)}>
       <View style={styles.fullPageDetail}>
         <View style={styles.detailModalHeader}><Text style={styles.detailModalTitle}>إدارة نماذج الصور</Text><Pressable accessibilityRole="button" onPress={() => { setMediaEditorOpen(false); void load(); }}><Ionicons name="close-circle-outline" size={24} color={colors.textMuted}/></Pressable></View>
-        <View style={{ flex: 1 }}><MediaGenerationModelsAdminScreen /></View>
+        <View style={{ flex: 1 }}>{mediaEditorOpen ? <MediaGenerationModelsAdminScreen /> : null}</View>
       </View>
     </Modal>
   </ScrollView>;
