@@ -539,7 +539,7 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 - ◐ Verify exact RTL/LTR visual ordering, touch targets, disabled states, and composer wrapping on real viewport sizes.
 - ☑️ Remove legacy chat-route model-profile option types, hardcoded defaults, and stale picker styles; verify the chat composer/message renderers contain no user-facing model/profile selector. Admin-only model governance is untouched.
 - ⬜ Run Arabic/English send, attachment, voice permission, cancellation, retry, and draft-preservation tests.
-- **Changed files:** apps/mobile/src/features/chat/components/ChatComposer.tsx; apps/mobile/app/(protected)/chat.tsx.
+- **Changed files:** apps/mobile/src/features/chat/components/ChatComposer.tsx; apps/mobile/app/(protected)/chat.tsx; apps/mobile/src/components/navigation/MainNavigation.tsx.
 - **Deliverable:** composer interaction matrix and chat send/upload regression report.
 
 ### Phase 4 — Always-available central Agent execution experience
