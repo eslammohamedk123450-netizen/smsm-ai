@@ -27,7 +27,7 @@ export function usePlusMenu() {
 const BASIC_CHAT_ONLY = true;
 
 const ITEMS = [
-  { key: "account", labelAr: "الحساب", labelEn: "Account", href: "/settings", icon: "person-circle-outline" as const },
+  { key: "studio", labelAr: "الاستوديو", labelEn: "Studio", href: "/studio", icon: "color-wand-outline" as const },
 ] as const;
 
 function activeSection(pathname: string): string {
