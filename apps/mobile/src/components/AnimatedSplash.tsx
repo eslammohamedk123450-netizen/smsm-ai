@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
-import { Animated, Easing, Image, Platform, StatusBar, StyleSheet, View } from "react-native";
+import { Animated, Easing, Platform, StatusBar, StyleSheet, View } from "react-native";
 import * as SplashScreen from "expo-splash-screen";
+import { AppLogo } from "./ui/AppLogo";
 
 interface AnimatedSplashProps {
   onFinish?: () => void;
@@ -50,12 +51,7 @@ export function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
           },
         ]}
       >
-        <Image
-          source={require("../../assets/suly-icon.jpg")}
-          style={styles.icon}
-          resizeMode="contain"
-          accessibilityLabel="Suly Icon"
-        />
+        <AppLogo size={160} accessibilityLabel="شعار SULY" />
       </Animated.View>
     </View>
   );
@@ -71,8 +67,8 @@ const styles = StyleSheet.create({
   },
   glowWrap: {
     width: 160,
-    height: 240,
-    borderRadius: 0,
+    height: 160,
+    borderRadius: 36,
     backgroundColor: "#000000",
     shadowColor: "#FFFFFF",
     shadowRadius: 28,
@@ -84,10 +80,5 @@ const styles = StyleSheet.create({
         filter: "drop-shadow(0 0 24px rgba(255, 255, 255, 0.16))",
       },
     }),
-  },
-  icon: {
-    width: 160,
-    height: 240,
-    borderRadius: 0,
   },
 });
