@@ -528,7 +528,7 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 - **Deliverable:** responsive navigation implementation and CI-verified type safety; rendered screenshots remain in Phase 7.
 
 ### Phase 3 — Unified chat shell and composer
-**Status: 🟡 75% — connectors/attachments are separated, Stop is explicit, and legacy chat profile-picker remnants are removed; interaction review and regression checks remain.**
+**Status: 🟡 80% — composer controls, live connectors destination, 42 px touch targets, and legacy profile cleanup are implemented; TypeScript/theme checks pass while broader interaction regression tests remain.**
 
 - ☑️ Confirm chat uses one chronological conversation stream and existing send/retry/regenerate services.
 - ☑️ Confirm send/retry/regenerate requests use automatic model profile and execution mode values in the inspected chat route.
@@ -538,8 +538,11 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 - ☑️ Preserve the flexible 42–132 px multiline input; standardize composer spacing to 8 px and action hit targets to 42 px; replace the streaming spinner-only control with a labeled Stop action using the existing cancellation callback.
 - ◐ Verify exact RTL/LTR visual ordering, touch targets, disabled states, and composer wrapping on real viewport sizes.
 - ☑️ Remove legacy chat-route model-profile option types, hardcoded defaults, and stale picker styles; verify the chat composer/message renderers contain no user-facing model/profile selector. Admin-only model governance is untouched.
+- ☑️ Confirm Expo TypeScript typecheck passed for the latest composer/connectors implementation.
+- ☑️ Confirm shared monochrome theme regression, HIMS isolation, Edge bundle, and currency-safe billing checks passed on the navigation/composer branch.
 - ⬜ Run Arabic/English send, attachment, voice permission, cancellation, retry, and draft-preservation tests.
 - **Changed files:** apps/mobile/src/features/chat/components/ChatComposer.tsx; apps/mobile/app/(protected)/chat.tsx; apps/mobile/src/components/navigation/MainNavigation.tsx.
+- **CI evidence:** [Expo TypeScript typecheck](https://github.com/eslammohamedk123450-netizen/smsm-ai/actions/runs/44286060718/job/134739068844); [theme regression and shared Expo typecheck](https://github.com/eslammohamedk123450-netizen/smsm-ai/actions/runs/44286060748/job/134738928488); [HIMS isolation](https://github.com/eslammohamedk123450-netizen/smsm-ai/actions/runs/44286060748/job/134738927998).
 - **Deliverable:** composer interaction matrix and chat send/upload regression report.
 
 ### Phase 4 — Always-available central Agent execution experience
