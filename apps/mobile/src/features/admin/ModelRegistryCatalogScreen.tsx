@@ -382,6 +382,7 @@ export function ModelRegistryCatalogScreen() {
           try {
             const result = await adminService.testModel(modelId);
             setTestResults((current) => ({ ...current, [modelId]: result.status === "success" ? `نجح الاختبار · ${result.duration_ms}ms` : `فشل الاختبار · ${result.error_code ?? "provider_error"}` }));
+            await load();
           } catch (cause) {
             setTestResults((current) => ({ ...current, [modelId]: cause instanceof Error ? cause.message : "تعذر تشغيل الاختبار." }));
           } finally { setTestingModelId(null); }
