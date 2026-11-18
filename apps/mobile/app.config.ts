@@ -14,6 +14,7 @@ const config: ExpoConfig & { splash?: { image: string; resizeMode: "contain"; ba
   android: {
     package: "com.suly.agentai",
     versionCode: 11,
+    softwareKeyboardLayoutMode: "resize",
     intentFilters: [
       {
         action: "VIEW",

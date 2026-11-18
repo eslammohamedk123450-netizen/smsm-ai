@@ -846,7 +846,7 @@ export default function ChatPage() {
           ref={composerRef}
           basicMode={BASIC_CHAT_ONLY}
           onSend={handleSend}
-          disabled={isSending || Boolean(connectorApproval) || !selectedModelId}
+          disabled={isSending || Boolean(connectorApproval)}
           isStreaming={isSending}
           onCancel={() => abortRef.current?.abort()}
         />
