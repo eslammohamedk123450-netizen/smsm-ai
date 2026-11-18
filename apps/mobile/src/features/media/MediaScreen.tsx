@@ -229,6 +229,12 @@ export function MediaScreen() {
 
     {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
     {notice ? <Text style={styles.success}>{notice}</Text> : null}
+    {loading ? (
+      <View accessibilityRole="progressbar" accessibilityLabel={isArabic ? "جارٍ تحميل المكتبة" : "Loading library"} style={styles.loadingState}>
+        <ActivityIndicator color={colors.primary} />
+        <Text style={styles.meta}>{isArabic ? "جارٍ تحميل ملفاتك ومجلداتك…" : "Loading your files and folders…"}</Text>
+      </View>
+    ) : null}
     {busy ? <ActivityIndicator color={colors.primary} /> : null}
 
     <View style={styles.filters}>
@@ -322,6 +328,7 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   error: { color: colors.error, textAlign: isArabic ? "right" : "left" },
   success: { color: colors.success, textAlign: isArabic ? "right" : "left" },
   empty: { color: colors.textSecondary, textAlign: "center", marginTop: 8 },
+  loadingState: { minHeight: 72, alignItems: "center", justifyContent: "center", gap: 8 },
   grid: { flexDirection: isArabic ? "row-reverse" : "row", flexWrap: "wrap", gap: 12 },
   card: { width: 160, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 12, padding: 8, gap: 4 },
   thumb: { width: "100%", height: 110, borderRadius: 8, backgroundColor: colors.surfaceElevated },
