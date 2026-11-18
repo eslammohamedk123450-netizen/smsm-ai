@@ -774,11 +774,10 @@ export default function ChatPage() {
         {isLoading ? <View style={styles.loading}><ActivityIndicator color={colors.primary} /><Text style={styles.loadingText}>{isArabic ? "جارٍ تحميل المحادثة…" : "Loading conversation…"}</Text></View> : messages.length === 0 ? (
           <View style={styles.empty}>
             <View style={styles.welcomeMark}>
-              <Ionicons name="sparkles" size={30} color={colors.onPrimary} />
+              <Text style={styles.welcomeMarkText}>S</Text>
             </View>
-            <Text style={styles.welcomeEyebrow}>{isArabic ? "مساحة عملك الذكية" : "YOUR INTELLIGENT WORKSPACE"}</Text>
-            <Text style={styles.emptyTitle}>{isArabic ? "أهلًا بك، نبدأ بإيه؟" : "What would you like to do?"}</Text>
-            <Text style={styles.emptySubtitle}>{isArabic ? "اختر النموذج، اكتب رسالتك، وسيجيبك مباشرة." : "Choose a model, write your message, and get a direct response."}</Text>
+            <Text style={styles.emptyTitle}>{isArabic ? "مرحبًا، كيف يمكنني مساعدتك اليوم؟" : "Hello, how can I help you today?"}</Text>
+            <Text style={styles.emptySubtitle}>{isArabic ? "اكتب رسالتك بالأسفل لبدء المحادثة." : "Write your message below to start a conversation."}</Text>
             {!BASIC_CHAT_ONLY ? <>
               <View style={styles.suggestionHeading}>
                 <Text style={styles.suggestionHeadingText}>{isArabic ? "ابدأ بفكرة" : "GET STARTED"}</Text>
@@ -886,11 +885,11 @@ export default function ChatPage() {
 const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
-  appBar: { minHeight: 64, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: colors.divider, backgroundColor: colors.background },
-  headerButton: { width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 14, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.divider },
+  appBar: { minHeight: 56, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: Platform.OS === "web" ? 24 : 16, backgroundColor: colors.background },
+  headerButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 22, backgroundColor: "transparent", borderWidth: 0 },
   headerSpacer: { width: 42, height: 42 },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 6 },
-  modelSelector: { flex: 1, maxWidth: 320, minWidth: 90, height: 38, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 6, borderWidth: 1, borderColor: colors.divider, borderRadius: 12, backgroundColor: colors.surfaceElevated, paddingHorizontal: 8 },
+  modelSelector: { flex: 1, maxWidth: 360, minWidth: 90, height: 42, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 7, borderWidth: 0, borderColor: "transparent", borderRadius: 12, backgroundColor: "transparent", paddingHorizontal: 8 },
   modelSelectorText: { flex: 1, color: colors.textPrimary, fontSize: 11, fontWeight: "700", textAlign: isArabic ? "right" : "left" },
   navigationMenuScroll: { maxHeight: 560 },
   navigationMenu: { gap: 7, paddingBottom: 8 },
@@ -923,11 +922,12 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   messageListContainer: { flex: 1, position: "relative" },
   scrollToBottomButton: { position: "absolute", right: 24, bottom: 12, width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.divider, elevation: 5, zIndex: 2 },
   messageContent: { flexGrow: 1, paddingVertical: 12 },
-  empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 22, paddingVertical: 24, gap: 12, width: "100%", maxWidth: 760, alignSelf: "center" },
-  welcomeMark: { width: 66, height: 66, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: colors.primary, marginBottom: 4 },
+  empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 22, paddingVertical: 24, gap: 12, width: "100%", maxWidth: 900, alignSelf: "center" },
+  welcomeMark: { width: 58, height: 58, borderRadius: 29, alignItems: "center", justifyContent: "center", backgroundColor: "transparent", marginBottom: 4 },
+  welcomeMarkText: { color: colors.primary, fontSize: 48, fontWeight: "900", letterSpacing: -3 },
   welcomeEyebrow: { color: colors.textMuted, fontSize: 10, fontWeight: "800", letterSpacing: 2, textAlign: "center" },
-  emptyTitle: { color: colors.textPrimary, fontSize: 28, fontWeight: "800", textAlign: "center", letterSpacing: -0.5 },
-  emptySubtitle: { color: colors.textSecondary, fontSize: 14, lineHeight: 23, textAlign: "center", maxWidth: 480, marginBottom: 10 },
+  emptyTitle: { color: colors.textPrimary, fontSize: 25, fontWeight: "600", textAlign: "center", letterSpacing: -0.3, paddingHorizontal: 8 },
+  emptySubtitle: { color: colors.textMuted, fontSize: 14, lineHeight: 23, textAlign: "center", maxWidth: 520, marginBottom: 10 },
   suggestionHeading: { width: "100%", maxWidth: 620, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 12, marginTop: 4, marginBottom: 2 },
   suggestionHeadingText: { color: colors.textMuted, fontSize: 10, fontWeight: "800", letterSpacing: 1.2 },
   suggestionHeadingLine: { flex: 1, height: 1, backgroundColor: colors.divider },
