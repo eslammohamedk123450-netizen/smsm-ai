@@ -527,7 +527,7 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 - **Deliverable:** responsive navigation implementation and CI-verified type safety; rendered screenshots remain in Phase 7.
 
 ### Phase 3 — Unified chat shell and composer
-**Status: 🟡 65% — composer control separation and automatic-mode presentation implemented on develop; source cleanup, interaction review, and regression checks remain.**
+**Status: 🟡 75% — connectors/attachments are separated, Stop is explicit, and legacy chat profile-picker remnants are removed; interaction review and regression checks remain.**
 
 - ☑️ Confirm chat uses one chronological conversation stream and existing send/retry/regenerate services.
 - ☑️ Confirm send/retry/regenerate requests use automatic model profile and execution mode values in the inspected chat route.
@@ -536,9 +536,9 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 - ☑️ Add a separate paperclip control that opens only the supported attachment sheet; the two actions are no longer conflated.
 - ☑️ Preserve the flexible 42–132 px multiline input and microphone/send controls; replace the streaming spinner-only control with a labeled Stop action using the existing cancellation callback.
 - ◐ Verify exact RTL/LTR visual ordering, touch targets, disabled states, and composer wrapping on real viewport sizes.
-- ⬜ Remove remaining legacy user-facing model/profile selector types, defaults, and stale styles after source-wide reference checks; do not touch admin model governance.
+- ☑️ Remove legacy chat-route model-profile option types, hardcoded defaults, and stale picker styles; verify the chat composer/message renderers contain no user-facing model/profile selector. Admin-only model governance is untouched.
 - ⬜ Run Arabic/English send, attachment, voice permission, cancellation, retry, and draft-preservation tests.
-- **Changed file:** apps/mobile/src/features/chat/components/ChatComposer.tsx.
+- **Changed files:** apps/mobile/src/features/chat/components/ChatComposer.tsx; apps/mobile/app/(protected)/chat.tsx.
 - **Deliverable:** composer interaction matrix and chat send/upload regression report.
 
 ### Phase 4 — Always-available central Agent execution experience
