@@ -217,8 +217,9 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
           accessibilityLabel={isArabic ? "اسأل Suly" : "Ask SULY"}
         />
 
-        {/* Fixed LTR action row matching home design: outlined Send + Mic on left, solid + on right */}
+        {/* Keep the attachment action on the physical right and send/mic on the left. */}
         <View style={styles.actionsRow}>
+
           <View style={styles.leftControls}>
             {isStreaming ? (
               <Pressable
