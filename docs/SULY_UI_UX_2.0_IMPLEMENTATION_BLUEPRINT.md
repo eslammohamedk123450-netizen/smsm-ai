@@ -546,20 +546,23 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 - **Deliverable:** composer interaction matrix and chat send/upload regression report.
 
 ### Phase 4 — Always-available central Agent execution experience
-**Status: 🟡 75% — durable Agent progress is connected to the unified chat; final regression suite and runtime interaction verification remain pending.**
+**Status: 🟡 85% — safe in-chat progress, recovery, scoped Stop, server cancellation, and partial credit settlement are implemented on develop; final automated and live-session verification remains.**
 
 - ☑️ Preserve one central AI Router / Agent decision authority; do not introduce a second planner.
-- ☑️ Confirm durable task progress and bounded task-history services exist in task-service.ts.
+- ☑️ Read owner-scoped durable Agent workspaces, bounded step history, and registered tool activity through the existing RLS-protected tables.
 - ☑️ Render the safe persisted Agent workspace card directly after its owning user message in the same conversation.
 - ☑️ Show bounded plan summaries, execution steps, registered tool activity, and authoritative status only; hidden reasoning, raw tool inputs/results, and private metadata remain excluded by the safe projection.
-- ☑️ Connect the card Stop action to the existing request AbortSignal; ai-router checks the request signal during Agent orchestration and persists the terminal cancelled state.
-- ☑️ Recover progress by conversation after reload and poll while a recovered workspace remains non-terminal.
-- ☑️ Keep credits/usage sourced from the existing authoritative task usage and credit services; the execution card does not fabricate costs.
-- ⏸️ Confirm final Jest regression suite and Web/Android/iOS exports on the latest develop commit; workflow is still running.
-- ⏸️ Complete real-session checks for stop timing, reconnect/reload, duplicate prevention, and partial/failed task presentation.
-- **Implementation commits:** 0c128fb0528a3092f9d7fb86ef0b8717631c34e1; 0ee02eab9cd854b66d33e4e947ec1e89069a259a; 23d06efbda19fd71e91b3fcc9e649c7efa57bef5; 6a126ff6d36d95171af7ba7e038b8e763fb77e43.
-- **CI evidence:** [Edge bundle verification](https://github.com/eslammohamedk123450-netizen/smsm-ai/actions/runs/44287722609); [Agent runtime, TypeScript, Jest, and Expo exports](https://github.com/eslammohamedk123450-netizen/smsm-ai/actions/runs/44287722593).
-- **Deliverable:** task lifecycle, cancellation, reconnect, and safe-rendering tests.
+- ☑️ Recover progress by conversation after reload and poll while a recovered workspace remains non-terminal; newest retry workspace is preferred for the same user message.
+- ☑️ Scope the Stop control to the currently executing user message so it cannot abort an unrelated older task.
+- ☑️ Propagate the request AbortSignal through model racing and response collection; persist the workspace as cancelled only after the server observes cancellation.
+- ☑️ Finalize cancelled AI requests through the existing billing settlement path; settle measured partial usage and preserve completed split-task results in chat history.
+- ☑️ Keep credits/usage sourced from existing authoritative credit holds and task usage services; the execution card does not fabricate costs.
+- ☑️ Add safe-projection and server-cancelled-state unit coverage in task-service.test.ts.
+- ⏸️ Latest Agent runtime Jest/Deno regression suite is waiting on GitHub Actions approval; earlier TypeScript, HIMS, billing, and bundle checks passed on preceding commits, not this final cancellation revision.
+- ⏸️ Complete real-session checks for stop timing, reconnect/reload, duplicate prevention, partial/failed task presentation, and provider cancellation behavior.
+- **Changed files:** apps/mobile/src/features/brain/task-service.ts; apps/mobile/src/features/brain/task-service.test.ts; apps/mobile/src/features/chat/components/AgentExecutionCard.tsx; apps/mobile/app/(protected)/chat.tsx; supabase/functions/ai-router/index.ts; .github/workflows/verify-agent-queue.yml.
+- **CI evidence:** [Expo TypeScript typecheck](https://github.com/eslammohamedk123450-netizen/smsm-ai/actions/runs/44288051697); [latest production web PR build](https://github.com/eslammohamedk123450-netizen/smsm-ai/actions/runs/44290016964) (build-only for PR; deploy job is not run); [latest Agent runtime verification](https://github.com/eslammohamedk123450-netizen/smsm-ai/actions/runs/44290016993) (pending approval).
+- **Deliverable:** task lifecycle, cancellation, reconnect, partial billing, and safe-rendering tests.
 
 ### Phase 5 — Studio, library, projects, and connected tools
 **Status: ◐ 50% — core routes/services exist; end-to-end availability and action audit remains.**
