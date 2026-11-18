@@ -12,9 +12,9 @@ export function AppLogo({ size = 76, accessibilityLabel = "أيقونة Suly" }:
   return (
     <View style={[styles.wrap, { width: size, height: size, borderRadius: radius }]}>
       <Image
-        source={require("../../../assets/suly-icon.png")}
+        source={require("../../../assets/suly-icon.jpg")}
         style={{ width: size, height: size, borderRadius: radius }}
-        resizeMode="cover"
+        resizeMode="contain"
         accessibilityLabel={accessibilityLabel}
       />
     </View>

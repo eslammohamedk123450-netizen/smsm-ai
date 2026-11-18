@@ -5,6 +5,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { PremiumText as Text } from "../ui/PremiumText";
+import { AppLogo } from "../ui/AppLogo";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import { useAppLocale } from "../../theme/LocaleProvider";
 import type { ThemePalette } from "../../theme/colors";
@@ -112,7 +113,7 @@ export function MainNavigation({ children }: Props) {
   const sidebarContent = (
     <>
       <View style={[styles.drawerHeader, { flexDirection: isArabic ? "row-reverse" : "row" }, sidebarCollapsed && styles.collapsedHeader]}>
-        <View style={[styles.brandMark, { backgroundColor: colors.primary }]}><Text style={[styles.brandLetter, { color: colors.onPrimary }]}>S</Text></View>
+        <AppLogo size={44} />
         {!sidebarCollapsed ? (
           <View style={styles.drawerBrandCopy}>
             <Text style={[styles.drawerBrandName, { color: colors.textPrimary }]}>SULY</Text>
@@ -242,9 +243,7 @@ export function MainNavigation({ children }: Props) {
                     <Text style={[styles.brandName, { color: colors.textPrimary }]}>SULY</Text>
                   </View>
                   <Pressable onPress={goHome} style={styles.homeButton} accessibilityRole="button" accessibilityLabel={isArabic ? "العودة إلى الصفحة الرئيسية" : "Return to home"}>
-                    <View style={[styles.homeMark, { backgroundColor: colors.primary }]}>
-                      <Text style={[styles.homeMarkLetter, { color: colors.onPrimary }]}>S</Text>
-                    </View>
+                    <AppLogo size={34} />
                   </Pressable>
                 </View>
               </SafeAreaView>

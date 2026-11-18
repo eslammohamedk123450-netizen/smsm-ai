@@ -4,12 +4,12 @@ const easProjectId = process.env.EAS_PROJECT_ID?.trim() || undefined;
 
 const config: ExpoConfig & { splash?: { image: string; resizeMode: "contain"; backgroundColor: string } } = {
   name: "SULY",
-  icon: "./assets/suly-icon.png",
+  icon: "./assets/suly-icon.jpg",
   owner: "suly-sam100",
   slug: "smsm-ai",
   scheme: "suly-agent-ai",
   version: "1.0.4",
-  splash: { image: "./assets/splash.png", resizeMode: "contain", backgroundColor: "#000000" },
+  splash: { image: "./assets/suly-icon.jpg", resizeMode: "contain", backgroundColor: "#000000" },
   runtimeVersion: { policy: "appVersion" },
   android: {
     package: "com.suly.agentai",
@@ -43,7 +43,7 @@ const config: ExpoConfig & { splash?: { image: string; resizeMode: "contain"; ba
       androidSpeechServicePackages: ["com.google.android.googlequicksearchbox", "com.google.android.tts"],
     }],
     ["expo-splash-screen", {
-      image: "./assets/splash.png",
+      image: "./assets/suly-icon.jpg",
       imageWidth: 200,
       resizeMode: "contain",
       backgroundColor: "#000000",

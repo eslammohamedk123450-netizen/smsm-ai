@@ -217,7 +217,7 @@ export function HomeScreen() {
 
 const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.create({
   screen: { flex: 1 },
-  content: { width: "100%", maxWidth: 1120, alignSelf: "center", paddingHorizontal: 20, paddingTop: 22, paddingBottom: 42, gap: 22 },
+  content: { width: "100%", maxWidth: 1440, alignSelf: "center", paddingHorizontal: 20, paddingTop: 22, paddingBottom: 42, gap: 22 },
   hero: { borderWidth: 1, borderRadius: 24, padding: 22, gap: 22 },
   heroBrandRow: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 10 },
   brandMark: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" },
