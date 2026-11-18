@@ -4,7 +4,6 @@ import { useSulyTheme } from "../../../theme/ThemeProvider";
 import type { ThemePalette } from "../../../theme/colors";
 import type { ElementRef } from "react";
 import {
-  ActivityIndicator,
   Image,
   Keyboard,
   Modal,
@@ -19,13 +18,14 @@ import { PremiumText as Text } from "../../../components/ui/PremiumText";
 import { Ionicons } from "@expo/vector-icons";
 import { useAppLocale } from "../../../theme/LocaleProvider";
 import { AttachSheet } from "./AttachSheet";
-import { usePlusMenu } from "../../../components/navigation/MainNavigation";
 import type { PickedMedia } from "../../media/media-service";
 
 export type ChatAttachment = PickedMedia;
+
 export interface ChatComposerHandle {
   editMessage(content: string): void;
 }
+
 export interface ChatComposerProps {
   onSend(content: string, attachment?: ChatAttachment): void;
   disabled?: boolean;
@@ -34,9 +34,8 @@ export interface ChatComposerProps {
   basicMode?: boolean;
 }
 
-const MIN_INPUT_HEIGHT = 42;
-const MAX_INPUT_HEIGHT = 132;
-
+const MIN_INPUT_HEIGHT = 44;
+const MAX_INPUT_HEIGHT = 136;
 
 export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(function ChatComposer(
   {
@@ -44,15 +43,15 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
     disabled = false,
     isStreaming = false,
     onCancel,
-    basicMode = false,
   },
   ref
 ) {
   const { isArabic } = useAppLocale();
   const { colors } = useSulyTheme();
-  const openPlusMenu = usePlusMenu();
-  const styles = useMemo(() => createStyles(colors, isArabic), [colors, isArabic]);
+  const canvasBackground = colors.background === "#0A0A0A" ? "#000000" : colors.background;
+  const styles = useMemo(() => createStyles(colors, isArabic, canvasBackground), [colors, isArabic, canvasBackground]);
   const [text, setText] = useState("");
+  const [isFocused, setIsFocused] = useState(false);
   const [inputHeight, setInputHeight] = useState(MIN_INPUT_HEIGHT);
   const [selection, setSelection] = useState<{ start: number; end: number } | undefined>();
   const [attachment, setAttachment] = useState<ChatAttachment | null>(null);
@@ -63,6 +62,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const voiceBaseTextRef = useRef("");
   const inputRef = useRef<ElementRef<typeof TextInput>>(null);
+
   useImperativeHandle(ref, () => ({
     editMessage(content: string) {
       setText(content);
@@ -85,7 +85,6 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
     setPreviewVisible(false);
     return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [attachment]);
-
 
   useSpeechRecognitionEvent("start", () => {
     setIsListening(true);
@@ -141,12 +140,17 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
     }
   };
 
+  const canSend = Boolean(text.trim() || attachment) && !disabled && !isStreaming;
+
   const submit = () => {
     const content = text.trim();
     if ((!content && !attachment) || disabled) return;
     Keyboard.dismiss();
     onSend(content, attachment ?? undefined);
-    setText(""); setInputHeight(MIN_INPUT_HEIGHT); setSelection(undefined); setAttachment(null);
+    setText("");
+    setInputHeight(MIN_INPUT_HEIGHT);
+    setSelection(undefined);
+    setAttachment(null);
   };
 
   return (
@@ -154,66 +158,43 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
       {isListening ? <Text style={styles.voiceListening}>{isArabic ? "جارٍ الاستماع… اضغط إيقاف عند الانتهاء." : "Listening… tap stop when finished."}</Text> : null}
       {voiceError ? <Text accessibilityRole="alert" style={styles.voiceError}>{voiceError}</Text> : null}
 
-      {attachment ? attachment.kind === "image" && attachmentPreviewUri ? (
-        <View style={styles.imageAttachmentPreview}>
-          <Pressable onPress={() => setPreviewVisible(true)} accessibilityRole="button" accessibilityLabel={isArabic ? "عرض معاينة الصورة" : "Preview image"}>
-            <Image source={{ uri: attachmentPreviewUri }} style={styles.attachmentThumbnail} resizeMode="cover" />
-          </Pressable>
-          <View style={styles.attachmentInfo}>
-            <Text numberOfLines={1} style={styles.attachmentText}>{attachment.part.name}</Text>
-            <Text style={styles.attachmentHint}>{isArabic ? "اضغط على الصورة للتكبير" : "Tap the image to enlarge"}</Text>
-          </View>
-          <Pressable onPress={() => setAttachment(null)} accessibilityRole="button" accessibilityLabel={isArabic ? "إزالة المرفق" : "Remove attachment"} style={styles.removeAttachmentButton}>
-            <Ionicons name="close" size={18} color={colors.textMuted} />
-          </Pressable>
-        </View>
-      ) : (
-        <View style={styles.attachmentChip}>
-          <Text numberOfLines={1} style={styles.attachmentText}>{isArabic ? `مرفق: ${attachment.part.name}` : `Attachment: ${attachment.part.name}`}</Text>
-          <Pressable onPress={() => setAttachment(null)} accessibilityRole="button" accessibilityLabel="إزالة المرفق">
-            <Text style={styles.removeAttachment}>×</Text>
-          </Pressable>
-        </View>
-      ) : null}
-
-      {/* Unified composer: connectors, attachments, message input, voice, and send/stop. */}
       <View style={styles.container}>
-        {/* RTL: connectors (+), attachments (paperclip), input, microphone, send/stop. */}
-        {!basicMode ? <TouchableOpacity
-          onPress={openPlusMenu}
-          disabled={disabled || isStreaming || isListening}
-          activeOpacity={0.7}
-          style={styles.plusButton}
-          accessibilityRole="button"
-          accessibilityLabel={isArabic ? "فتح الموصلات والأدوات" : "Open tools and connectors"}
-        >
-          <Ionicons name="add" size={22} color={colors.textMuted} />
-        </TouchableOpacity> : null}
+        {attachment ? attachment.kind === "image" && attachmentPreviewUri ? (
+          <View style={styles.imageAttachmentPreview}>
+            <Pressable onPress={() => setPreviewVisible(true)} accessibilityRole="button" accessibilityLabel={isArabic ? "عرض معاينة الصورة" : "Preview image"}>
+              <Image source={{ uri: attachmentPreviewUri }} style={styles.attachmentThumbnail} resizeMode="cover" />
+            </Pressable>
+            <View style={styles.attachmentInfo}>
+              <Text numberOfLines={1} style={styles.attachmentText}>{attachment.part.name}</Text>
+              <Text style={styles.attachmentHint}>{isArabic ? "اضغط على الصورة للتكبير" : "Tap the image to enlarge"}</Text>
+            </View>
+            <Pressable onPress={() => setAttachment(null)} accessibilityRole="button" accessibilityLabel={isArabic ? "إزالة المرفق" : "Remove attachment"} style={styles.removeAttachmentButton}>
+              <Ionicons name="close" size={18} color={colors.textMuted} />
+            </Pressable>
+          </View>
+        ) : (
+          <View style={styles.attachmentChip}>
+            <Text numberOfLines={1} style={styles.attachmentText}>{isArabic ? `مرفق: ${attachment.part.name}` : `Attachment: ${attachment.part.name}`}</Text>
+            <Pressable onPress={() => setAttachment(null)} accessibilityRole="button" accessibilityLabel={isArabic ? "إزالة المرفق" : "Remove attachment"}>
+              <Text style={styles.removeAttachment}>×</Text>
+            </Pressable>
+          </View>
+        ) : null}
 
-        {!basicMode ? <TouchableOpacity
-          onPress={() => setAttachVisible(true)}
-          disabled={disabled || isStreaming || isListening}
-          activeOpacity={0.7}
-          style={styles.attachmentButton}
-          accessibilityRole="button"
-          accessibilityLabel={isArabic ? "إرفاق صورة أو ملف" : "Attach an image or file"}
-        >
-          <Ionicons name="attach-outline" size={20} color={colors.textMuted} />
-        </TouchableOpacity> : null}
-
-        {/* Center: multiline message input. */}
         <TextInput
           ref={inputRef}
           value={text}
           onChangeText={(value) => { setText(value); if (voiceError) setVoiceError(null); }}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
           onContentSizeChange={(event) => {
-            const measuredHeight = Math.ceil(event.nativeEvent.contentSize.height) + 16;
+            const measuredHeight = Math.ceil(event.nativeEvent.contentSize.height) + 12;
             setInputHeight(Math.max(MIN_INPUT_HEIGHT, Math.min(MAX_INPUT_HEIGHT, measuredHeight)));
           }}
           selection={selection}
           onSelectionChange={(event) => setSelection(event.nativeEvent.selection)}
           editable={!disabled && !isStreaming && !isListening}
-          placeholder={isArabic ? "اسأل Suly" : "Ask SULY"}
+          placeholder={isFocused ? (isArabic ? "اسأل SULY..." : "Ask SULY...") : ""}
           placeholderTextColor={colors.textMuted}
           selectionColor={colors.primary}
           underlineColorAndroid="transparent"
@@ -226,51 +207,76 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
           accessibilityLabel={isArabic ? "اسأل Suly" : "Ask SULY"}
         />
 
-        {/* Compact voice, send and stop controls. */}
-        <View style={styles.leftControls}>
-          {isStreaming ? (
-            <Pressable style={styles.blueButton} onPress={onCancel} disabled={!onCancel} accessibilityRole="button" accessibilityLabel={isArabic ? "إيقاف الرد" : "Stop response"}>
-              <Ionicons name="stop" size={16} color={colors.onPrimary} />
-            </Pressable>
-          ) : !basicMode && isListening ? (
-            <Pressable
-              style={[styles.micButton, styles.micButtonActive]}
-              onPress={() => void handleVoicePress()}
-              accessibilityRole="button"
-              accessibilityLabel={isArabic ? "إيقاف الإملاء الصوتي" : "Stop voice dictation"}
-            >
-              <Ionicons name="stop" size={17} color={colors.onPrimary} />
-            </Pressable>
-          ) : basicMode ? (
-            text.trim() ? <Pressable style={[styles.blueButton, Platform.OS === "web" && styles.webSendButton]} onPress={submit} disabled={disabled}><Ionicons name="arrow-up" size={17} color={colors.onPrimary}/></Pressable> : <Pressable style={[styles.micButton, styles.controlDisabled]} disabled><Ionicons name="send-outline" size={17} color={colors.textMuted}/></Pressable>
-          ) : (
-            <>
+        {/* Fixed LTR action row matching home design: outlined Send + Mic on left, solid + on right */}
+        <View style={styles.actionsRow}>
+          <View style={styles.leftControls}>
+            {isStreaming ? (
               <Pressable
-                style={[styles.micButton, disabled && styles.controlDisabled]}
-                onPress={() => void handleVoicePress()}
-                disabled={disabled}
+                style={[styles.circleButton, styles.circleButtonFilled]}
+                onPress={onCancel}
+                disabled={!onCancel}
                 accessibilityRole="button"
-                accessibilityLabel={isArabic ? "إملاء رسالة صوتيًا" : "Dictate a message"}
+                accessibilityLabel={isArabic ? "إيقاف الرد" : "Stop response"}
               >
-                <Ionicons name="mic-outline" size={19} color={colors.textPrimary} />
+                <Ionicons name="stop" size={16} color={colors.onPrimary} />
               </Pressable>
-              {text.trim() || attachment ? (
-                <Pressable
-                  style={[styles.blueButton, Platform.OS === "web" && styles.webSendButton]}
-                  onPress={submit}
-                  disabled={disabled}
-                  accessibilityRole="button"
-                  accessibilityLabel={isArabic ? "إرسال" : "Send"}
-                >
-                  <><Ionicons name="arrow-up" size={18} color={colors.onPrimary} />{Platform.OS === "web" ? <Text style={styles.webSendLabel}>{isArabic ? "إرسال" : "Send"}</Text> : null}</>
-                </Pressable>
-              ) : null}
-            </>
-          )}
+            ) : (
+              <Pressable
+                style={[
+                  styles.circleButton,
+                  canSend ? styles.circleButtonFilled : styles.circleButtonOutlined,
+                ]}
+                onPress={submit}
+                disabled={!canSend}
+                accessibilityRole="button"
+                accessibilityLabel={isArabic ? "إرسال" : "Send"}
+              >
+                <Ionicons
+                  name="paper-plane-outline"
+                  size={17}
+                  color={canSend ? colors.onPrimary : colors.textPrimary}
+                />
+              </Pressable>
+            )}
+
+            <Pressable
+              style={[
+                styles.circleButton,
+                isListening ? styles.circleButtonFilled : styles.circleButtonOutlined,
+                disabled && styles.controlDisabled,
+              ]}
+              onPress={() => void handleVoicePress()}
+              disabled={disabled}
+              accessibilityRole="button"
+              accessibilityLabel={
+                isListening
+                  ? (isArabic ? "إيقاف الإملاء الصوتي" : "Stop voice dictation")
+                  : (isArabic ? "إملاء رسالة صوتيًا" : "Dictate a message")
+              }
+            >
+              <Ionicons
+                name={isListening ? "stop" : "mic-outline"}
+                size={18}
+                color={isListening ? colors.onPrimary : colors.textPrimary}
+              />
+            </Pressable>
+          </View>
+
+          <TouchableOpacity
+            onPress={() => setAttachVisible(true)}
+            disabled={disabled || isStreaming || isListening}
+            activeOpacity={0.8}
+            style={[styles.plusCircleButton, (disabled || isStreaming || isListening) && styles.controlDisabled]}
+            accessibilityRole="button"
+            accessibilityLabel={isArabic ? "إضافة مرفق" : "Add attachment"}
+          >
+            <Ionicons name="add" size={24} color={colors.onPrimary} />
+          </TouchableOpacity>
         </View>
       </View>
 
-      {!basicMode ? <AttachSheet visible={attachVisible} onClose={() => setAttachVisible(false)} onPicked={setAttachment} /> : null}
+      <AttachSheet visible={attachVisible} onClose={() => setAttachVisible(false)} onPicked={setAttachment} />
+
       <Modal visible={previewVisible} transparent animationType="fade" onRequestClose={() => setPreviewVisible(false)}>
         <Pressable style={styles.previewOverlay} onPress={() => setPreviewVisible(false)} accessibilityRole="button" accessibilityLabel={isArabic ? "إغلاق معاينة الصورة" : "Close image preview"}>
           <Pressable style={styles.previewClose} onPress={() => setPreviewVisible(false)} accessibilityRole="button" accessibilityLabel={isArabic ? "إغلاق" : "Close"}>
@@ -283,102 +289,119 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
   );
 });
 
-const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.create({
+const createStyles = (colors: ThemePalette, isArabic: boolean, canvasBackground: string) => StyleSheet.create({
   wrapper: {
     width: "100%",
-    maxWidth: 980,
+    maxWidth: 860,
     alignSelf: "center",
     paddingHorizontal: Platform.OS === "web" ? 24 : 16,
-    paddingTop: 10,
-    paddingBottom: 14,
-    backgroundColor: colors.background,
+    paddingTop: 6,
+    paddingBottom: 16,
+    backgroundColor: canvasBackground,
   },
   voiceError: { color: colors.error, fontSize: 10, lineHeight: 15, textAlign: isArabic ? "right" : "left", paddingHorizontal: 4, marginBottom: 5 },
   voiceListening: { color: colors.textSecondary, fontSize: 10, lineHeight: 15, textAlign: isArabic ? "right" : "left", paddingHorizontal: 4, marginBottom: 5 },
   controlDisabled: { opacity: 0.45 },
-  lowBalanceBanner: {
-    flexDirection: isArabic ? "row-reverse" : "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: colors.divider,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    marginBottom: 8,
-  },
-  bannerTextRow: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 6, flex: 1 },
-  bannerText: { color: colors.textPrimary, fontSize: 13, fontWeight: "400", textAlign: isArabic ? "right" : "left" },
-  bannerRechargeBtn: { backgroundColor: colors.primary, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 999 },
-  bannerRechargeText: { color: colors.onPrimary, fontSize: 11, fontWeight: "700" },
   container: {
-    minHeight: 64,
-    flexDirection: isArabic ? "row-reverse" : "row",
-    alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 22,
+    minHeight: 118,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 14,
+    borderRadius: 28,
     borderWidth: 1,
-    borderColor: colors.inputBorder,
+    borderColor: colors.background === "#0A0A0A" ? "#262626" : colors.inputBorder,
     backgroundColor: colors.surface,
-    gap: 7,
+    justifyContent: "space-between",
+    gap: 8,
     shadowColor: "#000",
-    shadowOpacity: 0.09,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
   },
-  plusButton: { width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 21 },
-  attachmentButton: { width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 21 },
   input: {
-    flex: 1,
+    width: "100%",
     minHeight: MIN_INPUT_HEIGHT,
     maxHeight: MAX_INPUT_HEIGHT,
     color: colors.textPrimary,
     backgroundColor: "transparent",
     borderWidth: 0,
     fontSize: 15,
-    lineHeight: 21,
-    paddingHorizontal: 10,
-    paddingTop: 8,
-    paddingBottom: 8,
+    lineHeight: 22,
+    paddingHorizontal: 4,
+    paddingTop: 2,
+    paddingBottom: 4,
     textAlign: isArabic ? "right" : "left",
     textAlignVertical: "top",
     writingDirection: isArabic ? "rtl" : "ltr",
   },
-  leftControls: { flexDirection: "row", alignItems: "center", gap: 8 },
-  blueButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+  actionsRow: {
+    flexDirection: "row",
+    direction: "ltr",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: 4,
+  },
+  leftControls: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  circleButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  circleButtonOutlined: {
+    backgroundColor: "transparent",
+    borderWidth: 1.5,
+    borderColor: colors.textPrimary,
+  },
+  circleButtonFilled: {
+    backgroundColor: colors.primary,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+  },
+  plusCircleButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.primary,
   },
-  blueButtonIdle: { backgroundColor: colors.primary, opacity: 0.9 },
-  micButton: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
-  micButtonActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  webSendButton: { width: "auto", minWidth: 72, paddingHorizontal: 12, flexDirection: "row", gap: 5, borderRadius: 20 },
-  webSendLabel: { color: colors.onPrimary, fontSize: 12, fontWeight: "700" },
   attachmentChip: {
     alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceElevated,
     borderWidth: 1,
     borderColor: colors.divider,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
-    marginBottom: 6,
+    marginBottom: 4,
   },
-  imageAttachmentPreview: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 10, maxWidth: "100%", marginBottom: 8, padding: 6, borderRadius: 14, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
-  attachmentThumbnail: { width: 66, height: 66, borderRadius: 9, backgroundColor: colors.surfaceElevated },
+  imageAttachmentPreview: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    maxWidth: "100%",
+    marginBottom: 4,
+    padding: 6,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.divider,
+    backgroundColor: colors.surfaceElevated,
+  },
+  attachmentThumbnail: { width: 56, height: 56, borderRadius: 9, backgroundColor: colors.surface },
   attachmentInfo: { flex: 1, minWidth: 0 },
-  attachmentHint: { color: colors.textMuted, fontSize: 11, marginTop: 4 },
-  removeAttachmentButton: { width: 30, height: 30, alignItems: "center", justifyContent: "center", borderRadius: 15, backgroundColor: colors.surfaceElevated },
+  attachmentHint: { color: colors.textMuted, fontSize: 11, marginTop: 3 },
+  removeAttachmentButton: { width: 30, height: 30, alignItems: "center", justifyContent: "center", borderRadius: 15, backgroundColor: colors.surface },
   attachmentText: { color: colors.textPrimary, fontSize: 12 },
   removeAttachment: { color: colors.textMuted, fontSize: 18 },
   previewOverlay: { flex: 1, backgroundColor: colors.modalOverlay, justifyContent: "center", alignItems: "center" },
