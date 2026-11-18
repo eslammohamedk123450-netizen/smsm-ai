@@ -10,6 +10,7 @@ const MAX_OUTPUT_TOKENS = 8;
 const MAX_PROBE_TIMEOUT_MS = 10_000;
 const SCHEDULED_CONCURRENCY = 5;
 const PROBE_PROMPT = "Reply with OK.";
+const MANUAL_PROBE_PROMPT = "xqzv kjt pqlm";
 
 type ModelRow = {
   id: number;
@@ -113,7 +114,7 @@ async function authorizeRequest(
   return { mode: "manual" };
 }
 
-async function probeModel(model: ModelRow, provider: ProviderRow, apiKey: string): Promise<ProbeResult> {
+async function probeModel(model: ModelRow, provider: ProviderRow, apiKey: string, prompt = PROBE_PROMPT): Promise<ProbeResult> {
   const startedAt = Date.now();
   const endpoint = safeChatEndpoint(provider.base_url, provider.provider_type);
   if (!endpoint) return { status: "error", duration_ms: 0, error_code: "provider_url_invalid" };
@@ -133,7 +134,7 @@ async function probeModel(model: ModelRow, provider: ProviderRow, apiKey: string
       },
       body: JSON.stringify({
         model: model.model_identifier,
-        messages: [{ role: "user", content: PROBE_PROMPT }],
+        messages: [{ role: "user", content: prompt }],
         temperature: 0,
         max_tokens: MAX_OUTPUT_TOKENS,
         stream: true,
@@ -355,7 +356,7 @@ async function runManualTest(serviceClient: SupabaseClient, modelId: number): Pr
 
   const apiKey = await getProviderKey(serviceClient, provider.id);
   const result = apiKey
-    ? await probeModel(model, provider, apiKey)
+    ? await probeModel(model, provider, apiKey, MANUAL_PROBE_PROMPT)
     : { status: "error", duration_ms: 0, error_code: "credential_unavailable" } satisfies ProbeResult;
   // Recording the manual run as the current periodic slot makes a manual test
   // count as one of the day's scheduled checks instead of duplicating effort.
