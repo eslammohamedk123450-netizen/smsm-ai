@@ -282,6 +282,14 @@ export function ModelRegistryCatalogScreen() {
   };
 
   const models = useMemo(() => [...new Map(rows.map((row) => [row.model_id, row])).values()], [rows]);
+  const mediaEvidenceRows = useMemo(() => rows.map((row) => ({
+    provider_id: row.provider_id,
+    service_type: row.service_type,
+    model_identifier: row.model_identifier,
+    capability_key: row.capability_key ?? "",
+    vendor_claim_status: row.vendor_claim_status ?? "unknown",
+    review_status: row.review_status ?? "legacy_unreviewed",
+  })), [rows]);
   const usageTotals = useMemo(() => ({
     requests: usageTransactions.length,
     inputTokens: usageTransactions.reduce((sum, row) => sum + Number(row.input_tokens ?? 0), 0),
@@ -433,7 +441,7 @@ export function ModelRegistryCatalogScreen() {
                   <View style={styles.priceCell}><Text style={styles.priceLabel}>تكلفة الإخراج / مليون</Text><Text style={styles.priceValue}>{pricesByModel.has(Number(selectedModel.legacy_chat_model_id)) ? `${pricesByModel.get(Number(selectedModel.legacy_chat_model_id))!.output.toLocaleString("en-EG")} ج.م` : "غير مسجلة"}</Text></View>
                 </View>
                 <Pressable accessibilityRole="button" onPress={() => { const model = selectedModel; setSelectedModel(null); openModelPriceHistory(model); }} style={styles.detailLink}><Text style={styles.detailLinkText}>فتح سجل الأسعار</Text></Pressable>
-              </> : <MediaModelPricingAdminCard serviceType={selectedModel.service_type as "image" | "video" | "audio"} initialRows={mediaPriceRows} initialEvidence={rows.map((row) => ({ provider_id: row.provider_id, service_type: row.service_type, model_identifier: row.model_identifier, capability_key: row.capability_key ?? "", vendor_claim_status: row.vendor_claim_status ?? "unknown", review_status: row.review_status ?? "legacy_unreviewed" }))} initialLoading={loading} skipInitialLoad />}
+              </> : <MediaModelPricingAdminCard serviceType={selectedModel.service_type as "image" | "video" | "audio"} initialRows={mediaPriceRows} initialEvidence={mediaEvidenceRows} initialLoading={loading} skipInitialLoad />}
             </> : null}
             {selectedDetailTab === "routing" ? <>
               <Text style={styles.detailSectionTitle}>التعيينات وترتيب التوجيه</Text>
