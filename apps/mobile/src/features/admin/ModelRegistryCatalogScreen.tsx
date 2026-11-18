@@ -274,7 +274,7 @@ export function ModelRegistryCatalogScreen() {
           <Text style={styles.meta}>اسم المفتاح: {model.provider_name ?? `مزود #${model.provider_id}`} · المزود: {model.provider_type ?? "—"}</Text>
           <Text style={styles.meta}>المعرّف: {model.model_identifier} · النوع: {model.service_type}</Text>
         </View>
-        <View style={[styles.status, model.operational_state === "active" ? styles.statusActive : model.operational_state === "restricted" ? styles.statusRestricted : styles.statusDisabled]}>
+        <View style={[styles.status, (model.operational_state === "active" || model.operational_state === "available") ? styles.statusActive : model.operational_state === "restricted" ? styles.statusRestricted : styles.statusDisabled]}>
           <Text style={styles.statusText}>{STATUS_LABEL[model.operational_state]}</Text>
         </View>
       </View>
@@ -315,7 +315,7 @@ export function ModelRegistryCatalogScreen() {
     {!loading && filtered.length === 0 ? <Text style={styles.empty}>لا توجد نماذج تطابق البحث والفلاتر.</Text> : null}
     <Modal visible={selectedModel !== null} transparent={false} animationType="slide" onRequestClose={() => setSelectedModel(null)}>
       <View style={styles.fullPageDetail}>
-        <View style={styles.detailModal}>
+        <ScrollView style={styles.detailModal} contentContainerStyle={styles.detailModalContent} keyboardShouldPersistTaps="handled">
           <View style={styles.detailModalHeader}>
             <View style={styles.detailModalCopy}>
               <Text style={styles.detailModalEyebrow}>MODEL DETAILS · READ ONLY</Text>
@@ -379,7 +379,7 @@ export function ModelRegistryCatalogScreen() {
             </> : null}
             <Pressable accessibilityRole="button" onPress={() => { const model = selectedModel; setSelectedModel(null); openOperationalRecord(model); }} style={styles.detailPrimaryAction}><Text style={styles.detailPrimaryActionText}>{selectedModel.provider_enabled ? "فتح شاشة إدارة النموذج" : "فتح إدارة المزود"}</Text></Pressable>
           </> : null}
-        </View>
+        </ScrollView>
       </View>
     </Modal>
   </ScrollView>;
@@ -455,7 +455,8 @@ const createStyles = (c: ThemePalette) => StyleSheet.create({
   capabilityText: { color: c.textSecondary, fontSize: 7, fontWeight: "800" },
   capabilityReviewText: { color: c.textMuted, fontSize: 6 },
   empty: { color: c.textMuted, fontSize: 10, textAlign: "center", padding: 20 },
-  detailModal: { flex: 1, width: "100%", maxWidth: 900, alignSelf: "center", borderWidth: 1, borderColor: c.divider, borderRadius: 14, backgroundColor: c.surface, padding: 15, gap: 11 },
+  detailModal: { flex: 1, width: "100%", maxWidth: 900, alignSelf: "center", borderWidth: 1, borderColor: c.divider, borderRadius: 14, backgroundColor: c.surface },
+  detailModalContent: { padding: 15, gap: 11, paddingBottom: 28 },
   detailModalHeader: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", gap: 12 }, detailModalCopy: { flex: 1, alignItems: "flex-end", gap: 3 }, detailModalEyebrow: { color: c.primary, fontSize: 8, fontWeight: "900", letterSpacing: 1 }, detailModalTitle: { color: c.textPrimary, fontSize: 17, fontWeight: "900", textAlign: "right" },
   detailMetaGrid: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 7 }, detailMetaCell: { flexBasis: "48%", flexGrow: 1, minWidth: 120, backgroundColor: c.surfaceElevated, borderRadius: 8, padding: 9, gap: 4 }, detailMetaLabel: { color: c.textMuted, fontSize: 8, textAlign: "right" }, detailMetaValue: { color: c.textPrimary, fontSize: 9, fontWeight: "700", textAlign: "right" },
   detailTabs: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 5, borderBottomWidth: 1, borderBottomColor: c.divider, paddingBottom: 8 },
