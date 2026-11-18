@@ -47,7 +47,10 @@ export function MediaScreen() {
       setFavoriteIds(nextFavorites);
       setAssetFolderIds(nextAssetFolders);
     }
-    catch (cause) { setError(cause instanceof Error ? cause.message : (isArabic ? "تعذر تحميل المكتبة." : "Could not load the library.")); }
+    catch (cause) {
+      setError(cause instanceof Error ? cause.message : (isArabic ? "تعذر تحميل المكتبة." : "Could not load the library."));
+      setAssets([]); setJobs([]); setFolders([]); setFavoriteIds([]); setAssetFolderIds({}); setSelectedFolderId(null);
+    }
     finally { setLoading(false); }
   }, [isArabic]);
   useEffect(() => {
@@ -199,7 +202,7 @@ export function MediaScreen() {
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     <View style={styles.header}>
       <Text style={styles.title}>{isArabic ? "مكتبة SULY" : "SULY Library"}</Text>
-      <Pressable onPress={() => void load()}><Text style={styles.link}>{isArabic ? "تحديث" : "Refresh"}</Text></Pressable>
+      <Pressable disabled={loading} onPress={() => void load()} accessibilityRole="button" accessibilityLabel={isArabic ? "تحديث المكتبة" : "Refresh library"}><Text style={[styles.link, loading && styles.disabledText]}>{loading ? (isArabic ? "جارٍ التحديث…" : "Refreshing…") : (isArabic ? "تحديث" : "Refresh")}</Text></Pressable>
     </View>
     <Text style={styles.explainer}>{isArabic ? "كل ملفاتك ومرفقات محادثاتك ومخرجات الاستوديو في مكان واحد. الملفات الخاصة لا تظهر إلا لصاحبها أو لمن يملك صلاحية الوصول." : "Your files, chat attachments, and Studio outputs in one place. Private files are visible only to their owner or an authorized user."}</Text>
     <TextInput value={search} onChangeText={setSearch} placeholder={isArabic ? "ابحث باسم الملف أو وصفه" : "Search by file name or description"} placeholderTextColor={colors.textMuted} style={styles.search} />
@@ -227,7 +230,13 @@ export function MediaScreen() {
       </View>
     )}
 
-    {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+    {error ? <View style={styles.errorState}>
+      <Text accessibilityRole="alert" style={styles.error}>{error}</Text>
+      <Pressable disabled={loading} onPress={() => void load()} style={styles.retryButton} accessibilityRole="button">
+        <Ionicons name="refresh-outline" size={16} color={colors.onPrimary} />
+        <Text style={styles.retryText}>{isArabic ? "إعادة المحاولة" : "Try again"}</Text>
+      </Pressable>
+    </View> : null}
     {notice ? <Text style={styles.success}>{notice}</Text> : null}
     {loading ? (
       <View accessibilityRole="progressbar" accessibilityLabel={isArabic ? "جارٍ تحميل المكتبة" : "Loading library"} style={styles.loadingState}>
@@ -268,7 +277,7 @@ export function MediaScreen() {
         <Text style={styles.meta}>{new Date(job.createdAt).toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text>
       </View>)}
     </View> : <Text style={styles.empty}>لا توجد مهام وسائط قيد التنفيذ مسجلة حاليًا.</Text>) : null}
-    {!loading && filter !== "in_progress" && visibleAssets.length === 0 ? <Text style={styles.empty}>{assets.length === 0 ? (isArabic ? "لا يوجد ملف بعد. ابدأ برفع صورة." : "No files yet. Start by uploading an image.") : (isArabic ? "لا توجد عناصر في هذا التصنيف." : "No items in this category.")}</Text> : null}
+    {!loading && !error && filter !== "in_progress" && visibleAssets.length === 0 ? <Text style={styles.empty}>{assets.length === 0 ? (isArabic ? "لا يوجد ملف بعد. ابدأ برفع صورة." : "No files yet. Start by uploading an image.") : (isArabic ? "لا توجد عناصر في هذا التصنيف." : "No items in this category.")}</Text> : null}
     <View style={styles.grid}>
       {filter !== "in_progress" ? visibleAssets.map((asset) => <View key={asset.id || asset.url} style={styles.card}>
         {asset.kind === "raw" || asset.kind === "video"
@@ -325,7 +334,10 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   ghostButton: { flexGrow: 1, minWidth: 130, minHeight: 46, borderRadius: 10, borderWidth: 1, borderColor: colors.accent, alignItems: "center", justifyContent: "center", paddingHorizontal: 14 },
   ghostText: { color: colors.accent, fontWeight: "700" },
   disabled: { opacity: 0.5 },
+  errorState: { gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.error, backgroundColor: colors.surface },
   error: { color: colors.error, textAlign: isArabic ? "right" : "left" },
+  retryButton: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 42, paddingHorizontal: 14, borderRadius: 10, backgroundColor: colors.primary, alignSelf: "flex-start" },
+  retryText: { color: colors.onPrimary, fontWeight: "700", fontSize: 12 },
   success: { color: colors.success, textAlign: isArabic ? "right" : "left" },
   empty: { color: colors.textSecondary, textAlign: "center", marginTop: 8 },
   loadingState: { minHeight: 72, alignItems: "center", justifyContent: "center", gap: 8 },
