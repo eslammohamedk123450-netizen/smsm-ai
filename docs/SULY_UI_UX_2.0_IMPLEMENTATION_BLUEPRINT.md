@@ -567,44 +567,49 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 - **Deliverable:** task lifecycle, cancellation, reconnect, partial billing, and safe-rendering tests.
 
 ### Phase 5 — Studio, library, projects, and connected tools
-**Status: 🟡 50% — existing feature routes/services are confirmed; Phase 5 is now active for the end-to-end action, permission, and availability audit.**
+**Status: 🟡 65% — core failure states, retry behavior, duplicate-action guards, and server-confirmed capability checks are implemented; live provider/device verification and the full action-permission matrix remain.**
 
 - ☑️ Confirm Studio, media/library, projects, and integrations areas exist in the current application source/inventory.
-- ☑️ Add an explicit accessible loading indicator to the Library while files, generation jobs, folders, favorites, and folder assignments are being fetched; this prevents a blank screen from being mistaken for an empty library. Commit: `3d4dc1a07b79d6c736f8ae9039e46782f70dae35`. CI for this isolated UI change is pending; rendered device verification remains in Phase 7.
-- ☑️ Harden Library folder rename/delete, file-folder removal, and favorite removal: each owner-scoped mutation now verifies that a matching row was actually changed before the UI can report success. This prevents false-success messages when an item is missing or outside the user's RLS scope. Commit: `7a9305e79064623245d0320dfd5a244f91934848`. Automated verification is pending.
+- ☑️ Add an explicit accessible loading indicator to the Library while files, generation jobs, folders, favorites, and folder assignments are being fetched; this prevents a blank screen from being mistaken for an empty library. Commit: `3d4dc1a07b79d6c736f8ae9039e46782f70dae35`. The current CI gate passed on `b58f60c89e2c27e5ccef5012188c20bcdca755d6` (run `44319558439`); rendered device verification remains in Phase 7.
+- ☑️ Harden Library folder rename/delete, file-folder removal, and favorite removal: each owner-scoped mutation now verifies that a matching row was actually changed before the UI can report success. This prevents false-success messages when an item is missing or outside the user's RLS scope. Commit: `7a9305e79064623245d0320dfd5a244f91934848`. Automated verification passed in CI run `44319558439`.
 - ☑️ Prevent duplicate project archive/restore requests: disable archive controls while one project mutation is in flight, show an inline progress indicator, and restore the control after success or failure. Commit: `604d0d5608c2e07acf9efa7b722a075c99a2c8a6`. Automated verification is pending.
 - ☑️ Add an explicit Projects load-error state with an accessible retry action; clear stale project rows after a failed reload so an old active/archive list cannot be mistaken for current server data. Commit: `6387f55291e50c37db46031092c80512fb8f6f40`. Automated verification is pending.
-- ☑️ Replace the Studio image tile's hard-coded unavailable state with a live check of the existing `suly_list_public_image_models` registry; enable navigation only when an active model exposes a supported quality with a positive verified credit price. Commit: `d00ba1ce072a084ba79525c468599666e52efe37`. Automated typecheck and rendered device verification are still pending; this item is implementation-complete, not yet QA-complete.
-- ☑️ Change connector OAuth return handling so a success toast is shown only after a fresh server status confirms the selected account is active; incomplete or unconfirmed authorization now produces an informational message. Commit: `265b6bf0fb97af0791292f89a9ed44e917ceebe1`. Automated typecheck and live OAuth provider verification remain pending.
+- ☑️ Replace the Studio image tile's hard-coded unavailable state with a live check of the existing `suly_list_public_image_models` registry; enable navigation only when an active model exposes a supported quality with a positive verified credit price. Commit: `d00ba1ce072a084ba79525c468599666e52efe37`. Automated TypeScript/Jest/platform-export verification passed in CI run `44319558439`; rendered device verification remains in Phase 7.
+- ☑️ Change connector OAuth return handling so a success toast is shown only after a fresh server status confirms the selected account is active; incomplete or unconfirmed authorization now produces an informational message. Commit: `265b6bf0fb97af0791292f89a9ed44e917ceebe1`. Automated TypeScript/Jest/platform-export verification passed in CI run `44319558439`; live OAuth provider verification remains pending.
+- ☑️ Make Library load failures clear stale rows, expose an accessible retry action, and suppress false empty states; guard the admin-status lookup against rejected Supabase thenables. Commit: `06420b3d08671a902a809b24c41e82861d05fda4`, `8742d42d6f2cd50a7989c7c0d0c1b6e9557408ec`.
+- ☑️ Make connector status fail closed: clear stale connected-account rows on status lookup failure and disable adding a connector until the server confirms readiness. Included in commit `06420b3d08671a902a809b24c41e82861d05fda4`.
+- ☑️ Harden Image Studio model/balance loading with retry and reuse the same request ID when a generation request is retried after polling timeout, preventing a second reservation for the same in-flight image request. Commits: `9f6faba4367efe89c6fef4f6d30e6296a690da98`, `b58f60c89e2c27e5ccef5012188c20bcdca755d6`.
 - 🟡 Map each visible action to its service, permission boundary, and real connection/capability status.
 - ⬜ Inspect every Studio action, upload/delivery path, library operation, project CRUD action, and connector connect/disconnect flow against its actual service and server permission.
 - ⬜ Verify loading, empty, error, unavailable, connected, disconnected, and revoked states; remove or relabel any decorative/unwired control without removing working features.
 - ⬜ Apply the shared monochrome page patterns without removing existing working capabilities or HIMS.
 - ⬜ Mark unavailable integrations/capabilities honestly; no decorative or fake actions.
 - ⬜ Run owner-scoped project, upload/delivery, connector authorization, and route tests.
+- **Current service map:** Studio → `suly_list_public_image_models`, `image-generator`, `suly_get_my_media_generation_job`, and media delivery; Library → existing media/folder/favorite/job services; Projects → existing project service and protected chat route; Connectors → existing Composio/OAuth service with fresh server-status verification.
 - **Deliverable:** per-feature integration matrix and route tests.
 
 ### Phase 6 — Plans, credits, account, and settings
-**Status: ◐ 55% — catalog/ledger/settings foundations exist; checkout and broader account organization remain.**
+**Status: ◐ 65% — plans, credits, language/theme, account links, and retryable ledger/archive states are implemented; checkout, official policy links, and remaining account-security review remain.**
 
 - ☑️ Confirm plans and features load from active plan catalog records.
 - ☑️ Confirm credit history/balance surfaces use existing credit/ledger services.
 - ☑️ Confirm theme and language settings are persisted through existing providers/services.
 - ◐ Reorganize account/settings into the approved sections while preserving security and privacy controls.
-- ☑️ Clearly label paid upgrade/checkout as unavailable until a real payment flow is implemented and verified; paid plan cards now say purchase is unavailable and explain that the screen is informational only and will not charge the user. No payment or billing behavior was added or changed. Commit: `5af80542d18ec405b18284b06a5ff7cd06a7eb51`. Automated verification is pending.
-- ⬜ Run billing/ledger regression tests and account security/settings persistence tests.
+- ☑️ Clearly label paid upgrade/checkout as unavailable until a real payment flow is implemented and verified; paid plan cards now say purchase is unavailable and explain that the screen is informational only and will not charge the user. No payment or billing behavior was added or changed. Commit: `5af80542d18ec405b18284b06a7eb51`. Automated verification passed in CI run `44319558439`.
+- ☑️ Add explicit retry/error states to plans, credit history, and conversation archive loading so network failures are not presented as empty data. Commits: `9f6faba4367efe89c6fef4f6d30e6296a690da98`, `06420b3d08671a902a809b24c41e82861d05fda4`.
+- ◐ Credit presentation regression tests pass as part of the full Jest suite; end-to-end ledger reconciliation and account-security/settings persistence tests still need dedicated coverage.
 - **Deliverable:** billing/ledger regression report and settings tests.
 
 ### Phase 7 — Cross-platform polish and quality gate
-**Status: ⬜ 0% — not started.**
+**Status: ◐ 30% — automated quality gate is passing; visual, responsive, accessibility, and real-device acceptance remain.**
 
 - ⬜ Test small mobile, large mobile/tablet, desktop, and wide desktop.
 - ⬜ Test Arabic RTL and English LTR.
 - ⬜ Test Light / Dark / System.
 - ⬜ Test keyboard, touch targets, reduced motion, focus order, screen-reader labels, and modal dismissal.
 - ⬜ Run the chat composer interaction matrix in Arabic RTL and English LTR: plus/connectors, paperclip attachments, send, voice permissions, Stop/cancel, retry, and draft preservation.
-- ⬜ Run Expo typecheck, Jest suite, web export, Android export/build validation, and relevant Supabase/Edge tests if those areas changed.
-- ⬜ Inspect actual browser and native screenshots. Do not claim visual verification without viewing rendered output.
+- ☑️ Pass Expo TypeScript typecheck, full Jest suite (25 suites / 161 tests), Deno Agent/scheduler tests (22 files / 126 tests), and Web/Android/iOS Expo exports in CI run `44319558439`. This verifies JS bundle exports, not native APK/AAB installation.
+- ⬜ Inspect actual browser and native screenshots. No rendered screenshots or real-device session have been captured; do not claim visual verification.
 - **Deliverable:** exact test report, screenshots, changed-file list, and known limitations.
 
 ### Phase 8 — Final audit, handoff, and production-promotion decision
@@ -620,7 +625,7 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 
 | Area | Inspected source / evidence | Current finding | Phase |
 |---|---|---|---|
-| Universal app and routes | apps/mobile/app/, protected layout, docs/PHASES_1_4_BUILD_AUDIT.md | Expo Router shared client for Android/iOS/Web; full route tree still needs fresh enumeration | 0 / 2 |
+| Universal app and routes | apps/mobile/app/, protected layout, CI run `44319558439` | Expo Router shared client; successful Web/Android/iOS exports enumerated 98 static routes including HIMS, Studio, Library, Projects, and admin routes; native install/runtime still unverified | 0 / 2 / 7 |
 | Navigation | apps/mobile/src/components/navigation/MainNavigation.tsx | Mobile drawer, bounded recent-conversation query, Studio/Library/Projects/Tools entries; desktop collapsible sidebar not verified | 2 |
 | Chat request contract | apps/mobile/app/(protected)/chat.tsx | Inspected send/retry/regenerate calls use modelProfileKey: "auto" and executionMode: "auto" | 3 / 4 |
 | Composer and media | apps/mobile/src/features/chat/components/ChatComposer.tsx, AttachSheet.tsx | Attachment sheet and speech-recognition handling exist; exact plus/paperclip target order needs verification | 3 |
@@ -629,7 +634,7 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 | Plans | apps/mobile/src/features/billing/UpgradeScreen.tsx | Reads active plan/features and current tier; paid upgrade action is explicitly unavailable (“coming soon”) | 6 |
 | Settings and credits | apps/mobile/src/features/settings/SettingsScreen.tsx | Theme/language controls and credit history are present; broader security/account sections need audit | 6 |
 | HIMS and admin | docs/PHASES_1_4_BUILD_AUDIT.md, src/features/hims/, src/features/admin/, Supabase functions/migrations | Existing HIMS/admin are protected product areas; preserve them and their authorization boundaries | All |
-| Automated checks | apps/mobile/package.json, .github/workflows/verify-agent-queue.yml, .github/workflows/verify-ai-router-bundle.yml | Theme test coverage expanded; draft verification PR #177 opened. No fresh passing CI result has been confirmed yet | 1 / 7 |
+| Automated checks | apps/mobile/package.json, .github/workflows/verify-agent-queue.yml | CI run `44319558439` passed: TypeScript, full Jest (25/25 suites, 161/161 tests), Deno tests (22 files, 126 passed / 0 failed), and Web/Android/iOS exports | 1 / 7 |
 
 ## 12. Acceptance criteria (must all pass)
 
