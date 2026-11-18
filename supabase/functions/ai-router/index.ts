@@ -2865,7 +2865,7 @@ async function handleRequest(req: Request): Promise<Response> {
         content = "تعذر اعتماد النتيجة بعد المراجعة المستقلة؛ لم أقدّم إجابة غير موثوقة. أعد المحاولة بطلب أوضح.";
       }
     }
-    if (internalBrainCall && await checkAgentCancellation()) agentCancellationObserved = true;
+    if (await checkAgentCancellation()) agentCancellationObserved = true;
     if (agentCancellationObserved) content = "تم إيقاف المهمة بناءً على طلبك. احتُفظ باستهلاك الخطوات التي اكتملت قبل الإيقاف.";
     content = applyFinalOutputLimit(content, maxOutputChars).content;
     const agentWorkspaceStatus = agentCancellationObserved || loopResult.status === "cancelled"
