@@ -1,6 +1,16 @@
 name: Verify Agent task runtime
 
 on:
+  push:
+    branches: [develop]
+    paths:
+      - "apps/mobile/**"
+      - "supabase/functions/ai-router/**"
+      - "supabase/functions/_shared/**"
+      - "supabase/functions/brain-router/**"
+      - "supabase/functions/agent-task-worker/**"
+      - "supabase/functions/agent-task-scheduler/**"
+  workflow_dispatch:
   pull_request:
     paths:
       - "apps/mobile/**"
