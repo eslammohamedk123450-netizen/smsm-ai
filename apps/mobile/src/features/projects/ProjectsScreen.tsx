@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -27,19 +27,33 @@ export default function ProjectsScreen() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [archivingId, setArchivingId] = useState<string | null>(null);
+  const createLock = useRef(false);
+  const archiveLock = useRef(false);
 
   const load = useCallback(async () => {
     setLoading(true);
-    try { setProjects(await projectService.listProjects(archived)); }
-    catch (cause) { show(cause instanceof Error ? cause.message : (isArabic ? "تعذر تحميل المشاريع." : "Could not load projects."), "error"); }
-    finally { setLoading(false); }
+    setLoadError(null);
+    try {
+      const result = await projectService.listProjects(archived);
+      setProjects(result);
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : (isArabic ? "تعذر تحميل المشاريع." : "Could not load projects.");
+      setLoadError(message);
+      setProjects([]);
+      show(message, "error");
+    } finally {
+      setLoading(false);
+    }
   }, [archived, isArabic, show]);
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   const create = async () => {
-    if (creating || !name.trim()) return;
+    if (createLock.current || !name.trim()) return;
+    createLock.current = true;
     setCreating(true);
     try {
       await projectService.createProject({ name, description, iconKey: "folder" });
@@ -48,16 +62,25 @@ export default function ProjectsScreen() {
       show(isArabic ? "تم إنشاء المشروع." : "Project created.", "success");
     } catch (cause) {
       show(cause instanceof Error ? cause.message : (isArabic ? "تعذر إنشاء المشروع." : "Could not create project."), "error");
-    } finally { setCreating(false); }
+    } finally {
+      createLock.current = false;
+      setCreating(false);
+    }
   };
 
   const toggleArchive = async (project: SulyProject) => {
+    if (archiveLock.current) return;
+    archiveLock.current = true;
+    setArchivingId(project.id);
     try {
       await projectService.setArchived(project.id, !project.archived_at);
       await load();
       show(project.archived_at ? (isArabic ? "تمت استعادة المشروع." : "Project restored.") : (isArabic ? "تمت أرشفة المشروع." : "Project archived."), "success");
     } catch (cause) {
       show(cause instanceof Error ? cause.message : (isArabic ? "تعذر تحديث المشروع." : "Could not update project."), "error");
+    } finally {
+      archiveLock.current = false;
+      setArchivingId(null);
     }
   };
 
@@ -105,7 +128,17 @@ export default function ProjectsScreen() {
           </Pressable>
         </View>
 
-        {loading ? <ActivityIndicator color={colors.primary} style={styles.loader} /> : projects.length ? projects.map((project) => (
+        {loading ? <ActivityIndicator color={colors.primary} style={styles.loader} /> : loadError ? (
+          <View style={styles.empty}>
+            <Ionicons name="alert-circle-outline" size={34} color={colors.textMuted} />
+            <Text style={styles.emptyTitle}>{isArabic ? "تعذر تحميل المشاريع" : "Could not load projects"}</Text>
+            <Text accessibilityRole="alert" style={styles.emptyText}>{loadError}</Text>
+            <Pressable onPress={() => void load()} style={styles.retryButton} accessibilityRole="button">
+              <Ionicons name="refresh-outline" size={17} color={colors.onPrimary} />
+              <Text style={styles.retryButtonText}>{isArabic ? "إعادة المحاولة" : "Try again"}</Text>
+            </Pressable>
+          </View>
+        ) : projects.length ? projects.map((project) => (
           <View key={project.id} style={styles.projectCard}>
             <View style={[styles.projectIcon, { borderColor: project.color }]}>
               <Ionicons name={ICONS[project.icon_key] ?? "folder-outline"} size={23} color={project.color} />
@@ -122,9 +155,11 @@ export default function ProjectsScreen() {
                   <Text style={styles.openButtonText}>{isArabic ? "افتح" : "Open"}</Text>
                 </Pressable>
               ) : null}
-              <Pressable onPress={() => void toggleArchive(project)} style={styles.iconButton}
-                accessibilityRole="button" accessibilityLabel={archived ? (isArabic ? "استعادة المشروع" : "Restore project") : (isArabic ? "أرشفة المشروع" : "Archive project")}>
-                <Ionicons name={archived ? "refresh-outline" : "archive-outline"} size={18} color={colors.textSecondary} />
+              <Pressable onPress={() => void toggleArchive(project)} disabled={archivingId !== null} style={[styles.iconButton, archivingId !== null && styles.disabled]}
+                accessibilityRole="button" accessibilityState={{ disabled: archivingId !== null }} accessibilityLabel={archived ? (isArabic ? "استعادة المشروع" : "Restore project") : (isArabic ? "أرشفة المشروع" : "Archive project")}>
+                {archivingId === project.id
+                  ? <ActivityIndicator size="small" color={colors.textSecondary} />
+                  : <Ionicons name={archived ? "refresh-outline" : "archive-outline"} size={18} color={colors.textSecondary} />}
               </Pressable>
             </View>
           </View>
@@ -159,6 +194,8 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   archiveToggle: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 5, padding: 8 },
   archiveToggleText: { color: colors.primary, fontSize: 12, fontWeight: "700" },
   loader: { marginTop: 24 },
+  retryButton: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 42, paddingHorizontal: 16, borderRadius: 12, backgroundColor: colors.primary, marginTop: 12 },
+  retryButtonText: { color: colors.onPrimary, fontWeight: "700", fontSize: 12 },
   projectCard: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 16, padding: 13 },
   projectIcon: { width: 44, height: 44, borderRadius: 14, borderWidth: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background },
   projectCopy: { flex: 1, alignItems: isArabic ? "flex-end" : "flex-start", gap: 4 },

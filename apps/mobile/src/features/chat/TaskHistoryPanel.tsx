@@ -52,7 +52,7 @@ export function TaskHistoryPanel() {
         <View style={[styles.empty, { backgroundColor: colors.surface, borderColor: colors.divider }]}>
           <Ionicons name="alert-circle-outline" size={28} color={colors.error} />
           <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{error}</Text>
-          <Pressable onPress={() => void load()} style={[styles.retry, { backgroundColor: colors.surfaceElevated }]}>
+          <Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "إعادة تحميل سجل المهام" : "Retry loading task history"} onPress={() => void load()} style={[styles.retry, { backgroundColor: colors.surfaceElevated }]}>
             <Text style={[styles.retryText, { color: colors.textPrimary }]}>{isArabic ? "إعادة المحاولة" : "Try again"}</Text>
           </Pressable>
         </View>
@@ -65,7 +65,7 @@ export function TaskHistoryPanel() {
       ) : (
         <View style={styles.list}>
           {items.map((item) => (
-            <Pressable key={item.jobId} onPress={() => setSelected(item)} style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.divider }]}>
+            <Pressable key={item.jobId} accessibilityRole="button" accessibilityLabel={item.objective || (isArabic ? "تفاصيل المهمة" : "Task details")} onPress={() => setSelected(item)} style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.divider }]}>
               <View style={[styles.icon, { backgroundColor: colors.surfaceElevated }]}>
                 <Ionicons name={item.status === "completed" ? "checkmark-circle-outline" : item.status === "failed" ? "alert-circle-outline" : "git-branch-outline"} size={19} color={colors.textPrimary} />
               </View>

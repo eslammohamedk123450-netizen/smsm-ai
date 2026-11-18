@@ -567,36 +567,56 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 - **Deliverable:** task lifecycle, cancellation, reconnect, partial billing, and safe-rendering tests.
 
 ### Phase 5 — Studio, library, projects, and connected tools
-**Status: ◐ 50% — core routes/services exist; end-to-end availability and action audit remains.**
+**Status: 🟡 80% — core failure states, retry behavior, immediate duplicate-submission guards, bilingual Studio capability screens, server-confirmed status checks, and a source-level integration matrix are implemented; live provider/device verification and owner-scoped permission-matrix tests remain.**
 
 - ☑️ Confirm Studio, media/library, projects, and integrations areas exist in the current application source/inventory.
-- ◐ Map each visible action to its service, permission boundary, and real connection/capability status.
+- ☑️ Add an explicit accessible loading indicator to the Library while files, generation jobs, folders, favorites, and folder assignments are being fetched; this prevents a blank screen from being mistaken for an empty library. Commit: `3d4dc1a07b79d6c736f8ae9039e46782f70dae35`. The current CI gate passed on `b58f60c89e2c27e5ccef5012188c20bcdca755d6` (run `44319558439`); rendered device verification remains in Phase 7.
+- ☑️ Harden Library folder rename/delete, file-folder removal, and favorite removal: each owner-scoped mutation now verifies that a matching row was actually changed before the UI can report success. This prevents false-success messages when an item is missing or outside the user's RLS scope. Commit: `7a9305e79064623245d0320dfd5a244f91934848`. Automated verification passed in CI run `44322615235`.
+- ☑️ Prevent duplicate project archive/restore requests: disable archive controls while one project mutation is in flight, show an inline progress indicator, and restore the control after success or failure. Commit: `604d0d5608c2e07acf9efa7b722a075c99a2c8a6`. Automated verification passed in CI run `44319558439`.
+- ☑️ Add an explicit Projects load-error state with an accessible retry action; clear stale project rows after a failed reload so an old active/archive list cannot be mistaken for current server data. Commit: `6387f55291e50c37db46031092c80512fb8f6f40`. Automated verification passed in CI run `44319558439`.
+- ☑️ Replace the Studio image tile's hard-coded unavailable state with a live check of the existing `suly_list_public_image_models` registry; enable navigation only when an active model exposes a supported quality with a positive verified credit price. Commit: `d00ba1ce072a084ba79525c468599666e52efe37`. Automated TypeScript/Jest/platform-export verification passed in CI run `44319558439`; rendered device verification remains in Phase 7.
+- ☑️ Change connector OAuth return handling so a success toast is shown only after a fresh server status confirms the selected account is active; incomplete or unconfirmed authorization now produces an informational message. Commit: `265b6bf0fb97af0791292f89a9ed44e917ceebe1`. Automated TypeScript/Jest/platform-export verification passed in CI run `44319558439`; live OAuth provider verification remains pending.
+- ☑️ Make Library load failures clear stale rows, expose an accessible retry action, and suppress false empty states; guard the admin-status lookup against rejected Supabase thenables. Commit: `06420b3d08671a902a809b24c41e82861d05fda4`, `8742d42d6f2cd50a7989c7c0d0c1b6e9557408ec`.
+- ☑️ Make connector status fail closed: clear stale connected-account rows on status lookup failure and disable adding a connector until the server confirms readiness. Included in commit `06420b3d08671a902a809b24c41e82861d05fda4`.
+- ☑️ Localize Image Studio labels, prices, quality names, status/error messages, actions, and layout direction for Arabic RTL and English LTR; add accessible selection and action labels. Commits: `c038659597a0ac781a9217c8ecc9dfea6c3cc74c`, `3dee915804c8f71150019cb08f052c882e56aca8`.
+- ☑️ Prevent concurrent Library folder create/rename/delete submissions with an immediate mutation lock, disabled controls, and a visible saving state. Commit: `3c08706e0c1fbeca6dd30abd1e661b453ca176ed`.
+- ☑️ Disable opening a second connector-add flow while a provider connection/disconnection is already running. Commit: `3c08706e0c1fbeca6dd30abd1e661b453ca176ed`.
+- ☑️ Make Studio registry lookup failures distinct from a genuinely unavailable image model, and let the user retry the registry check; localize the disabled Video Studio explanation and Library action in Arabic/English. Commit: `12fe56e54f52d1e38ad759c5326ccab4df2d24c5`, `174681b2b0fa3403d002c1f371096f126646b3f7`.
+- ☑️ Require both provider service readiness and a fresh connected-account result before showing connector OAuth success; clear stale account rows after connect/disconnect errors. Commit: `12fe56e54f52d1e38ad759c5326ccab4df2d24c5`.
+- ☑️ Harden Image Studio model/balance loading with retry and reuse the same request ID when a generation request is retried after polling timeout, preventing a second reservation for the same in-flight image request. Commits: `9f6faba4367efe89c6fef4f6d30e6296a690da98`, `b58f60c89e2c27e5ccef5012188c20bcdca755d6`.
+- ☑️ Add synchronous in-flight guards for Project create/archive/restore, connector connect/disconnect, Library upload/favorite/folder/delete, and Image Studio generation/conversation launch so rapid repeated taps cannot race React state updates. Commits: `b3515a7adcf50303553bff0f96e604a44a524b44`, `1de77c4aa327bb47b14d4753b54004d0e6a4c3b5`, `ac7c6e302323b462bb73499728a8606fa30c2d5c`, `57139e4598aa4040c1fc2cfa9a7a208029ca3250`. Verified by CI run `44326186700`.
+- ◐ Source-level service and capability matrix recorded in Section 15; live server-permission checks for each action remain.
+- ⬜ Inspect every Studio action, upload/delivery path, library operation, project CRUD action, and connector connect/disconnect flow against its actual service and server permission.
+- ⬜ Verify loading, empty, error, unavailable, connected, disconnected, and revoked states; remove or relabel any decorative/unwired control without removing working features.
 - ⬜ Apply the shared monochrome page patterns without removing existing working capabilities or HIMS.
 - ⬜ Mark unavailable integrations/capabilities honestly; no decorative or fake actions.
 - ⬜ Run owner-scoped project, upload/delivery, connector authorization, and route tests.
+- **Current service map:** Studio → `suly_list_public_image_models`, `image-generator`, `suly_get_my_media_generation_job`, and media delivery; Library → existing media/folder/favorite/job services; Projects → existing project service and protected chat route; Connectors → existing Composio/OAuth service with fresh server-status verification.
 - **Deliverable:** per-feature integration matrix and route tests.
 
 ### Phase 6 — Plans, credits, account, and settings
-**Status: ◐ 55% — catalog/ledger/settings foundations exist; checkout and broader account organization remain.**
+**Status: ◐ 65% — plans, credits, language/theme, account links, and retryable ledger/archive states are implemented; checkout, official policy links, and remaining account-security review remain.**
 
 - ☑️ Confirm plans and features load from active plan catalog records.
 - ☑️ Confirm credit history/balance surfaces use existing credit/ledger services.
 - ☑️ Confirm theme and language settings are persisted through existing providers/services.
 - ◐ Reorganize account/settings into the approved sections while preserving security and privacy controls.
-- ⬜ Clearly label paid upgrade/checkout as unavailable until a real payment flow is implemented and verified; do not imply that a disabled “coming soon” control is purchasable.
-- ⬜ Run billing/ledger regression tests and account security/settings persistence tests.
+- ☑️ Clearly label paid upgrade/checkout as unavailable until a real payment flow is implemented and verified; paid plan cards now say purchase is unavailable and explain that the screen is informational only and will not charge the user. No payment or billing behavior was added or changed. Commit: `5af80542d18ec405b18284b06a5ff7cd06a7eb51`. Automated verification passed in CI run `44319558439`.
+- ☑️ Add explicit retry/error states to plans, credit history, and conversation archive loading so network failures are not presented as empty data. Commits: `9f6faba4367efe89c6fef4f6d30e6296a690da98`, `06420b3d08671a902a809b24c41e82861d05fda4`.
+- ◐ Credit presentation regression tests pass as part of the full Jest suite; end-to-end ledger reconciliation and account-security/settings persistence tests still need dedicated coverage.
 - **Deliverable:** billing/ledger regression report and settings tests.
 
 ### Phase 7 — Cross-platform polish and quality gate
-**Status: ⬜ 0% — not started.**
+**Status: ◐ 40% — automated quality gate is passing and screen-reader roles/labels were added to core chat, attachment, task-history, image-preview, HIMS filter, and Agent task controls; visual, responsive, broader accessibility, and real-device acceptance remain.**
 
 - ⬜ Test small mobile, large mobile/tablet, desktop, and wide desktop.
 - ⬜ Test Arabic RTL and English LTR.
 - ⬜ Test Light / Dark / System.
 - ⬜ Test keyboard, touch targets, reduced motion, focus order, screen-reader labels, and modal dismissal.
 - ⬜ Run the chat composer interaction matrix in Arabic RTL and English LTR: plus/connectors, paperclip attachments, send, voice permissions, Stop/cancel, retry, and draft preservation.
-- ⬜ Run Expo typecheck, Jest suite, web export, Android export/build validation, and relevant Supabase/Edge tests if those areas changed.
-- ⬜ Inspect actual browser and native screenshots. Do not claim visual verification without viewing rendered output.
+- ☑️ Pass Expo TypeScript typecheck, full Jest suite (25 suites / 161 tests), Deno Agent/scheduler tests (22 files / 126 tests), and Web/Android/iOS Expo exports in CI runs `44324117457` and `44326186700`. This verifies JS bundle exports, not native APK/AAB installation.
+- ☑️ Add accessible labels/roles and selected states to conversation-history actions, task-history rows, attachment choices, image preview, HIMS filters, and Agent task form controls; provide bilingual Agent task templates. Commits: `48c54351cb43d4168f894040672eab677c9d34d2`, `6135e4a8cda72139c9fc0147e26cb9134174219b`.
+- ⬜ Inspect actual browser and native screenshots. No rendered screenshots or real-device session have been captured; do not claim visual verification.
 - **Deliverable:** exact test report, screenshots, changed-file list, and known limitations.
 
 ### Phase 8 — Final audit, handoff, and production-promotion decision
@@ -605,6 +625,7 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 - ⬜ Reconcile every checklist item against code, tests, and rendered evidence.
 - ⬜ Publish final report with branch/commit, files, completed/partial items, exact test results, screenshots, and known gaps.
 - ⬜ Confirm HIMS, admin, auth, chat, credits, memory, permissions, and data boundaries remain intact.
+- ⚠️ The successful `npm ci` step reported 68 high-severity dependency advisories. No automatic dependency upgrades were applied; a separate reviewed dependency/security remediation is required.
 - ⬜ Request separate explicit approval before promoting implementation phases to production.
 - **Deliverable:** final review report and explicit promotion decision.
 
@@ -612,7 +633,7 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 
 | Area | Inspected source / evidence | Current finding | Phase |
 |---|---|---|---|
-| Universal app and routes | apps/mobile/app/, protected layout, docs/PHASES_1_4_BUILD_AUDIT.md | Expo Router shared client for Android/iOS/Web; full route tree still needs fresh enumeration | 0 / 2 |
+| Universal app and routes | apps/mobile/app/, protected layout, CI run `44324117457` | Expo Router shared client; successful Web/Android/iOS exports enumerated 98 static routes including HIMS, Studio, Library, Projects, and admin routes; native install/runtime still unverified | 0 / 2 / 7 |
 | Navigation | apps/mobile/src/components/navigation/MainNavigation.tsx | Mobile drawer, bounded recent-conversation query, Studio/Library/Projects/Tools entries; desktop collapsible sidebar not verified | 2 |
 | Chat request contract | apps/mobile/app/(protected)/chat.tsx | Inspected send/retry/regenerate calls use modelProfileKey: "auto" and executionMode: "auto" | 3 / 4 |
 | Composer and media | apps/mobile/src/features/chat/components/ChatComposer.tsx, AttachSheet.tsx | Attachment sheet and speech-recognition handling exist; exact plus/paperclip target order needs verification | 3 |
@@ -621,7 +642,7 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 | Plans | apps/mobile/src/features/billing/UpgradeScreen.tsx | Reads active plan/features and current tier; paid upgrade action is explicitly unavailable (“coming soon”) | 6 |
 | Settings and credits | apps/mobile/src/features/settings/SettingsScreen.tsx | Theme/language controls and credit history are present; broader security/account sections need audit | 6 |
 | HIMS and admin | docs/PHASES_1_4_BUILD_AUDIT.md, src/features/hims/, src/features/admin/, Supabase functions/migrations | Existing HIMS/admin are protected product areas; preserve them and their authorization boundaries | All |
-| Automated checks | apps/mobile/package.json, .github/workflows/verify-agent-queue.yml, .github/workflows/verify-ai-router-bundle.yml | Theme test coverage expanded; draft verification PR #177 opened. No fresh passing CI result has been confirmed yet | 1 / 7 |
+| Automated checks | apps/mobile/package.json, .github/workflows/verify-agent-queue.yml | CI run `44326186700` passed: TypeScript, full Jest (25/25 suites, 161/161 tests), Deno tests (22 files, 126 passed / 0 failed), and Web/Android/iOS exports | 1 / 7 |
 
 ## 12. Acceptance criteria (must all pass)
 
@@ -691,6 +712,43 @@ The current composer and navigation contain separate attachment and connectors e
 The chat route source still contains legacy profile-option types/defaults and picker-related styles, while the inspected send/retry/regenerate requests already submit automatic routing values. Phase 3 must confirm whether any selector remains user-visible and remove all such UI/state without changing server routing. The current README and server inventory identify the central `ai-router` and durable task queue/worker/scheduler architecture; preserve that single decision authority.
 
 These observations are a starting point only. Phase 0 must re-fetch the current `develop` branch state before editing because repository state may change.
+
+---
+
+## 15. Source-level integration and authorization matrix (2026-11-18)
+
+This matrix records what was inspected in the current source. It is not a substitute for server-side authorization tests or provider/device verification.
+
+| Surface / user action | Current source path | Existing service / data boundary | Honest UI state / remaining verification |
+|---|---|---|---|
+| Studio image availability | `apps/mobile/src/features/studio/StudioScreen.tsx` | `suly_list_public_image_models`; only active models with supported qualities and positive published credit prices are enabled | Registry error has retry; video/audio/transcription remain explicitly unavailable; verify on deployed preview with real registry data |
+| Image generation and status | `apps/mobile/src/features/media/ImageStudioScreen.tsx` | `image-generator`, `suly_get_my_media_generation_job`, `getCurrentCreditBalance`, `media-gateway` delivery | Positive price and known balance required; request ID retained across uncertain retry; provider/credit reconciliation still needs live test |
+| Library list and jobs | `apps/mobile/src/features/media/MediaScreen.tsx`, `media-service.ts` | `suly_media_list_self`, `suly_list_my_media_generation_jobs`, signed delivery via `media-gateway` | Load failure clears stale rows and exposes retry; verify owner isolation and real signed URL expiry |
+| Library upload and deletion | `media-service.ts` | `media-gateway` sign-upload, register, delete; current session token passed to gateway | Upload/delete errors are surfaced; verify supported MIME/size cases and server ownership in integration tests |
+| Library folders and favorites | `media-service.ts` | Existing user-scoped queries and owner ID checks for mutations; RLS remains authoritative | Rename/delete/favorite/folder removal require a changed row; verify cross-user denial against preview data |
+| Projects CRUD and archive | `apps/mobile/src/features/projects/ProjectsScreen.tsx`, `project-service.ts` | Existing `suly_projects` and `suly_conversations` rows, current user ID filters, RLS | Loading/error/retry/empty and mutation states exist; verify CRUD, archive, restore, and conversation assignment with two accounts |
+| Connectors | `ConnectedAppsScreen.tsx`, `integration-service.ts` | `composito-integration` Edge Function; fresh server status after OAuth; server-confirmed disconnect | Status fails closed; success only after active account confirmation; provider OAuth/revocation still needs live verification |
+| Account and settings | `SettingsScreen.tsx`, `ProfileDetailsScreen.tsx` | Auth provider, profile RPC, existing credit ledger, theme/locale providers | Credit/theme/language/archive have retry/persistence paths; device management and direct account deletion are explicitly unavailable; official policy URLs/text are not configured |
+| Memory display | `MemoryStorageScreen.tsx` | `agent_memories` query filtered by authenticated user ID | Read-only; edit/delete explicitly unavailable; verify RLS with separate accounts |
+
+### Mutation concurrency hardening added on develop
+
+The following immediate in-flight locks were added to prevent rapid repeated taps from racing React state updates and submitting duplicate operations:
+
+- Projects create and archive/restore — commit `b3515a7adcf50303553bff0f96e604a44a524b44`.
+- Connector connect/disconnect — commit `1de77c4aa327bb47b14d4753b54004d0e6a4c3b5`.
+- Library upload, favorite/folder organization, and asset deletion — commit `ac7c6e302323b462bb73499728a8606fa30c2d5c`.
+- Image generation and start-conversation action — commit `57139e4598aa4040c1fc2cfa9a7a208029ca3250`.
+
+These locks are client-side duplicate-submission safeguards only. Server-side authentication, ownership checks, RLS, request idempotency, and credit-ledger controls remain authoritative. CI run `44326186700` passed: Expo TypeScript typecheck, 25 Jest suites / 161 tests, 22 Deno test files / 126 passed / 0 failed, and Web/Android/iOS JavaScript exports. This still does not prove native APK/AAB installation or visual rendering on real devices.
+
+### Phase 6 account/security findings
+
+- The profile screen supports name updates and sign-out.
+- Connected-device management is not available because no dedicated device-session registry is wired.
+- Direct account deletion is not available; the UI submits a support request and explicitly states that this does not delete the account.
+- Privacy/terms sheets clearly disclose that official published policy content is not configured; official owner-approved URLs/text are still a release prerequisite.
+- Memory is read-only in this client; editing/deletion must not be represented as available.
 
 ---
 

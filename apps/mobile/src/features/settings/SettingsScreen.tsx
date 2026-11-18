@@ -27,6 +27,7 @@ export default function SettingsScreen() {
   const [balance, setBalance] = useState<number | null>(null);
   const [transactions, setTransactions] = useState<CreditEntry[]>([]);
   const [loadingCredits, setLoadingCredits] = useState(true);
+  const [creditLoadError, setCreditLoadError] = useState(false);
   const [creditModal, setCreditModal] = useState(false);
   const [policyModal, setPolicyModal] = useState<"privacy" | "terms" | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -34,6 +35,7 @@ export default function SettingsScreen() {
   const [archiveVisible, setArchiveVisible] = useState(false);
   const [archivedConversations, setArchivedConversations] = useState<Conversation[]>([]);
   const [archiveLoading, setArchiveLoading] = useState(false);
+  const [archiveLoadError, setArchiveLoadError] = useState(false);
 
   const adminAccessState = adminAccess.userId === user?.id ? adminAccess.state : "checking";
 
@@ -74,6 +76,7 @@ export default function SettingsScreen() {
   const loadCredits = useCallback(async () => {
     if (!user) return;
     setLoadingCredits(true);
+    setCreditLoadError(false);
     try {
       const ledger = await getCreditLedger(50);
       setBalance(ledger.balance);
@@ -81,6 +84,7 @@ export default function SettingsScreen() {
     } catch {
       setBalance(null);
       setTransactions([]);
+      setCreditLoadError(true);
     } finally { setLoadingCredits(false); }
   }, [user]);
   useEffect(() => { void loadCredits(); }, [loadCredits]);
@@ -111,8 +115,13 @@ export default function SettingsScreen() {
   const openArchive = async () => {
     setArchiveVisible(true);
     setArchiveLoading(true);
+    setArchiveLoadError(false);
     try { setArchivedConversations(await chatService.listArchivedConversations()); }
-    catch (cause) { show(cause instanceof Error ? cause.message : "تعذر تحميل الأرشيف.", "error"); }
+    catch (cause) {
+      setArchivedConversations([]);
+      setArchiveLoadError(true);
+      show(cause instanceof Error ? cause.message : "تعذر تحميل الأرشيف.", "error");
+    }
     finally { setArchiveLoading(false); }
   };
 
@@ -158,6 +167,7 @@ export default function SettingsScreen() {
         <View style={styles.creditCard}>
           <Text style={styles.balanceLabel}>{isArabic ? "الرصيد الحالي" : "Current balance"}</Text>
           <Text style={styles.balanceValue}>{loadingCredits ? "…" : balance === null ? "—" : balance.toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text>
+          {creditLoadError ? <TouchableOpacity activeOpacity={0.7} onPress={() => void loadCredits()} accessibilityRole="button"><Text style={styles.linkText}>{isArabic ? "تعذر تحميل الرصيد — إعادة المحاولة" : "Could not load credits — retry"}</Text></TouchableOpacity> : null}
           <TouchableOpacity activeOpacity={0.7} onPress={() => { setCreditModal(true); void loadCredits(); }} style={styles.historyButton} accessibilityRole="button"><Text style={styles.linkText}>{isArabic ? "عرض السجل" : "View history"}</Text></TouchableOpacity>
           <TouchableOpacity activeOpacity={0.7} onPress={() => router.push("/(protected)/balance")} style={styles.historyButton} accessibilityRole="button"><Text style={styles.linkText}>{isArabic ? "تفاصيل الرصيد والاستهلاك" : "Balance details & usage"}</Text></TouchableOpacity>
         </View>
@@ -253,7 +263,10 @@ export default function SettingsScreen() {
         <View style={styles.sheetContent}>
           <View style={styles.balanceCard}><Text style={styles.balanceLabel}>{isArabic ? "الرصيد الحالي" : "Current balance"}</Text><Text style={styles.modalBalance}>{loadingCredits ? "…" : balance === null ? "—" : balance.toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text></View>
           <Text style={styles.sectionTitle}>{isArabic ? "سجل الرصيد" : "Credit history"}</Text>
-          {loadingCredits ? <ActivityIndicator color={colors.primary} /> : <ScrollView style={styles.historyList}>
+          {loadingCredits ? <ActivityIndicator color={colors.primary} /> : creditLoadError ? <View>
+            <Text accessibilityRole="alert" style={styles.emptyHistory}>{isArabic ? "تعذر تحميل سجل الرصيد." : "Could not load credit history."}</Text>
+            <TouchableOpacity activeOpacity={0.7} onPress={() => void loadCredits()} accessibilityRole="button"><Text style={styles.linkText}>{isArabic ? "إعادة المحاولة" : "Try again"}</Text></TouchableOpacity>
+          </View> : <ScrollView style={styles.historyList}>
             {transactions.length === 0 ? <Text style={styles.emptyHistory}>{isArabic ? "لا توجد معاملات مسجلة." : "No transactions yet."}</Text> : transactions.map((entry) => (
               <View key={entry.id} style={styles.transaction}>
                 <View style={styles.transactionCopy}><Text style={styles.transactionTitle}>{transactionTitle(entry)}</Text><Text style={styles.transactionDate}>{new Date(entry.created_at).toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text></View>
@@ -277,7 +290,10 @@ export default function SettingsScreen() {
 
       <BottomSheet visible={archiveVisible} title={isArabic ? "أرشيف المحادثات" : "Conversation archive"} onClose={() => setArchiveVisible(false)}>
         <View style={styles.archiveContent}>
-          {archiveLoading ? <ActivityIndicator color={colors.primary} /> : archivedConversations.length === 0 ? <Text style={styles.emptyHistory}>{isArabic ? "لا توجد محادثات مؤرشفة." : "No archived conversations."}</Text> : archivedConversations.map((conversation) => (
+          {archiveLoading ? <ActivityIndicator color={colors.primary} /> : archiveLoadError ? <View>
+            <Text accessibilityRole="alert" style={styles.emptyHistory}>{isArabic ? "تعذر تحميل الأرشيف." : "Could not load the archive."}</Text>
+            <TouchableOpacity activeOpacity={0.7} onPress={() => void openArchive()} accessibilityRole="button"><Text style={styles.linkText}>{isArabic ? "إعادة المحاولة" : "Try again"}</Text></TouchableOpacity>
+          </View> : archivedConversations.length === 0 ? <Text style={styles.emptyHistory}>{isArabic ? "لا توجد محادثات مؤرشفة." : "No archived conversations."}</Text> : archivedConversations.map((conversation) => (
             <View key={conversation.id} style={styles.archiveRow}>
               <TouchableOpacity activeOpacity={0.7} style={styles.archiveCopy} onPress={() => { setArchiveVisible(false); router.push({ pathname: "/(protected)/chat", params: { conversationId: conversation.id } }); }}><Text numberOfLines={2} style={styles.rowText}>{conversation.title || "محادثة بدون عنوان"}</Text></TouchableOpacity>
               <TouchableOpacity activeOpacity={0.7} onPress={() => void restoreConversation(conversation)} style={styles.restoreButton}><Text style={styles.linkText}>{isArabic ? "استعادة" : "Restore"}</Text></TouchableOpacity>

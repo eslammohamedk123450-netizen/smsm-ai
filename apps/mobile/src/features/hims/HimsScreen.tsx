@@ -100,7 +100,7 @@ export function HimsScreen() {
           </View>
           <View style={styles.filters}>
             {FILTERS.map((item) => (
-              <Pressable key={item.key} onPress={() => setFilter(item.key)} style={[styles.filter, filter === item.key && styles.filterSelected]}>
+              <Pressable key={item.key} accessibilityRole="button" accessibilityState={{ selected: filter === item.key }} accessibilityLabel={item.label} onPress={() => setFilter(item.key)} style={[styles.filter, filter === item.key && styles.filterSelected]}>
                 <Text style={[styles.filterText, filter === item.key && styles.filterTextSelected]}>{item.label}</Text>
               </Pressable>
             ))}

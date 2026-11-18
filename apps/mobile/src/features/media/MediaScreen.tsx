@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Image, Linking, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { useRouter } from "expo-router";
@@ -23,6 +23,11 @@ export function MediaScreen() {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [folderEditor, setFolderEditor] = useState<"create" | "rename" | null>(null);
   const [folderName, setFolderName] = useState("");
+  const [folderMutationBusy, setFolderMutationBusy] = useState(false);
+  const folderMutationLock = useRef(false);
+  const organizationLock = useRef<string | null>(null);
+  const deleteLock = useRef<string | null>(null);
+  const uploadLock = useRef(false);
   const [organizationBusyId, setOrganizationBusyId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<PickKind | null>(null);
@@ -47,15 +52,27 @@ export function MediaScreen() {
       setFavoriteIds(nextFavorites);
       setAssetFolderIds(nextAssetFolders);
     }
-    catch (cause) { setError(cause instanceof Error ? cause.message : (isArabic ? "تعذر تحميل المكتبة." : "Could not load the library.")); }
+    catch (cause) {
+      setError(cause instanceof Error ? cause.message : (isArabic ? "تعذر تحميل المكتبة." : "Could not load the library."));
+      setAssets([]); setJobs([]); setFolders([]); setFavoriteIds([]); setAssetFolderIds({}); setSelectedFolderId(null);
+    }
     finally { setLoading(false); }
   }, [isArabic]);
   useEffect(() => {
     void load();
-    supabase.rpc("suly_is_admin").then(({ data }) => setIsAdmin(data === true));
+    void (async () => {
+      try {
+        const { data } = await supabase.rpc("suly_is_admin");
+        setIsAdmin(data === true);
+      } catch {
+        setIsAdmin(false);
+      }
+    })();
   }, [load]);
 
   const pickAndUpload = async (kind: PickKind) => {
+    if (uploadLock.current) return;
+    uploadLock.current = true;
     setBusy(kind); setError(null); setNotice(null);
     try {
       const picked = await pickMedia(kind);
@@ -69,7 +86,10 @@ export function MediaScreen() {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : (isArabic ? "تعذر رفع الملف." : "Could not upload the file."));
       setNotice(null);
-    } finally { setBusy(null); }
+    } finally {
+      uploadLock.current = false;
+      setBusy(null);
+    }
   };
 
   const visibleAssets = assets
@@ -80,6 +100,9 @@ export function MediaScreen() {
   const selectedFolder = folders.find((folder) => folder.id === selectedFolderId) ?? null;
 
   const saveFolder = async () => {
+    if (folderMutationLock.current) return;
+    folderMutationLock.current = true;
+    setFolderMutationBusy(true);
     setError(null); setNotice(null);
     try {
       if (folderEditor === "create") {
@@ -96,11 +119,14 @@ export function MediaScreen() {
       setFolderEditor(null); setFolderName("");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : (isArabic ? "تعذر حفظ المجلد." : "Could not save folder."));
+    } finally {
+      folderMutationLock.current = false;
+      setFolderMutationBusy(false);
     }
   };
 
   const confirmDeleteFolder = () => {
-    if (!selectedFolder) return;
+    if (!selectedFolder || folderMutationLock.current) return;
     Alert.alert(
       isArabic ? "حذف المجلد" : "Delete folder",
       isArabic ? "سيتم حذف المجلد وإزالة تنظيم ملفاته فقط. لن تُحذف الملفات نفسها." : "This deletes the folder and its organization links only. The files themselves will remain in your Library.",
@@ -108,6 +134,9 @@ export function MediaScreen() {
         { text: isArabic ? "إلغاء" : "Cancel", style: "cancel" },
         { text: isArabic ? "حذف" : "Delete", style: "destructive", onPress: () => {
           void (async () => {
+            if (folderMutationLock.current) return;
+            folderMutationLock.current = true;
+            setFolderMutationBusy(true);
             try {
               await deleteMediaFolder(selectedFolder.id);
               setFolders((current) => current.filter((folder) => folder.id !== selectedFolder.id));
@@ -116,6 +145,9 @@ export function MediaScreen() {
               setNotice(isArabic ? "تم حذف المجلد، والملفات ما زالت محفوظة." : "Folder deleted; files were kept.");
             } catch (cause) {
               setError(cause instanceof Error ? cause.message : (isArabic ? "تعذر حذف المجلد." : "Could not delete folder."));
+            } finally {
+              folderMutationLock.current = false;
+              setFolderMutationBusy(false);
             }
           })();
         } },
@@ -124,6 +156,8 @@ export function MediaScreen() {
   };
 
   const toggleFavorite = async (asset: MediaAsset) => {
+    if (organizationLock.current) return;
+    organizationLock.current = asset.id;
     const nextFavorite = !favoriteIds.includes(asset.id);
     setOrganizationBusyId(asset.id); setError(null);
     try {
@@ -132,11 +166,15 @@ export function MediaScreen() {
       setNotice(nextFavorite ? (isArabic ? "أُضيف إلى المفضلة." : "Added to favorites.") : (isArabic ? "أُزيل من المفضلة." : "Removed from favorites."));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : (isArabic ? "تعذر تحديث المفضلة." : "Could not update favorites."));
-    } finally { setOrganizationBusyId(null); }
+    } finally {
+      organizationLock.current = null;
+      setOrganizationBusyId(null);
+    }
   };
 
   const toggleAssetFolder = async (asset: MediaAsset) => {
-    if (!selectedFolderId) return;
+    if (!selectedFolderId || organizationLock.current) return;
+    organizationLock.current = asset.id;
     const nextFolderId = assetFolderIds[asset.id] === selectedFolderId ? null : selectedFolderId;
     setOrganizationBusyId(asset.id); setError(null);
     try {
@@ -150,7 +188,10 @@ export function MediaScreen() {
       setNotice(nextFolderId ? (isArabic ? "تم تنظيم الملف داخل المجلد." : "File moved into the folder.") : (isArabic ? "تم إخراج الملف من المجلد." : "File removed from the folder."));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : (isArabic ? "تعذر تنظيم الملف." : "Could not organize file."));
-    } finally { setOrganizationBusyId(null); }
+    } finally {
+      organizationLock.current = null;
+      setOrganizationBusyId(null);
+    }
   };
 
   const copy = async (url: string) => {
@@ -163,6 +204,8 @@ export function MediaScreen() {
       { text: isArabic ? "إلغاء" : "Cancel", style: "cancel" },
       { text: isArabic ? "حذف" : "Delete", style: "destructive", onPress: () => {
         void (async () => {
+          if (deleteLock.current) return;
+          deleteLock.current = asset.id;
           setDeletingId(asset.id); setError(null); setNotice(null);
           try {
             await deleteMediaAsset(asset.id);
@@ -170,7 +213,10 @@ export function MediaScreen() {
             setNotice(isArabic ? "تم حذف الملف من مكتبتك." : "File deleted from your library.");
           } catch (cause) {
             setError(cause instanceof Error ? cause.message : (isArabic ? "تعذر حذف الملف." : "Could not delete the file."));
-          } finally { setDeletingId(null); }
+          } finally {
+            deleteLock.current = null;
+            setDeletingId(null);
+          }
         })();
       } },
     ]);
@@ -199,19 +245,19 @@ export function MediaScreen() {
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     <View style={styles.header}>
       <Text style={styles.title}>{isArabic ? "مكتبة SULY" : "SULY Library"}</Text>
-      <Pressable onPress={() => void load()}><Text style={styles.link}>{isArabic ? "تحديث" : "Refresh"}</Text></Pressable>
+      <Pressable disabled={loading} onPress={() => void load()} accessibilityRole="button" accessibilityLabel={isArabic ? "تحديث المكتبة" : "Refresh library"}><Text style={[styles.link, loading && styles.disabledText]}>{loading ? (isArabic ? "جارٍ التحديث…" : "Refreshing…") : (isArabic ? "تحديث" : "Refresh")}</Text></Pressable>
     </View>
     <Text style={styles.explainer}>{isArabic ? "كل ملفاتك ومرفقات محادثاتك ومخرجات الاستوديو في مكان واحد. الملفات الخاصة لا تظهر إلا لصاحبها أو لمن يملك صلاحية الوصول." : "Your files, chat attachments, and Studio outputs in one place. Private files are visible only to their owner or an authorized user."}</Text>
     <TextInput value={search} onChangeText={setSearch} placeholder={isArabic ? "ابحث باسم الملف أو وصفه" : "Search by file name or description"} placeholderTextColor={colors.textMuted} style={styles.search} />
     <View style={styles.actions}>
-      <Pressable onPress={() => { setFolderEditor("create"); setFolderName(""); }}><Text style={styles.link}>{isArabic ? "＋ مجلد جديد" : "＋ New folder"}</Text></Pressable>
-      {selectedFolder ? <Pressable onPress={() => { setFolderEditor("rename"); setFolderName(selectedFolder.name); }}><Text style={styles.link}>{isArabic ? "إعادة تسمية" : "Rename"}</Text></Pressable> : null}
-      {selectedFolder ? <Pressable onPress={confirmDeleteFolder}><Text style={styles.link}>{isArabic ? "حذف المجلد" : "Delete folder"}</Text></Pressable> : null}
+      <Pressable disabled={folderMutationBusy} accessibilityRole="button" onPress={() => { setFolderEditor("create"); setFolderName(""); }}><Text style={[styles.link, folderMutationBusy && styles.disabledText]}>{isArabic ? "＋ مجلد جديد" : "＋ New folder"}</Text></Pressable>
+      {selectedFolder ? <Pressable disabled={folderMutationBusy} accessibilityRole="button" onPress={() => { setFolderEditor("rename"); setFolderName(selectedFolder.name); }}><Text style={[styles.link, folderMutationBusy && styles.disabledText]}>{isArabic ? "إعادة تسمية" : "Rename"}</Text></Pressable> : null}
+      {selectedFolder ? <Pressable disabled={folderMutationBusy} accessibilityRole="button" onPress={confirmDeleteFolder}><Text style={[styles.link, folderMutationBusy && styles.disabledText]}>{isArabic ? "حذف المجلد" : "Delete folder"}</Text></Pressable> : null}
     </View>
     {folderEditor ? <View style={styles.actions}>
-      <TextInput value={folderName} onChangeText={setFolderName} maxLength={80} placeholder={isArabic ? "اسم المجلد" : "Folder name"} placeholderTextColor={colors.textMuted} style={[styles.search, { flex: 1, minWidth: 160 }]} />
-      <Pressable onPress={() => void saveFolder()}><Text style={styles.link}>{isArabic ? "حفظ" : "Save"}</Text></Pressable>
-      <Pressable onPress={() => { setFolderEditor(null); setFolderName(""); }}><Text style={styles.link}>{isArabic ? "إلغاء" : "Cancel"}</Text></Pressable>
+      <TextInput value={folderName} onChangeText={setFolderName} editable={!folderMutationBusy} maxLength={80} placeholder={isArabic ? "اسم المجلد" : "Folder name"} placeholderTextColor={colors.textMuted} style={[styles.search, { flex: 1, minWidth: 160 }]} />
+      <Pressable disabled={folderMutationBusy} accessibilityRole="button" onPress={() => void saveFolder()}><Text style={[styles.link, folderMutationBusy && styles.disabledText]}>{folderMutationBusy ? (isArabic ? "جارٍ الحفظ…" : "Saving…") : (isArabic ? "حفظ" : "Save")}</Text></Pressable>
+      <Pressable disabled={folderMutationBusy} onPress={() => { setFolderEditor(null); setFolderName(""); }}><Text style={[styles.link, folderMutationBusy && styles.disabledText]}>{isArabic ? "إلغاء" : "Cancel"}</Text></Pressable>
     </View> : null}
     {isAdmin && (
       <View style={styles.actions}>
@@ -227,8 +273,20 @@ export function MediaScreen() {
       </View>
     )}
 
-    {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+    {error ? <View style={styles.errorState}>
+      <Text accessibilityRole="alert" style={styles.error}>{error}</Text>
+      <Pressable disabled={loading} onPress={() => void load()} style={styles.retryButton} accessibilityRole="button">
+        <Ionicons name="refresh-outline" size={16} color={colors.onPrimary} />
+        <Text style={styles.retryText}>{isArabic ? "إعادة المحاولة" : "Try again"}</Text>
+      </Pressable>
+    </View> : null}
     {notice ? <Text style={styles.success}>{notice}</Text> : null}
+    {loading ? (
+      <View accessibilityRole="progressbar" accessibilityLabel={isArabic ? "جارٍ تحميل المكتبة" : "Loading library"} style={styles.loadingState}>
+        <ActivityIndicator color={colors.primary} />
+        <Text style={styles.meta}>{isArabic ? "جارٍ تحميل ملفاتك ومجلداتك…" : "Loading your files and folders…"}</Text>
+      </View>
+    ) : null}
     {busy ? <ActivityIndicator color={colors.primary} /> : null}
 
     <View style={styles.filters}>
@@ -252,7 +310,7 @@ export function MediaScreen() {
         <Text style={[styles.filterText, selectedFolderId === folder.id && styles.filterTextSelected]}>{folder.name}</Text>
       </Pressable>)}
     </View> : null}
-    {filter === "in_progress" ? (jobs.length ? <View style={styles.jobsList}>
+    {!error && filter === "in_progress" ? (jobs.length ? <View style={styles.jobsList}>
       {jobs.map((job) => <View key={job.id} style={styles.jobCard}>
         <View style={styles.jobHeader}>
           <Text style={styles.jobStatus}>{job.status === "queued" ? (isArabic ? "في قائمة الانتظار" : "Queued") : (isArabic ? "جاري التنفيذ" : "Running")}</Text>
@@ -261,8 +319,8 @@ export function MediaScreen() {
         <Text numberOfLines={3} style={styles.filename}>{job.prompt}</Text>
         <Text style={styles.meta}>{new Date(job.createdAt).toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text>
       </View>)}
-    </View> : <Text style={styles.empty}>لا توجد مهام وسائط قيد التنفيذ مسجلة حاليًا.</Text>) : null}
-    {!loading && filter !== "in_progress" && visibleAssets.length === 0 ? <Text style={styles.empty}>{assets.length === 0 ? (isArabic ? "لا يوجد ملف بعد. ابدأ برفع صورة." : "No files yet. Start by uploading an image.") : (isArabic ? "لا توجد عناصر في هذا التصنيف." : "No items in this category.")}</Text> : null}
+    </View> : <Text style={styles.empty}>{isArabic ? "لا توجد مهام وسائط قيد التنفيذ مسجلة حاليًا." : "No media jobs are currently in progress."}</Text>) : null}
+    {!loading && !error && filter !== "in_progress" && visibleAssets.length === 0 ? <Text style={styles.empty}>{assets.length === 0 ? (isArabic ? "لا يوجد ملف بعد. ابدأ برفع صورة." : "No files yet. Start by uploading an image.") : (isArabic ? "لا توجد عناصر في هذا التصنيف." : "No items in this category.")}</Text> : null}
     <View style={styles.grid}>
       {filter !== "in_progress" ? visibleAssets.map((asset) => <View key={asset.id || asset.url} style={styles.card}>
         {asset.kind === "raw" || asset.kind === "video"
@@ -319,9 +377,13 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   ghostButton: { flexGrow: 1, minWidth: 130, minHeight: 46, borderRadius: 10, borderWidth: 1, borderColor: colors.accent, alignItems: "center", justifyContent: "center", paddingHorizontal: 14 },
   ghostText: { color: colors.accent, fontWeight: "700" },
   disabled: { opacity: 0.5 },
+  errorState: { gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.error, backgroundColor: colors.surface },
   error: { color: colors.error, textAlign: isArabic ? "right" : "left" },
+  retryButton: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 42, paddingHorizontal: 14, borderRadius: 10, backgroundColor: colors.primary, alignSelf: "flex-start" },
+  retryText: { color: colors.onPrimary, fontWeight: "700", fontSize: 12 },
   success: { color: colors.success, textAlign: isArabic ? "right" : "left" },
   empty: { color: colors.textSecondary, textAlign: "center", marginTop: 8 },
+  loadingState: { minHeight: 72, alignItems: "center", justifyContent: "center", gap: 8 },
   grid: { flexDirection: isArabic ? "row-reverse" : "row", flexWrap: "wrap", gap: 12 },
   card: { width: 160, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 12, padding: 8, gap: 4 },
   thumb: { width: "100%", height: 110, borderRadius: 8, backgroundColor: colors.surfaceElevated },

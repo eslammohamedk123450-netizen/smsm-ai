@@ -171,7 +171,7 @@ export function MessageBubble({
       }
       const uri = candidateUrl;
       nodes.push(
-        <TouchableOpacity key={`${match.index}`} onPress={() => setViewedImage(uri)}>
+        <TouchableOpacity key={`${match.index}`} accessibilityRole="button" accessibilityLabel={isArabic ? "فتح معاينة الصورة" : "Open image preview"} onPress={() => setViewedImage(uri)}>
           <Image source={{ uri }} style={styles.imageThumbnail} resizeMode="cover" />
         </TouchableOpacity>
       );
@@ -280,7 +280,7 @@ export function MessageBubble({
         </View>
 
         <Modal visible={!!viewedImage} transparent={true} animationType="fade" onRequestClose={() => setViewedImage(null)}>
-          <Pressable style={styles.modalOverlay} onPress={() => setViewedImage(null)}>
+          <Pressable style={styles.modalOverlay} accessibilityRole="button" accessibilityLabel={isArabic ? "إغلاق معاينة الصورة" : "Close image preview"} onPress={() => setViewedImage(null)}>
              <Image source={{ uri: viewedImage || "" }} style={styles.fullImage} resizeMode="contain" />
              <Pressable style={styles.modalClose} onPress={() => setViewedImage(null)} accessibilityRole="button" accessibilityLabel="إغلاق الصورة"><Ionicons name="close" size={24} color={colors.textPrimary} /></Pressable>
           </Pressable>

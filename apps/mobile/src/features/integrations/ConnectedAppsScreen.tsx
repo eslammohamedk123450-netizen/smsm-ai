@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { Ionicons } from "@expo/vector-icons";
@@ -26,6 +26,7 @@ export default function ConnectedAppsScreen() {
   const [serviceReady, setServiceReady] = useState<boolean | null>(null);
   const [connecting, setConnecting] = useState<ToolkitStatus["toolkit"] | null>(null);
   const [addSheetVisible, setAddSheetVisible] = useState(false);
+  const connectionLock = useRef(false);
 
   const load = useCallback(async (showSuccess = false) => {
     setRefreshing(true);
@@ -35,6 +36,7 @@ export default function ConnectedAppsScreen() {
       setServiceReady(result.serviceReady);
       if (showSuccess) show(isArabic ? "تم فحص خدمة الموصلات وحالة الحسابات." : "Connector service and account status checked.", "success");
     } catch (cause) {
+      setStatuses([]);
       setServiceReady(false);
       show(cause instanceof Error ? cause.message : (isArabic ? "تعذّر تحميل حالة التطبيقات المرتبطة." : "Could not load connected app status."), "error");
     } finally {
@@ -49,15 +51,32 @@ export default function ConnectedAppsScreen() {
   }, [load]));
 
   const connect = async (toolkit: ToolkitStatus["toolkit"]) => {
+    if (connectionLock.current) return;
+    connectionLock.current = true;
     setAddSheetVisible(false);
     setConnecting(toolkit);
     try {
       const completed = await integrationService.openConnectFlow(toolkit);
-      if (completed) show(isArabic ? "عادت صفحة الربط. حدّث الحالة للتأكد من اكتمال الاتصال." : "Returned from the connection page. Refresh to verify the connection.", "success");
-      await load();
+      if (completed) {
+        const result = await integrationService.getStatus();
+        setStatuses(result.toolkits);
+        setServiceReady(result.serviceReady);
+        const account = result.toolkits.find((item) => item.toolkit === toolkit);
+        if (result.serviceReady && account?.connected) {
+          show(isArabic ? `تم ربط ${account.label} والتحقق من نشاط الحساب.` : `${account.label} connected and verified active.`, "success");
+        } else {
+          show(isArabic ? "عادت صفحة التفويض، لكن لم يؤكد الخادم اتصال الحساب بعد. راجع الحالة قبل استخدام الموصل." : "Authorization returned, but the server has not confirmed an active connection yet. Check the status before using this connector.", "info");
+        }
+      } else {
+        await load();
+        show(isArabic ? "لم يكتمل ربط التطبيق. يمكنك المحاولة مرة أخرى." : "The app connection was not completed. You can try again.", "info");
+      }
     } catch (cause) {
+      setStatuses([]);
+      setServiceReady(false);
       show(cause instanceof Error ? cause.message : (isArabic ? "تعذّر بدء ربط التطبيق." : "Could not start app connection."), "error");
     } finally {
+      connectionLock.current = false;
       setConnecting(null);
     }
   };
@@ -75,15 +94,19 @@ export default function ConnectedAppsScreen() {
   };
 
   const performDisconnect = async (status: ToolkitStatus) => {
-    if (!status.accountId) return;
+    if (!status.accountId || connectionLock.current) return;
+    connectionLock.current = true;
     setConnecting(status.toolkit);
     try {
       await integrationService.disconnect(status.toolkit, status.accountId);
       show(isArabic ? `تم قطع اتصال ${status.label}.` : `Disconnected ${status.label}.`, "success");
       await load();
     } catch (cause) {
+      setStatuses([]);
+      setServiceReady(false);
       show(cause instanceof Error ? cause.message : (isArabic ? "تعذّر قطع اتصال التطبيق." : "Could not disconnect the app."), "error");
     } finally {
+      connectionLock.current = false;
       setConnecting(null);
     }
   };
@@ -112,7 +135,8 @@ export default function ConnectedAppsScreen() {
           <TouchableOpacity
             activeOpacity={0.7}
             onPress={() => setAddSheetVisible(true)}
-            style={styles.addButton}
+            disabled={refreshing || connecting !== null || serviceReady !== true}
+            style={[styles.addButton, (refreshing || connecting !== null || serviceReady !== true) && styles.disabledButton]}
             accessibilityRole="button"
             accessibilityLabel={isArabic ? "إضافة موصل" : "Add connector"}
           >
@@ -209,6 +233,7 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   headerActions: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 8 },
   iconButton: { width: 40, height: 40, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider },
   addButton: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "center", gap: 5, paddingHorizontal: 12, height: 40, borderRadius: 13, backgroundColor: colors.primary },
+  disabledButton: { opacity: 0.45 },
   addText: { color: colors.onPrimary, fontSize: 12, fontWeight: "800" },
   explainer: { color: colors.textSecondary, fontSize: 13, lineHeight: 21, textAlign: isArabic ? "right" : "left", marginTop: 9 },
   serviceStatus: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 8, marginTop: 16, padding: 12, borderRadius: 13, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider },

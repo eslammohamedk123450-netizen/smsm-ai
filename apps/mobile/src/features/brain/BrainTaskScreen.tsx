@@ -8,6 +8,7 @@ import { chatService } from "../chat/chat-service";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { useToast } from "../../components/ui/Toast";
 import { useSulyTheme } from "../../theme/ThemeProvider";
+import { useAppLocale } from "../../theme/LocaleProvider";
 import type { ThemePalette } from "../../theme/colors";
 import { cancelBrainTask, runBrainTask, recoverBrainTask, wakeBrainWorker, type BrainTaskResult } from "./brain-service";
 import { getTaskProgress, type TaskSnapshot } from "./task-service";
@@ -16,13 +17,14 @@ const PENDING_TASK_STORAGE_PREFIX = "@suly/brain-task-pending:";
 type PendingBrainTask = { task_id: string; job_id: string; objective: string; conversation_id: string; user_id: string };
 
 const TASK_TEMPLATES = [
-  { title: "تحليل ملف أو بيانات", prompt: "حلّل البيانات التالية واستخرج أهم المؤشرات والمشكلات والتوصيات العملية: " },
-  { title: "خطة تنفيذ مشروع", prompt: "أنشئ خطة تنفيذ عملية للمشروع التالي مع المراحل والاعتماديات ومعايير النجاح: " },
-  { title: "بحث ومقارنة", prompt: "ابحث وحلّل الموضوع التالي، ثم قدّم مقارنة منظمة وخلاصة قابلة للتنفيذ: " },
+  { titleAr: "تحليل ملف أو بيانات", titleEn: "Analyze data", promptAr: "حلّل البيانات التالية واستخرج أهم المؤشرات والمشكلات والتوصيات العملية: ", promptEn: "Analyze the following data and identify key metrics, issues, and practical recommendations: " },
+  { titleAr: "خطة تنفيذ مشروع", titleEn: "Project execution plan", promptAr: "أنشئ خطة تنفيذ عملية للمشروع التالي مع المراحل والاعتماديات ومعايير النجاح: ", promptEn: "Create a practical execution plan for the following project, including phases, dependencies, and success criteria: " },
+  { titleAr: "بحث ومقارنة", titleEn: "Research and compare", promptAr: "ابحث وحلّل الموضوع التالي، ثم قدّم مقارنة منظمة وخلاصة قابلة للتنفيذ: ", promptEn: "Research and analyze the following topic, then provide a structured comparison and actionable conclusion: " },
 ];
 
 export function BrainTaskScreen() {
   const { colors } = useSulyTheme();
+  const { isArabic } = useAppLocale();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
   const params = useLocalSearchParams<{ conversationId?: string | string[] }>();
@@ -219,28 +221,28 @@ export function BrainTaskScreen() {
         <Text style={styles.sectionTitle}>ابدأ من قالب أو اكتب هدفك</Text>
         <View style={styles.templateRow}>
           {TASK_TEMPLATES.map((template) => (
-            <Pressable key={template.title} onPress={() => setObjective(template.prompt)} style={styles.template} accessibilityRole="button">
-              <Text style={styles.templateText}>{template.title}</Text>
+            <Pressable key={template.titleEn} onPress={() => setObjective(isArabic ? template.promptAr : template.promptEn)} style={styles.template} accessibilityRole="button" accessibilityLabel={isArabic ? template.titleAr : template.titleEn}>
+              <Text style={styles.templateText}>{isArabic ? template.titleAr : template.titleEn}</Text>
             </Pressable>
           ))}
         </View>
         <TextInput
           value={objective}
           onChangeText={setObjective}
-          placeholder="مثال: حلّل خطة إطلاق المنتج وحدد المخاطر والاعتماديات…"
+          placeholder={isArabic ? "مثال: حلّل خطة إطلاق المنتج وحدد المخاطر والاعتماديات…" : "Example: Analyze a product launch plan and identify risks and dependencies…"}
           placeholderTextColor={colors.textMuted}
           multiline
           maxLength={50000}
           textAlignVertical="top"
           style={styles.input}
-          accessibilityLabel="هدف المهمة"
+          accessibilityLabel={isArabic ? "هدف المهمة" : "Task objective"}
         />
         <View style={styles.actions}>
-          <Pressable onPress={() => { setObjective(""); setResult(null); setError(null); }} style={styles.secondary} disabled={busy}>
-            <Text style={styles.secondaryText}>مسح</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "مسح هدف المهمة" : "Clear task objective"} onPress={() => { setObjective(""); setResult(null); setError(null); }} style={styles.secondary} disabled={busy}>
+            <Text style={styles.secondaryText}>{isArabic ? "مسح" : "Clear"}</Text>
           </Pressable>
           <Pressable onPress={() => void submit()} style={[styles.primary, busy && styles.disabled]} disabled={busy} accessibilityRole="button">
-            {busy ? <ActivityIndicator color={colors.onPrimary} /> : <Text style={styles.primaryText}>تشغيل المهمة</Text>}
+            {busy ? <ActivityIndicator color={colors.onPrimary} /> : <Text style={styles.primaryText}>{isArabic ? "تشغيل المهمة" : "Run task"}</Text>}
           </Pressable>
         </View>
         {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
