@@ -26,6 +26,18 @@ describe("SULY shared theme tokens", () => {
     }
   });
 
+  it.each(["dark", "light"] as const)("keeps every shared color token neutral in %s mode", (mode) => {
+    const palette = getThemeColors(mode);
+    for (const value of Object.values(palette)) {
+      const normalized = value.replace("#", "").slice(0, 6);
+      const red = normalized.slice(0, 2);
+      const green = normalized.slice(2, 4);
+      const blue = normalized.slice(4, 6);
+      expect(red).toBe(green);
+      expect(green).toBe(blue);
+    }
+  });
+
   it.each(["dark", "light"] as const)("keeps body text readable on every shared content surface in %s mode", (mode) => {
     const palette = getThemeColors(mode);
     const surfaces = [palette.background, palette.surface, palette.surfaceElevated, palette.cardBackground, palette.inputBackground];
@@ -41,8 +53,6 @@ describe("SULY shared theme tokens", () => {
     const palette = getThemeColors(mode);
     expect(contrast(palette.onPrimary, palette.primary)).toBeGreaterThanOrEqual(4.5);
   });
-});
-
 
   it("preserves the approved monochrome minimal identity", () => {
     const dark = getThemeColors("dark");
@@ -54,3 +64,4 @@ describe("SULY shared theme tokens", () => {
     expect(dark.textPrimary).toBe("#F7F7F7");
     expect(light.primary).toBe("#111111");
   });
+});
