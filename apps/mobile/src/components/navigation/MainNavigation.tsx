@@ -24,10 +24,6 @@ export function usePlusMenu() {
 }
 
 const ITEMS = [
-  { key: "studio", labelAr: "Studio", labelEn: "Studio", href: "/studio", icon: "sparkles-outline" as const },
-  { key: "library", labelAr: "المكتبة", labelEn: "Library", href: "/media", icon: "albums-outline" as const },
-  { key: "projects", labelAr: "المشاريع", labelEn: "Projects", href: "/projects", icon: "folder-open-outline" as const },
-  { key: "tools", labelAr: "الأدوات والموصلات", labelEn: "Tools & connectors", href: "/integrations", icon: "git-network-outline" as const },
   { key: "account", labelAr: "الحساب", labelEn: "Account", href: "/settings", icon: "person-circle-outline" as const },
 ] as const;
 
