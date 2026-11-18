@@ -1,23 +1,24 @@
 # SULY UI/UX 2.0 — Complete Design & Implementation Blueprint
 
 **Document type:** Approved product-design and engineering implementation specification  
-**Status:** Ready for implementation planning; this document upload does not itself authorize UI code changes  
+**Status:** Phase 0 baseline audit recorded; implementation phases remain pending and must execute sequentially  
 **Target repository:** `eslammohamedk123450-netizen/smsm-ai`  
 **Target branch:** `develop` only  
 **Platforms:** Expo / React Native Android, iOS, and Web  
 **Product language:** Arabic-first (RTL), English (LTR)  
 **Visual direction:** Monochrome Minimal Luxury — balanced density  
-**Version:** 2.0  
-**Date:** 2026-11-17
+**Version:** 2.1  
+**Date:** 2026-11-18
 
 ---
 
 ## 0. Mandatory execution rules
 
-1. Work only on the existing `develop` branch. **Do not create, rename, or switch to any new branch.**
-2. Do not commit UI implementation changes to `release/v1`, `main`, or any production branch. Do not change branch protections, deployment environments, or production configuration.
-3. This is a development build. There are currently no real end users and no production customer data. Use the development environment and existing test data only; do not invent production users, payment events, usage, or analytics.
-4. The current task is a design/implementation blueprint. Uploading this document is not permission to start modifying application code. Implementation is a separate, staged task.
+1. Implement application/UI work only on the existing develop branch. Do not create, rename, or switch to any new branch.
+2. The owner has explicitly authorized this Phase 0 documentation update to be promoted to release/v1 and deployed so it can be reviewed. This exception applies only to the plan document and its deployment; it does not authorize application/UI code changes, later phase promotion, or automatic production deployment.
+3. Do not change branch protections, deployment environments, production configuration, database schemas, secrets, provider settings, routing, billing, or user data as part of this plan-document update.
+4. Use development/test evidence for implementation audits. Do not invent production users, payment events, usage, or analytics.
+5. Execute implementation phases sequentially on develop. The blueprint is the single source of truth; do not begin a later phase until the current phase's acceptance checks and status update are recorded.
 5. Do not delete, disable, hide permanently, or replace existing working capabilities merely to simplify the UI. Reorganize them and preserve access. If a feature is not operational end-to-end, do not present it as working: mark it unavailable, explain why, and record the dependency.
 6. Every visible interactive control must have a real action, a real data source, a loading state, an error state, and a success/empty state as applicable. No decorative buttons, fake progress, fabricated counts, mock model availability, or placeholder actions in the shipped UI.
 7. Before changing a screen, inspect its current implementation, services, route, database/RPC/Edge Function dependencies, and tests. Reuse existing functionality and shared components where possible.
@@ -26,7 +27,7 @@
 10. Do not expose service-role keys, provider secrets, privileged RPCs, or admin-only data to the client.
 11. Preserve Expo universal-client parity: one shared application and shared feature logic for Android, iOS, and Web. Platform-specific presentation is allowed only where the platform requires it (file picker, keyboard, safe areas, pointer/hover, responsive layout).
 12. Keep HIMS and all existing product modules intact. Do not remove routes or features because they are not in the new navigation's first visible group.
-13. No new Git branches, no automatic production merge, no production deployment as part of the redesign.
+13. No new Git branches. No automatic production merge or deployment. A production promotion requires separate explicit owner approval; the current explicit approval is limited to this Phase 0 plan-document change.
 
 ## 1. Product vision and design principles
 
@@ -119,7 +120,7 @@ The following 14-screen structure is the product-level reference. Some entries m
 8. Studio (image creation as the primary Studio destination; expose other media modalities only when operational).
 9. Library and memory.
 10. Tools and connected services.
-11. Model/profile selection and availability.
+11. Model capability and availability information (read-only; routing and model selection remain automatic).
 12. Plans and subscription management.
 13. Credits, usage, and billing history.
 14. Account and settings (profile, security, preferences, notifications, accessibility, help, about).
@@ -212,15 +213,17 @@ The six recent conversations are the six most recently updated conversations for
 
 ### 5.3 Composer: exact RTL order and behavior
 
-The composer is the primary interaction control. On Arabic RTL, arrange controls from **right to left** in this order:
+The composer is the primary interaction control. SULY has **one unified conversation mode**. The central Agent is always available and decides automatically whether a request needs a direct response, tools, planning, or multi-step execution. The user must not switch modes.
 
-1. **Plus / connectors button** at the far right. This is the connections/tools shortcut, not the file picker. Opens the existing connectors/tools sheet or destination. It must show actual connection state and only actions supported by the integration registry.
+On Arabic RTL, arrange controls from **right to left** in this order:
+
+1. **Plus / connectors button** at the far right. Opens the existing connectors/tools sheet or destination. It must show actual connection state and only actions supported by the integration registry.
 2. **Paperclip / attachments button** immediately to its left. Opens the attachment sheet for supported file types. This is where users choose image, video, document, or other allowed media only when the current upload pipeline supports that type.
-3. **Agent mode toggle** immediately to the left of the attachment control. A compact icon toggle with a visible selected state and accessible label. It enables/disables Agent execution for the next request; it does not create another conversation.
-4. **Multiline message input** in the flexible center. Placeholder: “اكتب رسالتك إلى SULY…” (English equivalent in LTR). Auto grows from 42 px to 132 px, then scrolls internally.
-5. **Model/profile selector** on the left side near the microphone. A small chevron + current profile/model name. Opens a bottom sheet on mobile and a compact popover/menu on web. Options must be loaded from the existing backend configuration and filtered by actual activation, entitlement, and availability. Do not hardcode an inactive model as selectable. Preserve server-side validation on every request.
-6. **Microphone / voice input** next to the selector. Show only when speech capture is supported and permission granted/available. Permission denied or unsupported platform must produce an explanation and fallback to typing. It must not silently replace the connectors action.
-7. **Send button** at the far left after text is entered. Before text is entered, show the microphone action in its own position; once text or attachment is present, send becomes the primary action. During a stream, replace send with a clearly labeled Stop action only if stopping that request is supported.
+3. **Multiline message input** in the flexible center. Placeholder: “اكتب رسالتك إلى SULY…” (English equivalent in LTR). Auto grows from 42 px to 132 px, then scrolls internally.
+4. **Microphone / voice input** next to the input/send area. Show only when speech capture is supported and permission granted/available. Permission denied or unsupported platform must produce an explanation and fallback to typing.
+5. **Send button** at the far left after text is entered. Before text is entered, show the microphone action in its own position; once text or attachment is present, send becomes the primary action. During a stream, replace send with a clearly labeled Stop action only if stopping that request is supported.
+
+There is **no Agent ON/OFF toggle**, no Chat/Agent mode switch, and no user-facing model/profile selector. The request is always submitted through the unified automatic execution path. The backend's central router remains authoritative for model, tool, and execution decisions.
 
 The visual grouping should be one single composer container, not a row of unrelated floating buttons. Use a neutral border, surface background, 16–20 px radius (or a tested pill form), and 8 px internal gaps. Composer height grows with text; action hit targets remain at least 40–44 px. Keep the input area visually dominant.
 
@@ -251,18 +254,16 @@ The visual grouping should be one single composer container, not a row of unrela
 - Do not execute write actions without existing approval/permission policy.
 - Keep this sheet separate from the file attachment sheet.
 
-### 5.6 Model/profile selector
+### 5.6 Automatic model and execution routing (no manual selector)
 
-- Trigger: current profile label + chevron.
-- Use backend-provided profiles and capabilities; show only eligible active options.
-- Distinguish SULY profile/tier from raw provider model names if those are different concepts in the backend. Never mislabel a plan as a model.
-- Each option may show: display name, short use-case description, availability/lock state, and entitlement requirement where returned by the server.
-- Selection updates the next request's profile key using the existing request contract. Server remains authoritative for entitlement and activation.
-- Persist selection only using the existing supported preference mechanism; do not add a new database field just for appearance.
-- “Auto” may be offered only if the router contract supports it and its meaning is clear. If enabled, it is the default; user can still explicitly select a supported profile.
-- An inactive/unconfigured profile (including a placeholder such as X if not approved/active) is disabled and clearly labeled—not selectable and not presented as available.
-- Mobile: bottom sheet, max height 70% viewport, searchable only if option count warrants it.
-- Desktop: compact popover, max width 320 px.
+- The client submits chat and retry/regenerate requests using the existing automatic contract (modelProfileKey: "auto" / model_profile_key: "auto" and executionMode: "auto" where the contract requires these fields).
+- The central SULY Agent / AI Router alone chooses the eligible model, profile, tools, and execution depth based on the request, server-side availability, entitlement, safety, and configured routing policy.
+- Do not render a model/profile picker, Chat/Agent switch, or Agent activation toggle in the end-user composer or settings.
+- Do not create a second planner or let UI state override server-side routing.
+- If model availability is useful to explain to the user, show read-only, server-grounded information only; never imply that the user can select or activate an inactive model.
+- Existing admin-only model/provider governance remains in the admin area with its existing authorization and audit requirements. It is not an end-user model selector.
+- Preserve server-side entitlement and activation validation on every request. Do not change provider configuration, model activation, route assignments, prices, or routing policy during UI implementation.
+
 
 ## 6. Chat and Agent behavior — one conversation, one central brain
 
@@ -378,7 +379,7 @@ Organize settings into sections:
 - Notifications.
 - Security and privacy: password/session management and available controls.
 - Memory preferences.
-- AI defaults: profile/mode only where supported.
+- AI behavior: read-only explanation that SULY automatically selects the appropriate model and execution path; no user-facing mode/profile selector.
 - Conversation preferences.
 - Data and storage.
 - Accessibility: text scale, reduced motion, contrast.
@@ -412,7 +413,7 @@ Parity definition:
 - Same destinations and names.
 - Same underlying conversation/task state and history.
 - Same action semantics and permission checks.
-- Same model/profile eligibility.
+- Same automatic model/profile eligibility and routing (no manual user selector).
 - Same attachment validation.
 - Same subscription and credit source.
 - Same light/dark/system preference.
@@ -469,68 +470,131 @@ For each UI action, document:
 
 Never write assistant messages or credit balances directly from the client if the current architecture assigns those operations to the AI Router or ledger service. The client must not bypass the central `ai-router`.
 
-## 11. Implementation phases and deliverables
+## 11. Execution plan, phase split, and live status
 
-Execute in order on `develop` only. Do not start a later phase until the current phase passes its acceptance checks.
+Execute the stages below in order on develop. This section is the execution tracker. Update it in the same commit whenever a phase changes status. Do not mark a task complete because a component or route merely exists; require the stated evidence.
 
-### Phase 0 — Baseline and route/function inventory
-- Record current commit SHA and working tree/branch state.
-- Inventory all routes, screens, components, theme tokens, navigation entries, chat/Agent services, media flows, plan/credit services, and settings.
-- Map every existing capability to its current screen and backend endpoint/RPC.
-- Record current tests and known failures before changes.
-- Identify functionality that is implemented, partially implemented, disabled, or absent.
-- Deliverable: baseline audit table and preservation checklist.
+### Status legend
+- ⬜ **Not started — 0%**
+- 🟡 **In progress — percentage shown**
+- ◐ **Partially complete — percentage shown**
+- ☑️ **Completed — 100%**, only after implementation and acceptance checks pass
+- ❌ **Failed / regression — percentage shown**, repair before proceeding
+- ⏸️ **Blocked — percentage shown**, record the exact dependency or owner decision
 
-### Phase 1 — Monochrome design tokens
-- Update shared light/dark semantic tokens.
-- Remove old gold/purple UI colors from shared components and screens in scope.
-- Verify grayscale values, text contrast, focus, disabled states, and system theme.
-- Keep project-specific user content intact.
-- Deliverable: token diff, screenshots on light/dark, contrast test report.
+Percentages are source-audit estimates of deliverable coverage, not test pass rates. Each checklist item is marked separately; completed items require evidence. Unknown/unverified behavior stays partial or blocked.
 
-### Phase 2 — Shared layout and global navigation
-- Rework MainNavigation into responsive desktop sidebar and mobile drawer.
-- Add approved destination order and recent-six section.
-- Wire real recent conversations and “Show more” history.
-- Remove/avoid bottom navigation.
-- Remove SULY wordmark from chat header while preserving brand identity in appropriate non-chat contexts.
-- Deliverable: navigation screenshots and route smoke tests.
+### Phase 0 — Baseline audit and plan alignment
+**Status: ◐ 85% — source audit recorded; final runtime/working-tree evidence remains unavailable.**
 
-### Phase 3 — Chat shell and composer
-- Rework chat header, message column, spacing, and composer.
-- Implement correct control order: plus/connectors, paperclip/attachments, Agent toggle, input, profile selector, microphone, send/stop.
-- Reuse existing attachment and upload flows; extend only after service contract review.
-- Implement selector against actual backend profiles and entitlement.
-- Deliverable: composer interaction matrix and end-to-end chat send/upload tests.
+- ☑️ Record the observed baseline commit references: develop baseline 2106e2b40fd4d1fb45d2eef02daef0846c869743; release/v1 baseline c48530a539112554664c4f1776be135485bd830e.
+- ☑️ Confirm branch relationship: develop is two commits behind release/v1 at audit time; no develop-only commits were reported by the comparison.
+- ☑️ Record core application and backend ownership using the existing docs/PHASES_1_4_BUILD_AUDIT.md inventory and the source files listed in the baseline table below.
+- ☑️ Reconcile the plan with the approved product decision: one unified conversation mode; central Agent always available; automatic model/tool/execution routing; no Agent toggle, no Chat/Agent switch, and no manual model/profile picker.
+- ☑️ Split implementation into Phases 1–7 plus final Phase 8, with explicit status markers and acceptance gates.
+- ◐ Record route/service ownership for chat, navigation, theme, tasks, plans, credits, settings, media, and projects; exhaustive route-by-route and RPC-by-RPC mapping is still required as each owning phase begins.
+- ⏸️ Working-tree cleanliness and uncommitted local changes cannot be observed through the repository file API; verify from the actual development workspace before any code edit.
+- ⏸️ Fresh baseline CI and live browser/device screenshots were not run during this documentation audit. Existing README/audit evidence is historical and must not be presented as a fresh pass.
+- **Deliverable:** this updated blueprint plus the source-level baseline matrix in §14. Phase 0 is not 100% until the working-tree and fresh baseline checks are recorded.
 
-### Phase 4 — Unified Agent execution experience
-- Keep one conversation stream.
-- Add Auto/Agent interaction only if the existing router contract supports it; otherwise document and request a separately scoped backend contract.
-- Add expandable task status/plan/steps/tools/results and server-confirmed cancellation.
-- Do not expose hidden reasoning.
-- Deliverable: task lifecycle tests, cancellation tests, reconnect/reload recovery tests.
+### Phase 1 — Monochrome design system and shared tokens
+**Status: ◐ 70% — semantic grayscale tokens and theme foundation exist; full UI migration remains.**
 
-### Phase 5 — Studio, library, projects, tools
-- Apply shared page patterns and monochrome visual language.
-- Verify every action is connected to its actual service and permission checks.
-- Hide or label unavailable capabilities honestly.
-- Deliverable: per-feature integration matrix and route tests.
+- ☑️ Confirm shared light/dark semantic palettes exist in apps/mobile/src/theme/colors.ts.
+- ☑️ Confirm ThemeProvider supports System / Light / Dark and persists the preference.
+- ◐ Audit every shared component and feature screen for hard-coded legacy colors and replace only within the approved scope.
+- ⬜ Verify WCAG contrast, focus, disabled, loading, error, and status states across both themes with current automated tests.
+- ⬜ Capture and inspect screenshots for representative routes in light and dark themes.
+- **Deliverable:** token diff, contrast report, and reviewed screenshots.
 
-### Phase 6 — Plans, credits, account, settings
-- Redesign plan cards and comparison layout using actual catalog data.
-- Redesign credit balance/history from ledger.
-- Reorganize settings into approved sections.
-- Verify theme/language persistence and account security flows.
-- Deliverable: billing/ledger regression report and settings tests.
+### Phase 2 — Responsive application shell and global navigation
+**Status: ◐ 45% — mobile drawer and core destinations exist; desktop behavior and exact information architecture remain.**
+
+- ☑️ Confirm protected routes mount the shared MainNavigation.
+- ☑️ Confirm mobile drawer, recent conversation loading (bounded to six), and primary destinations are present in the current navigation component.
+- ◐ Reconcile destination order, account placement, recent-chat empty/loading/error states, and “Show more” full-history behavior against the blueprint.
+- ⬜ Implement/verify persistent desktop sidebar with 272 px expanded / 64 px collapsed states and keyboard-accessible tooltips.
+- ⬜ Verify responsive breakpoints, RTL/LTR drawer direction, focus management, Escape/scrim dismissal, and no bottom navigation.
+- **Deliverable:** responsive navigation screenshots and route smoke tests.
+
+### Phase 3 — Unified chat shell and composer
+**Status: ◐ 55% — chat, attachment, voice, and automatic request foundations exist; target composer layout is not complete.**
+
+- ☑️ Confirm chat uses one chronological conversation stream and existing send/retry/regenerate services.
+- ☑️ Confirm send/retry/regenerate requests use automatic model profile and execution mode values in the inspected chat route.
+- ☑️ Confirm an attachment sheet and microphone/speech-recognition handling exist in ChatComposer.
+- ◐ Align the composer to the approved order: plus/connectors, paperclip/attachments, input, microphone, send/stop.
+- ⬜ Verify plus opens connectors and paperclip exclusively opens supported media attachments, with real loading/error/success states.
+- ⬜ Remove any remaining user-facing model/profile selector artifacts and stale UI state/styles after source-wide reference checks.
+- ⬜ Run Arabic/English send, attachment, voice permission, cancellation, retry, and draft-preservation tests.
+- **Deliverable:** composer interaction matrix and chat send/upload regression report.
+
+### Phase 4 — Always-available central Agent execution experience
+**Status: ◐ 45% — central routing and durable task services exist; complete in-chat lifecycle UI remains.**
+
+- ☑️ Preserve one central AI Router / Agent decision authority; do not introduce a second planner.
+- ☑️ Confirm durable task progress and bounded task-history services exist in task-service.ts.
+- ◐ Connect safe, persisted task status to the unified conversation without creating a separate Agent chat or mode.
+- ⬜ Add an expandable in-chat execution card for safe plan summaries, steps, tool activity, results, and status; never expose hidden reasoning.
+- ⬜ Verify server-confirmed cancellation, reconnect/reload recovery, duplicate prevention, and partial/failed task states.
+- ⬜ Verify usage/credit display comes only from authoritative ledger/usage services.
+- **Deliverable:** task lifecycle, cancellation, reconnect, and safe-rendering tests.
+
+### Phase 5 — Studio, library, projects, and connected tools
+**Status: ◐ 50% — core routes/services exist; end-to-end availability and action audit remains.**
+
+- ☑️ Confirm Studio, media/library, projects, and integrations areas exist in the current application source/inventory.
+- ◐ Map each visible action to its service, permission boundary, and real connection/capability status.
+- ⬜ Apply the shared monochrome page patterns without removing existing working capabilities or HIMS.
+- ⬜ Mark unavailable integrations/capabilities honestly; no decorative or fake actions.
+- ⬜ Run owner-scoped project, upload/delivery, connector authorization, and route tests.
+- **Deliverable:** per-feature integration matrix and route tests.
+
+### Phase 6 — Plans, credits, account, and settings
+**Status: ◐ 55% — catalog/ledger/settings foundations exist; checkout and broader account organization remain.**
+
+- ☑️ Confirm plans and features load from active plan catalog records.
+- ☑️ Confirm credit history/balance surfaces use existing credit/ledger services.
+- ☑️ Confirm theme and language settings are persisted through existing providers/services.
+- ◐ Reorganize account/settings into the approved sections while preserving security and privacy controls.
+- ⬜ Clearly label paid upgrade/checkout as unavailable until a real payment flow is implemented and verified; do not imply that a disabled “coming soon” control is purchasable.
+- ⬜ Run billing/ledger regression tests and account security/settings persistence tests.
+- **Deliverable:** billing/ledger regression report and settings tests.
 
 ### Phase 7 — Cross-platform polish and quality gate
-- Test small mobile, large mobile/tablet, desktop, and wide desktop.
-- Test RTL Arabic and LTR English.
-- Test light, dark, and system themes.
-- Test keyboard, touch, reduced motion, focus, modal dismissal, and screen-reader labels.
-- Run Expo typecheck, Jest suite, web export, Android export/build validation, and relevant Supabase/Edge tests if code touched those areas.
-- Inspect browser and native screenshots. Do not claim visual verification without actually viewing the rendered output.
-- Deliverable: final test report, screenshots, changed-file list, known limitations, and explicit approval request before production promotion.
+**Status: ⬜ 0% — not started.**
+
+- ⬜ Test small mobile, large mobile/tablet, desktop, and wide desktop.
+- ⬜ Test Arabic RTL and English LTR.
+- ⬜ Test Light / Dark / System.
+- ⬜ Test keyboard, touch targets, reduced motion, focus order, screen-reader labels, and modal dismissal.
+- ⬜ Run Expo typecheck, Jest suite, web export, Android export/build validation, and relevant Supabase/Edge tests if those areas changed.
+- ⬜ Inspect actual browser and native screenshots. Do not claim visual verification without viewing rendered output.
+- **Deliverable:** exact test report, screenshots, changed-file list, and known limitations.
+
+### Phase 8 — Final audit, handoff, and production-promotion decision
+**Status: ⬜ 0% — not started.**
+
+- ⬜ Reconcile every checklist item against code, tests, and rendered evidence.
+- ⬜ Publish final report with branch/commit, files, completed/partial items, exact test results, screenshots, and known gaps.
+- ⬜ Confirm HIMS, admin, auth, chat, credits, memory, permissions, and data boundaries remain intact.
+- ⬜ Request separate explicit approval before promoting implementation phases to production.
+- **Deliverable:** final review report and explicit promotion decision.
+
+### Phase 0 source-level baseline matrix
+
+| Area | Inspected source / evidence | Current finding | Phase |
+|---|---|---|---|
+| Universal app and routes | apps/mobile/app/, protected layout, docs/PHASES_1_4_BUILD_AUDIT.md | Expo Router shared client for Android/iOS/Web; full route tree still needs fresh enumeration | 0 / 2 |
+| Navigation | apps/mobile/src/components/navigation/MainNavigation.tsx | Mobile drawer, bounded recent-conversation query, Studio/Library/Projects/Tools entries; desktop collapsible sidebar not verified | 2 |
+| Chat request contract | apps/mobile/app/(protected)/chat.tsx | Inspected send/retry/regenerate calls use modelProfileKey: "auto" and executionMode: "auto" | 3 / 4 |
+| Composer and media | apps/mobile/src/features/chat/components/ChatComposer.tsx, AttachSheet.tsx | Attachment sheet and speech-recognition handling exist; exact plus/paperclip target order needs verification | 3 |
+| Durable Agent tasks | apps/mobile/src/features/brain/task-service.ts | Durable progress snapshot and bounded history mapping/query exist; complete in-chat task card/cancel/recovery flow not verified | 4 |
+| Design system | apps/mobile/src/theme/colors.ts, ThemeProvider.tsx | Neutral grayscale light/dark palette and System/Light/Dark persisted preference exist; all-screen migration/contrast review remains | 1 |
+| Plans | apps/mobile/src/features/billing/UpgradeScreen.tsx | Reads active plan/features and current tier; paid upgrade action is explicitly unavailable (“coming soon”) | 6 |
+| Settings and credits | apps/mobile/src/features/settings/SettingsScreen.tsx | Theme/language controls and credit history are present; broader security/account sections need audit | 6 |
+| HIMS and admin | docs/PHASES_1_4_BUILD_AUDIT.md, src/features/hims/, src/features/admin/, Supabase functions/migrations | Existing HIMS/admin are protected product areas; preserve them and their authorization boundaries | All |
+| Automated checks | apps/mobile/package.json, apps/mobile/README.md, prior audit evidence | Scripts exist; README reports historical Jest/Web/Android export checks. No fresh checks were run for this plan-only update | 0 / 7 |
 
 ## 12. Acceptance criteria (must all pass)
 
@@ -544,16 +608,16 @@ Execute in order on `develop` only. Do not start a later phase until the current
 
 ### Chat
 - Chat header has menu control and no SULY name.
-- Message composer controls appear in the approved RTL/LTR order.
+- Message composer controls appear in the approved RTL/LTR order: plus/connectors, paperclip/attachments, input, microphone, send/stop.
 - Plus opens connectors; paperclip opens attachment selection.
-- Agent toggle is not a second chat and does not create a separate history.
-- Model/profile selector reflects actual server eligibility.
+- There is one unified conversation mode; no Agent toggle, no Chat/Agent switch, and no user-facing model/profile selector.
+- Every request uses the central router's automatic model and execution selection; server-side eligibility remains authoritative.
 - Mic is permission-aware and graceful when unavailable.
 - Send/stop controls are state-correct and duplicate-safe.
 - Draft survives recoverable failures.
 
 ### Agent
-- One central brain/router.
+- One central brain/router that is always available in the unified conversation; no mode switch or competing planner.
 - Real status comes from durable backend task state.
 - Expanded details show safe plan/steps/tools/results, not hidden chain-of-thought.
 - Cancellation is server-confirmed.
@@ -593,14 +657,14 @@ At the end of implementation, report:
 
 ## 14. Current repository observations (baseline facts to verify again before implementation)
 
-The development branch currently uses an Expo Router universal client under `apps/mobile/`, with shared React Native/TypeScript screens for Android, iOS, and Web. The existing protected layout mounts `MainNavigation`. The existing navigation component already has a mobile drawer and a plus sheet, but its current ordering and content do not yet match this approved specification. The current chat route uses `ChatComposer`, `MessageBubble`, `StreamingStatus`, a Supabase-backed chat service, and a screen-local SULY profile selector. The current theme provider supports light/dark/system; the current color file still contains the former gold-tinted palette and must be replaced by neutral semantic tokens in the implementation phase.
+The development branch currently uses an Expo Router universal client under `apps/mobile/`, with shared React Native/TypeScript screens for Android, iOS, and Web. The existing protected layout mounts `MainNavigation`. The existing navigation component already has a mobile drawer and a plus sheet, but its current ordering and content do not yet match this approved specification. The current chat route uses `ChatComposer`, `MessageBubble`, `StreamingStatus`, and a Supabase-backed chat service. Inspected send/retry/regenerate requests already use automatic model-profile and execution values. The source still contains legacy profile-related types/styles that must be checked for any remaining user-visible selector before being removed. The theme provider supports light/dark/system and the current shared color file is already neutral grayscale; full screen-by-screen migration and contrast verification remain implementation work.
 
-The current composer has a plus attachment action and a connectors shortcut; this specification intentionally changes the plus to connectors and assigns file selection to the paperclip. The current client README lists Agent tools, image/vision input, web search, and manual per-message model selection as not implemented in the described client contract. The current code and server contract must therefore be re-audited before claiming those functions are operational. This document defines the target UX, not proof that all target functions already exist.
+The current composer and navigation contain separate attachment and connectors entry points; this specification standardizes the plus as connectors and the paperclip as attachments. The current client README lists Agent tools, image/vision input, web search, and manual per-message model selection as not implemented in the described client contract. The current code and server contract must therefore be re-audited before claiming those functions are operational. This document defines the target UX, not proof that all target functions already exist.
 
-The current chat route contains a profile selector for SULY Lite/Pro/Max/X, with server-side eligibility checks. The UI must use live active/entitled profiles; never enable an inactive placeholder. The current README identifies the central `ai-router` and durable task queue/worker/scheduler architecture; implementation must preserve that central authority.
+The chat route source still contains legacy profile-option types/defaults and picker-related styles, while the inspected send/retry/regenerate requests already submit automatic routing values. Phase 3 must confirm whether any selector remains user-visible and remove all such UI/state without changing server routing. The current README and server inventory identify the central `ai-router` and durable task queue/worker/scheduler architecture; preserve that single decision authority.
 
 These observations are a starting point only. Phase 0 must re-fetch the current `develop` branch state before editing because repository state may change.
 
 ---
 
-**Final instruction to implementers:** Follow this document literally unless a requirement conflicts with an existing security boundary, a verified backend contract, or an existing user-facing feature. In that case, do not silently improvise: preserve the feature, document the conflict, and request a scoped decision. Work only on `develop`; never create another branch.
+**Final instruction to implementers:** Follow this document literally unless a requirement conflicts with an existing security boundary, a verified backend contract, or an existing user-facing feature. In that case, do not silently improvise: preserve the feature, document the conflict, and request a scoped decision. Work only on the existing develop branch; never create another branch. The current owner-approved product decision is one unified conversation mode with an always-available central Agent and fully automatic model/tool/execution routing. No user-facing Agent toggle, Chat/Agent switch, or manual model/profile selector may be reintroduced.
