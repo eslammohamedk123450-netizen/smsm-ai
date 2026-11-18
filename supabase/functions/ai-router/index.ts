@@ -2054,7 +2054,7 @@ async function handleRequest(req: Request): Promise<Response> {
       const partialMessageId = partialResponse.trim()
         ? await persistAssistantText(supabase, conversationId, user.id, billingTaskId, billingCandidate?.model.id ?? null, partialResponse)
         : null;
-      await finishAiRequest("cancelled", partialMessageId, partialMessageId ? null : null, {
+      await finishAiRequest("cancelled", partialMessageId, partialMessageId ? null : (partialResponse || null), {
         route: "task_split",
         parts: splitParts.length,
         completed_parts: resumedResults.size + completedDuringRun,
