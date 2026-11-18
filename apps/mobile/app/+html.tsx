@@ -7,6 +7,9 @@ import type { ReactNode } from "react";
  * to hydrate the static HTML. Omitting them leaves a rendered splash screen
  * with no running application.
  */
+const webBaseUrl = (process.env.EXPO_PUBLIC_WEB_BASE_URL ?? "").replace(/\\/+$/, "");
+const faviconHref = `${webBaseUrl}/favicon.svg` || "/favicon.svg";
+
 export default function Root({ children }: { children: ReactNode }) {
   const { htmlAttributes, bodyAttributes, headNodes, bodyNodes } = useServerDocumentContext();
 
@@ -16,8 +19,8 @@ export default function Root({ children }: { children: ReactNode }) {
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <meta name="theme-color" content="#080B14" />
-        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-        <link rel="shortcut icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="icon" type="image/svg+xml" href={faviconHref} />
+        <link rel="shortcut icon" type="image/svg+xml" href={faviconHref} />
         {headNodes}
         <style>{`
           html, body, #root { width: 100%; min-width: 320px; min-height: 100%; margin: 0; background: #080808; }
