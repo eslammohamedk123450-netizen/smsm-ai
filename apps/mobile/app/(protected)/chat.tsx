@@ -150,6 +150,7 @@ export default function ChatPage() {
   const streamedTextRef = useRef("");
   const isAdmin = Boolean(user?.id && adminAccess.userId === user.id && adminAccess.allowed);
   const displayMessages = useMemo(() => buildDisplayMessages(messages, responseIndexByUser), [messages, responseIndexByUser]);
+  const hasActiveAgentExecution = agentProgress.some((progress) => !["completed", "failed", "cancelled"].includes(progress.status));
 
   const refreshCreditBalance = useCallback(async () => {
     if (!user?.id) {
@@ -208,6 +209,7 @@ export default function ChatPage() {
     setShowScrollToBottom(false);
     setConversationId(routeConversationId || null);
     setMessages([]);
+    setAgentProgress([]);
     setResponseIndexByUser({});
     setFeedbackByMessage({});
     setError(null);
@@ -272,12 +274,12 @@ export default function ChatPage() {
       }
     };
     void refresh();
-    if (isSending) {
+    if (isSending || hasActiveAgentExecution) {
       const interval = setInterval(() => { void refresh(); }, 2000);
       return () => { active = false; clearInterval(interval); };
     }
     return () => { active = false; };
-  }, [conversationId, isSending]);
+  }, [conversationId, isSending, hasActiveAgentExecution]);
 
   useEffect(() => {
     if (!conversationId) return;
