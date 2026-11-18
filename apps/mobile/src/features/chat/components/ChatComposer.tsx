@@ -30,11 +30,6 @@ export interface ChatComposerProps {
   disabled?: boolean;
   isStreaming?: boolean;
   onCancel?(): void;
-  isAgentMode?: boolean;
-  onToggleAgent?(): void;
-  modelLabel?: string;
-  onOpenModelPicker?(): void;
-  modelPickerDisabled?: boolean;
 }
 
 const MIN_INPUT_HEIGHT = 42;
@@ -47,11 +42,6 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
     disabled = false,
     isStreaming = false,
     onCancel,
-    isAgentMode = false,
-    onToggleAgent,
-    modelLabel,
-    onOpenModelPicker,
-    modelPickerDisabled = false,
   },
   ref
 ) {
@@ -157,23 +147,10 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
 
   return (
     <View style={styles.wrapper}>
-      {modelLabel && onOpenModelPicker ? (
-        <View style={styles.modelRow}>
-          <TouchableOpacity
-            onPress={onOpenModelPicker}
-            disabled={modelPickerDisabled || isListening}
-            activeOpacity={0.75}
-            accessibilityRole="button"
-            accessibilityLabel={isArabic ? "اختيار مستوى SULY" : "Choose SULY model profile"}
-            accessibilityState={{ disabled: modelPickerDisabled }}
-            style={[styles.modelPickerButton, modelPickerDisabled && styles.controlDisabled]}
-          >
-            <Ionicons name="layers-outline" size={14} color={colors.textSecondary} />
-            <Text style={styles.modelPickerText}>{modelLabel}</Text>
-            <Ionicons name="chevron-down" size={14} color={colors.textMuted} />
-          </TouchableOpacity>
-        </View>
-      ) : null}
+      <View style={styles.agentStatus} accessibilityRole="text">
+        <Ionicons name="sparkles" size={13} color={colors.primary} />
+        <Text style={styles.agentStatusText}>{isArabic ? "SULY AI · يفهم وينفّذ تلقائيًا" : "SULY AI · Understands & acts automatically"}</Text>
+      </View>
 
       {isListening ? <Text style={styles.voiceListening}>{isArabic ? "جارٍ الاستماع… اضغط إيقاف عند الانتهاء." : "Listening… tap stop when finished."}</Text> : null}
       {voiceError ? <Text accessibilityRole="alert" style={styles.voiceError}>{voiceError}</Text> : null}
@@ -212,19 +189,6 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
           accessibilityLabel={isArabic ? "إرفاق صورة أو ملف" : "Attach an image or file"}
         >
           <Ionicons name="add" size={22} color={colors.textMuted} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          onPress={onToggleAgent}
-          disabled={disabled || isStreaming || isListening || !onToggleAgent}
-          activeOpacity={0.7}
-          style={[styles.agentToggle, isAgentMode && styles.agentToggleActive]}
-          accessibilityRole="button"
-          accessibilityState={{ selected: isAgentMode, disabled: disabled || isStreaming || isListening || !onToggleAgent }}
-          accessibilityLabel={isArabic ? (isAgentMode ? "إيقاف وضع الوكيل" : "تفعيل وضع الوكيل") : (isAgentMode ? "Turn Agent mode off" : "Turn Agent mode on")}
-        >
-          <Ionicons name="sparkles-outline" size={15} color={isAgentMode ? colors.onPrimary : colors.textMuted} />
-          <Text style={[styles.agentToggleLabel, isAgentMode && styles.agentToggleLabelActive]}>{isArabic ? (isAgentMode ? "وكيل ON" : "وكيل OFF") : (isAgentMode ? "Agent ON" : "Agent OFF")}</Text>
         </TouchableOpacity>
 
         {/* Center: TextInput with placeholder "اسأل Suly" */}
@@ -314,11 +278,10 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
     paddingBottom: 10,
     backgroundColor: colors.background,
   },
+  agentStatus: { minHeight: 25, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 6, paddingHorizontal: 5, marginBottom: 5 },
+  agentStatusText: { color: colors.textSecondary, fontSize: 10, fontWeight: "700" },
   voiceError: { color: colors.error, fontSize: 10, lineHeight: 15, textAlign: isArabic ? "right" : "left", paddingHorizontal: 4, marginBottom: 5 },
   voiceListening: { color: colors.textSecondary, fontSize: 10, lineHeight: 15, textAlign: isArabic ? "right" : "left", paddingHorizontal: 4, marginBottom: 5 },
-  modelRow: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", marginBottom: 7 },
-  modelPickerButton: { minHeight: 30, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 6, paddingHorizontal: 10, borderRadius: 16, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
-  modelPickerText: { color: colors.textSecondary, fontSize: 11, fontWeight: "700" },
   controlDisabled: { opacity: 0.45 },
   lowBalanceBanner: {
     flexDirection: isArabic ? "row-reverse" : "row",
@@ -370,10 +333,6 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
     writingDirection: isArabic ? "rtl" : "ltr",
   },
   leftControls: { flexDirection: "row", alignItems: "center", gap: 4 },
-  agentToggle: { minWidth: 76, height: 36, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 8, borderRadius: 18, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
-  agentToggleActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  agentToggleLabel: { color: colors.textMuted, fontSize: 11, fontWeight: "700" },
-  agentToggleLabelActive: { color: colors.onPrimary },
   blueButton: {
     width: 38,
     height: 38,
