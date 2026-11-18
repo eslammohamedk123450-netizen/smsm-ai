@@ -5,7 +5,7 @@ import { prepareAgentMemory, saveAgentMemory } from "./agent/memory.ts";
 import { activationOutcomeMessage, parseActivationCommand, shouldReportActivationFailure } from "../_shared/activation_command.ts";
 import { activateFeatureByCode, checkFeatureActivationRateLimit, getFeatureContext } from "../_shared/feature_flags.ts";
 import { buildFeatureSystemContext, isFeatureResourceRequest, shouldSearchWebForMessage } from "../_shared/feature_resource_context.ts";
-import { buildSulyIdentityContext, containsHimsReference, getIdentityAnswer, INACTIVE_UNKNOWN_ANSWER, sanitizeContextText } from "../_shared/identity_context.ts";
+import { buildSulyIdentityContext, containsHimsReference, getIdentityAnswer, getSulyProductAnswer, INACTIVE_UNKNOWN_ANSWER, sanitizeContextText } from "../_shared/identity_context.ts";
 import { normalizeFeatureKey } from "../_shared/prompt_keys.ts";
 import { capabilityForMime, supportsModelCapabilities, type ModelCapability } from "../_shared/model_capabilities.ts";
 import { extractDocxText, extractPdfText, fetchCloudinaryBytes, MAX_EXTRACTED_DOCUMENT_CHARS, MediaProcessingError } from "../_shared/media_content.ts";
@@ -866,7 +866,7 @@ async function handleRequest(req: Request): Promise<Response> {
   const maxOutputChars = outputLimitForRequest(mind.intent, latestUserMessage, maxTokens);
   const streamRequested = body.stream === true;
   let himsActivated = profile.hims_activated === true;
-  let identityContext = buildSulyIdentityContext(himsActivated);
+  let identityContext = buildSulyIdentityContext(himsActivated, executionMode === "agent");
   let userMetadata = identityContext.userMetadata;
   let systemPrompt = identityContext.systemPrompt;
   let workspaceId: string | null = null;
@@ -999,7 +999,7 @@ async function handleRequest(req: Request): Promise<Response> {
       const text = activationOutcomeMessage(activation.outcome, activation.label, activation.activationMessage);
       if (activationSucceeded && activation.featureKey?.toLowerCase() === "hims") {
         himsActivated = true;
-        identityContext = buildSulyIdentityContext(true);
+        identityContext = buildSulyIdentityContext(true, executionMode === "agent");
         userMetadata = identityContext.userMetadata;
         systemPrompt = identityContext.systemPrompt;
       }
@@ -1018,7 +1018,12 @@ async function handleRequest(req: Request): Promise<Response> {
   // Study questions remain ordinary SULY conversations. Access to private course
   // resources is still enforced server-side: getFeatureContext only returns
   // resources for features activated by this authenticated user.
-  const identityAnswer = !internalBrainCall && executionMode !== "agent" && trustedAttachments.length === 0 ? getIdentityAnswer(latestUserMessage) : null;
+  const productAnswer = !internalBrainCall && trustedAttachments.length === 0 ? getSulyProductAnswer(latestUserMessage) : null;
+  if (productAnswer) {
+    return respondDeterministically(productAnswer, { billing: null }, "verified_product_knowledge");
+  }
+
+  const identityAnswer = !internalBrainCall && trustedAttachments.length === 0 ? getIdentityAnswer(latestUserMessage) : null;
   if (identityAnswer) {
     return respondDeterministically(identityAnswer, { billing: null }, "identity_question");
   }
@@ -3131,9 +3136,29 @@ async function handleRequest(req: Request): Promise<Response> {
 Deno.serve(async (req: Request) => {
   try {
     return await handleRequest(req);
-  } catch {
+  } catch (error) {
     const claim = activeAiClaims.get(req);
     if (claim) {
+      // An unhandled router failure must not strand a credit reservation.
+      // finalize_credits is idempotent: settled/expired holds are untouched,
+      // and a missing hold is a normal case for non-billed/internal requests.
+      const { data: creditRecovery, error: creditRecoveryError } = await claim.supabase.rpc("finalize_credits", {
+        p_user_id: claim.userId,
+        p_task_id: claim.requestId,
+        p_actual_cost: 0,
+        p_input_tokens: 0,
+        p_output_tokens: 0,
+        p_model_id: null,
+        p_source: "ai_router_unhandled_failure",
+      });
+      if (creditRecoveryError) {
+        console.error("Could not release credit hold after unhandled AI request:", creditRecoveryError.message);
+      } else {
+        const recovery = asRecord(creditRecovery);
+        if (recovery.success !== true && recovery.error !== "hold_not_found") {
+          console.error("Credit hold recovery did not complete:", safeOperationalSummary(JSON.stringify(recovery), 240));
+        }
+      }
       const { error } = await claim.supabase.rpc("suly_finish_ai_request", {
         p_request_id: claim.requestId,
         p_user_id: claim.userId,
@@ -3146,7 +3171,11 @@ Deno.serve(async (req: Request) => {
       if (error) console.error("Could not finalize unhandled AI request:", error.message);
       activeAiClaims.delete(req);
     }
-    console.error("Unhandled ai-router error.");
+    console.error("Unhandled ai-router error:", {
+      request_id: claim?.requestId ?? null,
+      error_name: error instanceof Error ? error.name : "UnknownError",
+      error_message: safeOperationalSummary(error instanceof Error ? error.message : String(error), 500),
+    });
     return jsonResponse({ error: "Internal ai-router error." }, 500, req);
   }
 });

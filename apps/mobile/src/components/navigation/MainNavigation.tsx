@@ -79,6 +79,12 @@ export function MainNavigation({ children }: Props) {
   if (pathname.startsWith("/admin")) return <>{children}</>;
 
   const openDrawer = () => setDrawerVisible(true);
+  const goHome = () => {
+    setDrawerVisible(false);
+    setPlusVisible(false);
+    router.replace("/chat");
+  };
+
   const navigate = (href: string) => {
     setDrawerVisible(false);
     setPlusVisible(false);
@@ -92,15 +98,17 @@ export function MainNavigation({ children }: Props) {
       <View style={[styles.root, { backgroundColor: colors.background }]}>
         {!isChat ? (
           <SafeAreaView edges={["top"]} style={[styles.topSafe, { backgroundColor: colors.background }]}>
-            <View style={[styles.topBar, { borderColor: colors.divider, flexDirection: isArabic ? "row-reverse" : "row" }]}>
+            <View style={[styles.topBar, { borderColor: colors.divider, flexDirection: "row", direction: isArabic ? "rtl" : "ltr" }]}>
               <Pressable onPress={openDrawer} style={styles.headerButton} accessibilityRole="button" accessibilityLabel={isArabic ? "فتح القائمة الجانبية" : "Open sidebar"}>
                 <Ionicons name="menu-outline" size={23} color={colors.textPrimary} />
               </Pressable>
               <View style={styles.brand}>
                 <Text style={[styles.brandName, { color: colors.textPrimary }]}>SULY</Text>
               </View>
-              <Pressable onPress={() => setPlusVisible(true)} style={styles.headerButton} accessibilityRole="button" accessibilityLabel={isArabic ? "إضافة ملف أو أداة" : "Add file or tool"}>
-                <Ionicons name="add" size={25} color={colors.textPrimary} />
+              <Pressable onPress={goHome} style={styles.homeButton} accessibilityRole="button" accessibilityLabel={isArabic ? "العودة إلى الصفحة الرئيسية" : "Return to home"}>
+                <View style={[styles.homeMark, { backgroundColor: colors.primary }]}>
+                  <Text style={[styles.homeMarkLetter, { color: colors.onPrimary }]}>S</Text>
+                </View>
               </Pressable>
             </View>
           </SafeAreaView>
@@ -217,6 +225,9 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
   topSafe: { zIndex: 1 },
   topBar: { minHeight: 54, alignItems: "center", paddingHorizontal: 14, borderBottomWidth: 1, gap: 12 },
   headerButton: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  homeButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  homeMark: { width: 32, height: 32, borderRadius: 11, alignItems: "center", justifyContent: "center" },
+  homeMarkLetter: { fontSize: 20, fontWeight: "900" },
   brand: { flex: 1, alignItems: "center", justifyContent: "center" },
   brandName: { fontSize: 16, fontWeight: "900", letterSpacing: 1.5 },
   content: { flex: 1, minWidth: 0, minHeight: 0 },

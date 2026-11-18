@@ -23,10 +23,16 @@ const NAV_GROUPS: readonly NavGroup[] = [
   { key: "ai", label: "الذكاء الاصطناعي", labelEn: "AI", hint: "مزودو الخدمة والنماذج وسجل الذكاء الاصطناعي", hintEn: "AI providers, models and registry", icon: "layers-outline", items: [
     { path: "/admin/api-keys", label: "المزودون ومفاتيح API", labelEn: "Providers & API keys", icon: "key-outline" },
     { path: "/admin/models", label: "مركز النماذج", labelEn: "Model center", icon: "grid-outline" },
+    { path: "/admin/models-catalog", label: "كتالوج النماذج", labelEn: "Model catalog", icon: "list-outline" },
     { path: "/admin/media-catalog?kind=image", label: "نماذج الوسائط", labelEn: "Media models", icon: "images-outline" },
     { path: "/admin/image-generation", label: "إعدادات توليد الصور", labelEn: "Image generation settings", icon: "image-outline" },
   ] },
-  { key: "routing-agent", label: "الشات والوكيل", labelEn: "Chat & Agent", hint: "إعداد الشات والوكيل الموحد", hintEn: "Unified chat and Agent settings", icon: "git-network-outline", items: [
+  { key: "capabilities", label: "القدرات", labelEn: "Capabilities", hint: "الأدلة والاختبارات وحالة الصحة", hintEn: "Evidence, tests and health status", icon: "flask-outline", items: [
+    { path: "/admin/model-capabilities", label: "قدرات النماذج", labelEn: "Model capabilities", icon: "extension-puzzle-outline" },
+    { path: "/admin/model-capability-review", label: "مراجعة أدلة القدرات", labelEn: "Capability evidence review", icon: "clipboard-outline" },
+    { path: "/admin/models-operations", label: "التشغيل والاختبارات", labelEn: "Operations & tests", icon: "pulse-outline" },
+  ] },
+  { key: "routing-agent", label: "التوجيه والوكيل المركزي", labelEn: "Routing & Agent", hint: "سياسات التوجيه وأدوار الوكيل الواحد", hintEn: "Routing policies and the single central Agent", icon: "git-network-outline", items: [
     { path: "/admin/agents", label: "إعدادات الوكيل والتوجيه", labelEn: "Agent & routing settings", icon: "git-branch-outline" },
   ] },
   { key: "pricing", label: "الباقات والأسعار", labelEn: "Plans & Pricing", hint: "إصدارات الأسعار واستحقاقات الباقات", hintEn: "Versioned prices and plan entitlements", icon: "pricetags-outline", items: [

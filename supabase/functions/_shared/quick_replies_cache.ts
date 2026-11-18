@@ -10,41 +10,42 @@ export const QUICK_REPLY_MAX_QUESTION_LENGTH = 120;
 export const QUICK_REPLY_MAX_ANSWER_LENGTH = 600;
 /** Exact-form DB entries stay valid for one day. */
 export const QUICK_REPLY_TTL_SECONDS = 24 * 60 * 60;
+const QUICK_REPLY_CACHE_VERSION = "v2";
 
 const REPLIES: Record<string, string> = {
-  "ازيك": "الحمد لله تمام! أنا Suly وجاهز أساعدك في أي حاجة. عايز إيه النهاردة؟",
-  "ازيك عامل ايه": "الحمد لله تمام! أنا Suly وجاهز أساعدك في أي حاجة. عايز إيه النهاردة؟",
-  "ازي حالك": "الحمد لله تمام! وأنت عامل إيه؟ قولي محتاج مساعدة في إيه.",
-  "عامل ايه": "الحمد لله تمام! أنا شغال ومستعد. إيه اللي أقدر أساعدك فيه؟",
-  "ايه الاخبار": "كل حاجة تمام عندي! قولي أنت عايز إيه وأنا جاهز.",
-  "انت مين": "أنا Suly، مساعد ذكي تم تطويري بواسطة شركة Suly-Technologies.",
-  "مين انت": "أنا Suly، مساعد ذكي تم تطويري بواسطة شركة Suly-Technologies.",
-  "من انت": "أنا Suly، مساعد ذكي تم تطويري بواسطة شركة Suly-Technologies.",
-  "انت ايه": "أنا Suly، مساعد ذكي تم تطويري بواسطة شركة Suly-Technologies.",
-  "مين اللي عملك": "تم تطويري بواسطة شركة Suly-Technologies.",
-  "شكرا": "العفو! دايمًا في الخدمة. لو احتجت أي حاجة تانية أنا هنا.",
-  "شكرا لك": "العفو! دايمًا في الخدمة. لو احتجت أي حاجة تانية أنا هنا.",
-  "شكرا جدا": "العفو! دايمًا في الخدمة. لو احتجت أي حاجة تانية أنا هنا.",
-  "تمام": "تمام! لو محتاج أي مساعدة تانية قولي على طول.",
-  "ماشي": "تمام! لو محتاج أي مساعدة تانية قولي على طول.",
-  "اوكي": "تمام! لو محتاج أي مساعدة تانية قولي على طول.",
-  "هههه": "ههههه 😄 إيه القصة؟ قولي لو محتاج أي حاجة.",
-  "ههههه": "ههههه 😄 إيه القصة؟ قولي لو محتاج أي حاجة.",
-  "هههههه": "ههههه 😄 إيه القصة؟ قولي لو محتاج أي حاجة.",
-  "اهلا": "أهلًا وسهلًا! أنا Suly. إيه اللي أقدر أساعدك فيه؟",
-  "اهلا وسهلا": "أهلًا وسهلًا! أنا Suly. إيه اللي أقدر أساعدك فيه؟",
-  "مرحبا": "مرحبًا! أنا Suly، جاهز أساعدك. قولي محتاج إيه؟",
-  "سلام": "وعليكم السلام! أنا Suly. قولي محتاج مساعدة في إيه؟",
-  "السلام عليكم": "وعليكم السلام ورحمة الله! أنا Suly، جاهز أساعدك. عايز إيه؟",
-  "صباح الخير": "صباح النور! عامل إيه النهاردة؟ أنا جاهز لأي مساعدة.",
-  "مساء الخير": "مساء النور! إيه اللي أقدر أساعدك فيه الليلة؟",
-  "ازي الناس": "الحمد لله كله تمام! وأنت إيه أخبارك؟",
-  "hi": "Hello! I'm Suly, ready to help. What do you need?",
-  "hello": "Hello! I'm Suly, ready to help. What do you need?",
-  "hey": "Hey! I'm Suly. How can I help you today?",
-  "thanks": "You're welcome! I'm here whenever you need me.",
-  "thank you": "You're welcome! I'm here whenever you need me.",
-  "ok": "All set! Let me know if you need anything else.",
+  "ازيك": "الحمد لله بخير. كيف أقدر أساعدك؟",
+  "ازيك عامل ايه": "بخير، شكرًا لسؤالك. ما الذي تحتاجه؟",
+  "ازي حالك": "بخير، شكرًا لك. كيف أساعدك اليوم؟",
+  "عامل ايه": "بخير وجاهز للمساعدة. ما طلبك؟",
+  "ايه الاخبار": "كل شيء جيد. كيف أقدر أساعدك؟",
+  "انت مين": "أنا SULY، مساعدك الذكي.",
+  "مين انت": "أنا SULY، مساعدك الذكي.",
+  "من انت": "أنا SULY، مساعدك الذكي.",
+  "انت ايه": "أنا SULY، مساعدك الذكي.",
+  "مين اللي عملك": "طوّرني فريق Suly-Technologies.",
+  "شكرا": "العفو، أنا هنا إذا احتجت أي مساعدة أخرى.",
+  "شكرا لك": "على الرحب والسعة.",
+  "شكرا جدا": "العفو، سعيد بمساعدتك.",
+  "تمام": "تمام. تفضل بطلبك التالي.",
+  "ماشي": "حسنًا، أنا جاهز.",
+  "اوكي": "حسنًا.",
+  "هههه": "😄",
+  "ههههه": "😄",
+  "هههههه": "😄",
+  "اهلا": "أهلًا! كيف أقدر أساعدك؟",
+  "اهلا وسهلا": "أهلًا وسهلًا. ما الذي تحتاجه؟",
+  "مرحبا": "مرحبًا! أنا SULY. كيف أقدر أساعدك؟",
+  "سلام": "وعليكم السلام. كيف أقدر أساعدك؟",
+  "السلام عليكم": "وعليكم السلام ورحمة الله وبركاته.",
+  "صباح الخير": "صباح النور! كيف أقدر أساعدك؟",
+  "مساء الخير": "مساء النور! ما الذي تحتاجه؟",
+  "ازي الناس": "بخير، شكرًا لسؤالك.",
+  "hi": "Hello! I'm SULY. How can I help?",
+  "hello": "Hello! I'm SULY. What can I help you with?",
+  "hey": "Hey! How can I help?",
+  "thanks": "You're welcome. Let me know if you need anything else.",
+  "thank you": "You're welcome.",
+  "ok": "Okay. I'm ready for your next request.",
 };
 
 /** Aggressive normalization: diacritics, tatweel, letter variants, punctuation. */
@@ -68,6 +69,7 @@ export function isQuickReplyCandidate(text: string): boolean {
   if (!normalized || normalized.length > QUICK_REPLY_MAX_QUESTION_LENGTH) return false;
   // Real work requests are longer, imperative, or contain search markers.
   if (/\b(اعمل|اعملي|ابحث|ابحثي|حلل|صمم|اكتب كود|برمج|خطة|قارن|موقع|تقرير)\b/u.test(normalized)) return false;
+  if (/(?:تقدر|تستطيع|يمكنك|تنفيذ|تنفذ|وكيل|agent|رسم|مخطط|جدول|dashboard|chart|graph|مهام|task)/iu.test(normalized)) return false;
   if (normalized.split(" ").length > 8) return false;
   return true;
 }
@@ -98,7 +100,7 @@ export async function lookupQuickReply(
   try {
     const { data, error } = await supabase.rpc("suly_quick_reply_lookup", {
       p_user_id: userId,
-      p_question_norm: normalizeQuickReply(text),
+      p_question_norm: `${QUICK_REPLY_CACHE_VERSION}:${normalizeQuickReply(text)}`,
     });
     if (error) throw new Error(error.message);
     const answer = typeof data === "string" ? data.trim() : "";
@@ -124,7 +126,7 @@ export async function storeQuickReply(
   try {
     const { error } = await supabase.rpc("suly_quick_reply_store", {
       p_user_id: userId,
-      p_question_norm: normalizeQuickReply(question),
+      p_question_norm: `${QUICK_REPLY_CACHE_VERSION}:${normalizeQuickReply(question)}`,
       p_question: question.slice(0, QUICK_REPLY_MAX_QUESTION_LENGTH),
       p_answer: trimmed,
       p_ttl_seconds: QUICK_REPLY_TTL_SECONDS,

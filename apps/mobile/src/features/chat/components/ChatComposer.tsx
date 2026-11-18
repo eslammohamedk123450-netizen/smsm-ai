@@ -30,6 +30,8 @@ export interface ChatComposerProps {
   disabled?: boolean;
   isStreaming?: boolean;
   onCancel?(): void;
+  isAgentMode?: boolean;
+  onToggleAgent?(): void;
   modelLabel?: string;
   onOpenModelPicker?(): void;
   modelPickerDisabled?: boolean;
@@ -45,6 +47,8 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
     disabled = false,
     isStreaming = false,
     onCancel,
+    isAgentMode = false,
+    onToggleAgent,
     modelLabel,
     onOpenModelPicker,
     modelPickerDisabled = false,
@@ -210,7 +214,18 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
           <Ionicons name="add" size={22} color={colors.textMuted} />
         </TouchableOpacity>
 
-
+        <TouchableOpacity
+          onPress={onToggleAgent}
+          disabled={disabled || isStreaming || isListening || !onToggleAgent}
+          activeOpacity={0.7}
+          style={[styles.agentToggle, isAgentMode && styles.agentToggleActive]}
+          accessibilityRole="button"
+          accessibilityState={{ selected: isAgentMode, disabled: disabled || isStreaming || isListening || !onToggleAgent }}
+          accessibilityLabel={isArabic ? (isAgentMode ? "إيقاف وضع الوكيل" : "تفعيل وضع الوكيل") : (isAgentMode ? "Turn Agent mode off" : "Turn Agent mode on")}
+        >
+          <Ionicons name="sparkles-outline" size={15} color={isAgentMode ? colors.onPrimary : colors.textMuted} />
+          <Text style={[styles.agentToggleLabel, isAgentMode && styles.agentToggleLabelActive]}>{isArabic ? (isAgentMode ? "وكيل ON" : "وكيل OFF") : (isAgentMode ? "Agent ON" : "Agent OFF")}</Text>
+        </TouchableOpacity>
 
         {/* Center: TextInput with placeholder "اسأل Suly" */}
         <TextInput
@@ -226,11 +241,14 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
           editable={!disabled && !isStreaming && !isListening}
           placeholder={isArabic ? "اسأل Suly" : "Ask SULY"}
           placeholderTextColor={colors.textMuted}
+          selectionColor={colors.primary}
+          underlineColorAndroid="transparent"
+          keyboardAppearance="dark"
           style={[styles.input, { height: inputHeight }]}
           multiline
           scrollEnabled={inputHeight >= MAX_INPUT_HEIGHT}
           maxLength={16000}
-          textAlign="right"
+          textAlign={isArabic ? "right" : "left"}
           accessibilityLabel={isArabic ? "اسأل Suly" : "Ask SULY"}
         />
 
@@ -340,6 +358,8 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
     minHeight: MIN_INPUT_HEIGHT,
     maxHeight: MAX_INPUT_HEIGHT,
     color: colors.textPrimary,
+    backgroundColor: "transparent",
+    borderWidth: 0,
     fontSize: 15,
     lineHeight: 21,
     paddingHorizontal: 10,
@@ -347,10 +367,10 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
     paddingBottom: 8,
     textAlign: isArabic ? "right" : "left",
     textAlignVertical: "top",
-    writingDirection: "rtl",
+    writingDirection: isArabic ? "rtl" : "ltr",
   },
   leftControls: { flexDirection: "row", alignItems: "center", gap: 4 },
-  agentToggle: { minWidth: 58, height: 36, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 8, borderRadius: 18, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
+  agentToggle: { minWidth: 76, height: 36, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 8, borderRadius: 18, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
   agentToggleActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   agentToggleLabel: { color: colors.textMuted, fontSize: 11, fontWeight: "700" },
   agentToggleLabelActive: { color: colors.onPrimary },

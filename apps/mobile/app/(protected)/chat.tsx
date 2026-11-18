@@ -147,6 +147,7 @@ export default function ChatPage() {
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   // The selected profile is screen-local; the server revalidates subscription eligibility on every request.
   const [selectedModelProfile, setSelectedModelProfile] = useState<SulyModelProfileKey>("lite");
+  const [isAgentMode, setIsAgentMode] = useState(false);
   const [currentSubscriptionTier, setCurrentSubscriptionTier] = useState("free");
   const [modelProfileOptions, setModelProfileOptions] = useState<SulyModelProfileOption[]>([]);
   const [modelProfileLoading, setModelProfileLoading] = useState(false);
@@ -409,7 +410,7 @@ export default function ChatPage() {
           conversationId: conversationKey,
           content,
           modelProfileKey: selectedModelProfile,
-          executionMode: "agent",
+          executionMode: isAgentMode ? "agent" : "chat",
           writeApproval,
           mediaAsset: uploadedAsset,
           signal: controller.signal,
@@ -465,7 +466,7 @@ export default function ChatPage() {
               conversationId: id,
               userMessageId: savedUserMessageId,
               modelProfileKey: selectedModelProfile,
-              executionMode: "agent",
+              executionMode: isAgentMode ? "agent" : "chat",
               signal: controller.signal,
               onChunk(text) {
                 streamedTextRef.current += text;
@@ -479,10 +480,13 @@ export default function ChatPage() {
             streamCompleted = true;
             await reloadMessages(id);
             return;
-          } catch {
-            setError(isArabic ? "يتأخر النموذج قليلًا، وسنترك لك زر إعادة المحاولة بدل إبقائك منتظرًا." : "The model is taking longer than expected. You can retry instead of waiting.");
+          } catch (retryCause) {
+            const retryReason = retryCause instanceof Error ? retryCause.message.trim().slice(0, 240) : "";
+            setError(retryReason
+              ? (isArabic ? `تعذر إكمال الرد بعد إعادة المحاولة: ${retryReason}` : `The response still failed after retry: ${retryReason}`)
+              : (isArabic ? "تعذر إكمال الرد بعد إعادة المحاولة. يمكنك المحاولة مرة أخرى." : "The response could not be completed after retry. You can try again."));
             setRetryFailure({ conversationId: id, userMessageId: savedUserMessageId });
-            void logFrictionEvent({ eventKind: "action_failed", screenKey: "chat", featureKey: "chat", stepKey: "send_failed_after_retry", errorCode: "send_failed", conversationId: id });
+            void logFrictionEvent({ eventKind: "action_failed", screenKey: "chat", featureKey: "chat", stepKey: "send_failed_after_retry", errorCode: "send_failed_after_retry", conversationId: id });
           }
         } else {
           setError(cause instanceof Error ? cause.message : isArabic ? "تعذر إرسال الرسالة. تحقق من الاتصال وحاول مجددًا." : "Could not send the message. Check your connection and try again.");
@@ -515,7 +519,7 @@ export default function ChatPage() {
         await chatService.retryAssistant({
           ...failed,
           modelProfileKey: selectedModelProfile,
-          executionMode: "agent",
+          executionMode: isAgentMode ? "agent" : "chat",
           signal: controller.signal,
           
           onChunk(text) {
@@ -680,7 +684,7 @@ export default function ChatPage() {
         conversationId,
         history,
         modelProfileKey: selectedModelProfile,
-        executionMode: "agent",
+        executionMode: isAgentMode ? "agent" : "chat",
         signal: controller.signal,
         onChunk(text) {
           streamedTextRef.current += text;
@@ -723,7 +727,7 @@ export default function ChatPage() {
         conversationId,
         history,
         modelProfileKey: selectedModelProfile,
-        executionMode: "agent",
+        executionMode: isAgentMode ? "agent" : "chat",
         signal: controller.signal,
         onChunk(text) {
           setMessages((current) => {
@@ -754,6 +758,7 @@ export default function ChatPage() {
       generationState={item.generationState}
       studioIntent={item.role === "user" ? getStudioIntent(item.content) : null}
       onOpenStudio={() => router.push("/studio")}
+      onEnableAgent={() => { setIsAgentMode(true); show(isArabic ? "تم تفعيل وضع الوكيل. اكتب «ابدأ» للمتابعة." : "Agent mode is on. Type “start” to continue.", "success"); }}
       feedback={feedbackByMessage[item.id] ?? null}
       edited={Boolean(item.editedAt)}
       responseVariants={item.responseVariants}
@@ -837,13 +842,15 @@ export default function ChatPage() {
           </View>
         )}
         {isUploadingAttachment ? <View style={styles.uploadStatus}><ActivityIndicator size="small" color={colors.primary} /><Text style={styles.loadingText}>{isArabic ? "جارٍ رفع المرفق…" : "Uploading attachment…"}</Text></View> : null}
-        <StreamingStatus isStreaming={isSending && !isUploadingAttachment} taskLabel={activeTaskLabel} onCancel={() => abortRef.current?.abort()} />
+        <StreamingStatus isStreaming={isSending && !isUploadingAttachment && !messages.some((message) => message.id === STREAMING_ID && message.content.length > 0)} taskLabel={activeTaskLabel} onCancel={() => abortRef.current?.abort()} />
         <ChatComposer
           ref={composerRef}
           onSend={handleSend}
           disabled={isSending || Boolean(connectorApproval)}
           isStreaming={isSending}
           onCancel={() => abortRef.current?.abort()}
+          isAgentMode={isAgentMode}
+          onToggleAgent={() => setIsAgentMode((current) => !current)}
           modelLabel={selectedProfileLabel}
           onOpenModelPicker={() => setModelProfileMenuVisible(true)}
           modelPickerDisabled={isSending || Boolean(retryFailure)}

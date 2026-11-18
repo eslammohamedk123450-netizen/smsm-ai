@@ -35,4 +35,60 @@ const answer = 42;
       { type: "code", language: "", code: "code" },
     ]);
   });
+
+  it("parses a bounded bar chart block for inline visualization", () => {
+    const input = "```chart\n{\"type\":\"bar\",\"title\":\"المبيعات\",\"labels\":[\"يناير\",\"فبراير\"],\"values\":[12,18]}\n```";
+    expect(parseMarkdownBlocks(input)).toEqual([
+      { type: "chart", title: "المبيعات", labels: ["يناير", "فبراير"], values: [12, 18] },
+    ]);
+  });
+
+  it("parses a native flowchart block with bounded steps", () => {
+    const input = "```flow\n{\"title\":\"رحلة المستخدم\",\"steps\":[\"فتح التطبيق\",\"تسجيل الدخول\",\"إرسال رسالة\",\"عرض النتيجة\"]}\n```";
+    expect(parseMarkdownBlocks(input)).toEqual([
+      { type: "flow", title: "رحلة المستخدم", steps: ["فتح التطبيق", "تسجيل الدخول", "إرسال رسالة", "عرض النتيجة"] },
+    ]);
+  });
+
+  it("parses a dashboard with KPI metrics and embedded charts", () => {
+    const input = "```dashboard\n{\"title\":\"أداء الشركة\",\"metrics\":[{\"label\":\"الإيرادات\",\"value\":120000,\"change\":\"+12%\"},{\"label\":\"العملاء\",\"value\":840}],\"charts\":[{\"title\":\"الإيرادات الشهرية\",\"labels\":[\"يناير\",\"فبراير\"],\"values\":[10,20]}]}\n```";
+    expect(parseMarkdownBlocks(input)).toEqual([
+      {
+        type: "dashboard",
+        title: "أداء الشركة",
+        metrics: [
+          { label: "الإيرادات", value: 120000, change: "+12%" },
+          { label: "العملاء", value: 840, change: undefined },
+        ],
+        charts: [{ title: "الإيرادات الشهرية", labels: ["يناير", "فبراير"], values: [10, 20] }],
+      },
+    ]);
+  });
+
+  it("converts Mermaid flowcharts into native chat flow diagrams", () => {
+    const input = "```mermaid\nflowchart TD\nA[فتح التطبيق] --> B[تسجيل الدخول]\nB --> C[إرسال رسالة]\n```";
+    expect(parseMarkdownBlocks(input)).toEqual([
+      { type: "flow", steps: ["فتح التطبيق", "تسجيل الدخول", "إرسال رسالة"] },
+    ]);
+  });
+
+  it("parses an actionable Agent activation card", () => {
+    const input = "```agent\n{\"title\":\"تفعيل وضع الوكيل\",\"message\":\"هذه المهمة تحتاج إلى تنفيذ عدة خطوات.\"}\n```";
+    expect(parseMarkdownBlocks(input)).toEqual([
+      { type: "agent", title: "تفعيل وضع الوكيل", message: "هذه المهمة تحتاج إلى تنفيذ عدة خطوات." },
+    ]);
+  });
+
+  it("shows a readable fallback for malformed flowchart and dashboard payloads", () => {
+    expect(parseMarkdownBlocks("```flow\n{\"steps\":[\"واحد\"]}\n```")[0]).toEqual({ type: "paragraph", text: "تعذر إنشاء العنصر المرئي بتنسيق صالح. أعد طلب الرسم أو المخطط وسأحاول إنشاءه من جديد." });
+    expect(parseMarkdownBlocks("```dashboard\n{\"metrics\":[]}\n```")[0]).toEqual({ type: "paragraph", text: "تعذر إنشاء العنصر المرئي بتنسيق صالح. أعد طلب الرسم أو المخطط وسأحاول إنشاءه من جديد." });
+  });
+
+  it("shows a readable fallback for invalid chart payloads", () => {
+    const input = "```chart\n{\"type\":\"pie\",\"labels\":[\"A\"],\"values\":[1]}\n```";
+    expect(parseMarkdownBlocks(input)).toEqual([
+      { type: "paragraph", text: "تعذر إنشاء العنصر المرئي بتنسيق صالح. أعد طلب الرسم أو المخطط وسأحاول إنشاءه من جديد." },
+    ]);
+  });
+
 });

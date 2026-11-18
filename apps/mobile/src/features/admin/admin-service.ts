@@ -111,6 +111,7 @@ function describeFunctionFailure(error: unknown, functionName: string): string {
   if (status === 404) return `وظيفة ${functionName} غير منشورة على مشروع Supabase بعد، لذلك لم يُحفظ المزود.`;
   if (status === 401 || status === 403) return `رفضت وظيفة ${functionName} الطلب. تحقق من صلاحية المشرف على السيرفر.`;
   if (status === 400 || status === 422) return `رفضت وظيفة ${functionName} البيانات. تحقق من صحة المفتاح والرابط.`;
+  if (functionName === "model-health-check") return "تعذر الاتصال بخدمة فحص النماذج. لم يتم تغيير بيانات المزوّد أو مفتاحه؛ أعد المحاولة بعد تحديث الصفحة.";
   return `تعذر الوصول إلى وظيفة ${functionName}. لم يُحفظ المزود ولم يُخزَّن المفتاح.`;
 }
 

@@ -52,19 +52,11 @@ export function StreamingStatus({ isStreaming, onCancel, taskLabel }: StreamingS
       accessibilityRole="progressbar"
       accessibilityLabel={taskLabel || (isArabic ? "Suly يكتب ردًا" : "SULY is responding")}
     >
-      <View style={styles.bubble}>
-        <View style={styles.header}>
-          <View style={styles.brandMark}>
-            <Text style={styles.brandMarkText}>S</Text>
-          </View>
-          <Text style={styles.brand}>Suly</Text>
-        </View>
-        <Text style={styles.taskLabel}>{taskLabel || (isArabic ? "جارٍ تجهيز الرد…" : "Preparing a response…")}</Text>
-        <View style={styles.dots} accessibilityLabel={isArabic ? "جاري كتابة الرد" : "Writing a response"}>
-          {dots.map((opacity, index) => (
-            <Animated.View key={index} style={[styles.dot, { opacity }]} />
-          ))}
-        </View>
+      <Text style={styles.taskLabel}>{taskLabel || (isArabic ? "SULY بيكتب" : "SULY is writing")}</Text>
+      <View style={styles.dots} accessibilityLabel={isArabic ? "جاري كتابة الرد" : "Writing a response"}>
+        {dots.map((opacity, index) => (
+          <Animated.View key={index} style={[styles.dot, { opacity }]} />
+        ))}
       </View>
       {onCancel ? (
         <Pressable
@@ -85,43 +77,19 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     alignSelf: "flex-start",
-    marginHorizontal: 16,
-    marginVertical: 6,
+    marginHorizontal: 18,
+    marginVertical: 8,
     gap: 8,
+    minHeight: 28,
   },
-  bubble: {
-    minWidth: 112,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    borderRadius: 16,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.divider,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 7,
-  },
-  brandMark: {
-    width: 18,
-    height: 18,
-    borderRadius: 6,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.primary,
-  },
-  brandMarkText: { color: colors.onPrimary, fontSize: 11, fontWeight: "900" },
-  brand: { color: colors.textPrimary, fontSize: 12, fontWeight: "700" },
-  taskLabel: { color: colors.textSecondary, fontSize: 11, lineHeight: 16, marginBottom: 6 },
+  taskLabel: { color: colors.textSecondary, fontSize: 12, lineHeight: 18 },
   dots: { flexDirection: "row", alignItems: "center", gap: 5, paddingLeft: 2 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.primary },
   stop: {
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 5,
     borderRadius: 12,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: "transparent",
     borderWidth: 1,
     borderColor: colors.error,
   },
