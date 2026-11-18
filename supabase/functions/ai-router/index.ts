@@ -601,6 +601,10 @@ async function handleRequest(req: Request): Promise<Response> {
     }
   }
   const checkAgentCancellation = async (): Promise<boolean> => {
+    // A browser AbortController disconnect is the server-confirmed cancellation
+    // signal for an interactive chat Agent request. Durable Brain workers also
+    // retain their lease/RPC cancellation check below.
+    if (req.signal.aborted) return true;
     if (!internalBrainCall || !agentJobId) return false;
     const state = await getAgentExecutionState();
     if (!state || state.lease_valid !== true) throw new Error("agent_worker_lease_lost");
@@ -877,7 +881,7 @@ async function handleRequest(req: Request): Promise<Response> {
   const updateWorkspace = async (status: "planning" | "executing" | "reviewing" | "waiting_approval" | "retrying" | "completed" | "failed" | "cancelled", finalResult?: Record<string, unknown>) => {
     if (!workspaceId) return;
     const terminal = status === "completed" || status === "failed" || status === "cancelled";
-    const { error } = await supabase.from("agent_workspaces").update({ status, ...(finalResult ? { final_result: finalResult } : {}), ...(terminal ? { completed_at: new Date().toISOString() } : {}), updated_at: new Date().toISOString() }).eq("id", workspaceId);
+    const { error } = await supabase.from("agent_workspaces").update({ status, ...(finalResult ? { final_result: finalResult } : {}), ...(terminal ? { completed_at: new Date().toISOString() } : {}), ...(status === "cancelled" ? { cancelled_at: new Date().toISOString() } : {}), updated_at: new Date().toISOString() }).eq("id", workspaceId);
     if (error) console.error("Could not update agent workspace:", error.message);
   };
   const updateWorkspaceStep = async (stepKey: string, status: "pending" | "running" | "reviewing" | "waiting_approval" | "retrying" | "completed" | "failed", patch: Record<string, unknown> = {}) => {
@@ -1824,7 +1828,7 @@ async function handleRequest(req: Request): Promise<Response> {
       user_id: user.id,
       status: "planning",
       plan: workspacePlan,
-      metadata: { execution_mode: executionMode, intent: mind.intent },
+      metadata: { execution_mode: executionMode, intent: mind.intent, user_message_id: typeof body.user_message_id === "string" && uuidPattern.test(body.user_message_id) ? body.user_message_id : null },
     }, { onConflict: "request_id" }).select("id").single();
     if (workspaceError || !workspaceRow) {
       console.error("Could not create agent workspace:", workspaceError?.message);
@@ -2844,11 +2848,16 @@ async function handleRequest(req: Request): Promise<Response> {
     if (internalBrainCall && await checkAgentCancellation()) agentCancellationObserved = true;
     if (agentCancellationObserved) content = "تم إيقاف المهمة بناءً على طلبك. احتُفظ باستهلاك الخطوات التي اكتملت قبل الإيقاف.";
     content = applyFinalOutputLimit(content, maxOutputChars).content;
-    const agentWorkspaceStatus = loopResult.status === "needs_confirmation" ? "waiting_approval" : loopResult.status === "completed" && reviewVerdict !== "rejected" ? "completed" : "failed";
-    await updateWorkspaceStep("agent-loop", agentWorkspaceStatus === "waiting_approval" ? "waiting_approval" : agentWorkspaceStatus, { result: { status: loopResult.status, characters: content.length } });
-    await updateTaskLedger("agent-loop", agentWorkspaceStatus === "completed" ? "completed" : "failed", { status: loopResult.status, characters: content.length });
-    await updateWorkspaceStep("final", agentWorkspaceStatus === "completed" ? "completed" : agentWorkspaceStatus, { result: { status: loopResult.status, characters: content.length } });
-    await updateTaskLedger("final", agentWorkspaceStatus === "completed" ? "completed" : "failed", { status: loopResult.status, characters: content.length });
+    const agentWorkspaceStatus = agentCancellationObserved || loopResult.status === "cancelled"
+      ? "cancelled"
+      : loopResult.status === "needs_confirmation"
+        ? "waiting_approval"
+        : loopResult.status === "completed" && reviewVerdict !== "rejected" ? "completed" : "failed";
+    const agentStepStatus = agentWorkspaceStatus === "cancelled" ? "failed" : agentWorkspaceStatus === "waiting_approval" ? "waiting_approval" : agentWorkspaceStatus;
+    await updateWorkspaceStep("agent-loop", agentStepStatus, { result: { status: loopResult.status, characters: content.length } });
+    await updateTaskLedger("agent-loop", agentStepStatus === "completed" ? "completed" : "failed", { status: loopResult.status, characters: content.length });
+    await updateWorkspaceStep("final", agentStepStatus === "completed" ? "completed" : agentStepStatus, { result: { status: loopResult.status, characters: content.length } });
+    await updateTaskLedger("final", agentStepStatus === "completed" ? "completed" : "failed", { status: loopResult.status, characters: content.length });
     await updateWorkspace(agentWorkspaceStatus, { status: loopResult.status, characters: content.length });
     const plannerSelected = plannerCandidatesUsed.at(-1) ?? null;
     const selected = summarizerCandidateUsed ?? plannerSelected;
