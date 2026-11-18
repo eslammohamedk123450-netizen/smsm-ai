@@ -29,6 +29,7 @@ export function ImageStudioScreen() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [result, setResult] = useState<GeneratedImage | null>(null);
+  const [pendingRequest, setPendingRequest] = useState<{ prompt: string; quality: string; id: string } | null>(null);
   const breathingScale = useRef(new Animated.Value(1)).current;
   const resultOpacity = useRef(new Animated.Value(0)).current;
 
@@ -92,9 +93,13 @@ export function ImageStudioScreen() {
       const { data, error: jobError } = await supabase.rpc("suly_get_my_media_generation_job", { p_job_id: jobId });
       if (jobError) throw new Error("تعذر متابعة حالة المهمة. يمكنك متابعة النتيجة من مكتبتي.");
       const job = Array.isArray(data) ? data[0] : data;
-      if (!job) throw new Error("لم يتم العثور على مهمة التوليد.");
+      if (!job) {
+        setPendingRequest(null);
+        throw new Error("لم يتم العثور على مهمة التوليد.");
+      }
       if (job.status === "completed") return job as { status: string; output_asset_id: string | null; charged_credits: number; metadata: Record<string, unknown> | null };
       if (job.status === "failed" || job.status === "cancelled") {
+        setPendingRequest(null);
         throw new Error(typeof job.error_message === "string" ? job.error_message : "تعذر إكمال توليد الصورة.");
       }
       await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -106,11 +111,16 @@ export function ImageStudioScreen() {
     if (!canGenerate || !selectedModel || !selectedPrice || !prompt.trim()) return;
     setGenerating(true); setError(null); setNotice(null); setResult(null);
     try {
+      const normalizedPrompt = prompt.trim();
+      const reusableRequest = pendingRequest?.prompt === normalizedPrompt && pendingRequest.quality === effectiveQuality
+        ? pendingRequest
+        : null;
       const activeJobs = await listMyGenerationJobs();
       const matchingJob = activeJobs.find((job) =>
-        job.serviceType === "image" && job.prompt.trim() === prompt.trim() && job.quality === effectiveQuality
+        job.serviceType === "image" && job.prompt.trim() === normalizedPrompt && job.quality === effectiveQuality
       );
-      const requestId = matchingJob?.id ?? randomUUID();
+      const requestId = reusableRequest?.id ?? matchingJob?.id ?? randomUUID();
+      setPendingRequest({ prompt: normalizedPrompt, quality: effectiveQuality, id: requestId });
       const { data, error: invokeError } = await supabase.functions.invoke("image-generator", {
         body: {
           source: "image_studio",
@@ -121,6 +131,8 @@ export function ImageStudioScreen() {
         },
       });
       if (invokeError || !data?.success) {
+        const status = Number((invokeError as { context?: { status?: number } } | null)?.context?.status ?? 0);
+        if (status === 409) setPendingRequest(null);
         const message = typeof data?.error === "string" ? data.error : "تعذر إنشاء الصورة. حاول مرة أخرى.";
         throw new Error(message);
       }
@@ -139,7 +151,10 @@ export function ImageStudioScreen() {
           setNotice("المهمة ما زالت تعمل في الخلفية. يمكنك متابعة حالتها ونتيجتها من مكتبتي.");
           return;
         }
-        if (!completedJob.output_asset_id) throw new Error("اكتملت المهمة دون العثور على ملف الصورة.");
+        if (!completedJob.output_asset_id) {
+          setPendingRequest(null);
+          throw new Error("اكتملت المهمة دون العثور على ملف الصورة.");
+        }
         mediaId = completedJob.output_asset_id;
         chargedCredits = Number(completedJob.charged_credits ?? estimatedCredits);
         billingStatus = String(completedJob.metadata?.billing_status ?? "settled");
@@ -147,6 +162,7 @@ export function ImageStudioScreen() {
       if (!mediaId) throw new Error("لم يرجع محرك الصور نتيجة صالحة.");
       const url = await getMediaDeliveryUrl(mediaId);
       setResult({ id: mediaId, url, prompt: prompt.trim(), modelName: selectedModel.display_name, quality: effectiveQuality, credits: chargedCredits, billingStatus });
+      setPendingRequest(null);
       setNotice(billingStatus === "pending_reconciliation"
         ? "تم إنشاء الصورة وحفظها. تسوية الرصيد قيد المراجعة؛ لا تعاود إرسال الطلب نفسه."
         : "تم إنشاء الصورة وحفظها تلقائيًا في مكتبتك.");
