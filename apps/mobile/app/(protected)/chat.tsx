@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, TouchableOpacity, View, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
+import { ActivityIndicator, FlatList, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, TouchableOpacity, View, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { PremiumText as Text } from "../../src/components/ui/PremiumText";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -733,51 +733,66 @@ export default function ChatPage() {
     <SafeAreaView style={styles.safe} edges={["top", "left", "right", "bottom"]}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : Platform.OS === "android" ? "height" : undefined} keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}>
         <View style={styles.appBar}>
+          <Pressable
+            onPress={() => setModelPickerVisible(true)}
+            disabled={availableModels.length === 0}
+            style={styles.headerButton}
+            accessibilityRole="button"
+            accessibilityLabel={isArabic ? "اختيار النموذج" : "Select model"}
+          >
+            <Image
+              source={require("../../assets/suly-diamond-badge.png")}
+              style={[styles.diamondBadge, { tintColor: colors.textPrimary }]}
+              resizeMode="contain"
+            />
+          </Pressable>
+
+          {messages.length > 0 ? (
+            <View style={styles.headerActions}>
+              {isAdmin ? (
+                <TouchableOpacity
+                  onPress={() => router.push("/admin")}
+                  style={styles.adminShortcut}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={isArabic ? "فتح لوحة الأدمن" : "Open admin dashboard"}
+                >
+                  <Ionicons name="shield-checkmark-outline" size={16} color={colors.primary} />
+                  <Text style={styles.adminShortcutText}>{isArabic ? "الأدمن" : "Admin"}</Text>
+                </TouchableOpacity>
+              ) : null}
+              {creditBalance !== null ? (
+                <TouchableOpacity onPress={() => router.push("/(protected)/balance")} style={styles.creditPill} accessibilityRole="button" accessibilityLabel={isArabic ? "رصيد Suly" : "SULY credits"}>
+                  <Ionicons name="flash-outline" size={14} color={colors.textSecondary} />
+                  <Text style={styles.creditPillText}>{creditBalance.toLocaleString("en-US")}</Text>
+                </TouchableOpacity>
+              ) : null}
+
+              <TouchableOpacity onPress={() => setShareVisible(true)} style={styles.headerButton} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={isArabic ? "مشاركة المحادثة" : "Share conversation"}>
+                <Ionicons name="share-social-outline" size={18} color={colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
           <Pressable onPress={openNavigationDrawer} style={styles.headerButton} accessibilityRole="button" accessibilityLabel={isArabic ? "فتح قائمة التنقل" : "Open navigation menu"}>
-            <Ionicons name="menu-outline" size={22} color={colors.textPrimary} />
+            <View style={styles.menuLinesWrap}>
+              <View style={styles.menuLine} />
+              <View style={styles.menuLine} />
+            </View>
           </Pressable>
-
-          <Pressable onPress={() => setModelPickerVisible(true)} disabled={availableModels.length === 0} style={styles.modelSelector} accessibilityRole="button" accessibilityLabel={isArabic ? "اختيار النموذج" : "Select model"}>
-            <Ionicons name="hardware-chip-outline" size={16} color={colors.primary}/>
-            <Text numberOfLines={1} style={styles.modelSelectorText}>{selectedModel?.name ?? (isArabic ? "تحميل النماذج…" : "Loading models…")}</Text>
-            <Ionicons name="chevron-down" size={14} color={colors.textMuted}/>
-          </Pressable>
-
-          <View style={styles.headerActions}>
-            {isAdmin ? (
-              <TouchableOpacity
-                onPress={() => router.push("/admin")}
-                style={styles.adminShortcut}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel={isArabic ? "فتح لوحة الأدمن" : "Open admin dashboard"}
-              >
-                <Ionicons name="shield-checkmark-outline" size={16} color={colors.primary} />
-                <Text style={styles.adminShortcutText}>{isArabic ? "الأدمن" : "Admin"}</Text>
-              </TouchableOpacity>
-            ) : null}
-            {creditBalance !== null ? (
-              <TouchableOpacity onPress={() => router.push("/(protected)/balance")} style={styles.creditPill} accessibilityRole="button" accessibilityLabel={isArabic ? "رصيد Suly" : "SULY credits"}>
-                <Ionicons name="flash-outline" size={14} color={colors.textSecondary} />
-                <Text style={styles.creditPillText}>{creditBalance.toLocaleString("en-US")}</Text>
-              </TouchableOpacity>
-            ) : null}
-
-            <TouchableOpacity onPress={() => setShareVisible(true)} style={styles.headerButton} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={isArabic ? "مشاركة المحادثة" : "Share conversation"}>
-              <Ionicons name="share-social-outline" size={18} color={colors.textMuted} />
-            </TouchableOpacity>
-          </View>
         </View>
 
         {error ? <Pressable onPress={() => setError(null)} style={styles.errorBox}><Text style={styles.errorText}>{error}  ×</Text></Pressable> : null}
         {retryFailure ? <View style={styles.retryWarning} accessibilityRole="alert"><Text style={styles.retryWarningText}>{isArabic ? "حُفظت رسالتك، لكن تعذّر إكمال الرد." : "Your message was saved, but the response could not be completed."}</Text><Pressable onPress={() => void retryResponse()} disabled={isSending} accessibilityRole="button" accessibilityLabel={isArabic ? "إعادة محاولة الرد" : "Retry response"} style={styles.retryButton}><Text style={styles.retryButtonText}>{isSending ? (isArabic ? "جارٍ إعادة المحاولة…" : "Retrying…") : (isArabic ? "إعادة المحاولة" : "Retry")}</Text></Pressable></View> : null}
         {isLoading ? <View style={styles.loading}><ActivityIndicator color={colors.primary} /><Text style={styles.loadingText}>{isArabic ? "جارٍ تحميل المحادثة…" : "Loading conversation…"}</Text></View> : messages.length === 0 ? (
           <View style={styles.empty}>
-            <View style={styles.welcomeMark}>
-              <Text style={styles.welcomeMarkText}>S</Text>
-            </View>
-            <Text style={styles.emptyTitle}>{isArabic ? "مرحبًا، كيف يمكنني مساعدتك اليوم؟" : "Hello, how can I help you today?"}</Text>
-            <Text style={styles.emptySubtitle}>{isArabic ? "اكتب رسالتك بالأسفل لبدء المحادثة." : "Write your message below to start a conversation."}</Text>
+            <Image
+              source={require("../../assets/suly-home-face.png")}
+              style={[styles.welcomeFace, { tintColor: colors.textPrimary }]}
+              resizeMode="contain"
+              accessibilityLabel="SULY"
+            />
+            <Text style={styles.emptyTitle}>{isArabic ? "متى ما كنت جاهزًا" : "Whenever you're ready"}</Text>
             {!BASIC_CHAT_ONLY ? <>
               <View style={styles.suggestionHeading}>
                 <Text style={styles.suggestionHeadingText}>{isArabic ? "ابدأ بفكرة" : "GET STARTED"}</Text>
@@ -882,11 +897,16 @@ export default function ChatPage() {
   );
 }
 
-const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
+const createStyles = (colors: ThemePalette, isArabic: boolean) => {
+  const canvasBackground = colors.background === "#0A0A0A" ? "#000000" : colors.background;
+  return StyleSheet.create({
+  safe: { flex: 1, backgroundColor: canvasBackground },
   flex: { flex: 1 },
-  appBar: { minHeight: 56, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: Platform.OS === "web" ? 24 : 16, backgroundColor: colors.background },
+  appBar: { minHeight: 58, flexDirection: "row", direction: "ltr", alignItems: "center", justifyContent: "space-between", gap: 10, paddingHorizontal: Platform.OS === "web" ? 24 : 18, backgroundColor: canvasBackground },
   headerButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 22, backgroundColor: "transparent", borderWidth: 0 },
+  diamondBadge: { width: 28, height: 28 },
+  menuLinesWrap: { width: 22, gap: 6, alignItems: "center", justifyContent: "center" },
+  menuLine: { width: 22, height: 1.75, borderRadius: 1, backgroundColor: colors.textPrimary },
   headerSpacer: { width: 42, height: 42 },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 6 },
   modelSelector: { flex: 1, maxWidth: 360, minWidth: 90, height: 42, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 7, borderWidth: 0, borderColor: "transparent", borderRadius: 12, backgroundColor: "transparent", paddingHorizontal: 8 },
@@ -923,10 +943,11 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   scrollToBottomButton: { position: "absolute", right: 24, bottom: 12, width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.divider, elevation: 5, zIndex: 2 },
   messageContent: { flexGrow: 1, paddingVertical: 12 },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 22, paddingVertical: 24, gap: 12, width: "100%", maxWidth: 900, alignSelf: "center" },
+  welcomeFace: { width: 132, height: 154, marginBottom: 12 },
   welcomeMark: { width: 58, height: 58, borderRadius: 29, alignItems: "center", justifyContent: "center", backgroundColor: "transparent", marginBottom: 4 },
   welcomeMarkText: { color: colors.primary, fontSize: 48, fontWeight: "900", letterSpacing: -3 },
   welcomeEyebrow: { color: colors.textMuted, fontSize: 10, fontWeight: "800", letterSpacing: 2, textAlign: "center" },
-  emptyTitle: { color: colors.textPrimary, fontSize: 25, fontWeight: "600", textAlign: "center", letterSpacing: -0.3, paddingHorizontal: 8 },
+  emptyTitle: { color: colors.textPrimary, fontSize: 22, fontWeight: "600", textAlign: "center", letterSpacing: -0.2, paddingHorizontal: 8 },
   emptySubtitle: { color: colors.textMuted, fontSize: 14, lineHeight: 23, textAlign: "center", maxWidth: 520, marginBottom: 10 },
   suggestionHeading: { width: "100%", maxWidth: 620, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 12, marginTop: 4, marginBottom: 2 },
   suggestionHeadingText: { color: colors.textMuted, fontSize: 10, fontWeight: "800", letterSpacing: 1.2 },
@@ -964,3 +985,4 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   connectorContinue: { flex: 1, minHeight: 46, paddingHorizontal: 14, borderRadius: 13, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
   connectorContinueText: { color: colors.onPrimary, fontSize: 12, fontWeight: "800", textAlign: "center" },
 });
+};
