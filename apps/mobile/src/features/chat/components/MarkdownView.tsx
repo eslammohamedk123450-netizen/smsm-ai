@@ -135,10 +135,7 @@ function renderBlock(block: MarkdownBlock, index: number, onCopyCode: ((code: st
     </View></ScrollView>
   </View>;
   if (block.type === "agent") return <View key={`agent-${index}`} style={styles.agentCard}>
-    <View style={styles.agentCardHeading}>
-      <Ionicons name="sparkles" size={14} color={colors.primary} />
-      <Text style={styles.agentTitle}>{block.title || "SULY AI"}</Text>
-    </View>
+    <Text style={styles.agentTitle}>{block.title || "SULY AI"}</Text>
     <Text style={styles.agentMessage}>{block.message}</Text>
   </View>;
   if (block.type === "chart") return <View key={`chart-${index}`} style={styles.chartContainer}>
