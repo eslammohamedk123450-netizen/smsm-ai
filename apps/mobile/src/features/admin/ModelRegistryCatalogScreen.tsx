@@ -222,12 +222,13 @@ export function ModelRegistryCatalogScreen() {
       router.push("/admin/api-keys");
       return;
     }
-    const q = encodeURIComponent(model.model_identifier);
-    if (model.service_type === "chat") {
-      router.push(`/admin/models?q=${q}` as never);
+    if (model.service_type !== "chat") {
+      setSelectedModel(model);
+      setSelectedDetailTab("pricing");
       return;
     }
-    setSelectedDetailTab("pricing");
+    const q = encodeURIComponent(model.model_identifier);
+    router.push(`/admin/models?q=${q}` as never);
   };
   const openModelPriceHistory = (model: RegistryModel) => {
     const q = encodeURIComponent(model.model_identifier);
