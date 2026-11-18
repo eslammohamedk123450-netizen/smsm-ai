@@ -1,14 +1,10 @@
-import React from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { useSulyTheme } from "../../theme/ThemeProvider";
-import type { ThemePalette } from "../../theme/colors";
 
 type Props = { size?: number; accessibilityLabel?: string };
 
 /** High-contrast geometric S mark; avoids the low-contrast raster logo. */
 export function AppLogo({ size = 76, accessibilityLabel = "أيقونة SULY" }: Props) {
-  const { colors } = useSulyTheme();
-  const styles = React.useMemo(() => createStyles(colors), [colors]);
+
   const radius = Math.round(size * 0.24);
   return (
     <View
@@ -23,7 +19,7 @@ export function AppLogo({ size = 76, accessibilityLabel = "أيقونة SULY" }:
   );
 }
 
-const createStyles = (colors: ThemePalette) => StyleSheet.create({
+const styles = StyleSheet.create({
   wrap: {
     backgroundColor: "#080B14",
     borderWidth: 1,
@@ -31,7 +27,7 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
-    shadowColor: colors.primary,
+    shadowColor: "#D4AF37",
     shadowOpacity: 0.24,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 3 },
