@@ -137,9 +137,6 @@ export function ProvidersAdminScreen() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [busy, setBusy] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
-  const [testingModelId, setTestingModelId] = useState<number | null>(null);
-  const [expandedProviderId, setExpandedProviderId] = useState<number | null>(null);
-  const [testResults, setTestResults] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -199,19 +196,6 @@ export function ProvidersAdminScreen() {
     setError(null);
     setNotice(null);
     setShowAdvanced(Boolean(preset.requiresBaseUrl));
-  };
-
-  const testModel = async (model: ModelRow) => {
-    setTestingModelId(model.id); setError(null);
-    try {
-      const result = await adminService.testModel(model.id);
-      setTestResults((current) => ({
-        ...current,
-        [model.id]: result.status === "success" ? `نجح الطلب · ${result.duration_ms}ms` : `فشل الطلب · ${probeErrorLabel(result.error_code)}`,
-      }));
-    } catch (cause) {
-      setTestResults((current) => ({ ...current, [model.id]: `فشل الطلب · ${cause instanceof Error ? cause.message : "تعذر تشغيل الاختبار."}` }));
-    } finally { setTestingModelId(null); }
   };
 
   const save = async () => {
@@ -309,31 +293,15 @@ export function ProvidersAdminScreen() {
       const modelsForProvider = providerModels.filter((model) => model.provider_id === provider.id);
       const routableCount = modelsForProvider.filter((model) => provider.enabled && model.enabled && model.routing_group !== "disabled" && !model.health?.auto_restricted).length;
       const restrictedCount = modelsForProvider.filter((model) => model.health?.auto_restricted).length;
-      const expanded = expandedProviderId === provider.id;
       return <Card key={provider.id}>
         <View style={styles.providerCardHeader}><View style={styles.providerIcon}><Text style={styles.providerIconText}>⌘</Text></View><View style={styles.providerHeaderText}><Text style={styles.cardTitle}>{provider.name}</Text><Text style={styles.detail}>{provider.provider_type} · {provider.enabled ? "المفتاح مفعّل" : "المفتاح متوقف"} · اختبار المزود: {provider.last_test_status ?? "غير متاح"}</Text></View></View>
         <Text numberOfLines={1} style={styles.detail}>{provider.base_url ?? ""}</Text>
         {provider.enabled
           ? <View style={styles.providerStatsRow}><Text style={styles.providerStat}>{modelsForProvider.length} نموذج مرتبط</Text><Text style={styles.providerStat}>{routableCount} جاهز للتوجيه</Text>{restrictedCount > 0 ? <Text style={styles.providerRestrictedStat}>{restrictedCount} مقيّد</Text> : null}</View>
           : <Text style={styles.detail}>تم تجميد نماذج المفتاح وإخفاؤها.</Text>}
-        {provider.enabled
-          ? <Pressable accessibilityRole="button" accessibilityState={{ expanded }} onPress={() => setExpandedProviderId(expanded ? null : provider.id)} style={styles.providerExpandAction}><Text style={styles.link}>{expanded ? "إخفاء نماذج هذا المفتاح" : `عرض نماذج هذا المفتاح (${modelsForProvider.length})`}</Text><Text style={styles.link}>{expanded ? "⌃" : "⌄"}</Text></Pressable>
-          : <Text style={styles.detail}>تم تجميد نماذج هذا المفتاح وإخفاؤها من جميع اختيارات التوجيه والأقسام.</Text>}
-        {expanded && provider.enabled ? <View style={styles.providerModelsList}>
-          {modelsForProvider.length === 0 ? <Text style={styles.detail}>لم تُكتشف نماذج لهذا المفتاح بعد. استخدم مزامنة النماذج.</Text> : modelsForProvider.map((model) => {
-            const status = !provider.enabled ? "المفتاح متوقف" : model.health?.auto_restricted ? "مقيّد آليًا" : (!model.enabled || model.routing_group === "disabled") ? "معطّل يدويًا" : "جاهز للتوجيه";
-            const statusStyle = !provider.enabled || !model.enabled || model.routing_group === "disabled" ? styles.statusDisabled : model.health?.auto_restricted ? styles.statusRestricted : styles.statusEnabled;
-            const statusTextStyle = !provider.enabled || !model.enabled || model.routing_group === "disabled" ? styles.statusDisabledText : model.health?.auto_restricted ? styles.statusRestrictedText : styles.statusEnabledText;
-            return <View key={model.id} style={styles.providerModelRow}>
-              <View style={styles.providerModelHeader}><View style={[styles.statusBadge, statusStyle]}><Text style={[styles.statusBadgeText, statusTextStyle]}>{status}</Text></View><View style={styles.providerModelInfo}><Text style={styles.providerModelName}>{model.name}</Text><Text style={styles.providerModelIdentifier}>{model.model_identifier}</Text></View></View>
-              <Text style={styles.detail}>المسار: {model.routing_group} · الأولوية: {model.priority}{model.probe?.last_scheduled_status ? ` · آخر فحص: ${model.probe.last_scheduled_status === "success" ? "ناجح" : "فاشل"}` : " · لم يُفحص دوريًا بعد"}</Text>
-              {testResults[model.id] ? <Text style={testResults[model.id].startsWith("نجح") ? styles.success : styles.warning}>{testResults[model.id]}</Text> : null}
-              <PrimaryButton label={testingModelId === model.id ? "جارٍ اختبار هذا النموذج…" : "اختبار النموذج بهذا المفتاح"} onPress={() => void testModel(model)} disabled={testingModelId !== null || busyId !== null} />
-            </View>;
-          })}
-        </View> : null}
+        <Link href="/admin/models" asChild><Pressable style={styles.providerExpandAction}><Text style={styles.link}>عرض كل النماذج وإدارتها</Text></Pressable></Link>
         <View style={styles.rowWrap}>
-          <PrimaryButton label={busyId === provider.id ? "جارٍ التنفيذ…" : "مزامنة نماذج هذا المفتاح"} onPress={() => void syncProvider(provider)} disabled={busyId !== null || testingModelId !== null} />
+          <PrimaryButton label={busyId === provider.id ? "جارٍ التنفيذ…" : "مزامنة نماذج هذا المفتاح"} onPress={() => void syncProvider(provider)} disabled={busyId !== null} />
           <PrimaryButton label={provider.enabled ? "إيقاف هذا المفتاح ونماذجه" : "تفعيل هذا المفتاح ونماذجه"} onPress={() => void toggleProvider(provider)} disabled={busyId !== null || testingModelId !== null} />
         </View>
       </Card>;
