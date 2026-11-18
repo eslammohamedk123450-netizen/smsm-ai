@@ -2898,7 +2898,8 @@ async function handleRequest(req: Request): Promise<Response> {
   }
 
   const freeDeadline = Date.now() + (routingMode === "manual" ? settings.paidFallbackTimeoutMs : settings.freeRaceTimeoutMs);
-  const boundedFreeCandidates = raceCandidates.slice(0, Math.max(1, settings.maxParallelFreeModels));
+  // Follow the full administrator-defined chat chain in priority order. The admin UI caps each route at 500 models.
+  const boundedFreeCandidates = raceCandidates.slice(0, 500);
   for (let index = 0; index < boundedFreeCandidates.length; index += 1) {
     if (req.signal.aborted) break;
     const remaining = freeDeadline - Date.now();
