@@ -1082,22 +1082,24 @@ async function handleRequest(req: Request): Promise<Response> {
     model: ModelRow,
     requiredRole?: "chat" | "planner" | "worker" | "reviewer" | "summarizer",
     allowedRoutingGroups?: ModelRow["routing_group"][],
+    options: { allowRestricted?: boolean; ignoreCapabilityEvidence?: boolean } = {},
   ) => {
-    if (hasCapabilityEvidenceConflict(model.id, uniqueRequiredCapabilities, capabilityEvidenceRows)) {
+    if (!options.ignoreCapabilityEvidence
+      && hasCapabilityEvidenceConflict(model.id, uniqueRequiredCapabilities, capabilityEvidenceRows)) {
       return false;
     }
     return isModelEligibleForRequest({
-    enabled: model.enabled,
-    healthy: !healthByModel.get(model.id)?.auto_restricted,
-    providerEnabled: providerById.get(model.provider_id)?.enabled === true,
-    allowedTiers: model.allowed_tiers ?? [],
-    userTier,
-    capabilities: model.capabilities_json,
-    requiredCapabilities: uniqueRequiredCapabilities,
-    taskRoles: model.task_roles,
-    requiredRole,
-    routingGroup: model.routing_group,
-    allowedRoutingGroups,
+      enabled: model.enabled,
+      healthy: options.allowRestricted === true || !healthByModel.get(model.id)?.auto_restricted,
+      providerEnabled: providerById.get(model.provider_id)?.enabled === true,
+      allowedTiers: model.allowed_tiers ?? [],
+      userTier,
+      capabilities: model.capabilities_json,
+      requiredCapabilities: uniqueRequiredCapabilities,
+      taskRoles: model.task_roles,
+      requiredRole,
+      routingGroup: model.routing_group,
+      allowedRoutingGroups,
     });
   };
   const requiredModelRole = executionMode === "agent" ? "planner" : "chat";
@@ -1167,8 +1169,22 @@ async function handleRequest(req: Request): Promise<Response> {
   if (selectedProfileKey && profileCapabilities.extended_context === true && profileEligibleModels.length === 0) {
     return await failedResponse(jsonResponse({ error: "لا يوجد نموذج مفعّل في هذا المستوى يدعم السياق الطويل حاليًا. راجع ربط نماذج Max من لوحة الإدارة." }, 503, req), "profile_context_unavailable");
   }
+  const basicChatRecoveryMode = !internalBrainCall && executionMode === "chat" && routingMode === "auto";
+  // During the temporary basic-chat phase, model health is a ranking signal,
+  // not a permanent deny-list: keep enabled, assigned text models available
+  // as ordered fallbacks when every healthy candidate has been auto-restricted.
+  const restrictedChatFallbackModels = basicChatRecoveryMode
+    ? (allModels ?? []).filter((model: ModelRow) =>
+      healthByModel.get(model.id)?.auto_restricted === true
+      && isEligibleModel(model, "chat", allowedAutoRoutingGroups, {
+        allowRestricted: true,
+        ignoreCapabilityEvidence: true,
+      }))
+    : [];
   const anyCapabilityEligible = profileEligibleModels.some((model: ModelRow) =>
-    isEligibleModel(model, requiredModelRole, allowedAutoRoutingGroups));
+    isEligibleModel(model, requiredModelRole, allowedAutoRoutingGroups, {
+      ignoreCapabilityEvidence: basicChatRecoveryMode,
+    })) || restrictedChatFallbackModels.length > 0;
   if (routingMode === "auto" && !anyCapabilityEligible) {
     const labels = [...new Set([
       ...connectorCapabilities.map(capabilityLabel),
@@ -1187,9 +1203,31 @@ async function handleRequest(req: Request): Promise<Response> {
   } else {
     // Auto applies the selected subscription profile entitlements, then uses the
     // single central route allowlist. The selected profile is never silently replaced.
-    const tierFiltered = profileEligibleModels.filter((model: ModelRow) => isEligibleModel(model, requiredModelRole));
+    const tierFiltered = profileEligibleModels.filter((model: ModelRow) =>
+      isEligibleModel(model, requiredModelRole, undefined, {
+        ignoreCapabilityEvidence: basicChatRecoveryMode,
+      }));
     const assignedRouteModels = restrictModelsToAssignedRoute(tierFiltered, orderedRouteAssignments, routeRole);
-    candidatesFrom = orderModelsByRoute(assignedRouteModels.filter(m => m.routing_group === "free_race"), orderedRouteAssignments, routeRole);
+    const healthyOrdered = orderModelsByRoute(
+      assignedRouteModels.filter((model) => model.routing_group === "free_race"),
+      orderedRouteAssignments,
+      routeRole,
+    );
+    if (basicChatRecoveryMode && restrictedChatFallbackModels.length > 0) {
+      const assignedRecovery = restrictModelsToAssignedRoute(
+        restrictedChatFallbackModels,
+        orderedRouteAssignments,
+        routeRole,
+      ).filter((model) => model.routing_group === "free_race");
+      const recoveryOrdered = orderModelsByRoute(assignedRecovery, orderedRouteAssignments, routeRole);
+      const alreadyIncluded = new Set(healthyOrdered.map((model) => model.id));
+      candidatesFrom = [
+        ...healthyOrdered,
+        ...recoveryOrdered.filter((model) => !alreadyIncluded.has(model.id)),
+      ];
+    } else {
+      candidatesFrom = healthyOrdered;
+    }
   }
 
   if (routingMode === "manual" && candidatesFrom.length === 0) {
