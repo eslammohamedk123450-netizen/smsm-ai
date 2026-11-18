@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
  * to hydrate the static HTML. Omitting them leaves a rendered splash screen
  * with no running application.
  */
-const webBaseUrl = (process.env.EXPO_PUBLIC_WEB_BASE_URL ?? "").replace(/\\/+$/, "");
+const webBaseUrl = (process.env.EXPO_PUBLIC_WEB_BASE_URL ?? "").replace(/\/+$/, "");
 const faviconHref = `${webBaseUrl}/favicon.svg` || "/favicon.svg";
 
 export default function Root({ children }: { children: ReactNode }) {
