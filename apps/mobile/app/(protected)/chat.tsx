@@ -26,20 +26,8 @@ import { supabase } from "../../src/lib/supabase/client";
 import { integrationService, type ToolkitStatus } from "../../src/features/integrations/integration-service";
 import { randomUUID } from "expo-crypto";
 import { useNavigationMenu } from "../../src/components/navigation/MainNavigation";
-
-type SulyModelProfileKey = "lite" | "pro" | "max" | "x";
-type SulyModelProfileOption = {
-  profile_key: Exclude<SulyModelProfileKey, "auto">;
-  display_name: string;
-  tagline: string;
-  is_active: boolean;
-};
-const DEFAULT_MODEL_PROFILE_OPTIONS: SulyModelProfileOption[] = [
-  { profile_key: "lite", display_name: "SULY Lite", tagline: "للاستخدام الشخصي اليومي", is_active: true },
-  { profile_key: "pro", display_name: "SULY Pro", tagline: "للاستخدام الجاد والمهام المتقدمة", is_active: false },
-  { profile_key: "max", display_name: "SULY Max", tagline: "للمهام المعقدة والتحليل العميق", is_active: false },
-  { profile_key: "x", display_name: "SULY X", tagline: "أعلى مستوى من قدرات النماذج", is_active: false },
-];
+import { AgentExecutionCard } from "../../src/features/chat/components/AgentExecutionCard";
+import { listConversationAgentProgress, type ChatAgentProgress } from "../../src/features/brain/task-service";
 
 const STREAMING_ID = "local-streaming-assistant";
 const TASK_SUGGESTIONS = getRotatingSuggestions(Date.now(), 4);
@@ -126,6 +114,9 @@ export default function ChatPage() {
   const routeConversationId = Array.isArray(params.conversationId) ? params.conversationId[0] : params.conversationId;
   const routeProjectId = Array.isArray(params.projectId) ? params.projectId[0] : params.projectId;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [agentProgress, setAgentProgress] = useState<ChatAgentProgress[]>([]);
+  const [activeTaskMessageId, setActiveTaskMessageId] = useState<string | null>(null);
+  const [cancelPendingMessageId, setCancelPendingMessageId] = useState<string | null>(null);
   const [responseIndexByUser, setResponseIndexByUser] = useState<Record<string, number>>({});
   const [conversationId, setConversationId] = useState<string | null>(routeConversationId || null);
   const [isSending, setIsSending] = useState(false);
@@ -156,11 +147,17 @@ export default function ChatPage() {
   const lock = useRef(false);
   const preflightLock = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
+  const cancelAgentExecution = useCallback((userMessageId: string) => {
+    if (!abortRef.current) return;
+    setCancelPendingMessageId(userMessageId);
+    abortRef.current.abort();
+  }, []);
   const internalConversationTransitionRef = useRef<string | null>(null);
   const optimisticMessageIdRef = useRef<string | null>(null);
   const streamedTextRef = useRef("");
   const isAdmin = Boolean(user?.id && adminAccess.userId === user.id && adminAccess.allowed);
   const displayMessages = useMemo(() => buildDisplayMessages(messages, responseIndexByUser), [messages, responseIndexByUser]);
+  const hasActiveAgentExecution = agentProgress.some((progress) => !["completed", "failed", "cancelled"].includes(progress.status));
 
   const refreshCreditBalance = useCallback(async () => {
     if (!user?.id) {
@@ -219,6 +216,9 @@ export default function ChatPage() {
     setShowScrollToBottom(false);
     setConversationId(routeConversationId || null);
     setMessages([]);
+    setAgentProgress([]);
+    setActiveTaskMessageId(null);
+    setCancelPendingMessageId(null);
     setResponseIndexByUser({});
     setFeedbackByMessage({});
     setError(null);
@@ -272,6 +272,29 @@ export default function ChatPage() {
   }, []);
 
   useEffect(() => {
+    if (!conversationId) { setAgentProgress([]); setActiveTaskMessageId(null); setCancelPendingMessageId(null); return; }
+    let active = true;
+    const refresh = async () => {
+      try {
+        const progress = await listConversationAgentProgress(conversationId);
+        if (active) {
+          setAgentProgress(progress);
+          const terminalIds = new Set(progress.filter((item) => ["completed", "failed", "cancelled"].includes(item.status)).map((item) => item.userMessageId));
+          if (terminalIds.size) setCancelPendingMessageId((current) => current && terminalIds.has(current) ? null : current);
+        }
+      } catch {
+        // Keep the last owner-visible snapshot during transient network failures.
+      }
+    };
+    void refresh();
+    if (isSending || hasActiveAgentExecution) {
+      const interval = setInterval(() => { void refresh(); }, 2000);
+      return () => { active = false; clearInterval(interval); };
+    }
+    return () => { active = false; };
+  }, [conversationId, isSending, hasActiveAgentExecution]);
+
+  useEffect(() => {
     if (!conversationId) return;
     return chatStreamManager.subscribe(conversationId, (snapshot) => {
       streamedTextRef.current = snapshot.text;
@@ -310,6 +333,8 @@ export default function ChatPage() {
       setError(null);
       setRetryFailure(null);
       
+      setActiveTaskMessageId(null);
+      setCancelPendingMessageId(null);
       setIsSending(true);
       setActiveTaskLabel(studioIntent ? isArabic ? "تجهيز بطاقة الاستوديو…" : "Preparing Studio card…" : isArabic ? "جارٍ الرد على رسالتك…" : "Responding to your message…");
       void logFrictionEvent({ eventKind: "task_start", screenKey: "chat", featureKey: "chat", stepKey: "send_message", conversationId });
@@ -350,6 +375,7 @@ export default function ChatPage() {
           mediaAsset: uploadedAsset,
           signal: controller.signal,
           async onUserSaved(message) {
+            setActiveTaskMessageId(message.id);
             savedUserMessage = true;
             savedUserMessageId = message.id;
             setMessages((current) => [...current.filter((item) => item.id !== STREAMING_ID && item.id !== optimisticMessageId), message]);
@@ -432,6 +458,7 @@ export default function ChatPage() {
         if (abortRef.current === controller) abortRef.current = null;
         void refreshCreditBalance();
         setIsSending(false);
+        setActiveTaskMessageId(null);
         setActiveTaskLabel(null);
       }
     });
@@ -440,6 +467,8 @@ export default function ChatPage() {
   const retryResponse = async () => {
     const failed = retryFailure;
     if (!failed || isSending) return;
+    setActiveTaskMessageId(failed.userMessageId);
+    setCancelPendingMessageId(null);
     await runOnce(lock, async () => {
       setError(null);
       setRetryFailure(null);
@@ -500,6 +529,7 @@ export default function ChatPage() {
         if (abortRef.current === controller) abortRef.current = null;
         void refreshCreditBalance();
         setIsSending(false);
+        setActiveTaskMessageId(null);
         setActiveTaskLabel(null);
       }
     });
@@ -602,6 +632,8 @@ export default function ChatPage() {
 
   const editMessageAndRegenerate = async (messageId: string, content: string) => {
     if (!conversationId || isSending) return;
+    setActiveTaskMessageId(messageId);
+    setCancelPendingMessageId(null);
     const userIndex = messages.findIndex((message) => message.id === messageId && message.role === "user");
     if (userIndex < 0) throw new Error(isArabic ? "تعذر العثور على الرسالة المطلوب تعديلها." : "Could not find the message to edit.");
     const updatedUser = await chatService.updateUserMessage(messageId, content);
@@ -638,6 +670,7 @@ export default function ChatPage() {
       abortRef.current = null;
       void refreshCreditBalance();
       setIsSending(false);
+      setActiveTaskMessageId(null);
       setActiveTaskLabel(null);
     }
   };
@@ -652,6 +685,8 @@ export default function ChatPage() {
       show(isArabic ? "تعذّر العثور على رسالة المستخدم المرتبطة بهذا الرد." : "Could not find the user message associated with this response.", "error");
       return;
     }
+    setActiveTaskMessageId(messages[userIndex].id);
+    setCancelPendingMessageId(null);
     const history = messages.slice(0, userIndex + 1);
     setMessages(history);
     setIsSending(true);
@@ -680,10 +715,14 @@ export default function ChatPage() {
       abortRef.current = null;
       void refreshCreditBalance();
       setIsSending(false);
+      setActiveTaskMessageId(null);
     }
   };
 
-  const renderMessage = ({ item }: { item: DisplayMessage }) => (
+  const renderMessage = ({ item }: { item: DisplayMessage }) => {
+    const execution = item.role === "user" ? agentProgress.find((progress) => progress.userMessageId === item.id) : undefined;
+    return (
+      <View>
     <MessageBubble
       messageId={item.id}
       role={item.role === "user" ? "user" : "assistant"}
@@ -701,7 +740,10 @@ export default function ChatPage() {
       onEditSave={item.role === "user" ? (content) => editMessageAndRegenerate(item.id, content) : undefined}
       onFeedback={item.role === "assistant" && item.status !== "streaming" ? (value) => updateFeedback(item.id, value) : undefined}
     />
-  );
+    {execution ? <AgentExecutionCard progress={execution} canCancel={isSending && activeTaskMessageId === execution.userMessageId && Boolean(abortRef.current)} cancelPending={cancelPendingMessageId === execution.userMessageId} onCancel={() => cancelAgentExecution(execution.userMessageId)} /> : null}
+      </View>
+    );
+  };
 
   const shareTitle = messages.find((message) => message.role === "user")?.content.slice(0, 48) || (isArabic ? "محادثة Suly" : "SULY conversation");
 
@@ -845,7 +887,6 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   navigationMenu: { gap: 7, paddingBottom: 8 },
   navigationMenuItem: { minHeight: 48, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 11, paddingHorizontal: 12, borderRadius: 11, backgroundColor: colors.surfaceElevated },
   navigationMenuLabel: { flex: 1, color: colors.textPrimary, fontSize: 13, fontWeight: "700", textAlign: isArabic ? "right" : "left" },
-  modelProfileOptions: { gap: 7, paddingBottom: 4 },
   modelPickerOption: { minHeight: 54, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "space-between", gap: 10, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10, backgroundColor: colors.surfaceElevated },
   modelPickerOptionSelected: { borderWidth: 1, borderColor: colors.primary },
   modelPickerOptionDisabled: { opacity: 0.55 },

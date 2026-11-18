@@ -19,6 +19,7 @@ import { PremiumText as Text } from "../../../components/ui/PremiumText";
 import { Ionicons } from "@expo/vector-icons";
 import { useAppLocale } from "../../../theme/LocaleProvider";
 import { AttachSheet } from "./AttachSheet";
+import { usePlusMenu } from "../../../components/navigation/MainNavigation";
 import type { PickedMedia } from "../../media/media-service";
 
 export type ChatAttachment = PickedMedia;
@@ -47,6 +48,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
 ) {
   const { isArabic } = useAppLocale();
   const { colors } = useSulyTheme();
+  const openPlusMenu = usePlusMenu();
   const styles = useMemo(() => createStyles(colors, isArabic), [colors, isArabic]);
   const [text, setText] = useState("");
   const [inputHeight, setInputHeight] = useState(MIN_INPUT_HEIGHT);
@@ -177,21 +179,32 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
         </View>
       ) : null}
 
-      {/* Compact composer: one attachment entry point, Agent toggle, message field and send. */}
+      {/* Unified composer: connectors, attachments, message input, voice, and send/stop. */}
       <View style={styles.container}>
-        {/* Right side (RTL start): + Button */}
+        {/* RTL: connectors (+), attachments (paperclip), input, microphone, send/stop. */}
         <TouchableOpacity
-          onPress={() => setAttachVisible(true)}
+          onPress={openPlusMenu}
           disabled={disabled || isStreaming || isListening}
           activeOpacity={0.7}
           style={styles.plusButton}
           accessibilityRole="button"
-          accessibilityLabel={isArabic ? "إرفاق صورة أو ملف" : "Attach an image or file"}
+          accessibilityLabel={isArabic ? "فتح الموصلات والأدوات" : "Open tools and connectors"}
         >
           <Ionicons name="add" size={22} color={colors.textMuted} />
         </TouchableOpacity>
 
-        {/* Center: TextInput with placeholder "اسأل Suly" */}
+        <TouchableOpacity
+          onPress={() => setAttachVisible(true)}
+          disabled={disabled || isStreaming || isListening}
+          activeOpacity={0.7}
+          style={styles.attachmentButton}
+          accessibilityRole="button"
+          accessibilityLabel={isArabic ? "إرفاق صورة أو ملف" : "Attach an image or file"}
+        >
+          <Ionicons name="attach-outline" size={20} color={colors.textMuted} />
+        </TouchableOpacity>
+
+        {/* Center: multiline message input. */}
         <TextInput
           ref={inputRef}
           value={text}
@@ -219,8 +232,8 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
         {/* Compact voice, send and stop controls. */}
         <View style={styles.leftControls}>
           {isStreaming ? (
-            <Pressable style={styles.blueButton} onPress={onCancel} accessibilityLabel={isArabic ? "إيقاف الرد" : "Stop response"}>
-              <ActivityIndicator size="small" color={colors.onPrimary} />
+            <Pressable style={styles.blueButton} onPress={onCancel} disabled={!onCancel} accessibilityRole="button" accessibilityLabel={isArabic ? "إيقاف الرد" : "Stop response"}>
+              <Ionicons name="stop" size={16} color={colors.onPrimary} />
             </Pressable>
           ) : isListening ? (
             <Pressable
@@ -309,13 +322,15 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
     borderWidth: 1,
     borderColor: colors.divider,
     backgroundColor: colors.surfaceElevated,
+    gap: 8,
     shadowColor: "#000",
     shadowOpacity: 0.25,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
     elevation: 3,
   },
-  plusButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 20 },
+  plusButton: { width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 21 },
+  attachmentButton: { width: 42, height: 42, alignItems: "center", justifyContent: "center", borderRadius: 21 },
   input: {
     flex: 1,
     minHeight: MIN_INPUT_HEIGHT,
@@ -332,17 +347,17 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
     textAlignVertical: "top",
     writingDirection: isArabic ? "rtl" : "ltr",
   },
-  leftControls: { flexDirection: "row", alignItems: "center", gap: 4 },
+  leftControls: { flexDirection: "row", alignItems: "center", gap: 8 },
   blueButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.primary,
   },
   blueButtonIdle: { backgroundColor: colors.primary, opacity: 0.9 },
-  micButton: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
+  micButton: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
   micButtonActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   webSendButton: { width: "auto", minWidth: 72, paddingHorizontal: 12, flexDirection: "row", gap: 5, borderRadius: 20 },
   webSendLabel: { color: colors.onPrimary, fontSize: 12, fontWeight: "700" },

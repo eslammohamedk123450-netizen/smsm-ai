@@ -3,7 +3,6 @@ import { Image, StyleSheet, View } from "react-native";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
 
-
 type Props = { size?: number; accessibilityLabel?: string };
 
 export function AppLogo({ size = 76, accessibilityLabel = "أيقونة Suly" }: Props) {
@@ -24,9 +23,9 @@ export function AppLogo({ size = 76, accessibilityLabel = "أيقونة Suly" }:
 
 const createStyles = (colors: ThemePalette) => StyleSheet.create({
   wrap: {
-    backgroundColor: "#000000",
+    backgroundColor: colors.background,
     borderWidth: 1,
-    borderColor: "#262626",
+    borderColor: colors.divider,
     shadowColor: colors.primary,
     shadowOpacity: 0.35,
     shadowRadius: 16,

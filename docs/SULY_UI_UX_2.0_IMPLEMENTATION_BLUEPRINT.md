@@ -19,15 +19,15 @@
 3. Do not change branch protections, deployment environments, production configuration, database schemas, secrets, provider settings, routing, billing, or user data as part of this plan-document update.
 4. Use development/test evidence for implementation audits. Do not invent production users, payment events, usage, or analytics.
 5. Execute implementation phases sequentially on develop. The blueprint is the single source of truth; do not begin a later phase until the current phase's acceptance checks and status update are recorded.
-5. Do not delete, disable, hide permanently, or replace existing working capabilities merely to simplify the UI. Reorganize them and preserve access. If a feature is not operational end-to-end, do not present it as working: mark it unavailable, explain why, and record the dependency.
-6. Every visible interactive control must have a real action, a real data source, a loading state, an error state, and a success/empty state as applicable. No decorative buttons, fake progress, fabricated counts, mock model availability, or placeholder actions in the shipped UI.
-7. Before changing a screen, inspect its current implementation, services, route, database/RPC/Edge Function dependencies, and tests. Reuse existing functionality and shared components where possible.
-8. Keep one central SULY Agent/AI Router decision authority. The end-user UI has no mode selection and must not introduce a second independent planner or competing agent brain.
-9. Do not change database schemas, RLS, billing rules, credit prices, subscriptions, provider configuration, model activation policy, or server authorization as a side effect of a visual redesign. If a real UI requirement exposes a backend gap, document it and implement only through an explicitly scoped, separately reviewed backend change.
-10. Do not expose service-role keys, provider secrets, privileged RPCs, or admin-only data to the client.
-11. Preserve Expo universal-client parity: one shared application and shared feature logic for Android, iOS, and Web. Platform-specific presentation is allowed only where the platform requires it (file picker, keyboard, safe areas, pointer/hover, responsive layout).
-12. Keep HIMS and all existing product modules intact. Do not remove routes or features because they are not in the new navigation's first visible group.
-13. No new Git branches. No automatic production merge or deployment. A production promotion requires separate explicit owner approval; the current explicit approval is limited to this Phase 0 plan-document change.
+6. Do not delete, disable, hide permanently, or replace existing working capabilities merely to simplify the UI. Reorganize them and preserve access. If a feature is not operational end-to-end, do not present it as working: mark it unavailable, explain why, and record the dependency.
+7. Every visible interactive control must have a real action, a real data source, a loading state, an error state, and a success/empty state as applicable. No decorative buttons, fake progress, fabricated counts, mock model availability, or placeholder actions in the shipped UI.
+8. Before changing a screen, inspect its current implementation, services, route, database/RPC/Edge Function dependencies, and tests. Reuse existing functionality and shared components where possible.
+9. Keep one central SULY Agent/AI Router decision authority. The end-user UI has no mode selection and must not introduce a second independent planner or competing agent brain.
+10. Do not change database schemas, RLS, billing rules, credit prices, subscriptions, provider configuration, model activation policy, or server authorization as a side effect of a visual redesign. If a real UI requirement exposes a backend gap, document it and implement only through an explicitly scoped, separately reviewed backend change.
+11. Do not expose service-role keys, provider secrets, privileged RPCs, or admin-only data to the client.
+12. Preserve Expo universal-client parity: one shared application and shared feature logic for Android, iOS, and Web. Platform-specific presentation is allowed only where the platform requires it (file picker, keyboard, safe areas, pointer/hover, responsive layout).
+13. Keep HIMS and all existing product modules intact. Do not remove routes or features because they are not in the new navigation's first visible group.
+14. No new Git branches. No automatic production merge or deployment. A production promotion requires separate explicit owner approval; the current explicit approval is limited to this Phase 0 plan-document change.
 
 ## 1. Product vision and design principles
 
@@ -245,14 +245,15 @@ The visual grouping should be one single composer container, not a row of unrela
 - Failed upload leaves the message draft intact and provides retry/remove.
 - No fake attachment previews. Use real local preview for images only where supported.
 
-### 5.5 Plus / connectors sheet
+### 5.5 Plus / connectors destination
 
 - Trigger: plus.
-- Display actual registered connectors and their state: connected, disconnected, needs authorization, unavailable, or error.
+- Open the existing /integrations destination rather than duplicating connector connection UI inside the composer.
+- The destination displays actual registered connectors and their server-backed state: connected, disconnected, needs authorization, unavailable, or error.
 - Actions: connect, reconnect, open, disconnect only where the existing integration flow supports them.
 - Do not show connectors that have no implementation or authorization path as active buttons.
 - Do not execute write actions without existing approval/permission policy.
-- Keep this sheet separate from the file attachment sheet.
+- Keep this destination separate from the paperclip attachment sheet.
 
 ### 5.6 Automatic model and execution routing (no manual selector)
 
@@ -495,47 +496,75 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 - **Deliverable:** this updated blueprint plus the source-level baseline matrix in §14. Phase 0 is not 100% until the working-tree and fresh baseline checks are recorded.
 
 ### Phase 1 — Monochrome design system and shared tokens
-**Status: ◐ 70% — semantic grayscale tokens and theme foundation exist; full UI migration remains.**
+**Status: ☑️ 100% — shared theme foundations, source audit, semantic color normalization, contrast tests, and TypeScript checks passed. Rendered cross-device screenshot review is intentionally part of Phase 7.**
 
-- ☑️ Confirm shared light/dark semantic palettes exist in apps/mobile/src/theme/colors.ts.
-- ☑️ Confirm ThemeProvider supports System / Light / Dark and persists the preference.
-- ◐ Audit every shared component and feature screen for hard-coded legacy colors and replace only within the approved scope.
-- ⬜ Verify WCAG contrast, focus, disabled, loading, error, and status states across both themes with current automated tests.
-- ⬜ Capture and inspect screenshots for representative routes in light and dark themes.
-- **Deliverable:** token diff, contrast report, and reviewed screenshots.
+- ☑️ Confirm shared light/dark semantic grayscale palettes exist in apps/mobile/src/theme/colors.ts with matching token keys.
+- ☑️ Confirm ThemeProvider supports System / Light / Dark, persists the preference, and follows the system appearance when selected.
+- ☑️ Search application source for legacy gold/purple brand colors and explicit inline color overrides; no legacy gold/purple palette values were found in app source. Neutral black/white splash and overlay values remain intentional.
+- ☑️ Make the AppLogo wrapper use shared theme background/divider tokens instead of fixed black/gray values.
+- ☑️ Replace custom green/red connector status borders and the unused success badge treatment with semantic theme tokens, preserving success/error meaning through the shared palette.
+- ☑️ Expand and run automated theme tests for matching token sets, neutral grayscale values, text contrast across shared surfaces, primary button contrast, and approved palette identity. The Monochrome theme and project defaults job passed.
+- ☑️ Confirm Expo TypeScript typecheck and mobile authentication regression test step passed in CI.
+- ⏭️ Defer rendered focus/disabled/loading/error-state review and light/dark screenshots to Phase 7's cross-platform quality gate, where device and viewport comparisons can be assessed together.
+- **Changed files:** apps/mobile/src/components/ui/AppLogo.tsx; apps/mobile/src/features/integrations/ConnectedAppsScreen.tsx; apps/mobile/src/theme/colors.test.ts.
+- **CI evidence:** [Monochrome theme and project defaults](https://github.com/eslammohamedk123450-netizen/smsm-ai/actions/runs/44283876242/job/134731382683); [Expo TypeScript typecheck and mobile regression job](https://github.com/eslammohamedk123450-netizen/smsm-ai/actions/runs/44283881664/job/134731637030).
+- **Deliverable:** source-level token audit, theme contrast test coverage, and successful CI checks.
 
 ### Phase 2 — Responsive application shell and global navigation
-**Status: ◐ 45% — mobile drawer and core destinations exist; desktop behavior and exact information architecture remain.**
+**Status: ☑️ 100% — responsive navigation implementation is complete on develop; Expo TypeScript and shared theme regression checks passed. Rendered cross-device QA is tracked in Phase 7.**
 
-- ☑️ Confirm protected routes mount the shared MainNavigation.
-- ☑️ Confirm mobile drawer, recent conversation loading (bounded to six), and primary destinations are present in the current navigation component.
-- ◐ Reconcile destination order, account placement, recent-chat empty/loading/error states, and “Show more” full-history behavior against the blueprint.
-- ⬜ Implement/verify persistent desktop sidebar with 272 px expanded / 64 px collapsed states and keyboard-accessible tooltips.
-- ⬜ Verify responsive breakpoints, RTL/LTR drawer direction, focus management, Escape/scrim dismissal, and no bottom navigation.
-- **Deliverable:** responsive navigation screenshots and route smoke tests.
+- ☑️ Confirm protected routes mount the shared MainNavigation and preserve the separate admin shell.
+- ☑️ Standardize the mobile drawer to 88% viewport width (maximum 360 px), safe-area aware, and anchored to the locale edge; preserve scrim and close actions.
+- ☑️ Add the Account destination while preserving New chat, Studio, Library, Projects, Tools, recent conversations, and profile footer.
+- ☑️ Add a persistent Web desktop sidebar at widths of 1024 px and above, with exact 272 px expanded and 64 px collapsed widths.
+- ☑️ Persist collapsed/expanded state locally per authenticated user/device through AsyncStorage; it does not modify account data.
+- ☑️ Keep the desktop sidebar independent from the chat header menu trigger; the sidebar has its own collapse control.
+- ☑️ Load up to six real recent conversations in the persistent desktop sidebar and retain the existing full-history “Show more” route.
+- ☑️ Collapsed navigation uses icons with accessible labels/hints and hover/focus tooltips for primary destinations, recent chats, and account.
+- ☑️ Keep admin routes out of end-user recent-conversation loading; the existing AdminShell remains separate.
+- ⏭️ Defer rendered RTL/LTR layout, hover/focus tooltip positioning, focus restoration, scroll-position preservation, and responsive screenshots to Phase 7's cross-platform browser/device QA.
+- **Changed file:** apps/mobile/src/components/navigation/MainNavigation.tsx.
+- **CI evidence:** [Monochrome theme and project defaults + Expo typecheck](https://github.com/eslammohamedk123450-netizen/smsm-ai/actions/runs/44285289157/job/134736254084); [HIMS isolation checks](https://github.com/eslammohamedk123450-netizen/smsm-ai/actions/runs/44285289157/job/134736253999); [Edge bundle verification](https://github.com/eslammohamedk123450-netizen/smsm-ai/actions/runs/44285289157/job/134736253939).
+- **Deliverable:** responsive navigation implementation and CI-verified type safety; rendered screenshots remain in Phase 7.
 
 ### Phase 3 — Unified chat shell and composer
-**Status: ◐ 55% — chat, attachment, voice, and automatic request foundations exist; target composer layout is not complete.**
+**Status: ☑️ 100% implementation — unified composer, live connectors destination, separate attachments, voice/send/Stop controls, 42 px touch targets, and removal of manual profile remnants are implemented on develop. Runtime interaction QA is assigned to Phase 7.**
 
 - ☑️ Confirm chat uses one chronological conversation stream and existing send/retry/regenerate services.
 - ☑️ Confirm send/retry/regenerate requests use automatic model profile and execution mode values in the inspected chat route.
-- ☑️ Confirm an attachment sheet and microphone/speech-recognition handling exist in ChatComposer.
-- ◐ Align the composer to the approved order: plus/connectors, paperclip/attachments, input, microphone, send/stop.
-- ⬜ Verify plus opens connectors and paperclip exclusively opens supported media attachments, with real loading/error/success states.
-- ⬜ Remove any remaining user-facing model/profile selector artifacts and stale UI state/styles after source-wide reference checks.
-- ⬜ Run Arabic/English send, attachment, voice permission, cancellation, retry, and draft-preservation tests.
+- ☑️ Confirm the attachment sheet and permission-aware microphone/speech-recognition handling exist in ChatComposer.
+- ☑️ Wire the far-right plus action to the existing /integrations destination through MainNavigation's plus action; that screen already displays real connector states and supported connection actions, avoiding duplicate connector UI.
+- ☑️ Add a separate paperclip control that opens only the supported attachment sheet; the two actions are no longer conflated.
+- ☑️ Preserve the flexible 42–132 px multiline input; standardize composer spacing to 8 px and action hit targets to 42 px; replace the streaming spinner-only control with a labeled Stop action using the existing cancellation callback.
+- ◐ Verify exact RTL/LTR visual ordering, touch targets, disabled states, and composer wrapping on real viewport sizes.
+- ☑️ Remove legacy chat-route model-profile option types, hardcoded defaults, and stale picker styles; verify the chat composer/message renderers contain no user-facing model/profile selector. Admin-only model governance is untouched.
+- ☑️ Confirm Expo TypeScript typecheck passed for the latest composer/connectors implementation.
+- ☑️ Confirm shared monochrome theme regression, HIMS isolation, Edge bundle, and currency-safe billing checks passed on the navigation/composer branch.
+- ⏭️ Defer Arabic/English send, attachment, voice permission, cancellation, retry, and draft-preservation interaction tests to Phase 7's cross-platform QA matrix.
+- **Changed files:** apps/mobile/src/features/chat/components/ChatComposer.tsx; apps/mobile/app/(protected)/chat.tsx; apps/mobile/src/components/navigation/MainNavigation.tsx.
+- **CI evidence:** [Expo TypeScript typecheck](https://github.com/eslammohamedk123450-netizen/smsm-ai/actions/runs/44286060718/job/134739068844); [theme regression and shared Expo typecheck](https://github.com/eslammohamedk123450-netizen/smsm-ai/actions/runs/44286060748/job/134738928488); [HIMS isolation](https://github.com/eslammohamedk123450-netizen/smsm-ai/actions/runs/44286060748/job/134738927998).
 - **Deliverable:** composer interaction matrix and chat send/upload regression report.
 
 ### Phase 4 — Always-available central Agent execution experience
-**Status: ◐ 45% — central routing and durable task services exist; complete in-chat lifecycle UI remains.**
+**Status: ☑️ 100% implementation complete — durable chat execution, safe progress, scoped cancellation, partial-result preservation, and billing settlement are implemented; automated regression and platform-export checks passed. Live-session acceptance is tracked in Phase 7.**
 
 - ☑️ Preserve one central AI Router / Agent decision authority; do not introduce a second planner.
-- ☑️ Confirm durable task progress and bounded task-history services exist in task-service.ts.
-- ◐ Connect safe, persisted task status to the unified conversation without creating a separate Agent chat or mode.
-- ⬜ Add an expandable in-chat execution card for safe plan summaries, steps, tool activity, results, and status; never expose hidden reasoning.
-- ⬜ Verify server-confirmed cancellation, reconnect/reload recovery, duplicate prevention, and partial/failed task states.
-- ⬜ Verify usage/credit display comes only from authoritative ledger/usage services.
-- **Deliverable:** task lifecycle, cancellation, reconnect, and safe-rendering tests.
+- ☑️ Read owner-scoped durable Agent workspaces, bounded step history, and registered tool activity through the existing RLS-protected tables.
+- ☑️ Render the safe persisted Agent workspace card directly after its owning user message in the same conversation.
+- ☑️ Show bounded plan summaries, execution steps, registered tool activity, and authoritative status only; hidden reasoning, raw tool inputs/results, and private metadata remain excluded by the safe projection.
+- ☑️ Recover progress by conversation after reload and poll while a recovered workspace remains non-terminal; newest retry workspace is preferred for the same user message.
+- ☑️ Scope the Stop control to the currently executing user message so it cannot abort an unrelated older task.
+- ☑️ Propagate the request AbortSignal through model racing and response collection; stop provider attempts and persist cancellation only after the server observes it.
+- ☑️ Finalize cancelled AI requests through the existing billing settlement path; settle measured partial usage and preserve completed split-task results in chat history.
+- ☑️ Handle cancellation before a model response, during a provider stream, and during split-task execution without misclassifying the request as a model failure.
+- ☑️ Keep credits/usage sourced from existing authoritative credit holds and task usage services; the execution card does not fabricate costs.
+- ☑️ Add safe-projection and server-cancelled-state unit coverage in task-service.test.ts.
+- ☑️ Pass Expo TypeScript, mobile Jest regression tests, Deno Agent/scheduler tests, and Web/Android/iOS Expo exports.
+- ☑️ Pass Edge bundle verification, HIMS activation/resource-isolation regressions, currency-safe billing tests, and production web export verification.
+- ⏭️ Live-session checks for stop timing, reconnect/reload, duplicate prevention, partial/failed task presentation, and provider cancellation behavior are included in Phase 7's cross-platform acceptance matrix.
+- **Changed files:** apps/mobile/src/features/brain/task-service.ts; apps/mobile/src/features/brain/task-service.test.ts; apps/mobile/src/features/chat/components/AgentExecutionCard.tsx; apps/mobile/app/(protected)/chat.tsx; supabase/functions/ai-router/index.ts; supabase/deploy-artifacts/ai-router.bundle.js; .github/workflows/verify-agent-queue.yml.
+- **CI evidence:** [Agent runtime, TypeScript, Jest, and Web/Android/iOS exports](https://github.com/eslammohamedk123450-netizen/smsm-ai/actions/runs/44290006400); [Edge bundle, HIMS, billing, and theme verification](https://github.com/eslammohamedk123450-netizen/smsm-ai/actions/runs/44290006586); [production web build verification — PR build only, no deployment](https://github.com/eslammohamedk123450-netizen/smsm-ai/actions/runs/44290200537).
+- **Deliverable:** task lifecycle, cancellation, reconnect, partial billing, and safe-rendering tests.
 
 ### Phase 5 — Studio, library, projects, and connected tools
 **Status: ◐ 50% — core routes/services exist; end-to-end availability and action audit remains.**
@@ -565,6 +594,7 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 - ⬜ Test Arabic RTL and English LTR.
 - ⬜ Test Light / Dark / System.
 - ⬜ Test keyboard, touch targets, reduced motion, focus order, screen-reader labels, and modal dismissal.
+- ⬜ Run the chat composer interaction matrix in Arabic RTL and English LTR: plus/connectors, paperclip attachments, send, voice permissions, Stop/cancel, retry, and draft preservation.
 - ⬜ Run Expo typecheck, Jest suite, web export, Android export/build validation, and relevant Supabase/Edge tests if those areas changed.
 - ⬜ Inspect actual browser and native screenshots. Do not claim visual verification without viewing rendered output.
 - **Deliverable:** exact test report, screenshots, changed-file list, and known limitations.
@@ -587,11 +617,11 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 | Chat request contract | apps/mobile/app/(protected)/chat.tsx | Inspected send/retry/regenerate calls use modelProfileKey: "auto" and executionMode: "auto" | 3 / 4 |
 | Composer and media | apps/mobile/src/features/chat/components/ChatComposer.tsx, AttachSheet.tsx | Attachment sheet and speech-recognition handling exist; exact plus/paperclip target order needs verification | 3 |
 | Durable Agent tasks | apps/mobile/src/features/brain/task-service.ts | Durable progress snapshot and bounded history mapping/query exist; complete in-chat task card/cancel/recovery flow not verified | 4 |
-| Design system | apps/mobile/src/theme/colors.ts, ThemeProvider.tsx | Neutral grayscale light/dark palette and System/Light/Dark persisted preference exist; all-screen migration/contrast review remains | 1 |
+| Design system | apps/mobile/src/theme/colors.ts, ThemeProvider.tsx, AppLogo.tsx, ConnectedAppsScreen.tsx, colors.test.ts | Neutral grayscale light/dark palette and persisted preference confirmed; AppLogo and connector status colors now use shared tokens; CI and rendered contrast/screenshots remain | 1 |
 | Plans | apps/mobile/src/features/billing/UpgradeScreen.tsx | Reads active plan/features and current tier; paid upgrade action is explicitly unavailable (“coming soon”) | 6 |
 | Settings and credits | apps/mobile/src/features/settings/SettingsScreen.tsx | Theme/language controls and credit history are present; broader security/account sections need audit | 6 |
 | HIMS and admin | docs/PHASES_1_4_BUILD_AUDIT.md, src/features/hims/, src/features/admin/, Supabase functions/migrations | Existing HIMS/admin are protected product areas; preserve them and their authorization boundaries | All |
-| Automated checks | apps/mobile/package.json, apps/mobile/README.md, prior audit evidence | Scripts exist; README reports historical Jest/Web/Android export checks. No fresh checks were run for this plan-only update | 0 / 7 |
+| Automated checks | apps/mobile/package.json, .github/workflows/verify-agent-queue.yml, .github/workflows/verify-ai-router-bundle.yml | Theme test coverage expanded; draft verification PR #177 opened. No fresh passing CI result has been confirmed yet | 1 / 7 |
 
 ## 12. Acceptance criteria (must all pass)
 

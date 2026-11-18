@@ -355,7 +355,7 @@ async function openCandidate(candidate: Candidate, controller: AbortController):
 }
 
 // The first model that produces actual non-empty text wins; HTTP headers alone do not win the race.
-async function firstReady(candidates: Candidate[], waitMs: number, recordAttempt: AttemptRecorder, onStart?: (count: number) => void): Promise<ReadyCandidate | null> {
+async function firstReady(candidates: Candidate[], waitMs: number, recordAttempt: AttemptRecorder, onStart?: (count: number) => void, signal?: AbortSignal): Promise<ReadyCandidate | null> {
   if (candidates.length === 0) return null;
   const raceState = { winnerSelected: false, deadlineExpired: false };
   const attempts = candidates.map((candidate) => {
@@ -376,14 +376,15 @@ async function firstReady(candidates: Candidate[], waitMs: number, recordAttempt
       const errorText = error instanceof Error ? error.message : String(error);
       if (providerCallStarted) {
         const cancelledByWinner = raceState.winnerSelected && controller.signal.aborted;
-        const status: AttemptStatus = cancelledByWinner
+        const cancelledByRequest = signal?.aborted === true;
+        const status: AttemptStatus = cancelledByWinner || cancelledByRequest
           ? "cancelled"
           : controller.signal.aborted || raceState.deadlineExpired || /timeout|timed out|abort/i.test(errorText)
             ? "timeout"
             : /no text|empty/i.test(errorText)
               ? "empty"
               : "error";
-        const errorCode = status === "timeout" ? "model_timeout" : status === "empty" ? "empty_response" : "provider_error";
+        const errorCode = status === "cancelled" ? "client_cancelled" : status === "timeout" ? "model_timeout" : status === "empty" ? "empty_response" : "provider_error";
         await recordAttempt(attemptCandidate, status, Math.max(0, Date.now() - startedAtMs), errorCode, errorText, "finished");
       }
       throw error;
@@ -391,6 +392,9 @@ async function firstReady(candidates: Candidate[], waitMs: number, recordAttempt
     return { candidate: attemptCandidate, controller, promise, startedAtMs };
   });
   onStart?.(attempts.length);
+  const abortAttempts = () => attempts.forEach((attempt) => attempt.controller.abort());
+  if (signal?.aborted) abortAttempts();
+  else signal?.addEventListener("abort", abortAttempts, { once: true });
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<null>((resolve) => {
     timer = setTimeout(() => resolve(null), waitMs);
@@ -398,10 +402,12 @@ async function firstReady(candidates: Candidate[], waitMs: number, recordAttempt
   const ready = Promise.any(attempts.map((attempt) => attempt.promise)).catch(() => null);
   const winner = await Promise.race([ready, timeout]);
   if (timer) clearTimeout(timer);
-  if (!winner) raceState.deadlineExpired = true;
+  signal?.removeEventListener("abort", abortAttempts);
+  if (signal?.aborted) abortAttempts();
+  if (!winner) raceState.deadlineExpired = !signal?.aborted;
   else raceState.winnerSelected = true;
   for (const attempt of attempts) {
-    if (!winner || attempt.controller !== winner.controller) {
+    if (!winner || signal?.aborted || attempt.controller !== winner.controller) {
       attempt.controller.abort();
       if (winner) {
         void attempt.promise.then(async (loser) => {
@@ -411,7 +417,7 @@ async function firstReady(candidates: Candidate[], waitMs: number, recordAttempt
       }
     }
   }
-  return winner;
+  return signal?.aborted ? null : winner;
 }
 
 const OUTPUT_GUARD_NOTICE_RESERVE = 64;
@@ -445,12 +451,17 @@ function applyFinalOutputLimit(content: string, maxChars: number): { content: st
   return { content: `${bounded.trimEnd()}${notice}`, reason: "max_output" };
 }
 
-async function collectCandidate(candidate: ReadyCandidate, maxChars: number): Promise<{ content: string; reason: "repetition" | "max_output" | null }> {
+async function collectCandidate(candidate: ReadyCandidate, maxChars: number, signal?: AbortSignal): Promise<{ content: string; reason: "repetition" | "max_output" | null }> {
+  const abortCandidate = () => candidate.controller.abort();
+  if (signal?.aborted) abortCandidate();
+  else signal?.addEventListener("abort", abortCandidate, { once: true });
   const guard = new OutputGuard({ maxChars: Math.max(512, maxChars - OUTPUT_GUARD_NOTICE_RESERVE) });
   let content = guard.push(candidate.firstChunk).text;
   try {
+    if (signal?.aborted) throw new DOMException("Request aborted", "AbortError");
     if (!guard.reason) {
       for await (const chunk of candidate.iterator) {
+        if (signal?.aborted) throw new DOMException("Request aborted", "AbortError");
         const result = guard.push(chunk);
         content += result.text;
         if (result.stopped) {
@@ -463,6 +474,7 @@ async function collectCandidate(candidate: ReadyCandidate, maxChars: number): Pr
     content += tail.text;
     return { content, reason: guard.reason };
   } finally {
+    signal?.removeEventListener("abort", abortCandidate);
     candidate.cleanup();
   }
 }
@@ -601,6 +613,10 @@ async function handleRequest(req: Request): Promise<Response> {
     }
   }
   const checkAgentCancellation = async (): Promise<boolean> => {
+    // A browser AbortController disconnect is the server-confirmed cancellation
+    // signal for an interactive chat Agent request. Durable Brain workers also
+    // retain their lease/RPC cancellation check below.
+    if (req.signal.aborted) return true;
     if (!internalBrainCall || !agentJobId) return false;
     const state = await getAgentExecutionState();
     if (!state || state.lease_valid !== true) throw new Error("agent_worker_lease_lost");
@@ -877,7 +893,7 @@ async function handleRequest(req: Request): Promise<Response> {
   const updateWorkspace = async (status: "planning" | "executing" | "reviewing" | "waiting_approval" | "retrying" | "completed" | "failed" | "cancelled", finalResult?: Record<string, unknown>) => {
     if (!workspaceId) return;
     const terminal = status === "completed" || status === "failed" || status === "cancelled";
-    const { error } = await supabase.from("agent_workspaces").update({ status, ...(finalResult ? { final_result: finalResult } : {}), ...(terminal ? { completed_at: new Date().toISOString() } : {}), updated_at: new Date().toISOString() }).eq("id", workspaceId);
+    const { error } = await supabase.from("agent_workspaces").update({ status, ...(finalResult ? { final_result: finalResult } : {}), ...(terminal ? { completed_at: new Date().toISOString() } : {}), ...(status === "cancelled" ? { cancelled_at: new Date().toISOString() } : {}), updated_at: new Date().toISOString() }).eq("id", workspaceId);
     if (error) console.error("Could not update agent workspace:", error.message);
   };
   const updateWorkspaceStep = async (stepKey: string, status: "pending" | "running" | "reviewing" | "waiting_approval" | "retrying" | "completed" | "failed", patch: Record<string, unknown> = {}) => {
@@ -1779,9 +1795,9 @@ async function handleRequest(req: Request): Promise<Response> {
     const dagRequestMessages = providerMessagesForModel(dagMessages, []);
     for (const baseCandidate of dagPlannerCandidates) {
       const candidate: Candidate = { ...baseCandidate, requestMessages: dagRequestMessages, temperature: 0, maxTokens: 1200, inputTokens: 0, outputTokens: 0, usageStepKey: "dag-planner", usageAttemptNo: 1 };
-      const ready = await firstReady([candidate], settings.freeRaceTimeoutMs, recordAttempt, countModelStarts);
+      const ready = await firstReady([candidate], settings.freeRaceTimeoutMs, recordAttempt, countModelStarts, req.signal);
       if (!ready) continue;
-      const planned = await collectCandidate(ready, 12000);
+      const planned = await collectCandidate(ready, 12000, req.signal);
       const inputTokens = ready.inputTokens > 0 ? ready.inputTokens : estimateTokens(dagRequestMessages.map((message) => message.content).join("\n"));
       const outputTokens = ready.outputTokens > 0 ? ready.outputTokens : estimateTokens(planned.content);
       const parsedPlan = parseModelGeneratedTaskPlan(planned.content, settings.taskSplitMaxParts);
@@ -1824,7 +1840,7 @@ async function handleRequest(req: Request): Promise<Response> {
       user_id: user.id,
       status: "planning",
       plan: workspacePlan,
-      metadata: { execution_mode: executionMode, intent: mind.intent },
+      metadata: { execution_mode: executionMode, intent: mind.intent, user_message_id: typeof body.user_message_id === "string" && uuidPattern.test(body.user_message_id) ? body.user_message_id : null },
     }, { onConflict: "request_id" }).select("id").single();
     if (workspaceError || !workspaceRow) {
       console.error("Could not create agent workspace:", workspaceError?.message);
@@ -1946,10 +1962,10 @@ async function handleRequest(req: Request): Promise<Response> {
         usageAttemptNo: candidateIndex + 1,
       }));
       for (let attempt = 0; attempt < Math.min(2, remaining.length); attempt += 1) {
-        const partWinner = await firstReady(remaining, settings.freeRaceTimeoutMs, recordAttempt, countModelStarts);
+        const partWinner = await firstReady(remaining, settings.freeRaceTimeoutMs, recordAttempt, countModelStarts, req.signal);
         if (!partWinner) break;
         try {
-          const collected = await collectCandidate(partWinner, Math.max(1600, Math.floor(maxOutputChars / splitParts.length)));
+          const collected = await collectCandidate(partWinner, Math.max(1600, Math.floor(maxOutputChars / splitParts.length)), req.signal);
           const content = collected.content + (collected.reason ? outputGuardNotice(collected.reason) : "");
           accountWorkerUsage(partWinner, content);
           if (content.trim()) {
@@ -2025,12 +2041,32 @@ async function handleRequest(req: Request): Promise<Response> {
       return result;
     }, resumedResults);
     if (await checkAgentCancellation()) {
-      await updateWorkspace("cancelled", { parts: splitParts.length, completed: resumedResults.size, cancelled: true });
+      const partialParts = taskExecution.flatMap((outcome) => {
+        if (outcome.status !== "completed" || !outcome.result?.content?.trim()) return [];
+        return [{ index: outcome.result.index, content: outcome.result.content, model: outcome.result.model }];
+      });
+      const completedDuringRun = partialParts.length;
+      await updateWorkspace("cancelled", { parts: splitParts.length, completed: completedDuringRun, cancelled: true });
       await clearSharedTaskMemory(supabase, billingTaskId);
+      const partialResponse = partialParts.length ? mergePartAnswers(partialParts) : "";
+      const partialBillingCandidate = workerBillingCandidate
+        ? { ...workerBillingCandidate, inputTokens: workerInputTokens, outputTokens: workerOutputTokens }
+        : null;
+      const billing = await finalizeBilling(partialBillingCandidate, partialResponse, "client_cancelled", Boolean(partialBillingCandidate));
+      const partialMessageId = partialResponse.trim()
+        ? await persistAssistantText(supabase, conversationId, user.id, billingTaskId, partialBillingCandidate?.model.id ?? null, partialResponse)
+        : null;
+      await finishAiRequest("cancelled", partialMessageId, partialMessageId ? null : (partialResponse || null), {
+        route: "task_split",
+        parts: splitParts.length,
+        completed_parts: completedDuringRun,
+        partial: true,
+        billing,
+      }, "client_cancelled");
       return jsonResponse({
         agent_status: "cancelled",
         response: "تم إيقاف المهمة بناءً على طلبك، واحتفظت بالخطوات التي اكتملت قبل الإيقاف.",
-        completed_parts: resumedResults.size,
+        completed_parts: completedDuringRun,
         ...(internalBrainCall ? { usage: { input_tokens: workerInputTokens, output_tokens: workerOutputTokens } } : {}),
       }, 200, req);
     }
@@ -2261,9 +2297,10 @@ async function handleRequest(req: Request): Promise<Response> {
             pool.timeoutMs,
             recordAttempt,
             countModelStarts,
+            req.signal,
           );
           if (!ready) continue;
-          const collected = await collectCandidate(ready, 8000);
+          const collected = await collectCandidate(ready, 8000, req.signal);
           plannerCandidatesUsed.push(ready);
           plannerInputTokens += ready.inputTokens > 0 ? ready.inputTokens : estimateTokens(requestMessages.map((message) => typeof message.content === "string" ? message.content : JSON.stringify(message.content)).join("\n"));
           plannerOutputTokens += ready.outputTokens > 0 ? ready.outputTokens : estimateTokens(collected.content);
@@ -2728,9 +2765,9 @@ async function handleRequest(req: Request): Promise<Response> {
             inputTokens: 0,
             outputTokens: 0,
           };
-          const ready = await firstReady([candidate], pool.timeoutMs, recordAttempt, countModelStarts);
+          const ready = await firstReady([candidate], pool.timeoutMs, recordAttempt, countModelStarts, req.signal);
           if (!ready) continue;
-          const collected = await collectCandidate(ready, 8000);
+          const collected = await collectCandidate(ready, 8000, req.signal);
           summarizerInputTokens += ready.inputTokens > 0 ? ready.inputTokens : estimateTokens(requestMessages.map((message) => message.content).join("\n"));
           summarizerOutputTokens += ready.outputTokens > 0 ? ready.outputTokens : estimateTokens(collected.content);
           if (await checkAgentCancellation()) { agentCancellationObserved = true; break; }
@@ -2772,9 +2809,9 @@ async function handleRequest(req: Request): Promise<Response> {
           for (const baseCandidate of pool.candidates) {
             if (agentCancellationObserved || await checkAgentCancellation()) { agentCancellationObserved = true; break; }
             const candidate: Candidate = { ...baseCandidate, requestMessages: providerMessagesForModel(reviewMessages, []), temperature: 0, maxTokens: 500, inputTokens: 0, outputTokens: 0 };
-            const ready = await firstReady([candidate], pool.timeoutMs, recordAttempt, countModelStarts);
+            const ready = await firstReady([candidate], pool.timeoutMs, recordAttempt, countModelStarts, req.signal);
             if (!ready) continue;
-            const collected = await collectCandidate(ready, 2000);
+            const collected = await collectCandidate(ready, 2000, req.signal);
             reviewerInputTokens += ready.inputTokens > 0 ? ready.inputTokens : estimateTokens(reviewMessages.map((message) => message.content).join("\n"));
             reviewerOutputTokens += ready.outputTokens > 0 ? ready.outputTokens : estimateTokens(collected.content);
             if (await checkAgentCancellation()) { agentCancellationObserved = true; break; }
@@ -2807,9 +2844,9 @@ async function handleRequest(req: Request): Promise<Response> {
           for (const baseCandidate of pool.candidates) {
             if (await checkAgentCancellation()) { agentCancellationObserved = true; break; }
             const candidate: Candidate = { ...baseCandidate, requestMessages: providerMessagesForModel(revisionMessages, []), temperature: 0.1, maxTokens: Math.min(1800, Math.max(256, maxTokens)), inputTokens: 0, outputTokens: 0 };
-            const ready = await firstReady([candidate], pool.timeoutMs, recordAttempt, countModelStarts);
+            const ready = await firstReady([candidate], pool.timeoutMs, recordAttempt, countModelStarts, req.signal);
             if (!ready) continue;
-            const collected = await collectCandidate(ready, 8000);
+            const collected = await collectCandidate(ready, 8000, req.signal);
             summarizerInputTokens += ready.inputTokens > 0 ? ready.inputTokens : estimateTokens(revisionMessages.map((message) => message.content).join("\n"));
             summarizerOutputTokens += ready.outputTokens > 0 ? ready.outputTokens : estimateTokens(collected.content);
             if (await checkAgentCancellation()) { agentCancellationObserved = true; break; }
@@ -2841,14 +2878,19 @@ async function handleRequest(req: Request): Promise<Response> {
         content = "تعذر اعتماد النتيجة بعد المراجعة المستقلة؛ لم أقدّم إجابة غير موثوقة. أعد المحاولة بطلب أوضح.";
       }
     }
-    if (internalBrainCall && await checkAgentCancellation()) agentCancellationObserved = true;
+    if (await checkAgentCancellation()) agentCancellationObserved = true;
     if (agentCancellationObserved) content = "تم إيقاف المهمة بناءً على طلبك. احتُفظ باستهلاك الخطوات التي اكتملت قبل الإيقاف.";
     content = applyFinalOutputLimit(content, maxOutputChars).content;
-    const agentWorkspaceStatus = loopResult.status === "needs_confirmation" ? "waiting_approval" : loopResult.status === "completed" && reviewVerdict !== "rejected" ? "completed" : "failed";
-    await updateWorkspaceStep("agent-loop", agentWorkspaceStatus === "waiting_approval" ? "waiting_approval" : agentWorkspaceStatus, { result: { status: loopResult.status, characters: content.length } });
-    await updateTaskLedger("agent-loop", agentWorkspaceStatus === "completed" ? "completed" : "failed", { status: loopResult.status, characters: content.length });
-    await updateWorkspaceStep("final", agentWorkspaceStatus === "completed" ? "completed" : agentWorkspaceStatus, { result: { status: loopResult.status, characters: content.length } });
-    await updateTaskLedger("final", agentWorkspaceStatus === "completed" ? "completed" : "failed", { status: loopResult.status, characters: content.length });
+    const agentWorkspaceStatus = agentCancellationObserved || loopResult.status === "cancelled"
+      ? "cancelled"
+      : loopResult.status === "needs_confirmation"
+        ? "waiting_approval"
+        : loopResult.status === "completed" && reviewVerdict !== "rejected" ? "completed" : "failed";
+    const agentStepStatus = agentWorkspaceStatus === "cancelled" ? "failed" : agentWorkspaceStatus === "waiting_approval" ? "waiting_approval" : agentWorkspaceStatus;
+    await updateWorkspaceStep("agent-loop", agentStepStatus, { result: { status: loopResult.status, characters: content.length } });
+    await updateTaskLedger("agent-loop", agentStepStatus === "completed" ? "completed" : "failed", { status: loopResult.status, characters: content.length });
+    await updateWorkspaceStep("final", agentStepStatus === "completed" ? "completed" : agentStepStatus, { result: { status: loopResult.status, characters: content.length } });
+    await updateTaskLedger("final", agentStepStatus === "completed" ? "completed" : "failed", { status: loopResult.status, characters: content.length });
     await updateWorkspace(agentWorkspaceStatus, { status: loopResult.status, characters: content.length });
     const plannerSelected = plannerCandidatesUsed.at(-1) ?? null;
     const selected = summarizerCandidateUsed ?? plannerSelected;
@@ -2895,7 +2937,7 @@ async function handleRequest(req: Request): Promise<Response> {
       });
     }
     await recordEvent(selected?.model ?? null, operationalReply ? "error" : "success", operationalReply ? "agent_operational_outcome" : null);
-    const billing = await finalizeBilling(billingCandidate, content, "agent", Boolean(billingCandidate));
+    const billing = await finalizeBilling(billingCandidate, content, agentWorkspaceStatus === "cancelled" ? "client_cancelled" : "agent", Boolean(billingCandidate));
     const info = {
       model_id: selected?.model.id ?? null,
       model: selected?.model.model_identifier ?? "agent",
@@ -2923,7 +2965,7 @@ async function handleRequest(req: Request): Promise<Response> {
       billing,
       user_metadata: userMetadata,
     };
-    await finishAiRequest("completed", messageId, messageId ? null : content, info);
+    await finishAiRequest(agentWorkspaceStatus === "cancelled" ? "cancelled" : "completed", messageId, messageId ? null : content, info, agentWorkspaceStatus === "cancelled" ? "client_cancelled" : null);
     if (streamRequested) return sseTextResponse(content, info, req, taskUpdates);
     return jsonResponse({ ...info, response: { choices: [{ message: { role: "assistant", content } }] } }, 200, req);
   }
@@ -2931,17 +2973,18 @@ async function handleRequest(req: Request): Promise<Response> {
   const freeDeadline = Date.now() + (routingMode === "manual" ? settings.paidFallbackTimeoutMs : settings.freeRaceTimeoutMs);
   const boundedFreeCandidates = raceCandidates.slice(0, Math.max(1, settings.maxParallelFreeModels));
   for (let index = 0; index < boundedFreeCandidates.length; index += 1) {
+    if (req.signal.aborted) break;
     const remaining = freeDeadline - Date.now();
     if (remaining <= 0) break;
     // Reserve part of the remaining window for the next eligible backup so a
     // slow primary cannot consume the entire deadline before fallback starts.
     const candidatesLeft = boundedFreeCandidates.length - index;
     const candidateBudget = candidatesLeft > 1 ? Math.ceil(remaining / candidatesLeft) : remaining;
-    winner = await firstReady([boundedFreeCandidates[index]], candidateBudget, recordAttempt, countModelStarts);
+    winner = await firstReady([boundedFreeCandidates[index]], candidateBudget, recordAttempt, countModelStarts, req.signal);
     if (winner) break;
   }
 
-  if (!winner && routingMode === "auto" && settings.paidFallbackEnabled) {
+  if (!winner && !req.signal.aborted && routingMode === "auto" && settings.paidFallbackEnabled) {
     const paidModels: ModelRow[] = healthyModels
       .filter((model: ModelRow) => isEligibleModel(model, "chat", ["paid_fallback"]));
     const orderedPaidModels = orderModelsByRoute(paidModels, orderedRouteAssignments, "chat");
@@ -2959,9 +3002,24 @@ async function handleRequest(req: Request): Promise<Response> {
     for (const candidate of paidCandidates) {
       const remaining = fallbackDeadline - Date.now();
       if (remaining <= 0) break;
-      winner = await firstReady([candidate], remaining, recordAttempt, countModelStarts);
+      winner = await firstReady([candidate], remaining, recordAttempt, countModelStarts, req.signal);
       if (winner) break;
     }
+  }
+
+  if (req.signal.aborted) {
+    if (winner) {
+      winner.controller.abort();
+      winner.cleanup();
+      await recordAttempt(winner, "cancelled", Date.now() - winner.startedAtMs, "client_cancelled", "The client cancelled before a response was delivered.");
+    }
+    const billing = await finalizeBilling(winner, "", "client_cancelled", false);
+    await finishAiRequest("cancelled", null, null, {
+      billing,
+      model_calls: modelInvocationCount,
+      total_ms: Date.now() - startedAt,
+    }, "client_cancelled");
+    return jsonResponse({ cancelled: true, billing }, 200, req);
   }
 
   if (!winner) {
@@ -3136,7 +3194,7 @@ async function handleRequest(req: Request): Promise<Response> {
   }
 
   try {
-    const collected = await collectCandidate(winner, maxOutputChars);
+    const collected = await collectCandidate(winner, maxOutputChars, req.signal);
     const content = collected.content + (collected.reason ? outputGuardNotice(collected.reason) : "");
     if (!content.trim()) throw new Error("model returned no safe response text");
     const messageId = await persistAssistant(supabase, conversationId, user.id, billingTaskId, winner, content);
@@ -3170,9 +3228,10 @@ Deno.serve(async (req: Request) => {
   try {
     return await handleRequest(req);
   } catch (error) {
+    const clientCancelled = req.signal.aborted || (error instanceof Error && error.name === "AbortError");
     const claim = activeAiClaims.get(req);
     if (claim) {
-      // An unhandled router failure must not strand a credit reservation.
+      // An unhandled router failure or client cancellation must not strand a credit reservation.
       // finalize_credits is idempotent: settled/expired holds are untouched,
       // and a missing hold is a normal case for non-billed/internal requests.
       const { data: creditRecovery, error: creditRecoveryError } = await claim.supabase.rpc("finalize_credits", {
@@ -3195,11 +3254,11 @@ Deno.serve(async (req: Request) => {
       const { error } = await claim.supabase.rpc("suly_finish_ai_request", {
         p_request_id: claim.requestId,
         p_user_id: claim.userId,
-        p_status: "failed",
+        p_status: clientCancelled ? "cancelled" : "failed",
         p_response_message_id: null,
         p_response_text: null,
-        p_response_metadata: {},
-        p_error_code: "unhandled_router_error",
+        p_response_metadata: clientCancelled ? { cancelled: true } : {},
+        p_error_code: clientCancelled ? "client_cancelled" : "unhandled_router_error",
       });
       if (error) console.error("Could not finalize unhandled AI request:", error.message);
       activeAiClaims.delete(req);
