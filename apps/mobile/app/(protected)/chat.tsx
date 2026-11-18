@@ -147,7 +147,6 @@ export default function ChatPage() {
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   // The selected profile is screen-local; the server revalidates subscription eligibility on every request.
   const [selectedModelProfile, setSelectedModelProfile] = useState<SulyModelProfileKey>("lite");
-  const [isAgentMode, setIsAgentMode] = useState(false);
   const [currentSubscriptionTier, setCurrentSubscriptionTier] = useState("free");
   const [modelProfileOptions, setModelProfileOptions] = useState<SulyModelProfileOption[]>([]);
   const [modelProfileLoading, setModelProfileLoading] = useState(false);
@@ -410,7 +409,7 @@ export default function ChatPage() {
           conversationId: conversationKey,
           content,
           modelProfileKey: selectedModelProfile,
-          executionMode: isAgentMode ? "agent" : "chat",
+          executionMode: "agent",
           writeApproval,
           mediaAsset: uploadedAsset,
           signal: controller.signal,
@@ -466,7 +465,7 @@ export default function ChatPage() {
               conversationId: id,
               userMessageId: savedUserMessageId,
               modelProfileKey: selectedModelProfile,
-              executionMode: isAgentMode ? "agent" : "chat",
+              executionMode: "agent",
               signal: controller.signal,
               onChunk(text) {
                 streamedTextRef.current += text;
@@ -516,7 +515,7 @@ export default function ChatPage() {
         await chatService.retryAssistant({
           ...failed,
           modelProfileKey: selectedModelProfile,
-          executionMode: isAgentMode ? "agent" : "chat",
+          executionMode: "agent",
           signal: controller.signal,
           
           onChunk(text) {
@@ -681,7 +680,7 @@ export default function ChatPage() {
         conversationId,
         history,
         modelProfileKey: selectedModelProfile,
-        executionMode: isAgentMode ? "agent" : "chat",
+        executionMode: "agent",
         signal: controller.signal,
         onChunk(text) {
           streamedTextRef.current += text;
@@ -724,7 +723,7 @@ export default function ChatPage() {
         conversationId,
         history,
         modelProfileKey: selectedModelProfile,
-        executionMode: isAgentMode ? "agent" : "chat",
+        executionMode: "agent",
         signal: controller.signal,
         onChunk(text) {
           setMessages((current) => {
@@ -845,8 +844,6 @@ export default function ChatPage() {
           disabled={isSending || Boolean(connectorApproval)}
           isStreaming={isSending}
           onCancel={() => abortRef.current?.abort()}
-          isAgentMode={isAgentMode}
-          onToggleAgent={() => setIsAgentMode((current) => !current)}
           modelLabel={selectedProfileLabel}
           onOpenModelPicker={() => setModelProfileMenuVisible(true)}
           modelPickerDisabled={isSending || Boolean(retryFailure)}

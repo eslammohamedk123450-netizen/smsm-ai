@@ -30,8 +30,6 @@ export interface ChatComposerProps {
   disabled?: boolean;
   isStreaming?: boolean;
   onCancel?(): void;
-  isAgentMode?: boolean;
-  onToggleAgent?(): void;
   modelLabel?: string;
   onOpenModelPicker?(): void;
   modelPickerDisabled?: boolean;
@@ -47,8 +45,6 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
     disabled = false,
     isStreaming = false,
     onCancel,
-    isAgentMode = false,
-    onToggleAgent,
     modelLabel,
     onOpenModelPicker,
     modelPickerDisabled = false,
@@ -214,18 +210,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
           <Ionicons name="add" size={22} color={colors.textMuted} />
         </TouchableOpacity>
 
-        <TouchableOpacity
-          onPress={onToggleAgent}
-          disabled={disabled || isStreaming || isListening || !onToggleAgent}
-          activeOpacity={0.7}
-          style={[styles.agentToggle, isAgentMode && styles.agentToggleActive]}
-          accessibilityRole="button"
-          accessibilityState={{ selected: isAgentMode, disabled: disabled || isStreaming || isListening || !onToggleAgent }}
-          accessibilityLabel={isArabic ? (isAgentMode ? "إيقاف وضع الوكيل" : "تفعيل وضع الوكيل") : (isAgentMode ? "Turn Agent mode off" : "Turn Agent mode on")}
-        >
-          <Ionicons name="sparkles-outline" size={15} color={isAgentMode ? colors.onPrimary : colors.textMuted} />
-          <Text style={[styles.agentToggleLabel, isAgentMode && styles.agentToggleLabelActive]}>{isArabic ? "وكيل" : "Agent"}</Text>
-        </TouchableOpacity>
+
 
         {/* Center: TextInput with placeholder "اسأل Suly" */}
         <TextInput

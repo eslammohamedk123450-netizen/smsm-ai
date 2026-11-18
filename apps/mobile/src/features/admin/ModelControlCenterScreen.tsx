@@ -25,16 +25,17 @@ export function ModelControlCenterScreen() {
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     <AdminMobileBreadcrumb />
     <View style={styles.header}>
-      <Text style={styles.eyebrow}>SULY · ADMIN CONTROL</Text>
-      <Text style={styles.title}>إدارة النماذج والقدرات</Text>
-      <Text style={styles.subtitle}>اختر القسم المطلوب. كتالوج النماذج منفصل عن دليل القدرات، والربط بينهما لا يغير التفعيل أو الأسعار أو مسارات التوجيه.</Text>
+      <Text style={styles.eyebrow}>SULY · MODEL CENTER</Text>
+      <Text style={styles.title}>مركز النماذج والوكيل</Text>
+      <Text style={styles.subtitle}>إدارة مبسطة للنماذج وقدراتها وطريقة استخدامها في الشات والوكيل الموحد.</Text>
     </View>
     <View style={styles.grid}>
-      <HubTile href="/admin/models-catalog" title="نماذج التطبيق" description="كل النماذج: المتوفر، المقيّد، المعطّل، مع البحث باسم النموذج والمفتاح." icon="layers-outline"/>
-      <HubTile href="/admin/model-capabilities" title="قدرات النماذج" description="افتح القدرات كأيقونات مستقلة، واعرض النماذج المرتبطة بكل قدرة." icon="grid-outline"/>
+      <HubTile href="/admin/models-catalog" title="النماذج" description="بطاقات النماذج ومعرف API والمزود والتكلفة والحالة." icon="layers-outline"/>
+      <HubTile href="/admin/model-capabilities" title="القدرات" description="اختر قدرة مثل الشات أو الكودينج واربط بها النماذج." icon="grid-outline"/>
+      <HubTile href="/admin/agents" title="الشات والوكيل" description="إعداد نماذج الشات وترتيبها واختيار الوكيل للنموذج الأنسب." icon="sparkles-outline"/>
     </View>
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>أدوات الإدارة المتقدمة</Text>
+      <Text style={styles.sectionTitle}>إعدادات متقدمة</Text>
       <View style={styles.links}>
         <Link href="/admin/models-operations" asChild><Pressable style={styles.link}><Ionicons name="pulse-outline" size={15} color={colors.primary}/><Text style={styles.linkText}>التشغيل والاختبارات وسجل الصحة</Text></Pressable></Link>
         <Link href="/admin/api-keys" asChild><Pressable style={styles.link}><Ionicons name="key-outline" size={15} color={colors.primary}/><Text style={styles.linkText}>مزودو الخدمة وأسماء المفاتيح</Text></Pressable></Link>
