@@ -29,6 +29,25 @@ describe("getStudioIntent", () => {
     expect(getStudioIntent("Create an image of a mountain")).toBe("image");
   });
 
+  it("keeps charts, tables, flowcharts, and dashboards inside chat", () => {
+    const visualRequests = [
+      "أنشئ رسمًا بيانيًا بالأعمدة يوضح الأرباح خلال ستة أشهر",
+      "أنشئ الرسم البياني للإيرادات",
+      "أنشئ جدول المقارنة بين الخطط",
+      "أنشئ جدول مقارنة بين ثلاث خطط اشتراك",
+      "ارسم مخططًا يوضح رحلة المستخدم داخل التطبيق",
+      "أنشئ لوحة معلومات Dashboard تعرض الإيرادات والمصروفات",
+      "Create a bar chart of monthly revenue",
+      "Create a comparison table for three plans",
+      "Draw a flowchart for user onboarding",
+      "Build a dashboard with revenue KPIs",
+    ];
+    for (const request of visualRequests) {
+      expect(getStudioIntent(request)).toBeNull();
+      expect(getImageGenerationPrompt(request)).toBeNull();
+    }
+  });
+
   it("routes explicit video and audio creation to Studio", () => {
     expect(getStudioIntent("عايز فيديو عن تاريخ مصر")).toBe("video");
     expect(getStudioIntent("عايز تعمل فيديو عن تاريخ مصر")).toBe("video");

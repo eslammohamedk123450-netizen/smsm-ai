@@ -480,10 +480,13 @@ export default function ChatPage() {
             streamCompleted = true;
             await reloadMessages(id);
             return;
-          } catch {
-            setError(isArabic ? "يتأخر النموذج قليلًا، وسنترك لك زر إعادة المحاولة بدل إبقائك منتظرًا." : "The model is taking longer than expected. You can retry instead of waiting.");
+          } catch (retryCause) {
+            const retryReason = retryCause instanceof Error ? retryCause.message.trim().slice(0, 240) : "";
+            setError(retryReason
+              ? (isArabic ? `تعذر إكمال الرد بعد إعادة المحاولة: ${retryReason}` : `The response still failed after retry: ${retryReason}`)
+              : (isArabic ? "تعذر إكمال الرد بعد إعادة المحاولة. يمكنك المحاولة مرة أخرى." : "The response could not be completed after retry. You can try again."));
             setRetryFailure({ conversationId: id, userMessageId: savedUserMessageId });
-            void logFrictionEvent({ eventKind: "action_failed", screenKey: "chat", featureKey: "chat", stepKey: "send_failed_after_retry", errorCode: "send_failed", conversationId: id });
+            void logFrictionEvent({ eventKind: "action_failed", screenKey: "chat", featureKey: "chat", stepKey: "send_failed_after_retry", errorCode: "send_failed_after_retry", conversationId: id });
           }
         } else {
           setError(cause instanceof Error ? cause.message : isArabic ? "تعذر إرسال الرسالة. تحقق من الاتصال وحاول مجددًا." : "Could not send the message. Check your connection and try again.");
@@ -755,6 +758,7 @@ export default function ChatPage() {
       generationState={item.generationState}
       studioIntent={item.role === "user" ? getStudioIntent(item.content) : null}
       onOpenStudio={() => router.push("/studio")}
+      onEnableAgent={() => { setIsAgentMode(true); show(isArabic ? "تم تفعيل وضع الوكيل. اكتب «ابدأ» للمتابعة." : "Agent mode is on. Type “start” to continue.", "success"); }}
       feedback={feedbackByMessage[item.id] ?? null}
       edited={Boolean(item.editedAt)}
       responseVariants={item.responseVariants}

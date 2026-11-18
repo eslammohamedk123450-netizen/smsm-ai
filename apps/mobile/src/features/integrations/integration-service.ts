@@ -62,6 +62,9 @@ function friendlyIntegrationError(message: string, status?: number): string {
   if (/still reports.*active|disconnect_not_confirmed/i.test(message)) {
     return "لم يؤكد مزود الخدمة قطع الاتصال بعد. حدّث صفحة التكاملات، ولا تعاود الربط إلا بعد ظهور حالة «الحساب غير مرتبط».";
   }
+  if (/failed to send (?:a )?request to the edge function|failed to fetch|network request failed/i.test(message)) {
+    return "تعذّر الوصول إلى وظيفة التكاملات من هذا النطاق. تحقق من الاتصال وإعدادات الوصول للموقع ثم أعد المحاولة.";
+  }
   if (/HTTP 5\d\d|timed out|timeout|network|fetch/i.test(message)) {
     return "تعذّر الوصول إلى خدمة التطبيقات المرتبطة حاليًا. حاول مرة أخرى لاحقًا.";
   }
