@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocalSearchParams, usePathname } from "expo-router";
-import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, StyleSheet, Switch, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, StyleSheet, Switch, TextInput, TouchableOpacity, View, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { adminService, type PricingPlan, type PricingFeature } from "./admin-service";
@@ -124,6 +124,8 @@ function Card({ children }: { children: React.ReactNode }) { const { colors } = 
 
 export function ProvidersAdminScreen() {
   const { colors } = useSulyTheme();
+  const { width } = useWindowDimensions();
+  const providerTileWidth = width >= 1120 ? "24%" : width >= 760 ? "32%" : "48%";
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [providers, setProviders] = useState<ProviderRow[]>([]);
   const [archivedProviders, setArchivedProviders] = useState<ProviderRow[]>([]);
@@ -289,23 +291,30 @@ export function ProvidersAdminScreen() {
       <PrimaryButton label={busy ? "جارٍ الحفظ ومزامنة النماذج…" : "إضافة المفتاح ومزامنة نماذجه"} onPress={() => void save()} disabled={busy || !selectedPreset || !key.trim() || !name.trim()} />
     </Card>
     <View style={styles.sectionRow}><View><Text style={styles.sectionTitle}>حسابات المفاتيح المسجلة</Text><Text style={styles.detail}>{providers.length} مفتاح · يمكن أن تتكرر النماذج بين مفاتيح مختلفة</Text></View><Pressable accessibilityRole="button" onPress={() => void load()}><Text style={styles.link}>تحديث</Text></Pressable></View>
-    {loading ? <ActivityIndicator color={colors.primary} /> : providers.length === 0 ? <Text style={styles.detail}>لا يوجد مفتاح مسجل بعد. أضف مفتاحًا ليظهر حسابه ونماذجه هنا.</Text> : providers.map((provider) => {
-      const modelsForProvider = providerModels.filter((model) => model.provider_id === provider.id);
-      const routableCount = modelsForProvider.filter((model) => provider.enabled && model.enabled && model.routing_group !== "disabled" && !model.health?.auto_restricted).length;
-      const restrictedCount = modelsForProvider.filter((model) => model.health?.auto_restricted).length;
-      return <Card key={provider.id}>
-        <View style={styles.providerCardHeader}><View style={styles.providerIcon}><Text style={styles.providerIconText}>⌘</Text></View><View style={styles.providerHeaderText}><Text style={styles.cardTitle}>{provider.name}</Text><Text style={styles.detail}>{provider.provider_type} · {provider.enabled ? "المفتاح مفعّل" : "المفتاح متوقف"} · اختبار المزود: {provider.last_test_status ?? "غير متاح"}</Text></View></View>
-        <Text numberOfLines={1} style={styles.detail}>{provider.base_url ?? ""}</Text>
-        {provider.enabled
-          ? <View style={styles.providerStatsRow}><Text style={styles.providerStat}>{modelsForProvider.length} نموذج مرتبط</Text><Text style={styles.providerStat}>{routableCount} جاهز للتوجيه</Text>{restrictedCount > 0 ? <Text style={styles.providerRestrictedStat}>{restrictedCount} مقيّد</Text> : null}</View>
-          : <Text style={styles.detail}>تم تجميد نماذج المفتاح وإخفاؤها.</Text>}
-        <Link href="/admin/models" asChild><Pressable style={styles.providerExpandAction}><Text style={styles.link}>عرض كل النماذج وإدارتها</Text></Pressable></Link>
-        <View style={styles.rowWrap}>
-          <PrimaryButton label={busyId === provider.id ? "جارٍ التنفيذ…" : "مزامنة نماذج هذا المفتاح"} onPress={() => void syncProvider(provider)} disabled={busyId !== null} />
-          <PrimaryButton label={provider.enabled ? "إيقاف هذا المفتاح ونماذجه" : "تفعيل هذا المفتاح ونماذجه"} onPress={() => void toggleProvider(provider)} disabled={busyId !== null} />
-        </View>
-      </Card>;
-    })}
+    {loading ? <ActivityIndicator color={colors.primary} /> : providers.length === 0 ? <Text style={styles.detail}>لا يوجد مفتاح مسجل بعد. أضف مفتاحًا ليظهر حسابه ونماذجه هنا.</Text> : <View style={styles.providerGrid}>
+      {providers.map((provider) => {
+        const modelsForProvider = providerModels.filter((model) => model.provider_id === provider.id);
+        const routableCount = modelsForProvider.filter((model) => provider.enabled && model.enabled && model.routing_group !== "disabled" && !model.health?.auto_restricted).length;
+        const restrictedCount = modelsForProvider.filter((model) => model.health?.auto_restricted).length;
+        return <View key={provider.id} style={[styles.providerTile, { width: providerTileWidth }]}>
+          <View style={styles.providerTileTop}>
+            <View style={styles.providerIcon}><Ionicons name="key-outline" size={23} color={colors.primary}/></View>
+            <View style={[styles.statusBadge, provider.enabled ? styles.statusEnabled : styles.statusDisabled]}><Text style={[styles.statusBadgeText, provider.enabled ? styles.statusEnabledText : styles.statusDisabledText]}>{provider.enabled ? "متصل" : "متوقف"}</Text></View>
+          </View>
+          <View style={styles.providerTileInfo}>
+            <Text numberOfLines={2} style={styles.cardTitle}>{provider.name}</Text>
+            <Text numberOfLines={1} style={styles.detail}>{provider.provider_type} · {provider.last_test_status ?? "لم يُختبر"}</Text>
+            <Text style={styles.providerStat}>{modelsForProvider.length} نموذج · {routableCount} جاهز</Text>
+            {restrictedCount ? <Text style={styles.providerRestrictedStat}>{restrictedCount} مقيّد</Text> : null}
+          </View>
+          <View style={styles.providerTileActions}>
+            <Pressable accessibilityRole="button" accessibilityLabel="مزامنة النماذج" disabled={busyId !== null} onPress={() => void syncProvider(provider)} style={styles.providerTileAction}><Ionicons name="sync-outline" size={17} color={colors.primary}/></Pressable>
+            <Link href="/admin/models" asChild><Pressable accessibilityRole="button" accessibilityLabel="إدارة النماذج" style={styles.providerTileAction}><Ionicons name="grid-outline" size={17} color={colors.textSecondary}/></Pressable></Link>
+            <Pressable accessibilityRole="button" accessibilityLabel={provider.enabled ? "إيقاف المزود" : "تفعيل المزود"} disabled={busyId !== null} onPress={() => void toggleProvider(provider)} style={styles.providerTileAction}><Ionicons name={provider.enabled ? "power-outline" : "play-outline"} size={17} color={provider.enabled ? colors.warning : colors.success}/></Pressable>
+          </View>
+        </View>;
+      })}
+    </View>}
     <Card>
       <View style={styles.sectionRow}>
         <View><Text style={styles.sectionTitle}>المفاتيح المؤرشفة</Text><Text style={styles.detail}>المفاتيح المتوقفة مخفية عن الكتالوجات والإحصاءات التشغيلية. افتح الأرشيف فقط عند الحاجة للاستعادة.</Text></View>
@@ -314,11 +323,11 @@ export function ProvidersAdminScreen() {
       {showArchivedProviders ? (
         archivedProviders.length === 0
           ? <Text style={styles.detail}>لا توجد مفاتيح مؤرشفة.</Text>
-          : archivedProviders.map((provider) => <View key={provider.id} style={styles.providerModelRow}>
-              <View style={styles.providerModelInfo}>
+          : <View style={styles.providerGrid}>{archivedProviders.map((provider) => <View key={provider.id} style={[styles.providerTile, { width: providerTileWidth }]}>
+              <View style={styles.providerTileInfo}>
                 <Text style={styles.cardTitle}>{provider.name}</Text>
-                <Text style={styles.detail}>{provider.provider_type} · {provider.base_url ?? ""}</Text>
-                <Text style={styles.detail}>يمكن استعادة إعدادات التوجيه السابقة إذا كانت محفوظة. ستظل صلاحية النموذج والصحة الحالية خاضعتين لفحوص التوجيه.</Text>
+                <Text numberOfLines={1} style={styles.detail}>{provider.provider_type} · مؤرشف</Text>
+                <Text style={styles.detail}>الإعدادات محفوظة.</Text>
               </View>
               <PrimaryButton
                 label={busyId === provider.id ? "جارٍ الاستعادة…" : "استعادة المفتاح وإعداداته"}
@@ -335,7 +344,7 @@ export function ProvidersAdminScreen() {
                 })()}
                 disabled={busyId !== null}
               />
-            </View>)
+            </View>)}</View>
       ) : null}
     </Card>
   </ScrollView>;
@@ -913,6 +922,12 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
   healthProbeHeading: { flexDirection: "row-reverse", alignItems: "flex-start", gap: 11 },
   providerFormHeading: { flexDirection: "row-reverse", alignItems: "center", gap: 11, marginBottom: 8 },
   providerFormHeadingText: { flex: 1, gap: 3 },
+  providerGrid: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 8 },
+  providerTile: { borderWidth: 1, borderColor: colors.divider, borderRadius: 14, backgroundColor: colors.cardBackground, padding: 10, aspectRatio: 1, justifyContent: "space-between", gap: 7 },
+  providerTileTop: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between" },
+  providerTileInfo: { alignItems: "flex-end", gap: 4, flex: 1, justifyContent: "center" },
+  providerTileActions: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-around", borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 5 },
+  providerTileAction: { width: 32, height: 32, borderWidth: 1, borderColor: colors.divider, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   providerCardHeader: { flexDirection: "row-reverse", alignItems: "center", gap: 10 },
   providerIcon: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceElevated },
   providerIconText: { color: colors.primary, fontSize: 19, fontWeight: "700" },
