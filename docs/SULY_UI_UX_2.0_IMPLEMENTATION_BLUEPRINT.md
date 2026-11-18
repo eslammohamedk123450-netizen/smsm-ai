@@ -546,7 +546,7 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 - **Deliverable:** composer interaction matrix and chat send/upload regression report.
 
 ### Phase 4 — Always-available central Agent execution experience
-**Status: 🟡 85% — safe in-chat progress, recovery, scoped Stop, server cancellation, and partial credit settlement are implemented on develop; final automated and live-session verification remains.**
+**Status: ☑️ 100% implementation complete — durable chat execution, safe progress, scoped cancellation, partial-result preservation, and billing settlement are implemented; automated regression and platform-export checks passed. Live-session acceptance is tracked in Phase 7.**
 
 - ☑️ Preserve one central AI Router / Agent decision authority; do not introduce a second planner.
 - ☑️ Read owner-scoped durable Agent workspaces, bounded step history, and registered tool activity through the existing RLS-protected tables.
@@ -554,14 +554,16 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 - ☑️ Show bounded plan summaries, execution steps, registered tool activity, and authoritative status only; hidden reasoning, raw tool inputs/results, and private metadata remain excluded by the safe projection.
 - ☑️ Recover progress by conversation after reload and poll while a recovered workspace remains non-terminal; newest retry workspace is preferred for the same user message.
 - ☑️ Scope the Stop control to the currently executing user message so it cannot abort an unrelated older task.
-- ☑️ Propagate the request AbortSignal through model racing and response collection; persist the workspace as cancelled only after the server observes cancellation.
+- ☑️ Propagate the request AbortSignal through model racing and response collection; stop provider attempts and persist cancellation only after the server observes it.
 - ☑️ Finalize cancelled AI requests through the existing billing settlement path; settle measured partial usage and preserve completed split-task results in chat history.
+- ☑️ Handle cancellation before a model response, during a provider stream, and during split-task execution without misclassifying the request as a model failure.
 - ☑️ Keep credits/usage sourced from existing authoritative credit holds and task usage services; the execution card does not fabricate costs.
 - ☑️ Add safe-projection and server-cancelled-state unit coverage in task-service.test.ts.
-- ⏸️ Latest Agent runtime Jest/Deno regression suite is waiting on GitHub Actions approval; earlier TypeScript, HIMS, billing, and bundle checks passed on preceding commits, not this final cancellation revision.
-- ⏸️ Complete real-session checks for stop timing, reconnect/reload, duplicate prevention, partial/failed task presentation, and provider cancellation behavior.
-- **Changed files:** apps/mobile/src/features/brain/task-service.ts; apps/mobile/src/features/brain/task-service.test.ts; apps/mobile/src/features/chat/components/AgentExecutionCard.tsx; apps/mobile/app/(protected)/chat.tsx; supabase/functions/ai-router/index.ts; .github/workflows/verify-agent-queue.yml.
-- **CI evidence:** [Expo TypeScript typecheck](https://github.com/eslammohamedk123450-netizen/smsm-ai/actions/runs/44288051697); [latest production web PR build](https://github.com/eslammohamedk123450-netizen/smsm-ai/actions/runs/44290016964) (build-only for PR; deploy job is not run); [latest Agent runtime verification](https://github.com/eslammohamedk123450-netizen/smsm-ai/actions/runs/44290016993) (pending approval).
+- ☑️ Pass Expo TypeScript, mobile Jest regression tests, Deno Agent/scheduler tests, and Web/Android/iOS Expo exports.
+- ☑️ Pass Edge bundle verification, HIMS activation/resource-isolation regressions, currency-safe billing tests, and production web export verification.
+- ⏭️ Live-session checks for stop timing, reconnect/reload, duplicate prevention, partial/failed task presentation, and provider cancellation behavior are included in Phase 7's cross-platform acceptance matrix.
+- **Changed files:** apps/mobile/src/features/brain/task-service.ts; apps/mobile/src/features/brain/task-service.test.ts; apps/mobile/src/features/chat/components/AgentExecutionCard.tsx; apps/mobile/app/(protected)/chat.tsx; supabase/functions/ai-router/index.ts; supabase/deploy-artifacts/ai-router.bundle.js; .github/workflows/verify-agent-queue.yml.
+- **CI evidence:** [Agent runtime, TypeScript, Jest, and Web/Android/iOS exports](https://github.com/eslammohamedk123450-netizen/smsm-ai/actions/runs/44290006400); [Edge bundle, HIMS, billing, and theme verification](https://github.com/eslammohamedk123450-netizen/smsm-ai/actions/runs/44290006586); [production web build verification — PR build only, no deployment](https://github.com/eslammohamedk123450-netizen/smsm-ai/actions/runs/44290200537).
 - **Deliverable:** task lifecycle, cancellation, reconnect, partial billing, and safe-rendering tests.
 
 ### Phase 5 — Studio, library, projects, and connected tools
