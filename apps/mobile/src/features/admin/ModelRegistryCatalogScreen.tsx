@@ -8,6 +8,8 @@ import { adminService } from "./admin-service";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
 import { AdminMobileBreadcrumb } from "./AdminMobileBreadcrumb";
+import { MediaModelPricingAdminCard } from "./MediaModelPricingAdminCard";
+import { MediaGenerationModelsAdminScreen } from "./MediaGenerationModelsAdminScreen";
 
 type ServiceType = "chat" | "image" | "video" | "audio";
 type OperationalState = "active" | "available" | "disabled" | "restricted" | "candidate" | "archived" | "unknown";
@@ -39,6 +41,7 @@ type ModelUsageTransaction = {
   source: string; reason: string | null; created_at: string;
 };
 type ModelProbeLog = { run_type: string; status: string; duration_ms: number; error_code: string | null; checked_at: string; model_name: string; provider_name: string };
+type MediaPriceSummary = { id: string; provider_id: number; service_type: "image" | "video" | "audio"; model_identifier: string; display_name: string; unit_type: "image" | "video_second" | "audio_minute"; provider_cost_egp_per_unit: number; selling_price_egp_per_unit: number; price_version: number; provider_tested: boolean; suly_integration_verified: boolean };
 type ModelCompanyCost = {
   request_id: string; user_id: string | null; provider_cost_usd: number; cost_status: string;
   user_credits_charged: number; revenue_egp: number; provider_cost_egp: number;
@@ -92,6 +95,8 @@ export function ModelRegistryCatalogScreen() {
   const [usageTransactions, setUsageTransactions] = useState<ModelUsageTransaction[]>([]);
   const [companyCosts, setCompanyCosts] = useState<ModelCompanyCost[]>([]);
   const [probeLogs, setProbeLogs] = useState<ModelProbeLog[]>([]);
+  const [mediaPriceRows, setMediaPriceRows] = useState<MediaPriceSummary[]>([]);
+  const [mediaEditorOpen, setMediaEditorOpen] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<RegistryModel | null>(null);
@@ -108,7 +113,7 @@ export function ModelRegistryCatalogScreen() {
   const load = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const [registry, providers, chat, media, health, priceRows, chatRoutes] = await Promise.all([
+      const [registry, providers, chat, media, health, priceRows, chatRoutes, mediaPrices] = await Promise.all([
         supabase.rpc("suly_admin_list_unified_model_capabilities"),
         supabase.rpc("suly_admin_list_providers"),
         supabase.from("ai_models").select("id,enabled,routing_group").limit(1000),
@@ -116,6 +121,7 @@ export function ModelRegistryCatalogScreen() {
         supabase.from("ai_model_health").select("model_id,auto_restricted,last_status").limit(1000),
         adminService.getModelPriceVersions().catch(() => []),
         supabase.from("ai_route_model_assignments").select("model_id,priority").eq("route_role", "chat").eq("enabled", true).order("priority", { ascending: true }),
+        adminService.getMediaModelPriceVersions().catch(() => []),
       ]);
       if (registry.error) throw registry.error;
       if (providers.error) throw providers.error;
@@ -150,6 +156,7 @@ export function ModelRegistryCatalogScreen() {
       const priceMap = new Map<number, { input: number; output: number }>();
       for (const price of (priceRows ?? []) as Array<{ model_id: number; provider_input_cost_egp_per_million: number; provider_output_cost_egp_per_million: number }>) priceMap.set(Number(price.model_id), { input: Number(price.provider_input_cost_egp_per_million), output: Number(price.provider_output_cost_egp_per_million) });
       setPricesByModel(priceMap);
+      setMediaPriceRows((mediaPrices ?? []) as MediaPriceSummary[]);
       const orderMap = new Map<number, number>();
       (chatRoutes.data ?? []).forEach((route, index) => orderMap.set(Number(route.model_id), index + 1));
       setChatOrderByModel(orderMap);
@@ -220,18 +227,7 @@ export function ModelRegistryCatalogScreen() {
       router.push(`/admin/models?q=${q}` as never);
       return;
     }
-    if (model.service_type === "audio") {
-      const evidence = capabilitiesByModel.get(model.model_id);
-      if (evidence?.has("transcription")) {
-        router.push(`/admin/media-catalog?kind=transcription&q=${q}` as never);
-      } else if (evidence?.has("audio_output")) {
-        router.push(`/admin/media-catalog?kind=voice&q=${q}` as never);
-      } else {
-        router.push("/admin/model-capability-review");
-      }
-      return;
-    }
-    router.push(`/admin/media-catalog?kind=${model.service_type}&q=${q}` as never);
+    setSelectedDetailTab("pricing");
   };
   const openModelPriceHistory = (model: RegistryModel) => {
     const q = encodeURIComponent(model.model_identifier);
@@ -309,6 +305,7 @@ export function ModelRegistryCatalogScreen() {
       <Text style={styles.subtitle}>كل النماذج المسجلة في سجل التطبيق، بما فيها النص والصور والفيديو والصوت، مع حالة التشغيل واسم المزود/المفتاح المرتبط.</Text>
     </View>
 
+    <View style={styles.modelPageActions}><Pressable accessibilityRole="button" onPress={() => setMediaEditorOpen(true)} style={styles.detailLink}><Ionicons name="add-circle-outline" size={15} color={colors.primary}/><Text style={styles.detailLinkText}>إضافة / تعديل نموذج صور</Text></Pressable></View>
     <View style={styles.metrics}>
       <Text style={styles.metric}>الكل: {models.length}</Text>
       <Text style={styles.metric}>فعال: {models.filter((m) => m.operational_state === "active").length}</Text>
@@ -350,7 +347,7 @@ export function ModelRegistryCatalogScreen() {
         <View style={styles.priceCell}><Text style={styles.priceLabel}>تكلفة الإدخال / مليون</Text><Text style={styles.priceValue}>{pricesByModel.has(Number(model.legacy_chat_model_id)) ? `${pricesByModel.get(Number(model.legacy_chat_model_id))!.input.toLocaleString("en-EG")} ج.م` : "غير مسجلة"}</Text></View>
         <View style={styles.priceCell}><Text style={styles.priceLabel}>تكلفة الإخراج / مليون</Text><Text style={styles.priceValue}>{pricesByModel.has(Number(model.legacy_chat_model_id)) ? `${pricesByModel.get(Number(model.legacy_chat_model_id))!.output.toLocaleString("en-EG")} ج.م` : "غير مسجلة"}</Text></View>
         <View style={styles.priceCell}><Text style={styles.priceLabel}>ترتيب الشات</Text><Text style={styles.priceValue}>{chatOrderByModel.has(Number(model.legacy_chat_model_id)) ? `#${chatOrderByModel.get(Number(model.legacy_chat_model_id))}` : "غير مربوط"}</Text></View>
-      </View> : null}
+      </View> : (() => { const price = mediaPriceRows.find((row) => row.provider_id === model.provider_id && row.service_type === model.service_type && row.model_identifier === model.model_identifier); return price ? <View style={styles.priceLine}><View style={styles.priceCell}><Text style={styles.priceLabel}>تكلفة المزود / الوحدة</Text><Text style={styles.priceValue}>{Number(price.provider_cost_egp_per_unit).toLocaleString("en-EG", { maximumFractionDigits: 4 })} ج.م</Text></View><View style={styles.priceCell}><Text style={styles.priceLabel}>سعر البيع / الوحدة</Text><Text style={styles.priceValue}>{Number(price.selling_price_egp_per_unit).toLocaleString("en-EG", { maximumFractionDigits: 4 })} ج.م</Text></View><View style={styles.priceCell}><Text style={styles.priceLabel}>إصدار السعر</Text><Text style={styles.priceValue}>v{price.price_version}</Text></View></View> : <Text style={styles.meta}>لا يوجد سعر مسجل لهذا النموذج.</Text>; })()}
       <View style={styles.capabilityHeader}>
         <Text style={styles.detailSectionTitle}>القدرات</Text>
         <Pressable accessibilityRole="button" onPress={() => { setSelectedModel(model); setSelectedDetailTab("capabilities"); setCapabilityPickerOpen(false); }} style={styles.detailLink}>
@@ -420,11 +417,13 @@ export function ModelRegistryCatalogScreen() {
             </> : null}
             {selectedDetailTab === "pricing" ? <>
               <Text style={styles.detailSectionTitle}>التكلفة المسجلة</Text>
-              {selectedModel.legacy_chat_model_id !== null ? <View style={styles.priceLine}>
-                <View style={styles.priceCell}><Text style={styles.priceLabel}>تكلفة الإدخال / مليون</Text><Text style={styles.priceValue}>{pricesByModel.has(Number(selectedModel.legacy_chat_model_id)) ? `${pricesByModel.get(Number(selectedModel.legacy_chat_model_id))!.input.toLocaleString("en-EG")} ج.م` : "غير مسجلة"}</Text></View>
-                <View style={styles.priceCell}><Text style={styles.priceLabel}>تكلفة الإخراج / مليون</Text><Text style={styles.priceValue}>{pricesByModel.has(Number(selectedModel.legacy_chat_model_id)) ? `${pricesByModel.get(Number(selectedModel.legacy_chat_model_id))!.output.toLocaleString("en-EG")} ج.م` : "غير مسجلة"}</Text></View>
-              </View> : <Text style={styles.meta}>لا توجد تكلفة نصية مرتبطة بهذا السجل. راجع كتالوج الوسائط إذا كان له تسعير مسجل.</Text>}
-              <Pressable accessibilityRole="button" onPress={() => { const model = selectedModel; setSelectedModel(null); openModelPriceHistory(model); }} style={styles.detailLink}><Text style={styles.detailLinkText}>فتح سجل الأسعار</Text></Pressable>
+              {selectedModel.legacy_chat_model_id !== null ? <>
+                <View style={styles.priceLine}>
+                  <View style={styles.priceCell}><Text style={styles.priceLabel}>تكلفة الإدخال / مليون</Text><Text style={styles.priceValue}>{pricesByModel.has(Number(selectedModel.legacy_chat_model_id)) ? `${pricesByModel.get(Number(selectedModel.legacy_chat_model_id))!.input.toLocaleString("en-EG")} ج.م` : "غير مسجلة"}</Text></View>
+                  <View style={styles.priceCell}><Text style={styles.priceLabel}>تكلفة الإخراج / مليون</Text><Text style={styles.priceValue}>{pricesByModel.has(Number(selectedModel.legacy_chat_model_id)) ? `${pricesByModel.get(Number(selectedModel.legacy_chat_model_id))!.output.toLocaleString("en-EG")} ج.م` : "غير مسجلة"}</Text></View>
+                </View>
+                <Pressable accessibilityRole="button" onPress={() => { const model = selectedModel; setSelectedModel(null); openModelPriceHistory(model); }} style={styles.detailLink}><Text style={styles.detailLinkText}>فتح سجل الأسعار</Text></Pressable>
+              </> : <MediaModelPricingAdminCard serviceType={selectedModel.service_type} initialRows={mediaPriceRows} initialEvidence={rows} initialLoading={loading} skipInitialLoad />}
             </> : null}
             {selectedDetailTab === "routing" ? <>
               <Text style={styles.detailSectionTitle}>التعيينات وترتيب التوجيه</Text>
@@ -477,6 +476,12 @@ export function ModelRegistryCatalogScreen() {
         </ScrollView>
       </View>
     </Modal>
+    <Modal visible={mediaEditorOpen} transparent={false} animationType="slide" onRequestClose={() => setMediaEditorOpen(false)}>
+      <View style={styles.fullPageDetail}>
+        <View style={styles.detailModalHeader}><Text style={styles.detailModalTitle}>إدارة نماذج الصور</Text><Pressable accessibilityRole="button" onPress={() => { setMediaEditorOpen(false); void load(); }}><Ionicons name="close-circle-outline" size={24} color={colors.textMuted}/></Pressable></View>
+        <View style={{ flex: 1 }}><MediaGenerationModelsAdminScreen /></View>
+      </View>
+    </Modal>
   </ScrollView>;
 }
 
@@ -493,6 +498,7 @@ const createStyles = (c: ThemePalette) => StyleSheet.create({
   primaryText: { color: c.onPrimary, fontSize: 9, fontWeight: "900" },
   secondaryButton: { flexDirection: "row-reverse", alignItems: "center", gap: 6, borderWidth: 1, borderColor: c.divider, borderRadius: 9, paddingHorizontal: 12, paddingVertical: 9 },
   secondaryText: { color: c.primary, fontSize: 9, fontWeight: "900" },
+  modelPageActions: { flexDirection: "row-reverse", alignItems: "center", gap: 8 },
   metrics: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 10 },
   metric: { color: c.textSecondary, fontSize: 9 },
   viewToolbar: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", gap: 10 },
