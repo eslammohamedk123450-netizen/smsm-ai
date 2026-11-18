@@ -219,7 +219,16 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
 
         {/* Keep the attachment action on the physical right and send/mic on the left. */}
         <View style={styles.actionsRow}>
-
+          <TouchableOpacity
+            onPress={() => setAttachVisible(true)}
+            disabled={disabled || isStreaming || isListening}
+            activeOpacity={0.8}
+            style={[styles.plusCircleButton, (disabled || isStreaming || isListening) && styles.controlDisabled]}
+            accessibilityRole="button"
+            accessibilityLabel={isArabic ? "إضافة مرفق" : "Add attachment"}
+          >
+            <Ionicons name="add" size={24} color={colors.onPrimary} />
+          </TouchableOpacity>
           <View style={styles.leftControls}>
             {isStreaming ? (
               <Pressable
@@ -272,17 +281,6 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
               />
             </Pressable>
           </View>
-
-          <TouchableOpacity
-            onPress={() => setAttachVisible(true)}
-            disabled={disabled || isStreaming || isListening}
-            activeOpacity={0.8}
-            style={[styles.plusCircleButton, (disabled || isStreaming || isListening) && styles.controlDisabled]}
-            accessibilityRole="button"
-            accessibilityLabel={isArabic ? "إضافة مرفق" : "Add attachment"}
-          >
-            <Ionicons name="add" size={24} color={colors.onPrimary} />
-          </TouchableOpacity>
         </View>
         </View>
       </View>
@@ -353,7 +351,7 @@ const createStyles = (colors: ThemePalette, isArabic: boolean, canvasBackground:
   actionsRow: {
     width: 122,
     flexShrink: 0,
-    flexDirection: "row",
+    flexDirection: "row-reverse",
     direction: "ltr",
     alignItems: "center",
     justifyContent: "space-between",
