@@ -61,7 +61,7 @@ export function MainNavigation({ children }: Props) {
   const isChat = pathname.startsWith("/chat");
 
   useEffect(() => {
-    if (BASIC_CHAT_ONLY && !pathname.startsWith("/chat") && !pathname.startsWith("/admin") && !pathname.startsWith("/settings")) router.replace("/chat");
+    if (BASIC_CHAT_ONLY && !pathname.startsWith("/chat") && !pathname.startsWith("/admin") && !pathname.startsWith("/settings") && !pathname.startsWith("/studio")) router.replace("/chat");
   }, [pathname, router]);
 
   useEffect(() => {
@@ -200,7 +200,7 @@ export function MainNavigation({ children }: Props) {
         <Pressable
           onPress={() => navigate("/settings")}
           accessibilityRole="button"
-          accessibilityLabel={isArabic ? "فتح الحساب وتعديل الملف الشخصي" : "Open account and edit profile"}
+          accessibilityLabel={isArabic ? "فتح الملف الشخصي وتعديله" : "Open and edit profile"}
           style={[styles.profileButton, sidebarCollapsed && styles.collapsedProfileButton, sidebarCollapsed && styles.sidebarTooltipAnchor, { flexDirection: isArabic ? "row-reverse" : "row", backgroundColor: colors.surfaceElevated }]}
           onHoverIn={() => setHoveredSidebarItem("profile")} onHoverOut={() => setHoveredSidebarItem(null)} onFocus={() => setHoveredSidebarItem("profile")} onBlur={() => setHoveredSidebarItem(null)}
         >
@@ -216,7 +216,7 @@ export function MainNavigation({ children }: Props) {
               <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={16} color={colors.textMuted} />
             </>
           ) : null}
-          {sidebarCollapsed && hoveredSidebarItem === "profile" ? <View pointerEvents="none" style={[styles.sidebarTooltip, isArabic ? { right: "100%" } : { left: "100%" }]}><Text style={[styles.sidebarTooltipText, { color: colors.textPrimary }]}>{isArabic ? "الحساب" : "Account"}</Text></View> : null}
+          {sidebarCollapsed && hoveredSidebarItem === "profile" ? <View pointerEvents="none" style={[styles.sidebarTooltip, isArabic ? { right: "100%" } : { left: "100%" }]}><Text style={[styles.sidebarTooltipText, { color: colors.textPrimary }]}>{isArabic ? "الملف الشخصي" : "Profile"}</Text></View> : null}
         </Pressable>
       </View>
     </>
