@@ -8,7 +8,6 @@ interface AnimatedSplashProps {
 
 export function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
   const opacity = useRef(new Animated.Value(0)).current;
-  const rotate = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     SplashScreen.hideAsync().catch(() => {});
@@ -20,16 +19,6 @@ export function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
       useNativeDriver: Platform.OS !== "web",
     });
 
-    // Smooth continuous 360-degree rotation loader (replaces zoom-in/out pulse)
-    const spinAnimation = Animated.loop(
-      Animated.timing(rotate, {
-        toValue: 1,
-        duration: 1600,
-        easing: Easing.linear,
-        useNativeDriver: Platform.OS !== "web",
-      })
-    );
-
     // Schedule the exit before starting animations: if a browser animation
     // driver throws or is unavailable, the app must never remain on a black
     // splash screen indefinitely.
@@ -39,7 +28,6 @@ export function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
 
     try {
       entranceAnimation.start();
-      spinAnimation.start();
     } catch {
       // The splash is decorative; navigation must not depend on animation support.
       onFinish?.();
@@ -48,14 +36,8 @@ export function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
     return () => {
       clearTimeout(timer);
       entranceAnimation.stop();
-      spinAnimation.stop();
     };
-  }, [onFinish, opacity, rotate]);
-
-  const spin = rotate.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0deg", "360deg"],
-  });
+  }, [onFinish, opacity]);
 
   return (
     <View style={styles.container}>
@@ -64,15 +46,14 @@ export function AnimatedSplash({ onFinish }: AnimatedSplashProps) {
         style={[
           styles.glowWrap,
           {
-            transform: [{ rotate: spin }],
             opacity,
           },
         ]}
       >
         <Image
-          source={require("../../assets/suly-icon.png")}
+          source={require("../../assets/suly-icon.jpg")}
           style={styles.icon}
-          resizeMode="cover"
+          resizeMode="contain"
           accessibilityLabel="Suly Icon"
         />
       </Animated.View>
@@ -89,9 +70,9 @@ const styles = StyleSheet.create({
     zIndex: 9999,
   },
   glowWrap: {
-    width: 120,
-    height: 120,
-    borderRadius: 30,
+    width: 160,
+    height: 240,
+    borderRadius: 0,
     backgroundColor: "#000000",
     shadowColor: "#FFFFFF",
     shadowRadius: 28,
@@ -105,8 +86,8 @@ const styles = StyleSheet.create({
     }),
   },
   icon: {
-    width: 120,
-    height: 120,
-    borderRadius: 30,
+    width: 160,
+    height: 240,
+    borderRadius: 0,
   },
 });

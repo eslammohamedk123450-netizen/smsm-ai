@@ -568,18 +568,11 @@ async function handleRequest(req: Request): Promise<Response> {
   }
   if (!profile) return jsonResponse({ error: "Application profile is missing. Sign out and sign in again." }, 403);
   if (profile.is_banned) return jsonResponse({ error: "This account is suspended." }, 403);
-  const { data: effectiveTier, error: effectiveTierError } = await supabase.rpc("suly_effective_subscription_tier", { p_user_id: user.id });
-  if (effectiveTierError || typeof effectiveTier !== "string") {
-    console.error("Effective subscription entitlement verification failed.");
-    return jsonResponse({ error: "Unable to verify subscription entitlements. Please retry." }, 503, req);
-  }
-  const userTier = ["free", "lite", "pro", "max", "ultra_team"].includes(effectiveTier) ? effectiveTier : "free";
-
-  // Text chat is credit-gated, not daily-request-gated. The atomic
-  // reserve_credits call below is the single source of truth: users may
-  // continue chatting while they have spendable credits, and receive HTTP
-  // 402 when their balance is insufficient. The daily rate-limit RPC remains
-  // available for future media-generation endpoints.
+  // TEMPORARY BASIC CHAT MODE:
+  // Subscription tiers and plan entitlements are intentionally bypassed.
+  // Keep authentication, account suspension, provider credentials, model
+  // health, request idempotency, and abuse protection enforced.
+  const userTier = "free";
 
   const conversationId = typeof body.conversation_id === "string" ? body.conversation_id : null;
   const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -742,14 +735,15 @@ async function handleRequest(req: Request): Promise<Response> {
   const rawModelId = Number(body.model_id);
   const modelId = Number.isSafeInteger(rawModelId) && rawModelId > 0 ? rawModelId : 0;
   const hasExplicitModel = modelId > 0;
-  const rawProfileKey = typeof body.model_profile_key === "string" ? body.model_profile_key.trim().toLowerCase() : "";
-  const requestedProfileKey = ["auto", "lite", "pro", "max", "x"].includes(rawProfileKey) ? rawProfileKey : null;
-  // A SULY profile selects entitlements/capabilities, never a concrete model.
-  // Only an explicit model request or explicit manual mode can bypass auto routing.
+  // Basic chat ignores Lite/Pro/Max profile selection completely.
+  const requestedProfileKey: string | null = null;
+  // The user-selected model is the only model-selection authority in basic chat.
   const routingMode = resolveRoutingMode({ requestedMode: body.routing_mode, hasExplicitModel });
   // New clients select Chat or Agent explicitly. Legacy clients remain Agent
   // compatible so existing connected-app requests do not silently lose tools.
-  let executionMode: "chat" | "agent" = body.execution_mode === "chat" ? "chat" : "agent";
+  // Public chat requests run as direct chat only. Internal Brain workers retain
+  // their separately authenticated Agent execution path.
+  let executionMode: "chat" | "agent" = internalBrainCall && body.execution_mode !== "chat" ? "agent" : "chat";
   const temperatureInput = typeof body.temperature === "number" ? body.temperature : 0.7;
   const temperature = Math.min(2, Math.max(0, temperatureInput));
   const maxTokensInput = typeof body.max_tokens === "number" ? body.max_tokens : 1024;
@@ -863,7 +857,7 @@ async function handleRequest(req: Request): Promise<Response> {
   // forcing them to simple_task would disable the central Agent's compound plan.
   const mind = classifyIntent(latestUserMessage);
   const shouldSearchWeb = shouldSearchWebForMessage(latestUserMessage, isWebSearchRequest);
-  executionMode = resolveExecutionMode({
+  executionMode = internalBrainCall ? resolveExecutionMode({
     requestedMode: body.execution_mode === "chat" || body.execution_mode === "agent" || body.execution_mode === "auto"
       ? body.execution_mode
       : undefined,
@@ -872,14 +866,13 @@ async function handleRequest(req: Request): Promise<Response> {
     hasAttachments: trustedAttachments.length > 0,
     requiresLiveSearch: shouldSearchWeb,
     internalBrainCall,
-  });
+  }) : "chat";
   const profileIntent = mind.intent === "complex_task" || shouldSearchWeb
     || Boolean(requestedConnector || requestedMultiReadToolkits || internalBrainCall)
     ? "complex_task"
     : mind.intent;
-  let selectedProfileKey = requestedProfileKey
-    ? resolveSulyProfileKey({ requestedProfileKey, userTier, intent: profileIntent }).profileKey
-    : null;
+  // No plan/profile is resolved during the temporary basic-chat phase.
+  let selectedProfileKey: string | null = null;
   const maxOutputChars = outputLimitForRequest(mind.intent, latestUserMessage, maxTokens);
   const streamRequested = body.stream === true;
   let himsActivated = profile.hims_activated === true;
@@ -1074,22 +1067,15 @@ async function handleRequest(req: Request): Promise<Response> {
   const featureKey = !himsContextAllowed && requestedFeatureKey === "hims" ? "general" : requestedFeatureKey;
 
 
-  const { data: pricingRow, error: pricingError } = await supabase
-    .from("suly_credit_pricing")
-    .select("enabled,minimum_request_credits,input_credits_per_1k_tokens,output_credits_per_1k_tokens,credit_value_egp,usd_to_egp")
-    .eq("id", 1)
-    .maybeSingle();
-  if (pricingError || !pricingRow) {
-    console.error("Credit pricing could not be loaded:", pricingError?.message ?? "missing row");
-    return await failedResponse(jsonResponse({ error: "Credit pricing configuration is unavailable." }, 503, req), "pricing_unavailable");
-  }
+  // Chat billing/credits are paused. Provider-side usage and model attempts
+  // remain observable, but no user credit reservation or deduction is made.
   const creditPricing: CreditPricing = {
-    enabled: pricingRow.enabled === true,
-    minimum_request_credits: Math.max(0, Math.floor(Number(pricingRow.minimum_request_credits) || 0)),
-    input_credits_per_1k_tokens: Math.max(0, Math.floor(Number(pricingRow.input_credits_per_1k_tokens) || 0)),
-    output_credits_per_1k_tokens: Math.max(0, Math.floor(Number(pricingRow.output_credits_per_1k_tokens) || 0)),
-    credit_value_egp: pricingRow.credit_value_egp == null ? null : Math.max(0, Number(pricingRow.credit_value_egp)),
-    usd_to_egp: pricingRow.usd_to_egp == null ? null : Math.max(0, Number(pricingRow.usd_to_egp)),
+    enabled: false,
+    minimum_request_credits: 0,
+    input_credits_per_1k_tokens: 0,
+    output_credits_per_1k_tokens: 0,
+    credit_value_egp: null,
+    usd_to_egp: null,
   };
 
   const [{ data: settingsRow }, { data: allModels, error: modelsError }, { data: providers, error: providersError }, { data: routeAssignments, error: routeAssignmentsError }] = await Promise.all([

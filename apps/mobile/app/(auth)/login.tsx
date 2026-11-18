@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import { Redirect, useRouter } from "expo-router";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { PremiumText as Text } from "../../src/components/ui/PremiumText";
+import { AppLogo } from "../../src/components/ui/AppLogo";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../src/features/auth/auth-provider";
 import { mapAuthError } from "../../src/features/auth/auth-errors";
@@ -187,7 +188,7 @@ export default function LoginPage() {
       <KeyboardAvoidingView style={styles.safe} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <View style={styles.card}>
-            <View style={styles.brandLockup}><View style={styles.brandMark}><Text style={styles.brandMarkText}>S</Text></View><Text style={styles.brand}>SULY</Text></View>
+            <View style={styles.brandLockup}><AppLogo size={42} /><Text style={styles.brand}>SULY</Text></View>
             <Text style={styles.tagline}>More Than AI. Your Intelligent Partner.</Text>
             <Text style={styles.heading}>{isRegister ? "إنشاء حساب" : isVerifyingCode ? "أدخل رمز التحقق" : "تسجيل الدخول"}</Text>
             {isRegister && <TextInput value={fullName} onChangeText={setFullName} placeholder="الاسم الكامل" placeholderTextColor={colors.textMuted} style={styles.input} autoComplete="name" returnKeyType="next" />}
@@ -247,7 +248,7 @@ function createStyles(colors: ThemePalette) { return StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   scrollView: { flex: 1, width: "100%" },
   scroll: { flexGrow: 1, width: "100%", justifyContent: "center", alignItems: "stretch", padding: 20 },
-  card: { width: "100%", maxWidth: 480, alignSelf: "center", padding: 28, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider },
+  card: { width: "100%", maxWidth: 560, alignSelf: "center", padding: 28, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider },
   brandLockup: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 4 },
   brandMark: { width: 42, height: 42, borderRadius: 13, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
   brandMarkText: { color: colors.onPrimary, fontSize: 25, fontWeight: "900" },

@@ -12,9 +12,9 @@ export function AppLogo({ size = 76, accessibilityLabel = "أيقونة Suly" }:
   return (
     <View style={[styles.wrap, { width: size, height: size, borderRadius: radius }]}>
       <Image
-        source={require("../../../assets/suly-icon.png")}
+        source={require("../../../assets/suly-icon.jpg")}
         style={{ width: size, height: size, borderRadius: radius }}
-        resizeMode="cover"
+        resizeMode="contain"
         accessibilityLabel={accessibilityLabel}
       />
     </View>
@@ -23,9 +23,9 @@ export function AppLogo({ size = 76, accessibilityLabel = "أيقونة Suly" }:
 
 const createStyles = (colors: ThemePalette) => StyleSheet.create({
   wrap: {
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.divider,
+    backgroundColor: "#000000",
+    borderWidth: 0,
+    borderColor: "#000000",
     shadowColor: colors.primary,
     shadowOpacity: 0.35,
     shadowRadius: 16,
