@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -30,6 +30,8 @@ export default function ProjectsScreen() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [archivingId, setArchivingId] = useState<string | null>(null);
+  const createLock = useRef(false);
+  const archiveLock = useRef(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -50,7 +52,8 @@ export default function ProjectsScreen() {
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   const create = async () => {
-    if (creating || !name.trim()) return;
+    if (createLock.current || !name.trim()) return;
+    createLock.current = true;
     setCreating(true);
     try {
       await projectService.createProject({ name, description, iconKey: "folder" });
@@ -59,11 +62,15 @@ export default function ProjectsScreen() {
       show(isArabic ? "تم إنشاء المشروع." : "Project created.", "success");
     } catch (cause) {
       show(cause instanceof Error ? cause.message : (isArabic ? "تعذر إنشاء المشروع." : "Could not create project."), "error");
-    } finally { setCreating(false); }
+    } finally {
+      createLock.current = false;
+      setCreating(false);
+    }
   };
 
   const toggleArchive = async (project: SulyProject) => {
-    if (archivingId !== null) return;
+    if (archiveLock.current) return;
+    archiveLock.current = true;
     setArchivingId(project.id);
     try {
       await projectService.setArchived(project.id, !project.archived_at);
@@ -72,6 +79,7 @@ export default function ProjectsScreen() {
     } catch (cause) {
       show(cause instanceof Error ? cause.message : (isArabic ? "تعذر تحديث المشروع." : "Could not update project."), "error");
     } finally {
+      archiveLock.current = false;
       setArchivingId(null);
     }
   };
