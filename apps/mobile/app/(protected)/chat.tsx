@@ -27,20 +27,6 @@ import { integrationService, type ToolkitStatus } from "../../src/features/integ
 import { randomUUID } from "expo-crypto";
 import { useNavigationMenu } from "../../src/components/navigation/MainNavigation";
 
-type SulyModelProfileKey = "lite" | "pro" | "max" | "x";
-type SulyModelProfileOption = {
-  profile_key: Exclude<SulyModelProfileKey, "auto">;
-  display_name: string;
-  tagline: string;
-  is_active: boolean;
-};
-const DEFAULT_MODEL_PROFILE_OPTIONS: SulyModelProfileOption[] = [
-  { profile_key: "lite", display_name: "SULY Lite", tagline: "للاستخدام الشخصي اليومي", is_active: true },
-  { profile_key: "pro", display_name: "SULY Pro", tagline: "للاستخدام الجاد والمهام المتقدمة", is_active: false },
-  { profile_key: "max", display_name: "SULY Max", tagline: "للمهام المعقدة والتحليل العميق", is_active: false },
-  { profile_key: "x", display_name: "SULY X", tagline: "أعلى مستوى من قدرات النماذج", is_active: false },
-];
-
 const STREAMING_ID = "local-streaming-assistant";
 const TASK_SUGGESTIONS = getRotatingSuggestions(Date.now(), 4);
 const TASK_SUGGESTIONS_EN = [
@@ -845,7 +831,6 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   navigationMenu: { gap: 7, paddingBottom: 8 },
   navigationMenuItem: { minHeight: 48, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 11, paddingHorizontal: 12, borderRadius: 11, backgroundColor: colors.surfaceElevated },
   navigationMenuLabel: { flex: 1, color: colors.textPrimary, fontSize: 13, fontWeight: "700", textAlign: isArabic ? "right" : "left" },
-  modelProfileOptions: { gap: 7, paddingBottom: 4 },
   modelPickerOption: { minHeight: 54, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "space-between", gap: 10, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10, backgroundColor: colors.surfaceElevated },
   modelPickerOptionSelected: { borderWidth: 1, borderColor: colors.primary },
   modelPickerOptionDisabled: { opacity: 0.55 },
