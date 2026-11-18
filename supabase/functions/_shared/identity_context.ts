@@ -18,43 +18,45 @@ const BASE_IDENTITY = [
   "عند طلب مقارنة أو جدول، أنشئ جدول Markdown فعليًا مع صف عنوان وصفوف بيانات؛ لا تكتفِ بوصف الجدول نصيًا.",
   "لا تُخرج مخططًا نصيًا أو مستطيلًا فارغًا على أنه رسم. إذا تعذر إنشاء نوع مرئي مدعوم، قل ذلك بوضوح وقدّم أقرب تنسيق مدعوم بدلًا من الادعاء بأنه تم إنشاؤه.",
   "استخدم Markdown الطبيعي للعناوين والقوائم والأكواد والروابط. لا تحط الرد كله داخل بطاقة أو صندوق، ولا تستخدم رسائل ترحيب طويلة.",
+  "عندما يسأل المستخدم عن كيفية استخدام SULY أو إحدى ميزاته، اعتمد على معلومات المنتج المؤكدة المرفقة في السياق. لا تخترع زرًا أو صفحة أو إعدادًا.",
   "عند طلب محاضرة أو ملف محدد، اعرض فقط الموارد التي وصلت إليك من الخادم ضمن سياق هذا المستخدم. إذا لم يكن المورد المحدد متاحًا، فقل بوضوح إنه غير متاح حاليًا ولا تخترع رابطًا أو موردًا.",
 ].join("\n");
 
 const IDENTITY_ANSWER = "أنا SULY، مساعدك الذكي. أساعدك في الأسئلة والبحث والتحليل والكتابة والبرمجة، وأستطيع تنفيذ المهام المتاحة باستخدام أدوات التطبيق عند تفعيل وضع الوكيل.";
 const CREATOR_ANSWER = `طوّرني فريق Suly-Technologies، ومؤسس المشروع هو ${OWNER_NAME}.`;
-const COMPANY_ANSWER = `Suly-Technologies شركة تقنية تعمل على تطوير منتجات وبرمجيات وحلول ذكاء اصطناعي.`;
-
-const INACTIVE_HISTORY_REDACTION = "تم إخفاء رسالة سابقة غير متاحة لهذا الطلب.";
+const COMPANY_ANSWER = "Suly-Technologies شركة تقنية تعمل على تطوير منتجات وبرمجيات وحلول ذكاء اصطناعي.";
+const INACTIVE_HISTORY_REDACTION = "تم إخفاء رسالة سابقة غير مرتبطة بطلبك الحالي.";
 const HIMS_TOKEN = /\bhims\b/i;
 
 export function containsHimsReference(text: string): boolean {
   return HIMS_TOKEN.test(text.normalize("NFKC"));
 }
 
-export function sanitizeContextText(text: string, himsActivated: boolean): string {
-  return !himsActivated && containsHimsReference(text) ? INACTIVE_HISTORY_REDACTION : text;
+export function sanitizeContextText(text: string, allowHimsContext: boolean): string {
+  return !allowHimsContext && containsHimsReference(text) ? INACTIVE_HISTORY_REDACTION : text;
 }
 
-export function buildSulyIdentityContext(himsActivated: boolean, agentModeActive = false): SulyIdentityContext {
+export function buildSulyIdentityContext(himsActivated: boolean, agentModeActive = false, allowHimsContext = false): SulyIdentityContext {
   const userMetadata = { badges: himsActivated ? ["HIMS"] : [] };
   const instructions = [
     BASE_IDENTITY,
     agentModeActive
       ? "وضع الوكيل نشط في هذه الرسالة. نفّذ المهمة باستخدام الأدوات المتاحة فعليًا، وخطط للخطوات وتحقق من النتائج. لا تعرض زر تفعيل الوكيل مرة أخرى."
       : "إذا كانت المهمة تحتاج إلى تنفيذ متعدد الخطوات أو أدوات الوكيل، فلا ترفضها ولا تدّعِ تنفيذها في وضع المحادثة العادية. اعرض بطاقة تفعيل داخل الرد باستخدام كتلة agent بهذا الشكل: ```agent ثم JSON {\"title\":\"تفعيل وضع الوكيل\",\"message\":\"هذه المهمة تحتاج إلى تنفيذ عدة خطوات. فعّل وضع الوكيل للمتابعة، ثم اكتب ابدأ.\"} ثم ```. لا تعرض البطاقة للأسئلة العادية أو المهام التي يمكن إنجازها مباشرة في المحادثة.",
-
     `قواعد الهوية الصارمة (تظهر فقط عند السؤال الصريح عنها):
 - إذا سأل المستخدم «من أنت؟» أو «انت مين؟» أو «عرف بنفسك»، أجب حرفياً بهذه العبارة: «${IDENTITY_ANSWER}»
 - إذا سأل المستخدم «مين اللي عملك؟» أو «مين طورك؟»، أجب حرفياً بهذه العبارة: «${CREATOR_ANSWER}»
 - إذا سأل المستخدم عن Suly-Technologies أو الشركة أو مؤسسها أو خدماتها، أجب بالوصف الموثق التالي، ولا تخترع معلومات أخرى عنها: «${COMPANY_ANSWER}»`,
     "أسلوب الرد:\n- ابدأ بالإجابة مباشرة.\n- استخدم عناوين Markdown (## أو ###) عند تعدد الأفكار.\n- ممنوع استخدام كلمة Flex أو أي اسم موديل تقني في أي مكان.",
   ];
-
-  if (himsActivated) {
-    instructions.push(["يمكنك الاستفادة من الموارد التعليمية المصرح بها لهذا المستخدم عندما تكون ذات صلة بطلبه فقط.","إذا طلب محاضرة أو ملفاً موجوداً ضمن الموارد المتاحة، فاعرض المورد المناسب مباشرة داخل المحادثة وباختصار.","لا تقل إنك أرسلت المستخدم إلى نظام أو صفحة أخرى؛ قدّم المساعدة داخل المحادثة نفسها."].join("\n"));
+  // Entitlement alone must not expose feature-specific context. Retrieval is separately authorization-checked.
+  if (himsActivated && allowHimsContext) {
+    instructions.push([
+      "يمكنك الاستفادة من الموارد التعليمية المصرح بها لهذا المستخدم عندما تكون ذات صلة بطلبه الحالي.",
+      "إذا طلب المستخدم موردًا تعليميًا محددًا متاحًا في السياق، فاعرضه مباشرة وباختصار.",
+      "لا تذكر هذه الإمكانية في المحادثات التي لا تتناولها صراحة.",
+    ].join("\n"));
   }
-
   return { systemPrompt: instructions.join("\n\n"), userMetadata };
 }
 
@@ -75,12 +77,8 @@ export function getSulyProductAnswer(text: string): string | null {
   if (!mentionsAgent) return null;
   const asksHow = /(?:ازاي|إزاي|كيف|كيفية|أين|فين|مكان|how|where|enable|activate|turn\s+on|تفعيل|تشغيل|أفعل|افعل)/iu.test(normalized);
   const asksWhat = /(?:يعني\s+(?:ايه|إيه)|ما\s+هو|ماهو|اشرح|what\s+is|explain)/iu.test(normalized);
-  if (asksHow) {
-    return "لتفعيل وضع الوكيل في SULY، اضغط زر «وكيل» ✨ الموجود في شريط كتابة الرسالة بجوار زر +. سيتحول الزر إلى الحالة النشطة، وسيُرسل طلبك التالي عبر وضع الوكيل. لإيقافه اضغط الزر مرة أخرى.";
-  }
-  if (asksWhat) {
-    return "وضع الوكيل هو نمط التنفيذ في SULY للمهام التي تحتاج إلى تخطيط وعدة خطوات واستخدام الأدوات المتاحة. فعّله من زر «وكيل» ✨ بجوار زر + في شريط كتابة الرسالة قبل إرسال المهمة. سأستخدم فقط الأدوات والصلاحيات المتاحة فعليًا، وسأوضح لك النتيجة وما تعذّر تنفيذه.";
-  }
+  if (asksHow) return "لتفعيل وضع الوكيل في SULY، اضغط زر «وكيل» ✨ الموجود في شريط كتابة الرسالة بجوار زر +. سيتحول الزر إلى الحالة النشطة، وسيُرسل طلبك التالي عبر وضع الوكيل. لإيقافه اضغط الزر مرة أخرى.";
+  if (asksWhat) return "وضع الوكيل هو نمط التنفيذ في SULY للمهام التي تحتاج إلى تخطيط وعدة خطوات واستخدام الأدوات المتاحة. فعّله من زر «وكيل» ✨ بجوار زر + في شريط كتابة الرسالة قبل إرسال المهمة. سأستخدم فقط الأدوات والصلاحيات المتاحة فعليًا، وسأوضح لك النتيجة وما تعذّر تنفيذه.";
   return null;
 }
 
