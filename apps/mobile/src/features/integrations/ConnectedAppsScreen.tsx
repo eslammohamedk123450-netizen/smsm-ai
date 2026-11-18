@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { Ionicons } from "@expo/vector-icons";
@@ -26,6 +26,7 @@ export default function ConnectedAppsScreen() {
   const [serviceReady, setServiceReady] = useState<boolean | null>(null);
   const [connecting, setConnecting] = useState<ToolkitStatus["toolkit"] | null>(null);
   const [addSheetVisible, setAddSheetVisible] = useState(false);
+  const connectionLock = useRef(false);
 
   const load = useCallback(async (showSuccess = false) => {
     setRefreshing(true);
@@ -50,6 +51,8 @@ export default function ConnectedAppsScreen() {
   }, [load]));
 
   const connect = async (toolkit: ToolkitStatus["toolkit"]) => {
+    if (connectionLock.current) return;
+    connectionLock.current = true;
     setAddSheetVisible(false);
     setConnecting(toolkit);
     try {
@@ -73,6 +76,7 @@ export default function ConnectedAppsScreen() {
       setServiceReady(false);
       show(cause instanceof Error ? cause.message : (isArabic ? "تعذّر بدء ربط التطبيق." : "Could not start app connection."), "error");
     } finally {
+      connectionLock.current = false;
       setConnecting(null);
     }
   };
@@ -90,7 +94,8 @@ export default function ConnectedAppsScreen() {
   };
 
   const performDisconnect = async (status: ToolkitStatus) => {
-    if (!status.accountId) return;
+    if (!status.accountId || connectionLock.current) return;
+    connectionLock.current = true;
     setConnecting(status.toolkit);
     try {
       await integrationService.disconnect(status.toolkit, status.accountId);
@@ -101,6 +106,7 @@ export default function ConnectedAppsScreen() {
       setServiceReady(false);
       show(cause instanceof Error ? cause.message : (isArabic ? "تعذّر قطع اتصال التطبيق." : "Could not disconnect the app."), "error");
     } finally {
+      connectionLock.current = false;
       setConnecting(null);
     }
   };
