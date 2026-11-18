@@ -510,14 +510,20 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 - **Deliverable:** source-level token audit, theme contrast test coverage, and successful CI checks.
 
 ### Phase 2 — Responsive application shell and global navigation
-**Status: 🟡 50% — navigation audit complete; persistent desktop sidebar is the next implementation target.**
+**Status: 🟡 70% — persistent desktop sidebar, collapse persistence, account destination, and mobile drawer sizing implemented on develop; viewport and accessibility verification remain.**
 
-- ☑️ Confirm protected routes mount the shared MainNavigation.
-- ☑️ Confirm mobile drawer, recent conversation loading (bounded to six), and primary destinations are present in the current navigation component.
-- ◐ Reconcile destination order, account placement, recent-chat empty/loading/error states, and “Show more” full-history behavior against the blueprint.
-- ⬜ Implement/verify persistent desktop sidebar with 272 px expanded / 64 px collapsed states and keyboard-accessible tooltips.
-- ⬜ Verify responsive breakpoints, RTL/LTR drawer direction, focus management, Escape/scrim dismissal, and no bottom navigation.
-- **Deliverable:** responsive navigation screenshots and route smoke tests.
+- ☑️ Confirm protected routes mount the shared MainNavigation and preserve the separate admin shell.
+- ☑️ Standardize the mobile drawer to 88% viewport width (maximum 360 px), safe-area aware, and anchored to the locale edge; preserve scrim and close actions.
+- ☑️ Add the Account destination while preserving New chat, Studio, Library, Projects, Tools, recent conversations, and profile footer.
+- ☑️ Add a persistent Web desktop sidebar at widths of 1024 px and above, with exact 272 px expanded and 64 px collapsed widths.
+- ☑️ Persist collapsed/expanded state locally per authenticated user/device through AsyncStorage; it does not modify account data.
+- ☑️ Keep the desktop sidebar independent from the chat header menu trigger; the sidebar has its own collapse control.
+- ☑️ Load up to six real recent conversations in the persistent desktop sidebar and retain the existing full-history “Show more” route.
+- ◐ Collapsed navigation uses icons with accessible labels/hints; visible hover tooltips, keyboard focus behavior, and focus restoration still need browser verification.
+- ◐ RTL/LTR layout and mobile modal dismissal are wired in source; actual browser/device interaction and scroll-position preservation have not yet been verified.
+- ⬜ Capture responsive screenshots at mobile, tablet, desktop, and wide desktop sizes; run navigation route smoke tests.
+- **Changed file:** apps/mobile/src/components/navigation/MainNavigation.tsx.
+- **Deliverable:** responsive navigation screenshots, accessibility review, and route smoke tests.
 
 ### Phase 3 — Unified chat shell and composer
 **Status: ◐ 55% — chat, attachment, voice, and automatic request foundations exist; target composer layout is not complete.**
