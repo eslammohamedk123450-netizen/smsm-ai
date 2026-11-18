@@ -25,6 +25,9 @@ export function MediaScreen() {
   const [folderName, setFolderName] = useState("");
   const [folderMutationBusy, setFolderMutationBusy] = useState(false);
   const folderMutationLock = useRef(false);
+  const organizationLock = useRef<string | null>(null);
+  const deleteLock = useRef<string | null>(null);
+  const uploadLock = useRef(false);
   const [organizationBusyId, setOrganizationBusyId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<PickKind | null>(null);
@@ -68,6 +71,8 @@ export function MediaScreen() {
   }, [load]);
 
   const pickAndUpload = async (kind: PickKind) => {
+    if (uploadLock.current) return;
+    uploadLock.current = true;
     setBusy(kind); setError(null); setNotice(null);
     try {
       const picked = await pickMedia(kind);
@@ -81,7 +86,10 @@ export function MediaScreen() {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : (isArabic ? "تعذر رفع الملف." : "Could not upload the file."));
       setNotice(null);
-    } finally { setBusy(null); }
+    } finally {
+      uploadLock.current = false;
+      setBusy(null);
+    }
   };
 
   const visibleAssets = assets
@@ -148,6 +156,8 @@ export function MediaScreen() {
   };
 
   const toggleFavorite = async (asset: MediaAsset) => {
+    if (organizationLock.current) return;
+    organizationLock.current = asset.id;
     const nextFavorite = !favoriteIds.includes(asset.id);
     setOrganizationBusyId(asset.id); setError(null);
     try {
@@ -156,11 +166,15 @@ export function MediaScreen() {
       setNotice(nextFavorite ? (isArabic ? "أُضيف إلى المفضلة." : "Added to favorites.") : (isArabic ? "أُزيل من المفضلة." : "Removed from favorites."));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : (isArabic ? "تعذر تحديث المفضلة." : "Could not update favorites."));
-    } finally { setOrganizationBusyId(null); }
+    } finally {
+      organizationLock.current = null;
+      setOrganizationBusyId(null);
+    }
   };
 
   const toggleAssetFolder = async (asset: MediaAsset) => {
-    if (!selectedFolderId) return;
+    if (!selectedFolderId || organizationLock.current) return;
+    organizationLock.current = asset.id;
     const nextFolderId = assetFolderIds[asset.id] === selectedFolderId ? null : selectedFolderId;
     setOrganizationBusyId(asset.id); setError(null);
     try {
@@ -174,7 +188,10 @@ export function MediaScreen() {
       setNotice(nextFolderId ? (isArabic ? "تم تنظيم الملف داخل المجلد." : "File moved into the folder.") : (isArabic ? "تم إخراج الملف من المجلد." : "File removed from the folder."));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : (isArabic ? "تعذر تنظيم الملف." : "Could not organize file."));
-    } finally { setOrganizationBusyId(null); }
+    } finally {
+      organizationLock.current = null;
+      setOrganizationBusyId(null);
+    }
   };
 
   const copy = async (url: string) => {
@@ -187,6 +204,8 @@ export function MediaScreen() {
       { text: isArabic ? "إلغاء" : "Cancel", style: "cancel" },
       { text: isArabic ? "حذف" : "Delete", style: "destructive", onPress: () => {
         void (async () => {
+          if (deleteLock.current) return;
+          deleteLock.current = asset.id;
           setDeletingId(asset.id); setError(null); setNotice(null);
           try {
             await deleteMediaAsset(asset.id);
@@ -194,7 +213,10 @@ export function MediaScreen() {
             setNotice(isArabic ? "تم حذف الملف من مكتبتك." : "File deleted from your library.");
           } catch (cause) {
             setError(cause instanceof Error ? cause.message : (isArabic ? "تعذر حذف الملف." : "Could not delete the file."));
-          } finally { setDeletingId(null); }
+          } finally {
+            deleteLock.current = null;
+            setDeletingId(null);
+          }
         })();
       } },
     ]);
