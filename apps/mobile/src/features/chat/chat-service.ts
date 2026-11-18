@@ -32,6 +32,7 @@ export interface ChatModel {
   priority: number;
   contextWindow: number | null;
   routingGroup: string;
+  serviceType: string;
 }
 export interface Conversation {
   id: string;
@@ -79,7 +80,7 @@ export const chatService = {
   async getAvailableModels(): Promise<ChatModel[]> {
     const [modelResult, providerResult] = await Promise.all([
       supabase.from("ai_models")
-        .select("id,name,provider_id,model_identifier,enabled,priority,context_window,routing_group,allowed_tiers")
+        .select("id,name,provider_id,model_identifier,enabled,priority,context_window,routing_group,allowed_tiers,service_type")
         .eq("enabled", true)
         .order("priority", { ascending: false })
         .limit(200),
@@ -103,6 +104,7 @@ export const chatService = {
       priority: Number(item.priority ?? 0),
       contextWindow: typeof item.context_window === "number" ? item.context_window : null,
       routingGroup: String(item.routing_group ?? "free_race"),
+      serviceType: String(item.service_type ?? "chat"),
     }));
   },
 
