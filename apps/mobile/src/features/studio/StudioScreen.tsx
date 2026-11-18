@@ -95,6 +95,7 @@ export function StudioScreen() {
       route: "",
       ready: false,
       checking: false,
+      retry: false,
     },
     {
       key: "transcription",
@@ -104,6 +105,7 @@ export function StudioScreen() {
       route: "",
       ready: false,
       checking: false,
+      retry: false,
     },
   ];
 
