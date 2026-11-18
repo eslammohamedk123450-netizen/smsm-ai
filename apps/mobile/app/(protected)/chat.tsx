@@ -779,27 +779,29 @@ export default function ChatPage() {
             <Text style={styles.welcomeEyebrow}>{isArabic ? "مساحة عملك الذكية" : "YOUR INTELLIGENT WORKSPACE"}</Text>
             <Text style={styles.emptyTitle}>{isArabic ? "أهلًا بك، نبدأ بإيه؟" : "What would you like to do?"}</Text>
             <Text style={styles.emptySubtitle}>{isArabic ? "اختر النموذج، اكتب رسالتك، وسيجيبك مباشرة." : "Choose a model, write your message, and get a direct response."}</Text>
-            {!BASIC_CHAT_ONLY ? <View style={styles.suggestionHeading}>
-              <Text style={styles.suggestionHeadingText}>{isArabic ? "ابدأ بفكرة" : "GET STARTED"}</Text>
-              <View style={styles.suggestionHeadingLine} />
-            </View>
-            <View style={styles.taskGrid}>
-              {suggestions.map((suggestion) => (
-                <Pressable
-                  key={suggestion.text}
-                  onPress={() => composerRef.current?.editMessage(suggestion.text)}
-                  style={styles.taskCard}
-                  accessibilityRole="button"
-                  accessibilityLabel={isArabic ? `استخدام اقتراح: ${suggestion.text}` : `Use suggestion: ${suggestion.text}`}
-                >
-                  <View style={styles.taskIconCircle}>
-                    <Ionicons name={suggestion.icon} size={18} color={colors.textPrimary} />
-                  </View>
-                  <Text numberOfLines={2} style={styles.taskCardText}>{suggestion.text}</Text>
-                  <Ionicons name={isArabic ? "arrow-back" : "arrow-forward"} size={15} color={colors.textMuted} style={styles.taskArrow} />
-                </Pressable>
-              ))}
-            </View> : null}
+            {!BASIC_CHAT_ONLY ? <>
+              <View style={styles.suggestionHeading}>
+                <Text style={styles.suggestionHeadingText}>{isArabic ? "ابدأ بفكرة" : "GET STARTED"}</Text>
+                <View style={styles.suggestionHeadingLine} />
+              </View>
+              <View style={styles.taskGrid}>
+                {suggestions.map((suggestion) => (
+                  <Pressable
+                    key={suggestion.text}
+                    onPress={() => composerRef.current?.editMessage(suggestion.text)}
+                    style={styles.taskCard}
+                    accessibilityRole="button"
+                    accessibilityLabel={isArabic ? `استخدام اقتراح: ${suggestion.text}` : `Use suggestion: ${suggestion.text}`}
+                  >
+                    <View style={styles.taskIconCircle}>
+                      <Ionicons name={suggestion.icon} size={18} color={colors.textPrimary} />
+                    </View>
+                    <Text numberOfLines={2} style={styles.taskCardText}>{suggestion.text}</Text>
+                    <Ionicons name={isArabic ? "arrow-back" : "arrow-forward"} size={15} color={colors.textMuted} style={styles.taskArrow} />
+                  </Pressable>
+                ))}
+              </View>
+            </> : null}
           </View>
         ) : (
           <View style={styles.messageListContainer}>
