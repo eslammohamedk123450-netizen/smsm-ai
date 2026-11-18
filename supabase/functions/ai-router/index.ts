@@ -2051,7 +2051,10 @@ async function handleRequest(req: Request): Promise<Response> {
       });
       const partialResponse = partialParts.length ? mergePartAnswers(partialParts) : "";
       const billing = await finalizeBilling(billingCandidate, partialResponse, "client_cancelled", Boolean(billingCandidate));
-      await finishAiRequest("cancelled", null, null, {
+      const partialMessageId = partialResponse.trim()
+        ? await persistAssistantText(supabase, conversationId, user.id, billingTaskId, billingCandidate?.model.id ?? null, partialResponse)
+        : null;
+      await finishAiRequest("cancelled", partialMessageId, partialMessageId ? null : null, {
         route: "task_split",
         parts: splitParts.length,
         completed_parts: resumedResults.size + completedDuringRun,
