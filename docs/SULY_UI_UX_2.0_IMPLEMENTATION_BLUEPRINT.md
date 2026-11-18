@@ -510,7 +510,7 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 - **Deliverable:** source-level token audit, theme contrast test coverage, and successful CI checks.
 
 ### Phase 2 — Responsive application shell and global navigation
-**Status: 🟡 70% — persistent desktop sidebar, collapse persistence, account destination, and mobile drawer sizing implemented on develop; viewport and accessibility verification remain.**
+**Status: 🟡 75% — responsive navigation structure, per-user collapse persistence, account destination, and collapsed-icon tooltips implemented on develop; CI and rendered interaction review remain.**
 
 - ☑️ Confirm protected routes mount the shared MainNavigation and preserve the separate admin shell.
 - ☑️ Standardize the mobile drawer to 88% viewport width (maximum 360 px), safe-area aware, and anchored to the locale edge; preserve scrim and close actions.
@@ -519,8 +519,8 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 - ☑️ Persist collapsed/expanded state locally per authenticated user/device through AsyncStorage; it does not modify account data.
 - ☑️ Keep the desktop sidebar independent from the chat header menu trigger; the sidebar has its own collapse control.
 - ☑️ Load up to six real recent conversations in the persistent desktop sidebar and retain the existing full-history “Show more” route.
-- ◐ Collapsed navigation uses icons with accessible labels/hints; visible hover tooltips, keyboard focus behavior, and focus restoration still need browser verification.
-- ◐ RTL/LTR layout and mobile modal dismissal are wired in source; actual browser/device interaction and scroll-position preservation have not yet been verified.
+- ☑️ Collapsed navigation uses icons with accessible labels/hints and hover/focus tooltips for primary destinations, recent chats, and account.
+- ◐ RTL/LTR layout, desktop hover/focus tooltip positioning, and mobile modal dismissal are wired in source; actual browser/device interaction, focus restoration, and scroll-position preservation have not yet been verified.
 - ⬜ Capture responsive screenshots at mobile, tablet, desktop, and wide desktop sizes; run navigation route smoke tests.
 - **Changed file:** apps/mobile/src/components/navigation/MainNavigation.tsx.
 - **Deliverable:** responsive navigation screenshots, accessibility review, and route smoke tests.
