@@ -260,15 +260,6 @@ export default function ChatPage() {
     try { setFeedbackByMessage(await chatService.getMessageFeedback(saved.map((message) => message.id))); } catch { setFeedbackByMessage({}); }
   }, []);
 
-  const refreshAgentProgress = useCallback(async (id: string) => {
-    try {
-      const progress = await listConversationAgentProgress(id);
-      setAgentProgress(progress);
-    } catch {
-      // Progress is supplemental; a temporary read failure must not break chat.
-    }
-  }, []);
-
   useEffect(() => {
     if (!conversationId) { setAgentProgress([]); return; }
     let active = true;
