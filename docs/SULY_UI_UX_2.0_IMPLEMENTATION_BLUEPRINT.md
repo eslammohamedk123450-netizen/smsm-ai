@@ -19,15 +19,15 @@
 3. Do not change branch protections, deployment environments, production configuration, database schemas, secrets, provider settings, routing, billing, or user data as part of this plan-document update.
 4. Use development/test evidence for implementation audits. Do not invent production users, payment events, usage, or analytics.
 5. Execute implementation phases sequentially on develop. The blueprint is the single source of truth; do not begin a later phase until the current phase's acceptance checks and status update are recorded.
-5. Do not delete, disable, hide permanently, or replace existing working capabilities merely to simplify the UI. Reorganize them and preserve access. If a feature is not operational end-to-end, do not present it as working: mark it unavailable, explain why, and record the dependency.
-6. Every visible interactive control must have a real action, a real data source, a loading state, an error state, and a success/empty state as applicable. No decorative buttons, fake progress, fabricated counts, mock model availability, or placeholder actions in the shipped UI.
-7. Before changing a screen, inspect its current implementation, services, route, database/RPC/Edge Function dependencies, and tests. Reuse existing functionality and shared components where possible.
-8. Keep one central SULY Agent/AI Router decision authority. The end-user UI has no mode selection and must not introduce a second independent planner or competing agent brain.
-9. Do not change database schemas, RLS, billing rules, credit prices, subscriptions, provider configuration, model activation policy, or server authorization as a side effect of a visual redesign. If a real UI requirement exposes a backend gap, document it and implement only through an explicitly scoped, separately reviewed backend change.
-10. Do not expose service-role keys, provider secrets, privileged RPCs, or admin-only data to the client.
-11. Preserve Expo universal-client parity: one shared application and shared feature logic for Android, iOS, and Web. Platform-specific presentation is allowed only where the platform requires it (file picker, keyboard, safe areas, pointer/hover, responsive layout).
-12. Keep HIMS and all existing product modules intact. Do not remove routes or features because they are not in the new navigation's first visible group.
-13. No new Git branches. No automatic production merge or deployment. A production promotion requires separate explicit owner approval; the current explicit approval is limited to this Phase 0 plan-document change.
+6. Do not delete, disable, hide permanently, or replace existing working capabilities merely to simplify the UI. Reorganize them and preserve access. If a feature is not operational end-to-end, do not present it as working: mark it unavailable, explain why, and record the dependency.
+7. Every visible interactive control must have a real action, a real data source, a loading state, an error state, and a success/empty state as applicable. No decorative buttons, fake progress, fabricated counts, mock model availability, or placeholder actions in the shipped UI.
+8. Before changing a screen, inspect its current implementation, services, route, database/RPC/Edge Function dependencies, and tests. Reuse existing functionality and shared components where possible.
+9. Keep one central SULY Agent/AI Router decision authority. The end-user UI has no mode selection and must not introduce a second independent planner or competing agent brain.
+10. Do not change database schemas, RLS, billing rules, credit prices, subscriptions, provider configuration, model activation policy, or server authorization as a side effect of a visual redesign. If a real UI requirement exposes a backend gap, document it and implement only through an explicitly scoped, separately reviewed backend change.
+11. Do not expose service-role keys, provider secrets, privileged RPCs, or admin-only data to the client.
+12. Preserve Expo universal-client parity: one shared application and shared feature logic for Android, iOS, and Web. Platform-specific presentation is allowed only where the platform requires it (file picker, keyboard, safe areas, pointer/hover, responsive layout).
+13. Keep HIMS and all existing product modules intact. Do not remove routes or features because they are not in the new navigation's first visible group.
+14. No new Git branches. No automatic production merge or deployment. A production promotion requires separate explicit owner approval; the current explicit approval is limited to this Phase 0 plan-document change.
 
 ## 1. Product vision and design principles
 
@@ -591,11 +591,11 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 | Chat request contract | apps/mobile/app/(protected)/chat.tsx | Inspected send/retry/regenerate calls use modelProfileKey: "auto" and executionMode: "auto" | 3 / 4 |
 | Composer and media | apps/mobile/src/features/chat/components/ChatComposer.tsx, AttachSheet.tsx | Attachment sheet and speech-recognition handling exist; exact plus/paperclip target order needs verification | 3 |
 | Durable Agent tasks | apps/mobile/src/features/brain/task-service.ts | Durable progress snapshot and bounded history mapping/query exist; complete in-chat task card/cancel/recovery flow not verified | 4 |
-| Design system | apps/mobile/src/theme/colors.ts, ThemeProvider.tsx | Neutral grayscale light/dark palette and System/Light/Dark persisted preference exist; all-screen migration/contrast review remains | 1 |
+| Design system | apps/mobile/src/theme/colors.ts, ThemeProvider.tsx, AppLogo.tsx, ConnectedAppsScreen.tsx, colors.test.ts | Neutral grayscale light/dark palette and persisted preference confirmed; AppLogo and connector status colors now use shared tokens; CI and rendered contrast/screenshots remain | 1 |
 | Plans | apps/mobile/src/features/billing/UpgradeScreen.tsx | Reads active plan/features and current tier; paid upgrade action is explicitly unavailable (“coming soon”) | 6 |
 | Settings and credits | apps/mobile/src/features/settings/SettingsScreen.tsx | Theme/language controls and credit history are present; broader security/account sections need audit | 6 |
 | HIMS and admin | docs/PHASES_1_4_BUILD_AUDIT.md, src/features/hims/, src/features/admin/, Supabase functions/migrations | Existing HIMS/admin are protected product areas; preserve them and their authorization boundaries | All |
-| Automated checks | apps/mobile/package.json, apps/mobile/README.md, prior audit evidence | Scripts exist; README reports historical Jest/Web/Android export checks. No fresh checks were run for this plan-only update | 0 / 7 |
+| Automated checks | apps/mobile/package.json, .github/workflows/verify-agent-queue.yml, .github/workflows/verify-ai-router-bundle.yml | Theme test coverage expanded; draft verification PR #177 opened. No fresh passing CI result has been confirmed yet | 1 / 7 |
 
 ## 12. Acceptance criteria (must all pass)
 
