@@ -2960,6 +2960,7 @@ async function handleRequest(req: Request): Promise<Response> {
   const freeDeadline = Date.now() + (routingMode === "manual" ? settings.paidFallbackTimeoutMs : settings.freeRaceTimeoutMs);
   const boundedFreeCandidates = raceCandidates.slice(0, Math.max(1, settings.maxParallelFreeModels));
   for (let index = 0; index < boundedFreeCandidates.length; index += 1) {
+    if (req.signal.aborted) break;
     const remaining = freeDeadline - Date.now();
     if (remaining <= 0) break;
     // Reserve part of the remaining window for the next eligible backup so a
@@ -2970,7 +2971,7 @@ async function handleRequest(req: Request): Promise<Response> {
     if (winner) break;
   }
 
-  if (!winner && routingMode === "auto" && settings.paidFallbackEnabled) {
+  if (!winner && !req.signal.aborted && routingMode === "auto" && settings.paidFallbackEnabled) {
     const paidModels: ModelRow[] = healthyModels
       .filter((model: ModelRow) => isEligibleModel(model, "chat", ["paid_fallback"]));
     const orderedPaidModels = orderModelsByRoute(paidModels, orderedRouteAssignments, "chat");
