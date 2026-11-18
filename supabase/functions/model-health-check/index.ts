@@ -7,10 +7,10 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 const MAX_OUTPUT_TOKENS = 8;
-const MAX_PROBE_TIMEOUT_MS = 10_000;
+const MAX_PROBE_TIMEOUT_MS = 20_000;
 const SCHEDULED_CONCURRENCY = 5;
 const PROBE_PROMPT = "Reply with OK.";
-const MANUAL_PROBE_PROMPT = "xqzv kjt pqlm";
+const MANUAL_PROBE_PROMPT = "Reply with OK.";
 
 type ModelRow = {
   id: number;
@@ -156,7 +156,7 @@ async function probeModel(model: ModelRow, provider: ProviderRow, apiKey: string
       const choices = Array.isArray(payload.choices) ? payload.choices : [];
       const firstChoice = asRecord(choices[0]);
       const message = asRecord(firstChoice.message);
-      const text = contentText(message.content);
+      const text = contentText(message.content ?? firstChoice.text ?? payload.output_text);
       return text.trim()
         ? { status: "success", duration_ms: Date.now() - startedAt, error_code: null }
         : { status: "error", duration_ms: Date.now() - startedAt, error_code: "empty_response" };
@@ -181,7 +181,10 @@ async function probeModel(model: ModelRow, provider: ProviderRow, apiKey: string
                 const choices = Array.isArray(payload.choices) ? payload.choices : [];
                 const firstChoice = asRecord(choices[0]);
                 const delta = asRecord(firstChoice.delta);
-                const text = contentText(delta.content);
+                const message = asRecord(firstChoice.message);
+                const text = contentText(
+                  delta.content ?? message.content ?? delta.text ?? message.text ?? firstChoice.text ?? payload.output_text,
+                );
                 if (text.trim()) {
                   await reader.cancel().catch(() => undefined);
                   return { status: "success", duration_ms: Date.now() - startedAt, error_code: null };
@@ -350,7 +353,7 @@ async function runManualTest(serviceClient: SupabaseClient, modelId: number): Pr
     const skipped: ProbeResult = { status: "error", duration_ms: 0, error_code: "provider_disabled" };
     // Manual tests count toward the periodic daily checks; provider-disabled
     // models are logged on their own key so they never consume a live slot.
-    await recordProbe(serviceClient, model, provider, "scheduled", `scheduled:${model.id}:manual-offline:${crypto.randomUUID()}`, skipped);
+    await recordProbe(serviceClient, model, provider, "manual", `scheduled:${model.id}:manual-offline:${crypto.randomUUID()}`, skipped);
     return jsonResponse({ model_id: model.id, status: "error", duration_ms: 0, error_code: "provider_disabled" });
   }
 
@@ -365,7 +368,7 @@ async function runManualTest(serviceClient: SupabaseClient, modelId: number): Pr
     serviceClient,
     model,
     provider,
-    "scheduled",
+    "manual",
     checkKey,
     result,
   );
