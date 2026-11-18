@@ -78,33 +78,28 @@ const TITLE_LIMIT = 48;
 
 export const chatService = {
   async getAvailableModels(): Promise<ChatModel[]> {
-    const [modelResult, providerResult] = await Promise.all([
-      supabase.from("ai_models")
-        .select("id,name,provider_id,model_identifier,enabled,priority,context_window,routing_group,allowed_tiers,service_type")
-        .eq("enabled", true)
-        .order("priority", { ascending: false })
-        .limit(200),
-      supabase.from("ai_providers_catalog")
-        .select("id,name,provider_type")
-        .limit(100),
-    ]);
-    if (modelResult.error) throw new Error("تعذر تحميل النماذج المتاحة.");
-    if (providerResult.error) throw new Error("تعذر تحميل قائمة مزودي النماذج.");
-    const providerById = new Map<number, string>();
-    for (const item of providerResult.data ?? []) {
-      providerById.set(Number(item.id), String(item.provider_type || item.name || "provider"));
-    }
-    return (modelResult.data ?? []).map((item) => ({
+    // Provider credentials/configuration are intentionally hidden from normal
+    // clients. The security-invoker ai_providers_catalog view therefore cannot
+    // be queried by non-admin users; model discovery must not depend on it.
+    const { data, error } = await supabase.from("ai_models")
+      .select("id,name,provider_id,model_identifier,enabled,priority,context_window,routing_group,allowed_tiers")
+      .eq("enabled", true)
+      .order("priority", { ascending: false })
+      .limit(200);
+    if (error) throw new Error("تعذر تحميل النماذج المتاحة.");
+    return (data ?? []).map((item) => ({
       id: String(item.id),
       name: String(item.name ?? item.model_identifier ?? "Model"),
       providerId: Number(item.provider_id),
-      provider: providerById.get(Number(item.provider_id)) ?? "provider",
+      // Provider display metadata is deliberately generic in the client.
+      // Routing uses provider_id on the trusted server, not this label.
+      provider: "AI",
       modelIdentifier: String(item.model_identifier ?? item.name ?? ""),
       enabled: item.enabled === true,
       priority: Number(item.priority ?? 0),
       contextWindow: typeof item.context_window === "number" ? item.context_window : null,
       routingGroup: String(item.routing_group ?? "free_race"),
-      serviceType: String(item.service_type ?? "chat"),
+      serviceType: "chat",
     }));
   },
 
