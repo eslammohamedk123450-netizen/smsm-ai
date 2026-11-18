@@ -376,14 +376,15 @@ async function firstReady(candidates: Candidate[], waitMs: number, recordAttempt
       const errorText = error instanceof Error ? error.message : String(error);
       if (providerCallStarted) {
         const cancelledByWinner = raceState.winnerSelected && controller.signal.aborted;
-        const status: AttemptStatus = cancelledByWinner
+        const cancelledByRequest = signal?.aborted === true;
+        const status: AttemptStatus = cancelledByWinner || cancelledByRequest
           ? "cancelled"
           : controller.signal.aborted || raceState.deadlineExpired || /timeout|timed out|abort/i.test(errorText)
             ? "timeout"
             : /no text|empty/i.test(errorText)
               ? "empty"
               : "error";
-        const errorCode = status === "timeout" ? "model_timeout" : status === "empty" ? "empty_response" : "provider_error";
+        const errorCode = status === "cancelled" ? "client_cancelled" : status === "timeout" ? "model_timeout" : status === "empty" ? "empty_response" : "provider_error";
         await recordAttempt(attemptCandidate, status, Math.max(0, Date.now() - startedAtMs), errorCode, errorText, "finished");
       }
       throw error;
@@ -403,7 +404,7 @@ async function firstReady(candidates: Candidate[], waitMs: number, recordAttempt
   if (timer) clearTimeout(timer);
   signal?.removeEventListener("abort", abortAttempts);
   if (signal?.aborted) abortAttempts();
-  if (!winner || signal?.aborted) raceState.deadlineExpired = true;
+  if (!winner) raceState.deadlineExpired = !signal?.aborted;
   else raceState.winnerSelected = true;
   for (const attempt of attempts) {
     if (!winner || signal?.aborted || attempt.controller !== winner.controller) {
