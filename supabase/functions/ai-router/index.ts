@@ -872,7 +872,7 @@ async function handleRequest(req: Request): Promise<Response> {
     ? "complex_task"
     : mind.intent;
   // No plan/profile is resolved during the temporary basic-chat phase.
-  const selectedProfileKey: string | null = null;
+  let selectedProfileKey: string | null = null;
   const maxOutputChars = outputLimitForRequest(mind.intent, latestUserMessage, maxTokens);
   const streamRequested = body.stream === true;
   let himsActivated = profile.hims_activated === true;
