@@ -66,7 +66,7 @@ export function ModelRegistryCatalogScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { width } = useWindowDimensions();
   const router = useRouter();
-  const [viewMode, setViewMode] = useState<"table" | "cards">(width >= 900 ? "table" : "cards");
+  const [viewMode, setViewMode] = useState<"table" | "cards">("cards");
   const [selectedModel, setSelectedModel] = useState<RegistryModel | null>(null);
   const [rows, setRows] = useState<RegistryModel[]>([]);
   const [pricesByModel, setPricesByModel] = useState<Map<number, { input: number; output: number }>>(new Map());
