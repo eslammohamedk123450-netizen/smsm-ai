@@ -28,6 +28,7 @@ export default function ProjectsScreen() {
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [archivingId, setArchivingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -52,12 +53,16 @@ export default function ProjectsScreen() {
   };
 
   const toggleArchive = async (project: SulyProject) => {
+    if (archivingId !== null) return;
+    setArchivingId(project.id);
     try {
       await projectService.setArchived(project.id, !project.archived_at);
       await load();
       show(project.archived_at ? (isArabic ? "تمت استعادة المشروع." : "Project restored.") : (isArabic ? "تمت أرشفة المشروع." : "Project archived."), "success");
     } catch (cause) {
       show(cause instanceof Error ? cause.message : (isArabic ? "تعذر تحديث المشروع." : "Could not update project."), "error");
+    } finally {
+      setArchivingId(null);
     }
   };
 
@@ -122,9 +127,11 @@ export default function ProjectsScreen() {
                   <Text style={styles.openButtonText}>{isArabic ? "افتح" : "Open"}</Text>
                 </Pressable>
               ) : null}
-              <Pressable onPress={() => void toggleArchive(project)} style={styles.iconButton}
-                accessibilityRole="button" accessibilityLabel={archived ? (isArabic ? "استعادة المشروع" : "Restore project") : (isArabic ? "أرشفة المشروع" : "Archive project")}>
-                <Ionicons name={archived ? "refresh-outline" : "archive-outline"} size={18} color={colors.textSecondary} />
+              <Pressable onPress={() => void toggleArchive(project)} disabled={archivingId !== null} style={[styles.iconButton, archivingId !== null && styles.disabled]}
+                accessibilityRole="button" accessibilityState={{ disabled: archivingId !== null }} accessibilityLabel={archived ? (isArabic ? "استعادة المشروع" : "Restore project") : (isArabic ? "أرشفة المشروع" : "Archive project")}>
+                {archivingId === project.id
+                  ? <ActivityIndicator size="small" color={colors.textSecondary} />
+                  : <Ionicons name={archived ? "refresh-outline" : "archive-outline"} size={18} color={colors.textSecondary} />}
               </Pressable>
             </View>
           </View>
