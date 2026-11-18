@@ -23,9 +23,9 @@ export function AppLogo({ size = 76, accessibilityLabel = "أيقونة Suly" }:
 
 const createStyles = (colors: ThemePalette) => StyleSheet.create({
   wrap: {
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.divider,
+    backgroundColor: "#000000",
+    borderWidth: 0,
+    borderColor: "#000000",
     shadowColor: colors.primary,
     shadowOpacity: 0.35,
     shadowRadius: 16,
