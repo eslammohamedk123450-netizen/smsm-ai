@@ -82,7 +82,7 @@ export const chatService = {
     // clients. The security-invoker ai_providers_catalog view therefore cannot
     // be queried by non-admin users; model discovery must not depend on it.
     const { data, error } = await supabase.from("ai_models")
-      .select("id,name,provider_id,model_identifier,enabled,priority,context_window,routing_group,allowed_tiers,service_type")
+      .select("id,name,provider_id,model_identifier,enabled,priority,context_window,routing_group,allowed_tiers")
       .eq("enabled", true)
       .order("priority", { ascending: false })
       .limit(200);
@@ -99,7 +99,7 @@ export const chatService = {
       priority: Number(item.priority ?? 0),
       contextWindow: typeof item.context_window === "number" ? item.context_window : null,
       routingGroup: String(item.routing_group ?? "free_race"),
-      serviceType: String(item.service_type ?? "chat"),
+      serviceType: "chat",
     }));
   },
 
