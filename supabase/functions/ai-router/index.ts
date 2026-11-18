@@ -2993,6 +2993,21 @@ async function handleRequest(req: Request): Promise<Response> {
     }
   }
 
+  if (req.signal.aborted) {
+    if (winner) {
+      winner.controller.abort();
+      winner.cleanup();
+      await recordAttempt(winner, "cancelled", Date.now() - winner.startedAtMs, "client_cancelled", "The client cancelled before a response was delivered.");
+    }
+    const billing = await finalizeBilling(winner, "", "client_cancelled", false);
+    await finishAiRequest("cancelled", null, null, {
+      billing,
+      model_calls: modelInvocationCount,
+      total_ms: Date.now() - startedAt,
+    }, "client_cancelled");
+    return jsonResponse({ cancelled: true, billing }, 200, req);
+  }
+
   if (!winner) {
     const billing = await finalizeBilling(null, "", "model_failure", providerCandidateAvailable);
     const errorMessage = routingMode === "auto"
