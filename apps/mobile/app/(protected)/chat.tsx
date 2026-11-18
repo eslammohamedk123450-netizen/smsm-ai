@@ -483,7 +483,7 @@ export default function ChatPage() {
               conversationId: id,
               userMessageId: savedUserMessageId,
               modelProfileKey: "auto",
-                  executionMode: "chat",
+              executionMode: "chat",
               signal: controller.signal,
               onChunk(text) {
                 streamedTextRef.current += text;

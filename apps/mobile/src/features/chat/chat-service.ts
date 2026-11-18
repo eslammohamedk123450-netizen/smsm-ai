@@ -344,7 +344,7 @@ export const chatService = {
       .eq("id", options.conversationId).eq("user_id", user.id);
     if (updateError) throw new Error("حُفظت رسالتك، لكن تعذر تحديث ترتيب المحادثة.");
 
-    // Basic-chat mode sends all text directly to the selected model; Studio execution is dormant.
+    // Basic-chat mode uses the administrator-managed priority chain; Studio execution is dormant.
 
     const history: ChatRequestBody["messages"] = priorMessages
       .filter((entry): entry is ChatMessage & { role: "user" | "assistant" } => entry.role === "user" || entry.role === "assistant")

@@ -182,7 +182,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
         ) : null}
 
         <View style={styles.composerRow}>
-        <TextInput
+          <TextInput
           ref={inputRef}
           value={text}
           onChangeText={(value) => { setText(value); if (voiceError) setVoiceError(null); }}
