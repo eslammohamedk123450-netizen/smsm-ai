@@ -546,14 +546,19 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 - **Deliverable:** composer interaction matrix and chat send/upload regression report.
 
 ### Phase 4 — Always-available central Agent execution experience
-**Status: 🟡 45% — central routing and durable task services exist; in-chat execution lifecycle integration is now the active phase.**
+**Status: 🟡 75% — durable Agent progress is connected to the unified chat; final regression suite and runtime interaction verification remain pending.**
 
 - ☑️ Preserve one central AI Router / Agent decision authority; do not introduce a second planner.
 - ☑️ Confirm durable task progress and bounded task-history services exist in task-service.ts.
-- ◐ Connect safe, persisted task status to the unified conversation without creating a separate Agent chat or mode.
-- ⬜ Add an expandable in-chat execution card for safe plan summaries, steps, tool activity, results, and status; never expose hidden reasoning.
-- ⬜ Verify server-confirmed cancellation, reconnect/reload recovery, duplicate prevention, and partial/failed task states.
-- ⬜ Verify usage/credit display comes only from authoritative ledger/usage services.
+- ☑️ Render the safe persisted Agent workspace card directly after its owning user message in the same conversation.
+- ☑️ Show bounded plan summaries, execution steps, registered tool activity, and authoritative status only; hidden reasoning, raw tool inputs/results, and private metadata remain excluded by the safe projection.
+- ☑️ Connect the card Stop action to the existing request AbortSignal; ai-router checks the request signal during Agent orchestration and persists the terminal cancelled state.
+- ☑️ Recover progress by conversation after reload and poll while a recovered workspace remains non-terminal.
+- ☑️ Keep credits/usage sourced from the existing authoritative task usage and credit services; the execution card does not fabricate costs.
+- ⏸️ Confirm final Jest regression suite and Web/Android/iOS exports on the latest develop commit; workflow is still running.
+- ⏸️ Complete real-session checks for stop timing, reconnect/reload, duplicate prevention, and partial/failed task presentation.
+- **Implementation commits:** 0c128fb0528a3092f9d7fb86ef0b8717631c34e1; 0ee02eab9cd854b66d33e4e947ec1e89069a259a; 23d06efbda19fd71e91b3fcc9e649c7efa57bef5; 6a126ff6d36d95171af7ba7e038b8e763fb77e43.
+- **CI evidence:** [Edge bundle verification](https://github.com/eslammohamedk123450-netizen/smsm-ai/actions/runs/44287722609); [Agent runtime, TypeScript, Jest, and Expo exports](https://github.com/eslammohamedk123450-netizen/smsm-ai/actions/runs/44287722593).
 - **Deliverable:** task lifecycle, cancellation, reconnect, and safe-rendering tests.
 
 ### Phase 5 — Studio, library, projects, and connected tools
