@@ -8,7 +8,7 @@ import { useAuth } from "../../src/features/auth/auth-provider";
 import { useSulyTheme } from "../../src/theme/ThemeProvider";
 import { useAppLocale } from "../../src/theme/LocaleProvider";
 import type { ThemePalette } from "../../src/theme/colors";
-import { chatService, type ChatMessage, type ChatModel } from "../../src/features/chat/chat-service";
+import { chatService, type ChatMessage } from "../../src/features/chat/chat-service";
 import { getRotatingSuggestions } from "../../src/features/chat/suggestions";
 import { getStudioIntent } from "../../src/features/chat/image-generation";
 import { chatStreamManager } from "../../src/features/chat/chat-stream-manager";
@@ -154,9 +154,6 @@ export default function ChatPage() {
   const routeConversationId = Array.isArray(params.conversationId) ? params.conversationId[0] : params.conversationId;
   const routeProjectId = Array.isArray(params.projectId) ? params.projectId[0] : params.projectId;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [availableModels, setAvailableModels] = useState<ChatModel[]>([]);
-  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
-  const [modelPickerVisible, setModelPickerVisible] = useState(false);
   const [agentProgress, setAgentProgress] = useState<ChatAgentProgress[]>([]);
   const [activeTaskMessageId, setActiveTaskMessageId] = useState<string | null>(null);
   const [cancelPendingMessageId, setCancelPendingMessageId] = useState<string | null>(null);
@@ -181,9 +178,12 @@ export default function ChatPage() {
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const openNavigationDrawer = useNavigationMenu();
   const suggestions = isArabic ? TASK_SUGGESTIONS : TASK_SUGGESTIONS_EN;
-  const selectedModel = availableModels.find((model) => model.id === selectedModelId) ?? null;
   const [connectorApproval, setConnectorApproval] = useState<{ content: string; toolkit: ToolkitStatus["toolkit"]; intent: "read" | "write"; connected: boolean; accountExists: boolean; disabled: boolean; writeApproval: ConnectorWriteApproval | null } | null>(null);
   const closeShareSheet = useCallback(() => setShareVisible(false), []);
+  const startNewConversation = useCallback(() => {
+    if (isSending) return;
+    router.setParams({ conversationId: undefined });
+  }, [isSending, router]);
   const composerRef = useRef<ChatComposerHandle>(null);
   const listRef = useRef<FlatList<ChatMessage>>(null);
   const isNearBottomRef = useRef(true);
@@ -232,16 +232,6 @@ export default function ChatPage() {
   }, [conversationId]);
 
   useEffect(() => { void loadTaskUsage(); }, [loadTaskUsage, messages.length]);
-  useEffect(() => {
-    let active = true;
-    void chatService.getAvailableModels().then((models) => {
-      if (!active) return;
-      const usable = models.filter((model) => model.enabled && model.routingGroup !== "disabled" && model.serviceType === "chat");
-      setAvailableModels(usable);
-      setSelectedModelId((current) => current && usable.some((model) => model.id === current) ? current : usable[0]?.id ?? null);
-    }).catch((cause) => { if (active) setError(cause instanceof Error ? cause.message : "تعذر تحميل النماذج."); });
-    return () => { active = false; };
-  }, []);
   useEffect(() => {
     if (!conversationId) { setTaskRating(null); return; }
     void getTaskRating(conversationId).then((value) => { setTaskRating(value); if (value) { setRatingStars(value.stars); setRatingNote(value.note ?? ""); } }).catch(() => undefined);
@@ -436,7 +426,6 @@ export default function ChatPage() {
           conversationId: conversationKey,
           content,
           modelProfileKey: "auto",
-          modelId: selectedModelId ? Number(selectedModelId) : undefined,
           executionMode: "chat",
           writeApproval,
           mediaAsset: uploadedAsset,
@@ -494,8 +483,7 @@ export default function ChatPage() {
               conversationId: id,
               userMessageId: savedUserMessageId,
               modelProfileKey: "auto",
-              modelId: selectedModelId ? Number(selectedModelId) : undefined,
-              executionMode: "chat",
+                  executionMode: "chat",
               signal: controller.signal,
               onChunk(text) {
                 streamedTextRef.current += text;
@@ -551,7 +539,6 @@ export default function ChatPage() {
         await chatService.retryAssistant({
           ...failed,
           modelProfileKey: "auto",
-          modelId: selectedModelId ? Number(selectedModelId) : undefined,
           executionMode: "chat",
           signal: controller.signal,
           
@@ -680,7 +667,6 @@ export default function ChatPage() {
         conversationId,
         history,
         modelProfileKey: "auto",
-        modelId: selectedModelId ? Number(selectedModelId) : undefined,
         executionMode: "chat",
         signal: controller.signal,
         onChunk(text) {
@@ -727,7 +713,6 @@ export default function ChatPage() {
         conversationId,
         history,
         modelProfileKey: "auto",
-        modelId: selectedModelId ? Number(selectedModelId) : undefined,
         executionMode: "chat",
         signal: controller.signal,
         onChunk(text) {
@@ -785,17 +770,13 @@ export default function ChatPage() {
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : Platform.OS === "android" ? "height" : undefined} keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}>
         <View style={styles.appBar}>
           <Pressable
-            onPress={() => setModelPickerVisible(true)}
-            disabled={availableModels.length === 0}
+            onPress={startNewConversation}
+            disabled={isSending}
             style={styles.headerButton}
             accessibilityRole="button"
-            accessibilityLabel={isArabic ? "اختيار النموذج" : "Select model"}
+            accessibilityLabel={isArabic ? "بدء محادثة جديدة" : "Start a new conversation"}
           >
-            <Image
-              source={require("../../assets/suly-diamond-badge.png")}
-              style={[styles.diamondBadge, { tintColor: colors.textPrimary }]}
-              resizeMode="contain"
-            />
+            <Ionicons name="create-outline" size={22} color={colors.textPrimary} />
           </Pressable>
 
           {messages.length > 0 ? (
@@ -897,15 +878,6 @@ export default function ChatPage() {
         />
       </KeyboardAvoidingView>
       <ShareConversationSheet visible={shareVisible} conversationId={conversationId} title={shareTitle} plainText={shareText} onClose={closeShareSheet} />
-      <BottomSheet visible={modelPickerVisible} title={isArabic ? "اختر النموذج" : "Select model"} onClose={() => setModelPickerVisible(false)}>
-        <View style={{ gap: 8, paddingBottom: 8 }}>
-          {availableModels.length ? availableModels.map((model) => <Pressable key={model.id} onPress={() => { setSelectedModelId(model.id); setModelPickerVisible(false); }} style={[styles.modelPickerOption, selectedModelId === model.id && styles.modelPickerOptionSelected]}>
-            <Ionicons name="hardware-chip-outline" size={20} color={selectedModelId === model.id ? colors.primary : colors.textMuted}/>
-            <View style={styles.modelPickerCopy}><Text style={styles.modelPickerName}>{model.name}</Text><Text style={styles.modelPickerDescription}>{model.provider} · {model.modelIdentifier}</Text></View>
-            {selectedModelId === model.id ? <Ionicons name="checkmark-circle" size={18} color={colors.primary}/> : null}
-          </Pressable>) : <Text style={styles.modelPickerHint}>{isArabic ? "لا توجد نماذج متاحة. أضف مفتاح مزود وفعّل نموذجًا من لوحة الإدارة." : "No models available. Add a provider key and enable a model in Admin."}</Text>}
-        </View>
-      </BottomSheet>
       <BottomSheet visible={usageVisible} title={isArabic ? "إحصائيات المهمة الحالية" : "Current task usage"} onClose={() => setUsageVisible(false)}>
         {usageLoading ? <ActivityIndicator color={colors.primary} /> : taskUsage ? <View style={styles.usageSheet}>
           <Text style={styles.usageTaskTitle}>{taskUsage.taskTitle}</Text>

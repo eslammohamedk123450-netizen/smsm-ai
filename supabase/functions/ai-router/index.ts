@@ -674,8 +674,12 @@ async function handleRequest(req: Request): Promise<Response> {
   const hasExplicitModel = modelId > 0;
   // Basic chat ignores Lite/Pro/Max profile selection completely.
   const requestedProfileKey: string | null = null;
-  // The user-selected model is the only model-selection authority in basic chat.
-  const routingMode = resolveRoutingMode({ requestedMode: body.routing_mode, hasExplicitModel });
+  // Public basic chat always follows the administrator-managed chat priority chain.
+  // Ignore client-supplied model IDs and routing modes; only trusted internal calls
+  // may retain their explicitly requested routing behavior.
+  const routingMode = internalBrainCall
+    ? resolveRoutingMode({ requestedMode: body.routing_mode, hasExplicitModel })
+    : "auto";
   // New clients select Chat or Agent explicitly. Legacy clients remain Agent
   // compatible so existing connected-app requests do not silently lose tools.
   // Public chat requests run as direct chat only. Internal Brain workers retain

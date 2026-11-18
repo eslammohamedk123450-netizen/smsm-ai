@@ -300,7 +300,6 @@ export const chatService = {
     conversationId: string;
     content: string;
     modelProfileKey?: ChatRequestBody["model_profile_key"];
-    modelId?: number;
     executionMode?: ChatRequestBody["execution_mode"];
     writeApproval?: { requestId: string; originalText: string };
     mediaAsset?: MediaAsset;
@@ -358,8 +357,7 @@ export const chatService = {
       media_asset_ids: options.mediaAsset ? [options.mediaAsset.id] : undefined,
       request_id: options.writeApproval?.requestId ?? stableMessageRequestId(String(inserted.id)),
       messages: history,
-      routing_mode: options.modelId ? "manual" : "auto",
-      model_id: options.modelId,
+      routing_mode: "auto",
       model_profile_key: options.modelProfileKey ?? "auto",
       execution_mode: options.executionMode ?? "chat",
       stream: true,
@@ -374,7 +372,6 @@ export const chatService = {
     conversationId: string;
     history: ChatMessage[];
     modelProfileKey?: ChatRequestBody["model_profile_key"];
-    modelId?: number;
     executionMode?: ChatRequestBody["execution_mode"];
     requestId?: string;
     signal: AbortSignal;
@@ -399,8 +396,7 @@ export const chatService = {
       media_asset_ids: latestUser?.attachments?.map((asset) => asset.id),
       request_id: requestId,
       messages,
-      routing_mode: options.modelId ? "manual" : "auto",
-      model_id: options.modelId,
+      routing_mode: "auto",
       model_profile_key: options.modelProfileKey ?? "auto",
       execution_mode: options.executionMode ?? "chat",
       stream: true,
@@ -411,7 +407,6 @@ export const chatService = {
     conversationId: string;
     userMessageId: string;
     modelProfileKey?: ChatRequestBody["model_profile_key"];
-    modelId?: number;
     executionMode?: ChatRequestBody["execution_mode"];
     signal: AbortSignal;
     onChunk(text: string): void;
@@ -427,7 +422,6 @@ export const chatService = {
       history,
       requestId: createRetryRequestId(randomUUID),
       modelProfileKey: options.modelProfileKey,
-      modelId: options.modelId,
       executionMode: options.executionMode,
       signal: options.signal,
       onChunk: options.onChunk,
