@@ -140,7 +140,7 @@ export function ImageStudioScreen() {
       if (invokeError || !data?.success) {
         const status = Number((invokeError as { context?: { status?: number } } | null)?.context?.status ?? 0);
         if (status === 409) setPendingRequest(null);
-        const message = typeof data?.error === "string" ? data.error : "تعذر إنشاء الصورة. حاول مرة أخرى.";
+        const message = typeof data?.error === "string" ? data.error : (isArabic ? "تعذر إنشاء الصورة. حاول مرة أخرى." : "Could not create the image. Please try again.");
         throw new Error(message);
       }
       let mediaId = typeof data.media_id === "string" ? data.media_id : "";
@@ -181,8 +181,12 @@ export function ImageStudioScreen() {
 
   const copyResultLink = async () => {
     if (!result) return;
-    await Clipboard.setStringAsync(result.url);
-    setNotice(isArabic ? "تم نسخ رابط الصورة." : "Image link copied.");
+    try {
+      await Clipboard.setStringAsync(result.url);
+      setNotice(isArabic ? "تم نسخ رابط الصورة." : "Image link copied.");
+    } catch {
+      setError(isArabic ? "تعذر نسخ الرابط. حاول مرة أخرى." : "Could not copy the link. Please try again.");
+    }
   };
 
   const startConversationAboutImage = async () => {
@@ -238,20 +242,20 @@ export function ImageStudioScreen() {
 
     <View style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 16, padding: 14, gap: 10 }}>
       <Text style={{ color: colors.textPrimary, textAlign, fontWeight: "800" }}>{isArabic ? "١. اختر نموذج الصور" : "1. Choose an image model"}</Text>
-      {loading ? <ActivityIndicator color={colors.primary} /> : models.length === 0 ? <Text style={{ color: colors.textMuted, textAlign }}>{isArabic ? "لا يوجد نموذج صور متاح حاليًا لاشتراكك. سيظهر النموذج هنا بعد ربطه وتفعيله من لوحة الإدارة." : "No image model is currently available for your plan. A model will appear here after it is connected and enabled in the admin panel."}</Text> : models.map((model) => <Pressable key={model.id} onPress={() => setSelectedModelId(model.id)} style={{ borderWidth: 1, borderColor: selectedModelId === model.id ? colors.primary : colors.divider, backgroundColor: selectedModelId === model.id ? colors.surfaceElevated : colors.cardBackground, borderRadius: 12, padding: 12, gap: 3 }}>
+      {loading ? <ActivityIndicator color={colors.primary} /> : models.length === 0 ? <Text style={{ color: colors.textMuted, textAlign }}>{isArabic ? "لا يوجد نموذج صور متاح حاليًا لاشتراكك. سيظهر النموذج هنا بعد ربطه وتفعيله من لوحة الإدارة." : "No image model is currently available for your plan. A model will appear here after it is connected and enabled in the admin panel."}</Text> : models.map((model) => <Pressable key={model.id} accessibilityRole="button" accessibilityState={{ selected: selectedModelId === model.id }} onPress={() => setSelectedModelId(model.id)} style={{ borderWidth: 1, borderColor: selectedModelId === model.id ? colors.primary : colors.divider, backgroundColor: selectedModelId === model.id ? colors.surfaceElevated : colors.cardBackground, borderRadius: 12, padding: 12, gap: 3 }}>
         <Text style={{ color: selectedModelId === model.id ? colors.primary : colors.textPrimary, textAlign, fontWeight: "800" }}>{model.display_name} {model.is_default ? (isArabic ? "· موصى به" : "· Recommended") : ""}</Text>
         <Text style={{ color: colors.textMuted, textAlign, fontSize: 10 }}>{isArabic ? "نموذج SULY للصور" : "SULY image model"}</Text>
       </Pressable>)}
 
       <Text style={{ color: colors.textPrimary, textAlign, fontWeight: "800" }}>{isArabic ? "٢. جودة الصورة" : "2. Image quality"}</Text>
       <View style={{ flexDirection: rowDirection, flexWrap: "wrap", gap: 7 }}>
-        {availableQualities.map((item) => <Pressable key={item} onPress={() => setQuality(item)} style={{ borderWidth: 1, borderColor: effectiveQuality === item ? colors.primary : colors.divider, borderRadius: 20, paddingHorizontal: 13, paddingVertical: 8, backgroundColor: effectiveQuality === item ? colors.surfaceElevated : colors.surface }}>
+        {availableQualities.map((item) => <Pressable key={item} accessibilityRole="button" accessibilityState={{ selected: effectiveQuality === item }} onPress={() => setQuality(item)} style={{ borderWidth: 1, borderColor: effectiveQuality === item ? colors.primary : colors.divider, borderRadius: 20, paddingHorizontal: 13, paddingVertical: 8, backgroundColor: effectiveQuality === item ? colors.surfaceElevated : colors.surface }}>
           <Text style={{ color: effectiveQuality === item ? colors.primary : colors.textSecondary, fontSize: 11, fontWeight: "700" }}>{qualityLabel(item)}</Text>
         </Pressable>)}
       </View>
 
       <Text style={{ color: colors.textPrimary, textAlign, fontWeight: "800" }}>{isArabic ? "٣. وصف الصورة" : "3. Describe your image"}</Text>
-      <TextInput value={prompt} onChangeText={setPrompt} placeholder={isArabic ? "اكتب وصفًا واضحًا للصورة التي تريد إنشاءها..." : "Describe the image you want to create clearly…"} placeholderTextColor={colors.textMuted} multiline maxLength={2048} textAlignVertical="top" style={{ minHeight: 125, color: colors.textPrimary, backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, borderWidth: 1, borderRadius: 12, padding: 12, textAlign }} />
+      <TextInput accessibilityLabel={isArabic ? "وصف الصورة" : "Image description"} value={prompt} onChangeText={setPrompt} placeholder={isArabic ? "اكتب وصفًا واضحًا للصورة التي تريد إنشاءها..." : "Describe the image you want to create clearly…"} placeholderTextColor={colors.textMuted} multiline maxLength={2048} textAlignVertical="top" style={{ minHeight: 125, color: colors.textPrimary, backgroundColor: colors.inputBackground, borderColor: colors.inputBorder, borderWidth: 1, borderRadius: 12, padding: 12, textAlign }} />
       <Text style={{ color: colors.textMuted, textAlign, fontSize: 10, lineHeight: 17 }}>{isArabic ? "كلما كان وصفك أدق في تحديد العناصر والألوان والأسلوب والتكوين، ساعد ذلك على الوصول إلى نتيجة أفضل." : "A more precise description of the objects, colors, style, and composition can help produce a better result."}</Text>
 
       <View style={{ borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 10, gap: 6 }}>
@@ -259,7 +263,7 @@ export function ImageStudioScreen() {
         <View style={{ flexDirection: rowDirection, justifyContent: "space-between" }}><Text style={{ color: colors.textSecondary }}>{isArabic ? "رصيدك الحالي" : "Current balance"}</Text><Text style={{ color: colors.textPrimary, fontWeight: "700" }}>{balance === null ? "—" : balance.toLocaleString(locale)}</Text></View>
         <View style={{ flexDirection: rowDirection, justifyContent: "space-between" }}><Text style={{ color: colors.textSecondary }}>{isArabic ? "الرصيد بعد الحجز" : "Balance after reservation"}</Text><Text style={{ color: remainingAfterReserve !== null && remainingAfterReserve < 0 ? colors.error : colors.textPrimary, fontWeight: "700" }}>{remainingAfterReserve === null ? "—" : remainingAfterReserve.toLocaleString(locale)}</Text></View>
       </View>
-      <Pressable disabled={!canGenerate} onPress={() => void generate()} style={{ backgroundColor: colors.primary, borderRadius: 12, padding: 14, opacity: canGenerate ? 1 : 0.45, alignItems: "center" }}>
+      <Pressable accessibilityRole="button" accessibilityState={{ disabled: !canGenerate }} disabled={!canGenerate} onPress={() => void generate()} style={{ backgroundColor: colors.primary, borderRadius: 12, padding: 14, opacity: canGenerate ? 1 : 0.45, alignItems: "center" }}>
         <Text style={{ color: colors.onPrimary, fontWeight: "900" }}>{generating ? (isArabic ? "جاري تجهيز طلبك…" : "Preparing your request…") : result ? (isArabic ? "إعادة توليد الصورة" : "Generate again") : (isArabic ? "تأكيد وإنشاء الصورة" : "Confirm and generate")}</Text>
       </Pressable>
       <Text style={{ color: colors.textMuted, textAlign, fontSize: 10, lineHeight: 17 }}>{isArabic ? "قد يسمح النظام ببدء المهمة ضمن حد الرصيد السالب الذي يحدده المشرف. سيتم التحقق من الحد الفعلي عند تأكيد الطلب." : "The system may allow a task within the negative-credit limit configured by an administrator. The actual limit is checked when you confirm."}</Text>
@@ -277,10 +281,10 @@ export function ImageStudioScreen() {
       <Text style={{ color: colors.textSecondary, textAlign: "right", fontSize: 10 }}>{result.modelName} · {qualityLabel(result.quality)} · {result.credits} Credits</Text>
       {result.billingStatus === "pending_reconciliation" ? <Text style={{ color: colors.warning, textAlign, fontSize: 10 }}>{isArabic ? "تسوية الرصيد قيد المراجعة" : "Credit reconciliation is under review"}</Text> : null}
       <View style={{ flexDirection: rowDirection, flexWrap: "wrap", gap: 8 }}>
-        <Pressable onPress={() => void Linking.openURL(result.url)} style={{ borderWidth: 1, borderColor: colors.divider, borderRadius: 9, padding: 10 }}><Text style={{ color: colors.textPrimary, fontSize: 11 }}>{isArabic ? "فتح / تنزيل الصورة" : "Open / download image"}</Text></Pressable>
-        <Pressable onPress={() => void copyResultLink()} style={{ borderWidth: 1, borderColor: colors.divider, borderRadius: 9, padding: 10 }}><Text style={{ color: colors.textPrimary, fontSize: 11 }}>{isArabic ? "نسخ رابط الصورة" : "Copy image link"}</Text></Pressable>
-        <Pressable onPress={() => router.push("/(protected)/media")} style={{ borderWidth: 1, borderColor: colors.divider, borderRadius: 9, padding: 10 }}><Text style={{ color: colors.textPrimary, fontSize: 11 }}>{isArabic ? "فتح مكتبتي" : "Open Library"}</Text></Pressable>
-        <Pressable disabled={openingChat} onPress={() => void startConversationAboutImage()} style={{ backgroundColor: colors.primary, borderRadius: 9, padding: 10, opacity: openingChat ? 0.55 : 1 }}><Text style={{ color: colors.onPrimary, fontSize: 11, fontWeight: "800" }}>{openingChat ? (isArabic ? "جارٍ بدء المحادثة…" : "Starting chat…") : (isArabic ? "ابدأ محادثة عنها" : "Start a chat about it")}</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "فتح أو تنزيل الصورة" : "Open or download image"} onPress={() => void Linking.openURL(result.url)} style={{ borderWidth: 1, borderColor: colors.divider, borderRadius: 9, padding: 10 }}><Text style={{ color: colors.textPrimary, fontSize: 11 }}>{isArabic ? "فتح / تنزيل الصورة" : "Open / download image"}</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "نسخ رابط الصورة" : "Copy image link"} onPress={() => void copyResultLink()} style={{ borderWidth: 1, borderColor: colors.divider, borderRadius: 9, padding: 10 }}><Text style={{ color: colors.textPrimary, fontSize: 11 }}>{isArabic ? "نسخ رابط الصورة" : "Copy image link"}</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "فتح مكتبتي" : "Open Library"} onPress={() => router.push("/(protected)/media")} style={{ borderWidth: 1, borderColor: colors.divider, borderRadius: 9, padding: 10 }}><Text style={{ color: colors.textPrimary, fontSize: 11 }}>{isArabic ? "فتح مكتبتي" : "Open Library"}</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "ابدأ محادثة حول الصورة" : "Start a chat about this image"} disabled={openingChat} onPress={() => void startConversationAboutImage()} style={{ backgroundColor: colors.primary, borderRadius: 9, padding: 10, opacity: openingChat ? 0.55 : 1 }}><Text style={{ color: colors.onPrimary, fontSize: 11, fontWeight: "800" }}>{openingChat ? (isArabic ? "جارٍ بدء المحادثة…" : "Starting chat…") : (isArabic ? "ابدأ محادثة عنها" : "Start a chat about it")}</Text></Pressable>
       </View>
     </Animated.View> : null}
   </ScrollView>;
