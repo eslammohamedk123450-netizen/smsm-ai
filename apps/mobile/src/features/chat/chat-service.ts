@@ -304,6 +304,7 @@ export const chatService = {
     mediaAsset?: MediaAsset;
     signal: AbortSignal;
     onUserSaved(message: ChatMessage): void | Promise<void>;
+    onRequestId?(requestId: string): void;
     onChunk(text: string): void;
     onModelInfo?(identifier: string): void;
     onTaskUpdate?(task: { task: string; status: "pending" | "running" | "completed" | "failed" }): void;
@@ -364,6 +365,7 @@ export const chatService = {
       connector_approval_request_id: options.writeApproval?.requestId,
       connector_approval_original_text: options.writeApproval?.originalText,
     };
+    options.onRequestId?.(requestBody.request_id!);
     await chatStreamManager.start(requestBody, { onChunk: options.onChunk, onModelInfo: options.onModelInfo, onTaskUpdate: options.onTaskUpdate, onDone() {} }, options.signal);
   },
 
@@ -377,6 +379,7 @@ export const chatService = {
     onChunk(text: string): void;
     onModelInfo?(identifier: string): void;
     onTaskUpdate?(task: { task: string; status: "pending" | "running" | "completed" | "failed" }): void;
+    onRequestId?(requestId: string): void;
   }): Promise<void> {
     const messages: ChatRequestBody["messages"] = options.history
       .filter((entry): entry is ChatMessage & { role: "user" | "assistant" } => entry.role === "user" || entry.role === "assistant")
@@ -386,11 +389,13 @@ export const chatService = {
       throw new Error("لا توجد رسالة مستخدم لإعادة توليد الرد عليها.");
     }
     const latestUser = [...options.history].reverse().find((entry) => entry.role === "user");
+    const requestId = options.requestId ?? randomUUID();
+    options.onRequestId?.(requestId);
     await chatStreamManager.start({
       conversation_id: options.conversationId,
       user_message_id: latestUser?.id,
       media_asset_ids: latestUser?.attachments?.map((asset) => asset.id),
-      request_id: options.requestId ?? randomUUID(),
+      request_id: requestId,
       messages,
       routing_mode: "auto",
       model_profile_key: options.modelProfileKey ?? "auto",
@@ -408,6 +413,7 @@ export const chatService = {
     onChunk(text: string): void;
     onModelInfo?(identifier: string): void;
     onTaskUpdate?(task: { task: string; status: "pending" | "running" | "completed" | "failed" }): void;
+    onRequestId?(requestId: string): void;
   }): Promise<void> {
     const savedMessages = await this.getMessages(options.conversationId);
     const targetUserMessage = savedMessages.find((message) => message.id === options.userMessageId && message.role === "user");
@@ -423,6 +429,7 @@ export const chatService = {
       onChunk: options.onChunk,
       onModelInfo: options.onModelInfo,
       onTaskUpdate: options.onTaskUpdate,
+      onRequestId: options.onRequestId,
     });
   },
 
