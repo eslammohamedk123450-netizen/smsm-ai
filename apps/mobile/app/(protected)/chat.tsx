@@ -26,6 +26,8 @@ import { supabase } from "../../src/lib/supabase/client";
 import { integrationService, type ToolkitStatus } from "../../src/features/integrations/integration-service";
 import { randomUUID } from "expo-crypto";
 import { useNavigationMenu } from "../../src/components/navigation/MainNavigation";
+import { AgentExecutionCard } from "../../src/features/chat/components/AgentExecutionCard";
+import { listConversationAgentProgress, type ChatAgentProgress } from "../../src/features/brain/task-service";
 
 const STREAMING_ID = "local-streaming-assistant";
 const TASK_SUGGESTIONS = getRotatingSuggestions(Date.now(), 4);
@@ -112,6 +114,7 @@ export default function ChatPage() {
   const routeConversationId = Array.isArray(params.conversationId) ? params.conversationId[0] : params.conversationId;
   const routeProjectId = Array.isArray(params.projectId) ? params.projectId[0] : params.projectId;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [agentProgress, setAgentProgress] = useState<ChatAgentProgress[]>([]);
   const [responseIndexByUser, setResponseIndexByUser] = useState<Record<string, number>>({});
   const [conversationId, setConversationId] = useState<string | null>(routeConversationId || null);
   const [isSending, setIsSending] = useState(false);
@@ -256,6 +259,34 @@ export default function ChatPage() {
     setMessages(saved);
     try { setFeedbackByMessage(await chatService.getMessageFeedback(saved.map((message) => message.id))); } catch { setFeedbackByMessage({}); }
   }, []);
+
+  const refreshAgentProgress = useCallback(async (id: string) => {
+    try {
+      const progress = await listConversationAgentProgress(id);
+      setAgentProgress(progress);
+    } catch {
+      // Progress is supplemental; a temporary read failure must not break chat.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!conversationId) { setAgentProgress([]); return; }
+    let active = true;
+    const refresh = async () => {
+      try {
+        const progress = await listConversationAgentProgress(conversationId);
+        if (active) setAgentProgress(progress);
+      } catch {
+        // Keep the last owner-visible snapshot during transient network failures.
+      }
+    };
+    void refresh();
+    if (isSending) {
+      const interval = setInterval(() => { void refresh(); }, 2000);
+      return () => { active = false; clearInterval(interval); };
+    }
+    return () => { active = false; };
+  }, [conversationId, isSending]);
 
   useEffect(() => {
     if (!conversationId) return;
@@ -669,7 +700,10 @@ export default function ChatPage() {
     }
   };
 
-  const renderMessage = ({ item }: { item: DisplayMessage }) => (
+  const renderMessage = ({ item }: { item: DisplayMessage }) => {
+    const execution = item.role === "user" ? agentProgress.find((progress) => progress.userMessageId === item.id) : undefined;
+    return (
+      <View>
     <MessageBubble
       messageId={item.id}
       role={item.role === "user" ? "user" : "assistant"}
@@ -687,7 +721,10 @@ export default function ChatPage() {
       onEditSave={item.role === "user" ? (content) => editMessageAndRegenerate(item.id, content) : undefined}
       onFeedback={item.role === "assistant" && item.status !== "streaming" ? (value) => updateFeedback(item.id, value) : undefined}
     />
-  );
+    {execution ? <AgentExecutionCard progress={execution} /> : null}
+      </View>
+    );
+  };
 
   const shareTitle = messages.find((message) => message.role === "user")?.content.slice(0, 48) || (isArabic ? "محادثة Suly" : "SULY conversation");
 
