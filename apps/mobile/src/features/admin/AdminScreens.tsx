@@ -302,7 +302,7 @@ export function ProvidersAdminScreen() {
         <Link href="/admin/models" asChild><Pressable style={styles.providerExpandAction}><Text style={styles.link}>عرض كل النماذج وإدارتها</Text></Pressable></Link>
         <View style={styles.rowWrap}>
           <PrimaryButton label={busyId === provider.id ? "جارٍ التنفيذ…" : "مزامنة نماذج هذا المفتاح"} onPress={() => void syncProvider(provider)} disabled={busyId !== null} />
-          <PrimaryButton label={provider.enabled ? "إيقاف هذا المفتاح ونماذجه" : "تفعيل هذا المفتاح ونماذجه"} onPress={() => void toggleProvider(provider)} disabled={busyId !== null || testingModelId !== null} />
+          <PrimaryButton label={provider.enabled ? "إيقاف هذا المفتاح ونماذجه" : "تفعيل هذا المفتاح ونماذجه"} onPress={() => void toggleProvider(provider)} disabled={busyId !== null} />
         </View>
       </Card>;
     })}
@@ -333,7 +333,7 @@ export function ProvidersAdminScreen() {
                   } catch (cause) { setError(cause instanceof Error ? cause.message : "تعذرت استعادة المفتاح."); }
                   finally { setBusyId(null); }
                 })()}
-                disabled={busyId !== null || testingModelId !== null}
+                disabled={busyId !== null}
               />
             </View>)
       ) : null}
@@ -546,7 +546,7 @@ export function ModelsAdminScreen({ showPricing = true }: { showPricing?: boolea
           </> : null}
         </View>}
         ListEmptyComponent={loading ? <ActivityIndicator color={colors.primary} style={styles.listLoading} /> : <Card><Text style={styles.emptyIcon}>⌕</Text><Text style={styles.detail}>لا توجد نماذج تطابق البحث أو عامل التصفية المحدد.</Text></Card>}
-        ListFooterComponent={showPricing ? <View style={{ paddingTop: 14 }}><ModelPricingAdminCard /></View> : null}
+        ListFooterComponent={showPricing ? <View style={{ paddingTop: 14 }}><ModelPricingAdminCard /></View> : undefined}
         renderItem={({ item: model }) => {
           const providerIsOff = model.provider_enabled === false;
           const isManuallyOff = !model.enabled || model.routing_group === "disabled";
