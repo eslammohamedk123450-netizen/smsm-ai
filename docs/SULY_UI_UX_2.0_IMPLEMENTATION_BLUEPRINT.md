@@ -527,15 +527,18 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 - **Deliverable:** responsive navigation implementation and CI-verified type safety; rendered screenshots remain in Phase 7.
 
 ### Phase 3 — Unified chat shell and composer
-**Status: ◐ 55% — chat, attachment, voice, and automatic request foundations exist; target composer layout is not complete.**
+**Status: 🟡 65% — composer control separation and automatic-mode presentation implemented on develop; source cleanup, interaction review, and regression checks remain.**
 
 - ☑️ Confirm chat uses one chronological conversation stream and existing send/retry/regenerate services.
 - ☑️ Confirm send/retry/regenerate requests use automatic model profile and execution mode values in the inspected chat route.
-- ☑️ Confirm an attachment sheet and microphone/speech-recognition handling exist in ChatComposer.
-- ◐ Align the composer to the approved order: plus/connectors, paperclip/attachments, input, microphone, send/stop.
-- ⬜ Verify plus opens connectors and paperclip exclusively opens supported media attachments, with real loading/error/success states.
-- ⬜ Remove any remaining user-facing model/profile selector artifacts and stale UI state/styles after source-wide reference checks.
+- ☑️ Confirm the attachment sheet and permission-aware microphone/speech-recognition handling exist in ChatComposer.
+- ☑️ Wire the far-right plus action to the existing connectors/tools sheet through MainNavigation's plus-menu context.
+- ☑️ Add a separate paperclip control that opens only the supported attachment sheet; the two actions are no longer conflated.
+- ☑️ Preserve the flexible 42–132 px multiline input and microphone/send controls; replace the streaming spinner-only control with a labeled Stop action using the existing cancellation callback.
+- ◐ Verify exact RTL/LTR visual ordering, touch targets, disabled states, and composer wrapping on real viewport sizes.
+- ⬜ Remove remaining legacy user-facing model/profile selector types, defaults, and stale styles after source-wide reference checks; do not touch admin model governance.
 - ⬜ Run Arabic/English send, attachment, voice permission, cancellation, retry, and draft-preservation tests.
+- **Changed file:** apps/mobile/src/features/chat/components/ChatComposer.tsx.
 - **Deliverable:** composer interaction matrix and chat send/upload regression report.
 
 ### Phase 4 — Always-available central Agent execution experience
