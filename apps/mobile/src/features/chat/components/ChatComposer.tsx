@@ -181,7 +181,8 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
           </View>
         ) : null}
 
-        <TextInput
+        <View style={styles.composerRow}>
+          <TextInput
           ref={inputRef}
           value={text}
           onChangeText={(value) => { setText(value); if (voiceError) setVoiceError(null); }}
@@ -199,7 +200,16 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
           selectionColor={colors.primary}
           underlineColorAndroid="transparent"
           keyboardAppearance="dark"
-          style={[styles.input, { height: inputHeight }]}
+          style={[
+            styles.input,
+            Platform.OS === "web" ? ({
+              outlineStyle: "none",
+              outlineWidth: 0,
+              boxShadow: "none",
+              appearance: "none",
+            } as any) : null,
+            { height: inputHeight },
+          ]}
           multiline
           scrollEnabled={inputHeight >= MAX_INPUT_HEIGHT}
           maxLength={16000}
@@ -273,6 +283,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
             <Ionicons name="add" size={24} color={colors.onPrimary} />
           </TouchableOpacity>
         </View>
+        </View>
       </View>
 
       <AttachSheet visible={attachVisible} onClose={() => setAttachVisible(false)} onPicked={setAttachment} />
@@ -303,18 +314,26 @@ const createStyles = (colors: ThemePalette, isArabic: boolean, canvasBackground:
   voiceListening: { color: colors.textSecondary, fontSize: 10, lineHeight: 15, textAlign: isArabic ? "right" : "left", paddingHorizontal: 4, marginBottom: 5 },
   controlDisabled: { opacity: 0.45 },
   container: {
-    minHeight: 96,
-    paddingHorizontal: 14,
-    paddingTop: 8,
-    paddingBottom: 8,
+    minHeight: 56,
+    paddingHorizontal: 10,
+    paddingTop: 7,
+    paddingBottom: 7,
     borderRadius: 22,
     borderWidth: 1,
     borderColor: colors.background === "#0A0A0A" ? "#262626" : colors.inputBorder,
     backgroundColor: colors.surface,
-    justifyContent: "space-between",
-    gap: 3,
+    justifyContent: "center",
+    gap: 4,
+  },
+  composerRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 8,
+    width: "100%",
   },
   input: {
+    flex: 1,
+    minWidth: 0,
     width: "100%",
     minHeight: MIN_INPUT_HEIGHT,
     maxHeight: MAX_INPUT_HEIGHT,
@@ -331,11 +350,13 @@ const createStyles = (colors: ThemePalette, isArabic: boolean, canvasBackground:
     writingDirection: isArabic ? "rtl" : "ltr",
   },
   actionsRow: {
+    width: 122,
+    flexShrink: 0,
     flexDirection: "row",
     direction: "ltr",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingTop: 4,
+    paddingTop: 0,
   },
   leftControls: {
     flexDirection: "row",
