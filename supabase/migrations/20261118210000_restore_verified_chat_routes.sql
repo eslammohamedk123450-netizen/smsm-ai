@@ -17,7 +17,8 @@ begin
    and e.provider_test_status = 'passed'
    and e.suly_test_status <> 'failed'
   left join public.ai_model_health h on h.model_id = m.id
-  where m.id in (2306, 2311)
+  where m.model_identifier in ('gpt-4.1-mini', 'gemini-3.8-flash')
+    and p.base_url = 'https://soal.help/api/v1'
     and m.enabled is true
     and p.enabled is true
     and m.routing_group = 'free_race'
@@ -50,9 +51,16 @@ end $$;
 -- Planner/worker/reviewer/summarizer routes are intentionally unchanged.
 insert into public.ai_route_model_assignments
   (route_role, model_id, priority, enabled, updated_at)
-values
-  ('chat', 2306, 1, true, now()),
-  ('chat', 2311, 2, true, now())
+select
+  'chat',
+  m.id,
+  case m.model_identifier when 'gpt-4.1-mini' then 1 else 2 end,
+  true,
+  now()
+from public.ai_models m
+join public.ai_providers p on p.id = m.provider_id
+where m.model_identifier in ('gpt-4.1-mini', 'gemini-3.8-flash')
+  and p.base_url = 'https://soal.help/api/v1'
 on conflict (route_role, model_id)
 do update set
   priority = excluded.priority,
