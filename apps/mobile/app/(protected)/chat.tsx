@@ -145,71 +145,6 @@ export default function ChatPage() {
   const [ratingNote, setRatingNote] = useState("");
   const [ratingSaving, setRatingSaving] = useState(false);
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
-  // The selected profile is screen-local; the server revalidates subscription eligibility on every request.
-  const [selectedModelProfile, setSelectedModelProfile] = useState<SulyModelProfileKey>("lite");
-  const [isAgentMode, setIsAgentMode] = useState(false);
-  const [currentSubscriptionTier, setCurrentSubscriptionTier] = useState("free");
-  const [modelProfileOptions, setModelProfileOptions] = useState<SulyModelProfileOption[]>([]);
-  const [modelProfileLoading, setModelProfileLoading] = useState(false);
-  const [modelProfileMenuVisible, setModelProfileMenuVisible] = useState(false);
-  useEffect(() => {
-    let active = true;
-    if (!user?.id) {
-      setCurrentSubscriptionTier("free");
-      setModelProfileOptions(DEFAULT_MODEL_PROFILE_OPTIONS);
-      setModelProfileLoading(false);
-      setSelectedModelProfile("lite");
-      return () => { active = false; };
-    }
-    setModelProfileLoading(true);
-    void (async () => {
-      try {
-        const [{ data: tier, error: tierError }, { data: profiles, error: profilesError }] = await Promise.all([
-          supabase.rpc("suly_effective_subscription_tier", { p_user_id: user.id }),
-          supabase.from("suly_model_profiles")
-            .select("profile_key,display_name,tagline,is_active")
-            .order("sort_order", { ascending: true }),
-        ]);
-        if (tierError || profilesError || typeof tier !== "string") throw new Error("profile catalog unavailable");
-        if (!active) return;
-        const normalizedTier = tier.toLowerCase();
-        setCurrentSubscriptionTier(normalizedTier);
-        const configuredProfiles = (profiles ?? []) as SulyModelProfileOption[];
-        const mergedProfiles = [
-          ...DEFAULT_MODEL_PROFILE_OPTIONS.map((fallback) => (
-            configuredProfiles.find((profile) => profile.profile_key === fallback.profile_key) ?? fallback
-          )),
-          // Keep newly configured profiles (including SULY X) from the database;
-          // do not resurrect retired, hard-coded fallback placeholders.
-          ...configuredProfiles.filter((profile) => !DEFAULT_MODEL_PROFILE_OPTIONS.some((fallback) => fallback.profile_key === profile.profile_key)),
-        ];
-        setModelProfileOptions(mergedProfiles);
-        setSelectedModelProfile((current) => mergedProfiles.some((item) => item.profile_key === current && item.is_active) ? current : "lite");
-      } catch {
-        if (active) {
-          setCurrentSubscriptionTier("free");
-          setModelProfileOptions(DEFAULT_MODEL_PROFILE_OPTIONS);
-          setSelectedModelProfile("lite");
-        }
-      } finally {
-        if (active) setModelProfileLoading(false);
-      }
-    })();
-    return () => { active = false; };
-  }, [user?.id]);
-
-  const selectedProfileLabel = `SULY ${selectedModelProfile === "lite" ? "Lite" : selectedModelProfile === "pro" ? "Pro" : selectedModelProfile === "max" ? "Max" : "X"}`;
-
-  const chooseModelProfile = (profile: SulyModelProfileOption) => {
-    if (!profile.is_active) {
-      setModelProfileMenuVisible(false);
-      show(isArabic ? "هذا المستوى غير مفعّل حاليًا." : "This model profile is not active yet.", "info");
-      return;
-    }
-    setSelectedModelProfile(profile.profile_key);
-    setModelProfileMenuVisible(false);
-  };
-
   const openNavigationDrawer = useNavigationMenu();
   const suggestions = isArabic ? TASK_SUGGESTIONS : TASK_SUGGESTIONS_EN;
   const [connectorApproval, setConnectorApproval] = useState<{ content: string; toolkit: ToolkitStatus["toolkit"]; intent: "read" | "write"; connected: boolean; accountExists: boolean; disabled: boolean; writeApproval: ConnectorWriteApproval | null } | null>(null);
@@ -409,8 +344,8 @@ export default function ChatPage() {
         await chatService.sendMessage({
           conversationId: conversationKey,
           content,
-          modelProfileKey: selectedModelProfile,
-          executionMode: isAgentMode ? "agent" : "chat",
+          modelProfileKey: "auto",
+          executionMode: "auto",
           writeApproval,
           mediaAsset: uploadedAsset,
           signal: controller.signal,
@@ -465,8 +400,8 @@ export default function ChatPage() {
             await chatService.retryAssistant({
               conversationId: id,
               userMessageId: savedUserMessageId,
-              modelProfileKey: selectedModelProfile,
-              executionMode: isAgentMode ? "agent" : "chat",
+              modelProfileKey: "auto",
+              executionMode: "auto",
               signal: controller.signal,
               onChunk(text) {
                 streamedTextRef.current += text;
@@ -518,8 +453,8 @@ export default function ChatPage() {
       try {
         await chatService.retryAssistant({
           ...failed,
-          modelProfileKey: selectedModelProfile,
-          executionMode: isAgentMode ? "agent" : "chat",
+          modelProfileKey: "auto",
+          executionMode: "auto",
           signal: controller.signal,
           
           onChunk(text) {
@@ -683,8 +618,8 @@ export default function ChatPage() {
       await chatService.regenerateAssistant({
         conversationId,
         history,
-        modelProfileKey: selectedModelProfile,
-        executionMode: isAgentMode ? "agent" : "chat",
+        modelProfileKey: "auto",
+        executionMode: "auto",
         signal: controller.signal,
         onChunk(text) {
           streamedTextRef.current += text;
@@ -726,8 +661,8 @@ export default function ChatPage() {
       await chatService.regenerateAssistant({
         conversationId,
         history,
-        modelProfileKey: selectedModelProfile,
-        executionMode: isAgentMode ? "agent" : "chat",
+        modelProfileKey: "auto",
+        executionMode: "auto",
         signal: controller.signal,
         onChunk(text) {
           setMessages((current) => {
@@ -758,7 +693,6 @@ export default function ChatPage() {
       generationState={item.generationState}
       studioIntent={item.role === "user" ? getStudioIntent(item.content) : null}
       onOpenStudio={() => router.push("/studio")}
-      onEnableAgent={() => { setIsAgentMode(true); show(isArabic ? "تم تفعيل وضع الوكيل. اكتب «ابدأ» للمتابعة." : "Agent mode is on. Type “start” to continue.", "success"); }}
       feedback={feedbackByMessage[item.id] ?? null}
       edited={Boolean(item.editedAt)}
       responseVariants={item.responseVariants}
@@ -782,6 +716,18 @@ export default function ChatPage() {
           </Pressable>
 
           <View style={styles.headerActions}>
+            {isAdmin ? (
+              <TouchableOpacity
+                onPress={() => router.push("/admin")}
+                style={styles.adminShortcut}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={isArabic ? "فتح لوحة الأدمن" : "Open admin dashboard"}
+              >
+                <Ionicons name="shield-checkmark-outline" size={16} color={colors.primary} />
+                <Text style={styles.adminShortcutText}>{isArabic ? "الأدمن" : "Admin"}</Text>
+              </TouchableOpacity>
+            ) : null}
             {creditBalance !== null ? (
               <TouchableOpacity onPress={() => router.push("/(protected)/balance")} style={styles.creditPill} accessibilityRole="button" accessibilityLabel={isArabic ? "رصيد Suly" : "SULY credits"}>
                 <Ionicons name="flash-outline" size={14} color={colors.textSecondary} />
@@ -849,34 +795,8 @@ export default function ChatPage() {
           disabled={isSending || Boolean(connectorApproval)}
           isStreaming={isSending}
           onCancel={() => abortRef.current?.abort()}
-          isAgentMode={isAgentMode}
-          onToggleAgent={() => setIsAgentMode((current) => !current)}
-          modelLabel={selectedProfileLabel}
-          onOpenModelPicker={() => setModelProfileMenuVisible(true)}
-          modelPickerDisabled={isSending || Boolean(retryFailure)}
         />
       </KeyboardAvoidingView>
-      <BottomSheet visible={modelProfileMenuVisible} title={isArabic ? "اختر مستوى SULY" : "Choose a SULY model"} onClose={() => setModelProfileMenuVisible(false)}>
-        <View style={styles.modelProfileOptions}>
-          {modelProfileOptions.map((profile) => (
-            <Pressable
-              key={profile.profile_key}
-              onPress={() => chooseModelProfile(profile)}
-              style={[styles.modelPickerOption, selectedModelProfile === profile.profile_key && styles.modelPickerOptionSelected, !profile.is_active && styles.modelPickerOptionDisabled]}
-              accessibilityRole="button"
-              accessibilityState={{ selected: selectedModelProfile === profile.profile_key, disabled: !profile.is_active }}
-            >
-              <View style={styles.modelPickerCopy}>
-                <Text style={styles.modelPickerName}>SULY {profile.profile_key === "lite" ? "Lite" : profile.profile_key === "pro" ? "Pro" : profile.profile_key === "max" ? "Max" : "X"}</Text>
-                <Text style={styles.modelPickerDescription}>{profile.tagline || profile.display_name}</Text>
-              </View>
-              {selectedModelProfile === profile.profile_key ? <Ionicons name="checkmark-circle" size={19} color={colors.primary} /> : null}
-              {!profile.is_active ? <Ionicons name="lock-closed-outline" size={16} color={colors.textMuted} /> : null}
-            </Pressable>
-          ))}
-          {modelProfileLoading ? <Text style={styles.modelPickerHint}>{isArabic ? "جارٍ تحميل المستويات…" : "Loading profiles…"}</Text> : null}
-        </View>
-      </BottomSheet>
       <ShareConversationSheet visible={shareVisible} conversationId={conversationId} title={shareTitle} plainText={shareText} onClose={closeShareSheet} />
       <BottomSheet visible={usageVisible} title={isArabic ? "إحصائيات المهمة الحالية" : "Current task usage"} onClose={() => setUsageVisible(false)}>
         {usageLoading ? <ActivityIndicator color={colors.primary} /> : taskUsage ? <View style={styles.usageSheet}>

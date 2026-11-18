@@ -20,7 +20,6 @@ export interface MessageBubbleProps {
   generationState?: "pending" | "failed";
   studioIntent?: StudioIntent | null;
   onOpenStudio?(): void;
-  onEnableAgent?(): void;
   feedback?: Feedback;
   onFeedback?(value: Feedback): void | Promise<void>;
   onEdit?(content: string): void;
@@ -99,7 +98,6 @@ export function MessageBubble({
   generationState,
   studioIntent = null,
   onOpenStudio,
-  onEnableAgent,
   feedback = null,
   onFeedback,
   onEdit,
@@ -264,7 +262,7 @@ export function MessageBubble({
                 </View>
               ) : <>
                 <View style={styles.markdown}>
-                  <MarkdownView content={content} onCopyCode={(code) => void copyToClipboard(code)} onEnableAgent={onEnableAgent} />
+                  <MarkdownView content={content} onCopyCode={(code) => void copyToClipboard(code)} />
                 </View>
                 {attachments.length ? <View style={styles.assistantAttachments}>{attachments.map((asset) => {
                   const isImage = asset.kind === "image" || asset.mimeType?.toLowerCase().startsWith("image/");
