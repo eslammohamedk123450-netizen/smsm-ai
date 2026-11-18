@@ -173,19 +173,19 @@ export default function SettingsScreen() {
         </View>
 
         <Text style={styles.sectionTitle}>{isArabic ? "الاشتراك والخطة" : "Plan & subscription"}</Text>
-        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() =><Ionicons name="settings-outline" size={17} color="#FFFFFF" style={styles.rowIcon} /> router.push("/(protected)/upgrade")} accessibilityRole="button">
-          <Text style={styles.rowText}>{isArabic ? "عرض الباقات والاشتراك الحالي" : "View plans and current subscription"}</Text><Text style={styles.chevron}>‹</Text>
+        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/upgrade")} accessibilityRole="button">
+          <Ionicons name="card-outline" size={17} color="#FFFFFF" style={styles.rowIcon} /><Text style={styles.rowText}>{isArabic ? "عرض الباقات والاشتراك الحالي" : "View plans and current subscription"}</Text><Text style={styles.chevron}>‹</Text>
         </TouchableOpacity>
 
         <Text style={styles.sectionTitle}>{isArabic ? "المهارات" : "Skills"}</Text>
-        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() =><Ionicons name="settings-outline" size={17} color="#FFFFFF" style={styles.rowIcon} /> router.push("/(protected)/skills")} accessibilityRole="button">
-          <Text style={styles.rowText}>{isArabic ? "مهارات SULY" : "SULY skills"}</Text>
+        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/skills")} accessibilityRole="button">
+          <Ionicons name="sparkles-outline" size={17} color="#FFFFFF" style={styles.rowIcon} /><Text style={styles.rowText}>{isArabic ? "مهارات SULY" : "SULY skills"}</Text>
           <Text style={styles.email}>{isArabic ? "مراجعة المهارات وتفعيلها" : "Review and activate learned skills"}</Text>
           <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={18} color={colors.textMuted} />
         </TouchableOpacity>
 
         <Text style={styles.sectionTitle}>{isArabic ? "الموصلات" : "Connectors"}</Text>
-        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() =><Ionicons name="settings-outline" size={17} color="#FFFFFF" style={styles.rowIcon} /> router.push("/(protected)/integrations")} accessibilityRole="button"><Text style={styles.rowText}>{isArabic ? "إدارة الموصلات والتطبيقات المرتبطة" : "Manage connected apps"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
+        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/integrations")} accessibilityRole="button"><Ionicons name="apps-outline" size={17} color="#FFFFFF" style={styles.rowIcon} /><Text style={styles.rowText}>{isArabic ? "إدارة الموصلات والتطبيقات المرتبطة" : "Manage connected apps"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
 
         <Text style={styles.sectionTitle}>{isArabic ? "اللغة" : "Language"}</Text>
         <View style={styles.languageControl}>
@@ -204,14 +204,14 @@ export default function SettingsScreen() {
         <Text style={styles.email}>{isArabic ? `المظهر الحالي: ${effectiveMode === "dark" ? "داكن" : "فاتح"}` : `Current appearance: ${effectiveMode}`}</Text>
 
         <Text style={styles.sectionTitle}>{isArabic ? "ذاكرة التخزين" : "Memory storage"}</Text>
-        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() =><Ionicons name="settings-outline" size={17} color="#FFFFFF" style={styles.rowIcon} /> router.push("/(protected)/memory")} accessibilityRole="button">
-          <Text style={styles.rowText}>{isArabic ? "عرض ذاكرة SULY" : "View SULY memory"}</Text>
+        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/memory")} accessibilityRole="button">
+          <Ionicons name="hardware-chip-outline" size={17} color="#FFFFFF" style={styles.rowIcon} /><Text style={styles.rowText}>{isArabic ? "عرض ذاكرة SULY" : "View SULY memory"}</Text>
           <Text style={styles.chevron}>‹</Text>
         </TouchableOpacity>
 
         <Text style={styles.sectionTitle}>{isArabic ? "التخزين والمكتبة" : "Storage & Library"}</Text>
-        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() =><Ionicons name="settings-outline" size={17} color="#FFFFFF" style={styles.rowIcon} /> router.push("/(protected)/media")} accessibilityRole="button">
-          <Text style={styles.rowText}>{isArabic ? "فتح مكتبتي وإدارة ملفاتي" : "Open my Library and manage files"}</Text><Text style={styles.chevron}>‹</Text>
+        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/media")} accessibilityRole="button">
+          <Ionicons name="folder-open-outline" size={17} color="#FFFFFF" style={styles.rowIcon} /><Text style={styles.rowText}>{isArabic ? "فتح مكتبتي وإدارة ملفاتي" : "Open my Library and manage files"}</Text><Text style={styles.chevron}>‹</Text>
         </TouchableOpacity>
 
         <Text style={styles.sectionTitle}>{isArabic ? "تقييم التطبيق" : "Rate the app"}</Text>
@@ -221,7 +221,7 @@ export default function SettingsScreen() {
         </View>
 
         <Text style={styles.sectionTitle}>{isArabic ? "الدعم" : "Support"}</Text>
-        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() =><Ionicons name="settings-outline" size={17} color="#FFFFFF" style={styles.rowIcon} /> router.push("/(protected)/support")} accessibilityRole="button"><Text style={styles.rowText}>{isArabic ? "الشكاوى والدعم" : "Support & complaints"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
+        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/support")} accessibilityRole="button"><Ionicons name="help-circle-outline" size={17} color="#FFFFFF" style={styles.rowIcon} /><Text style={styles.rowText}>{isArabic ? "الشكاوى والدعم" : "Support & complaints"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
 
         <Text style={styles.sectionTitle}>{isArabic ? "التطبيق" : "Application"}</Text>
         <View style={styles.cardRow}>
@@ -230,20 +230,20 @@ export default function SettingsScreen() {
         </View>
 
         <Text style={styles.sectionTitle}>{isArabic ? "المحادثات" : "Conversations"}</Text>
-        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() =><Ionicons name="settings-outline" size={17} color="#FFFFFF" style={styles.rowIcon} /> void openArchive()} accessibilityRole="button"><Text style={styles.rowText}>{isArabic ? "الأرشيف" : "Archive"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
+        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => void openArchive()} accessibilityRole="button"><Ionicons name="archive-outline" size={17} color="#FFFFFF" style={styles.rowIcon} /><Text style={styles.rowText}>{isArabic ? "الأرشيف" : "Archive"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
 
         {adminAccessState === "allowed" ? <>
           <Text style={styles.sectionTitle}>{isArabic ? "إدارة النظام" : "Administration"}</Text>
-          <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() =><Ionicons name="settings-outline" size={17} color="#FFFFFF" style={styles.rowIcon} /> router.push("/admin")} accessibilityRole="button">
-            <Text style={styles.rowText}>{isArabic ? "لوحة التحكم الإدارية" : "Admin dashboard"}</Text><Text style={styles.chevron}>‹</Text>
+          <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/admin")} accessibilityRole="button">
+            <Ionicons name="shield-checkmark-outline" size={17} color="#FFFFFF" style={styles.rowIcon} /><Text style={styles.rowText}>{isArabic ? "لوحة التحكم الإدارية" : "Admin dashboard"}</Text><Text style={styles.chevron}>‹</Text>
           </TouchableOpacity>
         </> : adminAccessState === "checking" ? <>
           <Text style={styles.sectionTitle}>{isArabic ? "إدارة النظام" : "Administration"}</Text>
           <View style={styles.cardRow}><ActivityIndicator color={colors.primary} /><Text style={styles.rowText}>{isArabic ? "جارٍ التحقق من صلاحية الأدمن…" : "Checking administrator access…"}</Text></View>
         </> : adminAccessState === "error" ? <>
           <Text style={styles.sectionTitle}>{isArabic ? "إدارة النظام" : "Administration"}</Text>
-          <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() =><Ionicons name="settings-outline" size={17} color="#FFFFFF" style={styles.rowIcon} /> void checkAdminAccess()} accessibilityRole="button">
-            <Text style={styles.rowText}>{isArabic ? "تعذر التحقق من صلاحية الأدمن — اضغط لإعادة المحاولة" : "Could not verify admin access — tap to retry"}</Text><Ionicons name="refresh-outline" size={17} color={colors.textMuted} />
+          <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => void checkAdminAccess()} accessibilityRole="button">
+            <Ionicons name="refresh-outline" size={17} color="#FFFFFF" style={styles.rowIcon} /><Text style={styles.rowText}>{isArabic ? "تعذر التحقق من صلاحية الأدمن — اضغط لإعادة المحاولة" : "Could not verify admin access — tap to retry"}</Text><Ionicons name="refresh-outline" size={17} color={colors.textMuted} />
           </TouchableOpacity>
         </> : null}
         <Text style={styles.sectionTitle}>{isArabic ? "المعلومات والسياسات" : "Information & policies"}</Text>
