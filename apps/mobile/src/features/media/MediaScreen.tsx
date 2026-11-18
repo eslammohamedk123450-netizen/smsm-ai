@@ -244,8 +244,17 @@ export function MediaScreen() {
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     <View style={styles.header}>
-      <Text style={styles.title}>{isArabic ? "مكتبة SULY" : "SULY Library"}</Text>
-      <Pressable disabled={loading} onPress={() => void load()} accessibilityRole="button" accessibilityLabel={isArabic ? "تحديث المكتبة" : "Refresh library"}><Text style={[styles.link, loading && styles.disabledText]}>{loading ? (isArabic ? "جارٍ التحديث…" : "Refreshing…") : (isArabic ? "تحديث" : "Refresh")}</Text></Pressable>
+      <View style={styles.headerIdentity}>
+        <View style={styles.headerIcon}><Ionicons name="albums-outline" size={23} color={colors.onPrimary} /></View>
+        <View style={styles.headerCopy}>
+          <Text style={styles.eyebrow}>SULY WORKSPACE</Text>
+          <Text style={styles.title}>{isArabic ? "مكتبتك" : "Your Library"}</Text>
+        </View>
+      </View>
+      <Pressable disabled={loading} onPress={() => void load()} accessibilityRole="button" accessibilityLabel={isArabic ? "تحديث المكتبة" : "Refresh library"} style={[styles.refreshButton, loading && styles.disabled]}>
+        {loading ? <ActivityIndicator size="small" color={colors.textSecondary} /> : <Ionicons name="refresh-outline" size={16} color={colors.textPrimary} />}
+        <Text style={styles.refreshText}>{loading ? (isArabic ? "جارٍ التحديث" : "Refreshing") : (isArabic ? "تحديث" : "Refresh")}</Text>
+      </Pressable>
     </View>
     <Text style={styles.explainer}>{isArabic ? "كل ملفاتك ومرفقات محادثاتك ومخرجات الاستوديو في مكان واحد. الملفات الخاصة لا تظهر إلا لصاحبها أو لمن يملك صلاحية الوصول." : "Your files, chat attachments, and Studio outputs in one place. Private files are visible only to their owner or an authorized user."}</Text>
     <TextInput value={search} onChangeText={setSearch} placeholder={isArabic ? "ابحث باسم الملف أو وصفه" : "Search by file name or description"} placeholderTextColor={colors.textMuted} style={styles.search} />
@@ -349,11 +358,17 @@ export function MediaScreen() {
 
 const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  content: { width: "100%", maxWidth: 1000, alignSelf: "center", padding: 16, gap: 12 },
-  header: { flexDirection: isArabic ? "row-reverse" : "row", justifyContent: "space-between", alignItems: "center" },
-  title: { color: colors.textPrimary, fontSize: 26, fontWeight: "800", textAlign: isArabic ? "right" : "left" },
-  explainer: { color: colors.textSecondary, lineHeight: 21, textAlign: isArabic ? "right" : "left" },
-  search: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 10, color: colors.textPrimary, paddingHorizontal: 12, paddingVertical: 10, textAlign: isArabic ? "right" : "left" },
+  content: { width: "100%", maxWidth: 1080, alignSelf: "center", padding: 20, paddingBottom: 42, gap: 14 },
+  header: { flexDirection: isArabic ? "row-reverse" : "row", justifyContent: "space-between", alignItems: "center", padding: 17, borderRadius: 18, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
+  headerIdentity: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 12, flex: 1 },
+  headerIcon: { width: 46, height: 46, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.primary },
+  headerCopy: { flex: 1, gap: 3, alignItems: isArabic ? "flex-end" : "flex-start" },
+  eyebrow: { color: colors.textMuted, fontSize: 9, fontWeight: "900", letterSpacing: 1.4 },
+  title: { color: colors.textPrimary, fontSize: 24, fontWeight: "900", textAlign: isArabic ? "right" : "left" },
+  refreshButton: { minHeight: 40, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 12, borderRadius: 11, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surfaceElevated },
+  refreshText: { color: colors.textPrimary, fontSize: 11, fontWeight: "700" },
+  explainer: { color: colors.textSecondary, lineHeight: 22, textAlign: isArabic ? "right" : "left", paddingHorizontal: 2 },
+  search: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 13, color: colors.textPrimary, paddingHorizontal: 14, paddingVertical: 12, minHeight: 46, textAlign: isArabic ? "right" : "left" },
   himsCard: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.primary, backgroundColor: colors.surface },
   himsIcon: { width: 42, height: 42, borderRadius: 12, backgroundColor: colors.surfaceElevated, alignItems: "center", justifyContent: "center" },
   himsIconText: { color: colors.primary, fontWeight: "900", fontSize: 18 },
@@ -368,10 +383,10 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   jobCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.primary, borderRadius: 12, padding: 12, gap: 7 },
   jobHeader: { flexDirection: isArabic ? "row-reverse" : "row", justifyContent: "space-between", alignItems: "center" },
   jobStatus: { color: colors.primary, fontSize: 11, fontWeight: "800" },
-  filterChip: { borderWidth: 1, borderColor: colors.divider, borderRadius: 18, paddingHorizontal: 13, paddingVertical: 8 },
-  filterChipSelected: { borderColor: colors.primary, backgroundColor: colors.surfaceElevated },
+  filterChip: { minHeight: 36, justifyContent: "center", borderWidth: 1, borderColor: colors.divider, borderRadius: 11, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: colors.surface },
+  filterChipSelected: { borderColor: colors.textPrimary, backgroundColor: colors.surfaceElevated },
   filterText: { color: colors.textSecondary, fontSize: 11, fontWeight: "700" },
-  filterTextSelected: { color: colors.primary },
+  filterTextSelected: { color: colors.textPrimary },
   actionButton: { flexGrow: 1, minWidth: 130, minHeight: 46, borderRadius: 10, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: 14 },
   actionText: { color: colors.onPrimary, fontWeight: "700" },
   ghostButton: { flexGrow: 1, minWidth: 130, minHeight: 46, borderRadius: 10, borderWidth: 1, borderColor: colors.accent, alignItems: "center", justifyContent: "center", paddingHorizontal: 14 },
@@ -384,9 +399,9 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   success: { color: colors.success, textAlign: isArabic ? "right" : "left" },
   empty: { color: colors.textSecondary, textAlign: "center", marginTop: 8 },
   loadingState: { minHeight: 72, alignItems: "center", justifyContent: "center", gap: 8 },
-  grid: { flexDirection: isArabic ? "row-reverse" : "row", flexWrap: "wrap", gap: 12 },
-  card: { width: 160, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 12, padding: 8, gap: 4 },
-  thumb: { width: "100%", height: 110, borderRadius: 8, backgroundColor: colors.surfaceElevated },
+  grid: { flexDirection: isArabic ? "row-reverse" : "row", flexWrap: "wrap", gap: 14, justifyContent: "flex-start" },
+  card: { width: 184, maxWidth: "100%", backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 16, padding: 10, gap: 6 },
+  thumb: { width: "100%", height: 132, borderRadius: 11, backgroundColor: colors.surfaceElevated },
   fileThumb: { alignItems: "center", justifyContent: "center" },
   fileIcon: { color: colors.textMuted, fontWeight: "800" },
   filename: { color: colors.textPrimary, fontSize: 13, fontWeight: "700", textAlign: isArabic ? "right" : "left" },
