@@ -90,14 +90,13 @@ function StepCard({ item, itemIndex, styles }: { item: string; itemIndex: number
 export interface MarkdownViewProps {
   content: string;
   onCopyCode?(code: string): void;
-  onEnableAgent?(): void;
 }
 
-export function MarkdownView({ content, onCopyCode, onEnableAgent }: MarkdownViewProps) {
+export function MarkdownView({ content, onCopyCode }: MarkdownViewProps) {
   const { colors } = useSulyTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const blocks = parseMarkdownBlocks(content);
-  return <View style={styles.container}>{blocks.map((block, index) => renderBlock(block, index, onCopyCode, onEnableAgent, styles))}</View>;
+  return <View style={styles.container}>{blocks.map((block, index) => renderBlock(block, index, onCopyCode, styles))}</View>;
 }
 
 function ChartRows({ labels, values, styles }: { labels: string[]; values: number[]; styles: ReturnType<typeof createStyles> }) {
@@ -117,7 +116,7 @@ function ChartRows({ labels, values, styles }: { labels: string[]; values: numbe
   </View>;
 }
 
-function renderBlock(block: MarkdownBlock, index: number, onCopyCode: ((code: string) => void) | undefined, onEnableAgent: (() => void) | undefined, styles: ReturnType<typeof createStyles>) {
+function renderBlock(block: MarkdownBlock, index: number, onCopyCode: ((code: string) => void) | undefined, styles: ReturnType<typeof createStyles>) {
   if (block.type === "heading") {
     const headingStyle = block.level === 1 ? styles.heading1 : block.level === 2 ? styles.heading2 : styles.heading3;
     return <InlineText key={`heading-${index}`} text={block.text} baseStyle={headingStyle} styles={styles} />;
@@ -136,11 +135,11 @@ function renderBlock(block: MarkdownBlock, index: number, onCopyCode: ((code: st
     </View></ScrollView>
   </View>;
   if (block.type === "agent") return <View key={`agent-${index}`} style={styles.agentCard}>
-    <Text style={styles.agentTitle}>{block.title}</Text>
+    <View style={styles.agentCardHeading}>
+      <Ionicons name="sparkles" size={14} color={colors.primary} />
+      <Text style={styles.agentTitle}>{block.title || "SULY AI"}</Text>
+    </View>
     <Text style={styles.agentMessage}>{block.message}</Text>
-    <Pressable onPress={onEnableAgent} disabled={!onEnableAgent} accessibilityRole="button" accessibilityLabel="تفعيل وضع الوكيل" style={[styles.agentButton, !onEnableAgent && styles.agentButtonDisabled]}>
-      <Text style={styles.agentButtonText}>تفعيل وضع الوكيل</Text>
-    </Pressable>
   </View>;
   if (block.type === "chart") return <View key={`chart-${index}`} style={styles.chartContainer}>
     {block.title ? <Text style={styles.chartTitle}>{block.title}</Text> : null}
@@ -188,7 +187,6 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
   quote: { borderRightWidth: 3, borderRightColor: colors.primary, paddingRight: 12, marginBottom: 10, backgroundColor: colors.surface, borderRadius: 8 }, quoteText: { color: colors.textSecondary, paddingVertical: 8 },
   tableCard: { marginVertical: 12, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, overflow: "hidden" }, tableScroll: { width: "100%" }, tableContent: { minWidth: "100%" }, tableRow: { flexDirection: "row-reverse", borderBottomWidth: 1, borderBottomColor: colors.divider }, tableHeader: { backgroundColor: colors.surfaceElevated }, rowEven: { backgroundColor: colors.surface }, rowOdd: { backgroundColor: colors.surfaceElevated }, tableCell: { minWidth: 120, paddingHorizontal: 12, paddingVertical: 12, borderLeftWidth: 1, borderLeftColor: colors.divider }, tableHeaderText: { color: colors.textPrimary, fontSize: 13, fontWeight: "700", textAlign: "right" }, tableText: { color: colors.textSecondary, fontSize: 14, lineHeight: 22, textAlign: "right" },
   chartContainer: { width: "100%", padding: 14, marginVertical: 10, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, gap: 12 }, chartRows: { width: "100%", minHeight: 150, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 5 }, chartTitle: { color: colors.textPrimary, fontSize: 15, fontWeight: "800", textAlign: "right" }, chartColumn: { flex: 1, minWidth: 0, alignItems: "center", justifyContent: "flex-end", gap: 5 }, chartPlot: { width: "100%", height: 104, alignItems: "center", justifyContent: "flex-end", borderBottomWidth: 1, borderBottomColor: colors.divider }, chartLabel: { width: "100%", color: colors.textSecondary, fontSize: 10, lineHeight: 14, textAlign: "center" }, chartBar: { width: "66%", minHeight: 2, borderTopLeftRadius: 6, borderTopRightRadius: 6, backgroundColor: colors.primary }, chartValue: { color: colors.textPrimary, fontSize: 10, fontWeight: "700", textAlign: "center", writingDirection: "ltr" },
-  agentCard: { width: "100%", padding: 14, marginVertical: 10, borderRadius: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.primary, gap: 9 }, agentTitle: { color: colors.textPrimary, fontSize: 15, fontWeight: "800", textAlign: "right" }, agentMessage: { color: colors.textSecondary, fontSize: 13, lineHeight: 21, textAlign: "right" }, agentButton: { alignSelf: "flex-start", paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10, backgroundColor: colors.primary }, agentButtonDisabled: { opacity: 0.5 }, agentButtonText: { color: colors.onPrimary, fontSize: 13, fontWeight: "800" },
   flowContainer: { width: "100%", padding: 14, marginVertical: 10, borderRadius: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, alignItems: "center", gap: 4 }, flowStepGroup: { width: "100%", alignItems: "center" }, flowNode: { width: "100%", minHeight: 48, justifyContent: "center", paddingHorizontal: 14, paddingVertical: 11, borderRadius: 11, borderWidth: 1, borderColor: colors.primary, backgroundColor: colors.surfaceElevated }, flowNodeText: { color: colors.textPrimary, fontSize: 14, lineHeight: 21, fontWeight: "600", textAlign: "center" }, flowArrow: { color: colors.primary, fontSize: 24, lineHeight: 30, fontWeight: "700" },
   dashboardContainer: { width: "100%", padding: 12, marginVertical: 10, borderRadius: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, gap: 10 }, dashboardTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: "800", textAlign: "right", marginBottom: 2 }, dashboardMetrics: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", gap: 8 }, metricCard: { width: "48%", minHeight: 82, padding: 11, borderRadius: 11, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.divider, gap: 5 }, metricLabel: { color: colors.textMuted, fontSize: 12, textAlign: "right" }, metricValue: { color: colors.textPrimary, fontSize: 20, lineHeight: 26, fontWeight: "800", textAlign: "right" }, metricChange: { color: colors.primary, fontSize: 11, fontWeight: "700", textAlign: "right" },
   codeContainer: { width: "100%", backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.divider, padding: 12, marginVertical: 10, overflow: "hidden" }, codeHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }, codeLanguage: { color: colors.textMuted, fontSize: 12, writingDirection: "ltr", textAlign: "left" }, copyButton: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, backgroundColor: colors.surfaceElevated }, copyText: { color: colors.primary, fontSize: 12, fontWeight: "700" }, codeScroll: { maxHeight: 280, width: "100%" }, codeContent: { minWidth: "100%" }, codeText: { color: colors.textPrimary, fontFamily: "monospace", fontSize: 14, lineHeight: 22, writingDirection: "ltr", textAlign: "left" },
