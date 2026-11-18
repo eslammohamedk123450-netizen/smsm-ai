@@ -15,10 +15,9 @@ export default function Root({ children }: { children: ReactNode }) {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-        <meta name="theme-color" content="#080808" />
-        <link rel="icon" type="image/jpeg" href="/favicon.jpg" />
-        <link rel="shortcut icon" type="image/jpeg" href="/favicon.jpg" />
-        <link rel="apple-touch-icon" href="/favicon.jpg" />
+        <meta name="theme-color" content="#080B14" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="shortcut icon" type="image/svg+xml" href="/favicon.svg" />
         {headNodes}
         <style>{`
           html, body, #root { width: 100%; min-width: 320px; min-height: 100%; margin: 0; background: #080808; }
