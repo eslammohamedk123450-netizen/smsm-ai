@@ -36,31 +36,48 @@ export default function UpgradeScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true); setError(null);
-    let [plansResult, featuresResult, tierResult] = await Promise.all([
-      supabase.from("subscription_plans").select("id,name,tier_key,description,price,currency,billing_period,monthly_credits,daily_credits,max_requests,sort_order").eq("is_active", true).order("sort_order").limit(20),
-      supabase.from("subscription_plan_features").select("id,plan_id,title,value,sort_order").eq("is_active", true).order("sort_order").limit(200),
-      user ? supabase.rpc("suly_effective_subscription_tier", { p_user_id: user.id }) : Promise.resolve({ data: "free", error: null }),
-    ]);
-    if (plansResult.error) {
-      const legacyPlans = await supabase.from("subscription_plans").select("id,name,description,price,currency,billing_period,monthly_credits,daily_credits,max_requests,sort_order").eq("is_active", true).order("sort_order").limit(20);
-      if (!legacyPlans.error) plansResult = { ...legacyPlans, data: (legacyPlans.data ?? []).map((plan) => ({ ...plan, tier_key: planKey(plan.name) })) } as unknown as typeof plansResult;
+    setLoading(true);
+    setError(null);
+    try {
+      let [plansResult, featuresResult, tierResult] = await Promise.all([
+        supabase.from("subscription_plans").select("id,name,tier_key,description,price,currency,billing_period,monthly_credits,daily_credits,max_requests,sort_order").eq("is_active", true).order("sort_order").limit(20),
+        supabase.from("subscription_plan_features").select("id,plan_id,title,value,sort_order").eq("is_active", true).order("sort_order").limit(200),
+        user ? supabase.rpc("suly_effective_subscription_tier", { p_user_id: user.id }) : Promise.resolve({ data: "free", error: null }),
+      ]);
+      if (plansResult.error) {
+        const legacyPlans = await supabase.from("subscription_plans").select("id,name,description,price,currency,billing_period,monthly_credits,daily_credits,max_requests,sort_order").eq("is_active", true).order("sort_order").limit(20);
+        if (!legacyPlans.error) plansResult = { ...legacyPlans, data: (legacyPlans.data ?? []).map((plan) => ({ ...plan, tier_key: planKey(plan.name) })) } as unknown as typeof plansResult;
+      }
+      if (plansResult.error || featuresResult.error || tierResult.error) {
+        setPlans([]);
+        setFeatures([]);
+        setError(isArabic ? "تعذر تحميل الباقات أو التحقق من اشتراكك الحالي. حاول مرة أخرى." : "Could not load plans or verify your current subscription. Try again.");
+      } else {
+        setPlans((plansResult.data ?? []) as Plan[]);
+        setFeatures((featuresResult.data ?? []) as Feature[]);
+        const effectiveTier = typeof tierResult.data === "string" ? tierResult.data : "free";
+        setCurrentTier(effectiveTier.toLowerCase());
+      }
+    } catch {
+      setPlans([]);
+      setFeatures([]);
+      setError(isArabic ? "تعذر الاتصال بخدمة الباقات. تحقق من الاتصال ثم أعد المحاولة." : "Could not reach the plans service. Check your connection and try again.");
+    } finally {
+      setLoading(false);
     }
-    if (plansResult.error || featuresResult.error || tierResult.error) setError(isArabic ? "تعذر تحميل الباقات أو التحقق من اشتراكك الحالي. حاول مرة أخرى." : "Could not load plans or verify your current subscription. Try again.");
-    else {
-      setPlans((plansResult.data ?? []) as Plan[]);
-      setFeatures((featuresResult.data ?? []) as Feature[]);
-      const effectiveTier = typeof tierResult.data === "string" ? tierResult.data : "free";
-      setCurrentTier(effectiveTier.toLowerCase());
-    }
-    setLoading(false);
   }, [user, isArabic]);
   useEffect(() => { void load(); }, [load]);
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     <View style={styles.header}><Pressable onPress={() => router.back()}><Text style={styles.back}>{isArabic ? "رجوع" : "Back"}</Text></Pressable><View style={styles.headerTitle}><Ionicons name="card-outline" size={25} color={colors.primary} /><Text style={styles.title}>{isArabic ? "الباقات والترقية" : "Plans & upgrades"}</Text></View></View>
     <Text style={styles.subtitle}>{isArabic ? "الباقة تحدد الرصيد والمميزات والحدود فقط. يمكنك استخدام النماذج المتاحة كلها، ويُحسب الاستهلاك حسب النموذج والاستخدام الفعلي." : "Your plan defines credits, features and limits only. All available models can be used; charges depend on the model and actual usage."}</Text>
-    {loading ? <ActivityIndicator color={colors.primary} /> : error ? <Text style={styles.error}>{error}</Text> : plans.map((plan) => {
+    {loading ? <ActivityIndicator color={colors.primary} /> : error ? <View style={styles.errorState}>
+      <Text style={styles.error} accessibilityRole="alert">{error}</Text>
+      <Pressable onPress={() => void load()} style={styles.retryButton} accessibilityRole="button">
+        <Ionicons name="refresh-outline" size={16} color={colors.onPrimary} />
+        <Text style={styles.retryText}>{isArabic ? "إعادة المحاولة" : "Try again"}</Text>
+      </Pressable>
+    </View> : plans.map((plan) => {
       const key = plan.tier_key || planKey(plan.name);
       const current = currentTier === key;
       return <View key={plan.id} style={[styles.plan, current && styles.currentPlan]}>
@@ -78,5 +95,5 @@ export default function UpgradeScreen() {
 }
 
 const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background }, content: { padding: 18, gap: 14, paddingBottom: 40 }, header: { flexDirection: isArabic ? "row-reverse" : "row", justifyContent: "space-between", alignItems: "center" }, headerTitle: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 9 }, title: { color: colors.textPrimary, fontSize: 24, fontWeight: "800" }, back: { color: colors.primary, fontWeight: "700" }, subtitle: { color: colors.textSecondary, textAlign: isArabic ? "right" : "left", lineHeight: 22 }, error: { color: colors.error, textAlign: isArabic ? "right" : "left" }, purchaseNotice: { color: colors.textMuted, fontSize: 11, lineHeight: 17, textAlign: isArabic ? "right" : "left" }, plan: { backgroundColor: colors.surface, borderColor: colors.divider, borderWidth: 1, borderRadius: 16, padding: 16, gap: 10 }, currentPlan: { borderColor: colors.primary, borderWidth: 2 }, planHeader: { flexDirection: isArabic ? "row-reverse" : "row", justifyContent: "space-between", alignItems: "center" }, planIdentity: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 9 }, iconWrap: { width: 43, height: 43, borderRadius: 14, backgroundColor: colors.surfaceElevated, alignItems: "center", justifyContent: "center" }, planName: { color: colors.textPrimary, fontSize: 20, fontWeight: "800" }, price: { color: colors.primary, fontSize: 16, fontWeight: "800" }, currentBadge: { alignSelf: "flex-end", color: colors.primary, fontWeight: "700", fontSize: 12 }, description: { color: colors.textSecondary, textAlign: isArabic ? "right" : "left", lineHeight: 20 }, meta: { color: colors.textMuted, textAlign: isArabic ? "right" : "left", fontSize: 12, borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 9 }, features: { gap: 8 }, feature: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "flex-start", gap: 7 }, featureTitle: { color: colors.textPrimary, fontWeight: "700" }, featureValue: { color: colors.textSecondary, fontSize: 12, fontWeight: "600", flex: 1, textAlign: isArabic ? "right" : "left", lineHeight: 19 }, action: { minHeight: 44, borderRadius: 14, paddingHorizontal: 20, alignItems: "center", justifyContent: "center", backgroundColor: colors.primary, marginTop: 3 }, disabled: { opacity: 0.55 }, actionText: { color: colors.onPrimary, fontWeight: "700" },
+  screen: { flex: 1, backgroundColor: colors.background }, content: { padding: 18, gap: 14, paddingBottom: 40 }, errorState: { gap: 10, padding: 14, borderWidth: 1, borderColor: colors.error, borderRadius: 14, backgroundColor: colors.surface }, retryButton: { minHeight: 42, alignSelf: "flex-start", flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 14, borderRadius: 10, backgroundColor: colors.primary }, retryText: { color: colors.onPrimary, fontSize: 12, fontWeight: "700" }, header: { flexDirection: isArabic ? "row-reverse" : "row", justifyContent: "space-between", alignItems: "center" }, headerTitle: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 9 }, title: { color: colors.textPrimary, fontSize: 24, fontWeight: "800" }, back: { color: colors.primary, fontWeight: "700" }, subtitle: { color: colors.textSecondary, textAlign: isArabic ? "right" : "left", lineHeight: 22 }, error: { color: colors.error, textAlign: isArabic ? "right" : "left" }, purchaseNotice: { color: colors.textMuted, fontSize: 11, lineHeight: 17, textAlign: isArabic ? "right" : "left" }, plan: { backgroundColor: colors.surface, borderColor: colors.divider, borderWidth: 1, borderRadius: 16, padding: 16, gap: 10 }, currentPlan: { borderColor: colors.primary, borderWidth: 2 }, planHeader: { flexDirection: isArabic ? "row-reverse" : "row", justifyContent: "space-between", alignItems: "center" }, planIdentity: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 9 }, iconWrap: { width: 43, height: 43, borderRadius: 14, backgroundColor: colors.surfaceElevated, alignItems: "center", justifyContent: "center" }, planName: { color: colors.textPrimary, fontSize: 20, fontWeight: "800" }, price: { color: colors.primary, fontSize: 16, fontWeight: "800" }, currentBadge: { alignSelf: "flex-end", color: colors.primary, fontWeight: "700", fontSize: 12 }, description: { color: colors.textSecondary, textAlign: isArabic ? "right" : "left", lineHeight: 20 }, meta: { color: colors.textMuted, textAlign: isArabic ? "right" : "left", fontSize: 12, borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 9 }, features: { gap: 8 }, feature: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "flex-start", gap: 7 }, featureTitle: { color: colors.textPrimary, fontWeight: "700" }, featureValue: { color: colors.textSecondary, fontSize: 12, fontWeight: "600", flex: 1, textAlign: isArabic ? "right" : "left", lineHeight: 19 }, action: { minHeight: 44, borderRadius: 14, paddingHorizontal: 20, alignItems: "center", justifyContent: "center", backgroundColor: colors.primary, marginTop: 3 }, disabled: { opacity: 0.55 }, actionText: { color: colors.onPrimary, fontWeight: "700" },
 });
