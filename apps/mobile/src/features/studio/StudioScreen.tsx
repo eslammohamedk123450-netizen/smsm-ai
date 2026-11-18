@@ -41,16 +41,17 @@ export function StudioScreen() {
 
   useEffect(() => {
     let active = true;
-    void supabase.rpc("suly_list_public_image_models")
-      .then(({ data, error }) => {
+    const checkImageAvailability = async () => {
+      try {
+        const { data, error } = await supabase.rpc("suly_list_public_image_models");
         if (active) setImageReady(!error && hasVerifiedImageModel(data));
-      })
-      .catch(() => {
+      } catch {
         if (active) setImageReady(false);
-      })
-      .finally(() => {
+      } finally {
         if (active) setCheckingImage(false);
-      });
+      }
+    };
+    void checkImageAvailability();
     return () => { active = false; };
   }, []);
 
