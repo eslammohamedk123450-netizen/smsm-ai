@@ -29,6 +29,8 @@ type RegistryModel = {
   display_name: string;
   lifecycle_state: "active" | "candidate" | "archived";
   legacy_chat_model_id: number | null;
+  legacy_chat_enabled?: boolean;
+  legacy_chat_routing_group?: string | null;
   legacy_media_model_id: string | null;
   capability_key: string | null;
   review_status?: CapabilityReviewStatus | null;
@@ -75,6 +77,19 @@ const FILTER_LABEL: Record<StatusFilter, string> = {
   all: "الكل", active: "فعال", available: "متاح", restricted: "مقيّد", disabled: "معطّل",
 };
 
+function modelTestMessage(result: { status: "success" | "error"; duration_ms: number; error_code: string | null }): string {
+  if (result.status === "success") return `نجح الاختبار · ${result.duration_ms}ms`;
+  switch (result.error_code) {
+    case "provider_disabled": return "لم يُرسل الطلب: المزود معطّل.";
+    case "credential_unavailable": return "لم يُرسل الطلب: مفتاح المزود غير متاح.";
+    case "model_timeout": return "انتهت مهلة النموذج قبل الرد.";
+    case "empty_response": return "وصل الطلب، لكن المزود لم يُرجع نصًا.";
+    case "provider_unreachable": return "تعذر الوصول إلى خادم المزود.";
+    case "provider_url_invalid": return "عنوان المزود غير صالح.";
+    default: return `فشل الاختبار · ${result.error_code ?? "provider_error"}`;
+  }
+}
+
 function capabilityKeys(rows: RegistryModel[]): Map<string, Set<string>> {
   const result = new Map<string, Set<string>>();
   for (const row of rows) {
@@ -94,6 +109,7 @@ export function ModelRegistryCatalogScreen() {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
   const [testingModelId, setTestingModelId] = useState<number | null>(null);
+  const [updatingModelId, setUpdatingModelId] = useState<number | null>(null);
   const [testResults, setTestResults] = useState<Record<number, string>>({});
   const [capabilityPickerOpen, setCapabilityPickerOpen] = useState(false);
   const [savingCapability, setSavingCapability] = useState<string | null>(null);
@@ -117,8 +133,9 @@ export function ModelRegistryCatalogScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true); setError(null);
+  const load = useCallback(async (preserveScreen = false) => {
+    if (!preserveScreen) setLoading(true);
+    setError(null);
     try {
       const [registry, providers, chat, media, health, priceRows, chatRoutes, mediaPrices] = await Promise.all([
         supabase.rpc("suly_admin_list_unified_model_capabilities"),
@@ -142,11 +159,11 @@ export function ModelRegistryCatalogScreen() {
       const healthByModel = new Map<number, { restricted: boolean; lastStatus: string | null }>((health.data ?? []).map((item) => [Number(item.model_id), { restricted: item.auto_restricted === true, lastStatus: typeof item.last_status === "string" ? item.last_status : null }]));
       const normalizedRows: RegistryModel[] = ((registry.data ?? []) as Array<Omit<RegistryModel, "operational_state">>).map((raw) => {
         const provider = providerById.get(Number(raw.provider_id));
+        const legacy = raw.legacy_chat_model_id !== null ? chatById.get(Number(raw.legacy_chat_model_id)) : undefined;
         let operational_state: OperationalState = "unknown";
         if (raw.lifecycle_state === "archived") operational_state = "archived";
         else if (!provider || provider.enabled === false) operational_state = "disabled";
         else if (raw.legacy_chat_model_id !== null) {
-          const legacy = chatById.get(Number(raw.legacy_chat_model_id));
           if (legacy && !legacy.enabled || legacy?.routing_group === "disabled") operational_state = "disabled";
           else if (healthByModel.get(Number(raw.legacy_chat_model_id))?.restricted) operational_state = "restricted";
           else if (legacy && provider?.enabled && healthByModel.get(Number(raw.legacy_chat_model_id))?.lastStatus === "success") operational_state = "available";
@@ -156,7 +173,15 @@ export function ModelRegistryCatalogScreen() {
           if (active === false) operational_state = "disabled";
           else if (active === true && provider?.enabled) operational_state = "active";
         } else if (raw.lifecycle_state === "candidate") operational_state = "candidate";
-        return { ...raw, provider_name: provider?.name ?? raw.provider_name ?? null, provider_type: provider?.provider_type ?? null, provider_enabled: provider?.enabled === true, operational_state };
+        return {
+          ...raw,
+          legacy_chat_enabled: legacy?.enabled,
+          legacy_chat_routing_group: legacy?.routing_group ?? null,
+          provider_name: provider?.name ?? raw.provider_name ?? null,
+          provider_type: provider?.provider_type ?? null,
+          provider_enabled: provider?.enabled === true,
+          operational_state,
+        };
       });
       // Retain all capability rows; the model cards deduplicate models separately.
       setRows(normalizedRows.sort((a, b) => a.display_name.localeCompare(b.display_name)));
@@ -169,7 +194,9 @@ export function ModelRegistryCatalogScreen() {
       setChatOrderByModel(orderMap);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "تعذر تحميل كتالوج النماذج.");
-    } finally { setLoading(false); }
+    } finally {
+      if (!preserveScreen) setLoading(false);
+    }
   }, []);
 
   useEffect(() => { void load(); }, [load]);
@@ -351,24 +378,70 @@ export function ModelRegistryCatalogScreen() {
       {filtered.map((model) => <View key={model.model_id} style={[styles.modelTile, { width: tileWidth }]}>
         <View style={styles.modelTileTop}>
           <View style={styles.modelIcon}><Ionicons name={model.service_type === "image" ? "image-outline" : model.service_type === "video" ? "videocam-outline" : model.service_type === "audio" ? "volume-high-outline" : "hardware-chip-outline"} size={25} color={colors.primary}/></View>
-          <View style={[styles.status, (model.operational_state === "active" || model.operational_state === "available") ? styles.statusActive : model.operational_state === "restricted" ? styles.statusRestricted : styles.statusDisabled]}><Text style={styles.statusText}>{STATUS_LABEL[model.operational_state]}</Text></View>
+          <View style={styles.modelTileStatusActions}>
+            <View style={[styles.status, (model.operational_state === "active" || model.operational_state === "available") ? styles.statusActive : model.operational_state === "restricted" ? styles.statusRestricted : styles.statusDisabled]}><Text style={styles.statusText}>{STATUS_LABEL[model.operational_state]}</Text></View>
+            {model.legacy_chat_model_id !== null && model.operational_state === "restricted" ? <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="فك قيد النموذج"
+              disabled={updatingModelId !== null}
+              onPress={() => void (async () => {
+                const modelId = Number(model.legacy_chat_model_id);
+                setUpdatingModelId(modelId);
+                try {
+                  const result = await adminService.resetModelHealth(modelId);
+                  if (result?.success !== true) throw new Error("لم تؤكد قاعدة البيانات فك القيد.");
+                  setTestResults((current) => ({ ...current, [modelId]: "تم فك القيد. اختبر النموذج للتأكد من استجابته." }));
+                  await load(true);
+                } catch (cause) {
+                  setTestResults((current) => ({ ...current, [modelId]: cause instanceof Error ? cause.message : "تعذر فك القيد." }));
+                } finally { setUpdatingModelId(null); }
+              })()}
+              style={styles.modelStateAction}
+            ><Ionicons name="lock-open-outline" size={12} color={colors.primary}/><Text style={styles.modelStateActionText}>فك القيد</Text></Pressable> : null}
+            {model.legacy_chat_model_id !== null && model.operational_state === "disabled" && model.provider_enabled && model.lifecycle_state === "active" ? <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="تفعيل النموذج وإضافته إلى أولوية الشات"
+              disabled={updatingModelId !== null}
+              onPress={() => void (async () => {
+                const modelId = Number(model.legacy_chat_model_id);
+                setUpdatingModelId(modelId);
+                try {
+                  await adminService.updateModel(modelId, { enabled: true, routing_group: "free_race" });
+                  const assignments = await adminService.getRouteModelAssignments();
+                  const chatIds = assignments.filter((item) => item.route_role === "chat" && item.enabled).map((item) => Number(item.model_id));
+                  if (!chatIds.includes(modelId)) await adminService.saveRouteModelAssignments("chat", [...chatIds, modelId]);
+                  setTestResults((current) => ({ ...current, [modelId]: "تم تفعيل النموذج وإضافته إلى نهاية أولوية الشات." }));
+                  await load(true);
+                } catch (cause) {
+                  setTestResults((current) => ({ ...current, [modelId]: cause instanceof Error ? cause.message : "تعذر تفعيل النموذج." }));
+                  await load(true);
+                } finally { setUpdatingModelId(null); }
+              })()}
+              style={styles.modelStateAction}
+            ><Ionicons name="power-outline" size={12} color={colors.primary}/><Text style={styles.modelStateActionText}>تفعيل</Text></Pressable> : null}
+          </View>
         </View>
         <View style={styles.modelTileInfo}>
           <Text numberOfLines={2} style={styles.modelName}>{model.display_name}</Text>
           <Text numberOfLines={1} style={styles.meta}>{model.provider_name ?? `مزود #${model.provider_id}`} · {model.provider_type ?? model.service_type}</Text>
           <Text numberOfLines={1} style={styles.meta}>{model.model_identifier}</Text>
+          {model.legacy_chat_model_id !== null && !model.provider_enabled ? <Text style={styles.error}>المزود معطّل؛ لن يُرسل الاختبار.</Text> : null}
         </View>
         <View style={styles.modelTileActions}>
-          <Pressable accessibilityRole="button" accessibilityLabel="القدرات" onPress={() => { setSelectedModel(model); setSelectedDetailTab("capabilities"); setCapabilityPickerOpen(false); }} style={styles.tileAction}><Ionicons name="add-circle-outline" size={18} color={colors.primary}/></Pressable>
-          {model.legacy_chat_model_id !== null ? <Pressable accessibilityRole="button" accessibilityLabel="اختبار النموذج" disabled={testingModelId !== null} onPress={() => void (async () => {
+          <Pressable accessibilityRole="button" accessibilityLabel="القدرات" onPress={() => { setSelectedModel(model); setSelectedDetailTab("capabilities"); setCapabilityPickerOpen(false); }} style={styles.tileAction}><Ionicons name="add-circle-outline" size={16} color={colors.primary}/><Text style={styles.tileActionLabel}>قدرات</Text></Pressable>
+          {model.legacy_chat_model_id !== null ? <Pressable accessibilityRole="button" accessibilityLabel="اختبار النموذج" disabled={testingModelId !== null || updatingModelId !== null} onPress={() => void (async () => {
             const modelId = Number(model.legacy_chat_model_id); setTestingModelId(modelId);
-            try { const result = await adminService.testModel(modelId); setTestResults((current) => ({ ...current, [modelId]: result.status === "success" ? `نجح الاختبار · ${result.duration_ms}ms` : `فشل الاختبار · ${result.error_code ?? "provider_error"}` })); await load(); }
-            catch (cause) { setTestResults((current) => ({ ...current, [modelId]: cause instanceof Error ? cause.message : "تعذر تشغيل الاختبار." })); }
-            finally { setTestingModelId(null); }
-          })()} style={styles.tileAction}><Ionicons name={testingModelId === Number(model.legacy_chat_model_id) ? "hourglass-outline" : "flask-outline"} size={17} color={colors.primary}/></Pressable> : <View style={styles.tileActionDisabled}><Ionicons name="flask-outline" size={17} color={colors.textMuted}/></View>}
-          <Pressable accessibilityRole="button" accessibilityLabel="السجل والتفاصيل" onPress={() => { setSelectedModel(model); setSelectedDetailTab("info"); setCapabilityPickerOpen(false); }} style={styles.tileAction}><Ionicons name="document-text-outline" size={17} color={colors.textSecondary}/></Pressable>
+            try {
+              const result = await adminService.testModel(modelId);
+              setTestResults((current) => ({ ...current, [modelId]: modelTestMessage(result) }));
+              await load(true);
+            } catch (cause) {
+              setTestResults((current) => ({ ...current, [modelId]: cause instanceof Error ? cause.message : "تعذر تشغيل الاختبار." }));
+            } finally { setTestingModelId(null); }
+          })()} style={styles.tileAction}><Ionicons name={testingModelId === Number(model.legacy_chat_model_id) ? "hourglass-outline" : "flask-outline"} size={16} color={colors.primary}/><Text style={styles.tileActionLabel}>{testingModelId === Number(model.legacy_chat_model_id) ? "جارٍ" : "اختبار"}</Text></Pressable> : <View style={styles.tileActionDisabled}><Ionicons name="flask-outline" size={16} color={colors.textMuted}/><Text style={styles.tileActionLabel}>اختبار</Text></View>}
+          <Pressable accessibilityRole="button" accessibilityLabel="السجل والتفاصيل" onPress={() => { setSelectedModel(model); setSelectedDetailTab("info"); setCapabilityPickerOpen(false); }} style={styles.tileAction}><Ionicons name="document-text-outline" size={16} color={colors.textSecondary}/><Text style={styles.tileActionLabel}>تفاصيل</Text></Pressable>
         </View>
-        {model.legacy_chat_model_id !== null && testResults[Number(model.legacy_chat_model_id)] ? <Text numberOfLines={2} style={testResults[Number(model.legacy_chat_model_id)].startsWith("نجح") ? styles.success : styles.error}>{testResults[Number(model.legacy_chat_model_id)]}</Text> : null}
+        {model.legacy_chat_model_id !== null && testResults[Number(model.legacy_chat_model_id)] ? <Text numberOfLines={2} style={testResults[Number(model.legacy_chat_model_id)].startsWith("نجح") || testResults[Number(model.legacy_chat_model_id)].startsWith("تم") ? styles.success : styles.error}>{testResults[Number(model.legacy_chat_model_id)]}</Text> : null}
       </View>)}
     </View> : null}
     {!loading && filtered.length === 0 ? <Text style={styles.empty}>لا توجد نماذج تطابق البحث والفلاتر.</Text> : null}
@@ -551,12 +624,16 @@ const createStyles = (c: ThemePalette) => StyleSheet.create({
   tableAction: { flexDirection: "row-reverse", alignItems: "center", gap: 3, paddingVertical: 4 },
   tableActionText: { color: c.textSecondary, fontSize: 8, fontWeight: "700" },
   modelGrid: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 8 },
-  modelTile: { borderWidth: 1, borderColor: c.divider, borderRadius: 14, backgroundColor: c.surface, padding: 10, aspectRatio: 1, justifyContent: "space-between", gap: 7 },
-  modelTileTop: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between" },
+  modelTile: { borderWidth: 1, borderColor: c.divider, borderRadius: 14, backgroundColor: c.surface, padding: 10, aspectRatio: 0.9, justifyContent: "space-between", gap: 7 },
+  modelTileTop: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", gap: 6 },
+  modelTileStatusActions: { flex: 1, flexDirection: "row-reverse", alignItems: "center", justifyContent: "flex-start", flexWrap: "wrap", gap: 5 },
+  modelStateAction: { minHeight: 25, flexDirection: "row-reverse", alignItems: "center", gap: 3, borderWidth: 1, borderColor: c.primary + "70", borderRadius: 8, paddingHorizontal: 6, paddingVertical: 4 },
+  modelStateActionText: { color: c.primary, fontSize: 7, fontWeight: "900" },
   modelTileInfo: { alignItems: "flex-end", gap: 4, flex: 1, justifyContent: "center" },
-  modelTileActions: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-around", borderTopWidth: 1, borderTopColor: c.divider, paddingTop: 5 },
-  tileAction: { width: 32, height: 32, borderWidth: 1, borderColor: c.divider, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  tileActionDisabled: { width: 32, height: 32, borderWidth: 1, borderColor: c.divider, borderRadius: 10, alignItems: "center", justifyContent: "center", opacity: 0.4 },
+  modelTileActions: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-around", gap: 4, borderTopWidth: 1, borderTopColor: c.divider, paddingTop: 5 },
+  tileAction: { minWidth: 42, height: 38, borderWidth: 1, borderColor: c.divider, borderRadius: 9, alignItems: "center", justifyContent: "center", gap: 1, paddingHorizontal: 4 },
+  tileActionDisabled: { minWidth: 42, height: 38, borderWidth: 1, borderColor: c.divider, borderRadius: 9, alignItems: "center", justifyContent: "center", gap: 1, paddingHorizontal: 4, opacity: 0.4 },
+  tileActionLabel: { color: c.textSecondary, fontSize: 7, fontWeight: "800" },
   modelCardActions: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", gap: 8, borderTopWidth: 1, borderTopColor: c.divider, paddingTop: 7 },
   detailAction: { flexDirection: "row-reverse", alignItems: "center", gap: 5, paddingVertical: 5 }, detailActionText: { color: c.primary, fontSize: 9, fontWeight: "800" },
   manageAction: { flexDirection: "row-reverse", alignItems: "center", gap: 5, paddingVertical: 5 }, manageActionText: { color: c.textSecondary, fontSize: 9, fontWeight: "700" },
