@@ -168,10 +168,11 @@ export default function SettingsScreen() {
         </TouchableOpacity>
 
         <Text style={styles.sectionTitle}>{isArabic ? "المهارات" : "Skills"}</Text>
-        <View style={styles.cardRow}>
+        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/skills")} accessibilityRole="button">
           <Text style={styles.rowText}>{isArabic ? "مهارات SULY" : "SULY skills"}</Text>
-          <Text style={styles.email}>{isArabic ? "سجل المهارات غير متصل بعد" : "Skill registry is not connected yet"}</Text>
-        </View>
+          <Text style={styles.email}>{isArabic ? "مراجعة المهارات وتفعيلها" : "Review and activate learned skills"}</Text>
+          <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={18} color={colors.textMuted} />
+        </TouchableOpacity>
 
         <Text style={styles.sectionTitle}>{isArabic ? "الموصلات" : "Connectors"}</Text>
         <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/integrations")} accessibilityRole="button"><Text style={styles.rowText}>{isArabic ? "إدارة الموصلات والتطبيقات المرتبطة" : "Manage connected apps"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>

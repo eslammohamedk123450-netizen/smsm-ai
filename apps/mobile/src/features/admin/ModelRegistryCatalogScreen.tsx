@@ -4,6 +4,7 @@ import { Link, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { supabase } from "../../lib/supabase/client";
+import { adminService } from "./admin-service";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
 import { AdminMobileBreadcrumb } from "./AdminMobileBreadcrumb";
@@ -68,6 +69,8 @@ export function ModelRegistryCatalogScreen() {
   const [viewMode, setViewMode] = useState<"table" | "cards">(width >= 900 ? "table" : "cards");
   const [selectedModel, setSelectedModel] = useState<RegistryModel | null>(null);
   const [rows, setRows] = useState<RegistryModel[]>([]);
+  const [pricesByModel, setPricesByModel] = useState<Map<number, { input: number; output: number }>>(new Map());
+  const [chatOrderByModel, setChatOrderByModel] = useState<Map<number, number>>(new Map());
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [capability, setCapability] = useState("all");
@@ -77,12 +80,14 @@ export function ModelRegistryCatalogScreen() {
   const load = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const [registry, providers, chat, media, health] = await Promise.all([
+      const [registry, providers, chat, media, health, priceRows, chatRoutes] = await Promise.all([
         supabase.rpc("suly_admin_list_unified_model_capabilities"),
         supabase.rpc("suly_admin_list_providers"),
         supabase.from("ai_models").select("id,enabled,routing_group").limit(1000),
         supabase.from("suly_media_generation_models").select("id,is_active").limit(1000),
         supabase.from("ai_model_health").select("model_id,auto_restricted").limit(1000),
+        adminService.getModelPriceVersions().catch(() => []),
+        supabase.from("ai_route_model_assignments").select("model_id,priority").eq("route_role", "chat").eq("enabled", true).order("priority", { ascending: true }),
       ]);
       if (registry.error) throw registry.error;
       if (providers.error) throw providers.error;
@@ -114,6 +119,12 @@ export function ModelRegistryCatalogScreen() {
         if (!unique.has(model.model_id)) unique.set(model.model_id, model);
       }
       setRows([...unique.values()].sort((a, b) => a.display_name.localeCompare(b.display_name)));
+      const priceMap = new Map<number, { input: number; output: number }>();
+      for (const price of (priceRows ?? []) as Array<{ model_id: number; provider_input_cost_egp_per_million: number; provider_output_cost_egp_per_million: number }>) priceMap.set(Number(price.model_id), { input: Number(price.provider_input_cost_egp_per_million), output: Number(price.provider_output_cost_egp_per_million) });
+      setPricesByModel(priceMap);
+      const orderMap = new Map<number, number>();
+      (chatRoutes.data ?? []).forEach((route, index) => orderMap.set(Number(route.model_id), index + 1));
+      setChatOrderByModel(orderMap);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "تعذر تحميل كتالوج النماذج.");
     } finally { setLoading(false); }
@@ -220,6 +231,7 @@ export function ModelRegistryCatalogScreen() {
     {error ? <View style={styles.errorBox}><Text style={styles.error}>{error}</Text><Pressable onPress={() => void load()}><Text style={styles.link}>إعادة المحاولة</Text></Pressable></View> : null}
     {!loading && viewMode === "cards" ? filtered.map((model) => <View key={model.model_id} style={styles.modelCard}>
       <View style={styles.modelHeading}>
+        <View style={styles.modelIcon}><Ionicons name={model.service_type === "image" ? "image-outline" : model.service_type === "video" ? "videocam-outline" : model.service_type === "audio" ? "volume-high-outline" : "hardware-chip-outline"} size={23} color={colors.primary}/></View>
         <View style={styles.modelCopy}>
           <Text style={styles.modelName}>{model.display_name}</Text>
           <Text style={styles.meta}>اسم المفتاح: {model.provider_name ?? `مزود #${model.provider_id}`} · المزود: {model.provider_type ?? "—"}</Text>
@@ -233,6 +245,11 @@ export function ModelRegistryCatalogScreen() {
         {(CAPABILITIES.filter(([key]) => capabilitiesByModel.get(model.model_id)?.has(key))).slice(0, 7).map(([key, label, icon]) => <View key={key} style={styles.capabilityBadge}><Ionicons name={icon} size={13} color={colors.textSecondary}/><Text style={styles.capabilityText}>{label}</Text></View>)}
         {!capabilitiesByModel.get(model.model_id)?.size ? <Text style={styles.meta}>لا توجد قدرات مسجلة بعد</Text> : null}
       </View>
+      {model.legacy_chat_model_id !== null ? <View style={styles.priceLine}>
+        <View style={styles.priceCell}><Text style={styles.priceLabel}>تكلفة الإدخال / مليون</Text><Text style={styles.priceValue}>{pricesByModel.has(Number(model.legacy_chat_model_id)) ? `${pricesByModel.get(Number(model.legacy_chat_model_id))!.input.toLocaleString("en-EG")} ج.م` : "غير مسجلة"}</Text></View>
+        <View style={styles.priceCell}><Text style={styles.priceLabel}>تكلفة الإخراج / مليون</Text><Text style={styles.priceValue}>{pricesByModel.has(Number(model.legacy_chat_model_id)) ? `${pricesByModel.get(Number(model.legacy_chat_model_id))!.output.toLocaleString("en-EG")} ج.م` : "غير مسجلة"}</Text></View>
+        <View style={styles.priceCell}><Text style={styles.priceLabel}>ترتيب الشات</Text><Text style={styles.priceValue}>{chatOrderByModel.has(Number(model.legacy_chat_model_id)) ? `#${chatOrderByModel.get(Number(model.legacy_chat_model_id))}` : "غير مربوط"}</Text></View>
+      </View> : null}
       <View style={styles.modelCardActions}>
         <Pressable accessibilityRole="button" onPress={() => setSelectedModel(model)} style={styles.detailAction}><Ionicons name="information-circle-outline" size={14} color={colors.primary}/><Text style={styles.detailActionText}>تفاصيل النموذج</Text></Pressable>
         <Pressable accessibilityRole="button" onPress={() => openOperationalRecord(model)} style={styles.manageAction}><Ionicons name="settings-outline" size={14} color={colors.textSecondary}/><Text style={styles.manageActionText}>{model.provider_enabled ? "فتح الإدارة" : "إدارة المزود"}</Text></Pressable>
@@ -354,6 +371,11 @@ const createStyles = (c: ThemePalette) => StyleSheet.create({
   manageAction: { flexDirection: "row-reverse", alignItems: "center", gap: 5, paddingVertical: 5 }, manageActionText: { color: c.textSecondary, fontSize: 9, fontWeight: "700" },
   modelCard: { borderWidth: 1, borderColor: c.divider, borderRadius: 12, backgroundColor: c.surface, padding: 11, gap: 8 },
   modelHeading: { flexDirection: "row-reverse", alignItems: "flex-start", gap: 8 },
+  modelIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: c.primary + "14", borderWidth: 1, borderColor: c.divider, alignItems: "center", justifyContent: "center" },
+  priceLine: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 6, borderTopWidth: 1, borderTopColor: c.divider, paddingTop: 8 },
+  priceCell: { flex: 1, minWidth: 82, backgroundColor: c.surfaceElevated, borderRadius: 8, padding: 7, gap: 4 },
+  priceLabel: { color: c.textMuted, fontSize: 7, textAlign: "right" },
+  priceValue: { color: c.textPrimary, fontSize: 9, fontWeight: "900", textAlign: "right" },
   modelCopy: { flex: 1, gap: 3, alignItems: "flex-end" },
   modelName: { color: c.textPrimary, fontSize: 12, fontWeight: "900", textAlign: "right" },
   meta: { color: c.textMuted, fontSize: 8, textAlign: "right" },

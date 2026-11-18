@@ -13,18 +13,18 @@ import {
   sanitizeContextText,
 } from "./identity_context.ts";
 
-test("SULY identity is consistent, concise, and professional", () => {
+test("SULY identity remains consistent, useful, and professional", () => {
   const context = buildSulyIdentityContext(false);
   assert.ok(context.systemPrompt.includes("هوية ثابتة"));
   assert.ok(context.systemPrompt.includes("لا تكرر التحية"));
   assert.ok(context.systemPrompt.includes("الرسوم البيانية والمخططات"));
   assert.ok(context.systemPrompt.includes("Dashboard"));
   assert.ok(context.systemPrompt.includes("زر «وكيل»"));
-  assert.equal(context.systemPrompt.includes("كالصديق المقرب"), false);
+  assert.equal(context.systemPrompt.toLowerCase().includes("hims"), false);
   assert.deepEqual(context.userMetadata, { badges: [] });
 });
 
-test("Agent activation guidance reflects the real execution mode", () => {
+test("Agent guidance reflects the actual execution mode", () => {
   const inactive = buildSulyIdentityContext(false, false);
   assert.ok(inactive.systemPrompt.includes("كتلة agent"));
   const active = buildSulyIdentityContext(false, true);
@@ -32,21 +32,27 @@ test("Agent activation guidance reflects the real execution mode", () => {
   assert.equal(active.systemPrompt.includes("اعرض بطاقة تفعيل داخل الرد"), false);
 });
 
-test("active identity context preserves verified feature guidance and badge metadata", () => {
-  const context = buildSulyIdentityContext(true);
-  assert.ok(context.systemPrompt.includes("أنت SULY"));
-  assert.ok(context.systemPrompt.includes("الموارد التعليمية"));
+test("HIMS entitlement alone does not disclose feature-specific instructions", () => {
+  const context = buildSulyIdentityContext(true, false, false);
+  assert.equal(context.systemPrompt.toLowerCase().includes("الموارد التعليمية"), false);
   assert.deepEqual(context.userMetadata, { badges: ["HIMS"] });
 });
 
-test("inactive HIMS references in prior context are replaced", () => {
-  assert.equal(containsHimsReference("Tell me about HIMS"), true);
-  assert.equal(sanitizeContextText("Previous answer mentioned HIMS lectures", false), "تم إخفاء رسالة سابقة غير متاحة لهذا الطلب.");
-  assert.equal(sanitizeContextText("Previous answer mentioned HIMS lectures", true), "Previous answer mentioned HIMS lectures");
-  assert.equal(buildSulyIdentityContext(false).systemPrompt.toLowerCase().includes("hims"), false);
+test("HIMS context is included only when the current request is feature-relevant", () => {
+  const context = buildSulyIdentityContext(true, false, true);
+  assert.ok(context.systemPrompt.includes("الموارد التعليمية"));
+  assert.deepEqual(context.userMetadata, { badges: ["HIMS"] });
+  const notEntitled = buildSulyIdentityContext(false, false, true);
+  assert.equal(notEntitled.systemPrompt.includes("الموارد التعليمية"), false);
 });
 
-test("identity query and unknown-feature response are deterministic", () => {
+test("unrelated history is redacted unless the current request permits HIMS context", () => {
+  assert.equal(containsHimsReference("Tell me about HIMS"), true);
+  assert.equal(sanitizeContextText("Previous answer mentioned HIMS lectures", false), "تم إخفاء رسالة سابقة غير مرتبطة بطلبك الحالي.");
+  assert.equal(sanitizeContextText("Previous answer mentioned HIMS lectures", true), "Previous answer mentioned HIMS lectures");
+});
+
+test("identity query and company answers are deterministic", () => {
   assert.equal(isIdentityQuestion("من أنت؟"), true);
   assert.equal(isIdentityQuestion("من انت"), true);
   assert.equal(isIdentityQuestion("من تكون؟"), false);
@@ -61,7 +67,7 @@ test("identity query and unknown-feature response are deterministic", () => {
   assert.equal(INACTIVE_UNKNOWN_ANSWER, "لا أملك معلومات حول ذلك.");
 });
 
-test("verified Agent mode product guidance explains the actual composer toggle", () => {
+test("verified Agent mode answers explain the actual composer toggle", () => {
   const activation = getSulyProductAnswer("إزاي أفعل وضع الوكيل؟");
   assert.ok(activation?.includes("زر «وكيل»"));
   assert.ok(activation?.includes("زر +"));
@@ -71,4 +77,3 @@ test("verified Agent mode product guidance explains the actual composer toggle",
   assert.ok(getSulyProductAnswer("اشرح لي وضع الوكيل"));
   assert.ok(getSulyProductAnswer("How do I turn on Agent mode?"));
 });
-
