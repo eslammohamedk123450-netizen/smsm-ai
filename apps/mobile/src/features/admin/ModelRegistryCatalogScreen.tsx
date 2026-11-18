@@ -394,7 +394,8 @@ export function ModelRegistryCatalogScreen() {
             <View style={styles.detailTabs}>
               {DETAIL_TABS.map(([key, label]) => <Pressable key={key} accessibilityRole="tab" accessibilityState={{ selected: selectedDetailTab === key }} onPress={() => setSelectedDetailTab(key)} style={[styles.detailTab, selectedDetailTab === key && styles.detailTabActive]}><Text style={[styles.detailTabText, selectedDetailTab === key && styles.detailTabTextActive]}>{label}</Text></Pressable>)}
             </View>
-            {selectedDetailTab === "info" ? <View style={styles.detailMetaGrid}>
+            {selectedDetailTab === "info" ? <>
+              <View style={styles.detailMetaGrid}>
               <View style={styles.detailMetaCell}><Text style={styles.detailMetaLabel}>المزود / اسم المفتاح</Text><Text style={styles.detailMetaValue}>{selectedModel.provider_name ?? `مزود #${selectedModel.provider_id}`} · {selectedModel.provider_type ?? "—"}</Text></View>
               <View style={styles.detailMetaCell}><Text style={styles.detailMetaLabel}>نوع الخدمة</Text><Text style={styles.detailMetaValue}>{selectedModel.service_type}</Text></View>
               <View style={styles.detailMetaCell}><Text style={styles.detailMetaLabel}>معرّف المزود</Text><Text selectable style={styles.detailMetaValue}>{selectedModel.model_identifier}</Text></View>
@@ -403,7 +404,7 @@ export function ModelRegistryCatalogScreen() {
               <View style={styles.detailMetaCell}><Text style={styles.detailMetaLabel}>حالة المزود</Text><Text style={styles.detailMetaValue}>{selectedModel.provider_enabled ? "مفعّل" : "معطّل أو غير متاح"}</Text></View>
             </View>
             {selectedModel.service_type === "image" ? <Pressable accessibilityRole="button" onPress={() => { setSelectedModel(null); setMediaEditorOpen(true); }} style={styles.detailLink}><Text style={styles.detailLinkText}>تعديل إعدادات نموذج الصور</Text></Pressable> : null}
-            : null}
+            </> : null}
             {selectedDetailTab === "capabilities" ? <>
               <View style={styles.capabilityHeader}><Text style={styles.detailSectionTitle}>القدرات المسجلة وحالة اعتماد كل قدرة</Text><Pressable accessibilityRole="button" onPress={() => setCapabilityPickerOpen((value) => !value)} style={styles.detailLink}><Ionicons name="add" size={14} color={colors.primary}/><Text style={styles.detailLinkText}>إضافة قدرة</Text></Pressable></View>
               <View style={styles.capabilityLine}>
