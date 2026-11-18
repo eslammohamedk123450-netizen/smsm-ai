@@ -31,13 +31,6 @@ const ITEMS = [
   { key: "account", labelAr: "الحساب", labelEn: "Account", href: "/settings", icon: "person-circle-outline" as const },
 ] as const;
 
-const PLUS_ITEMS = [
-  { labelAr: "محادثة جديدة", labelEn: "New chat", href: "/chat", icon: "chatbubble-ellipses-outline" as const },
-  { labelAr: "الملفات والمكتبة", labelEn: "Files & library", href: "/media", icon: "folder-open-outline" as const },
-  { labelAr: "Studio", labelEn: "Studio", href: "/studio", icon: "sparkles-outline" as const },
-  { labelAr: "الموصلات", labelEn: "Connectors", href: "/integrations", icon: "git-network-outline" as const },
-] as const;
-
 function activeSection(pathname: string): string {
   if (pathname.startsWith("/projects")) return "projects";
   if (pathname.startsWith("/studio") || pathname.startsWith("/image-studio") || pathname.startsWith("/video-studio")) return "studio";
@@ -61,7 +54,6 @@ export function MainNavigation({ children }: Props) {
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [hoveredSidebarItem, setHoveredSidebarItem] = useState<string | null>(null);
-  const [plusVisible, setPlusVisible] = useState(false);
   const [recentConversations, setRecentConversations] = useState<Conversation[]>([]);
   const [recentLoading, setRecentLoading] = useState(false);
   const [recentError, setRecentError] = useState(false);
@@ -106,13 +98,11 @@ export function MainNavigation({ children }: Props) {
   const openDrawer = () => setDrawerVisible(true);
   const goHome = () => {
     setDrawerVisible(false);
-    setPlusVisible(false);
     router.replace("/chat");
   };
 
   const navigate = (href: string) => {
     setDrawerVisible(false);
-    setPlusVisible(false);
     if (href === "/chat") router.replace("/chat");
     else router.replace(href as never);
   };
@@ -231,7 +221,7 @@ export function MainNavigation({ children }: Props) {
 
   return (
     <NavigationMenuContext.Provider value={openDrawer}>
-      <PlusMenuContext.Provider value={() => setPlusVisible(true)}>
+      <PlusMenuContext.Provider value={() => router.push("/integrations" as never)}>
         <View style={[styles.root, isDesktop && { flexDirection: isArabic ? "row-reverse" : "row" }, { backgroundColor: colors.background }]}>
           {isDesktop ? (
             <SafeAreaView edges={["top", "bottom"]} style={[styles.desktopSidebar, { width: sidebarCollapsed ? 64 : 272, backgroundColor: colors.surface, borderColor: colors.divider, borderLeftWidth: isArabic ? 1 : 0, borderRightWidth: isArabic ? 0 : 1 }]}>
@@ -269,26 +259,7 @@ export function MainNavigation({ children }: Props) {
             </View>
           </Modal>
 
-          <Modal visible={plusVisible} transparent animationType="slide" onRequestClose={() => setPlusVisible(false)}>
-            <View style={styles.modalRoot}>
-              <Pressable style={styles.scrim} onPress={() => setPlusVisible(false)} accessibilityRole="button" accessibilityLabel={isArabic ? "إغلاق قائمة الإضافة" : "Close add menu"} />
-              <SafeAreaView edges={["bottom"]} style={[styles.plusSheet, { backgroundColor: colors.surface, borderColor: colors.divider }]}>
-                <View style={[styles.sheetHeading, { flexDirection: isArabic ? "row-reverse" : "row" }]}>
-                  <Text style={[styles.sheetTitle, { color: colors.textPrimary }]}>{isArabic ? "إضافة" : "Add"}</Text>
-                  <Pressable onPress={() => setPlusVisible(false)} accessibilityRole="button" accessibilityLabel={isArabic ? "إغلاق" : "Close"}>
-                    <Ionicons name="close" size={21} color={colors.textMuted} />
-                  </Pressable>
-                </View>
-                {PLUS_ITEMS.map((item) => (
-                  <Pressable key={item.href} onPress={() => navigate(item.href)} style={[styles.plusItem, { flexDirection: isArabic ? "row-reverse" : "row" }]}>
-                    <Ionicons name={item.icon} size={20} color={colors.textSecondary} />
-                    <Text style={[styles.plusItemText, { color: colors.textPrimary }]}>{isArabic ? item.labelAr : item.labelEn}</Text>
-                    <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={16} color={colors.textMuted} />
-                  </Pressable>
-                ))}
-              </SafeAreaView>
-            </View>
-          </Modal>
+
         </View>
       </PlusMenuContext.Provider>
     </NavigationMenuContext.Provider>
@@ -350,9 +321,4 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
   profileCopy: { flex: 1, minWidth: 0, gap: 3 },
   profileName: { fontSize: 12, fontWeight: "800" },
   profileEmail: { fontSize: 10 },
-  plusSheet: { marginTop: "auto", borderTopWidth: 1, borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingHorizontal: 18, paddingTop: 16, paddingBottom: 12 },
-  sheetHeading: { alignItems: "center", justifyContent: "space-between", paddingBottom: 12 },
-  sheetTitle: { fontSize: 16, fontWeight: "800" },
-  plusItem: { minHeight: 48, alignItems: "center", gap: 12 },
-  plusItemText: { flex: 1, fontSize: 13, fontWeight: "600" },
 });
