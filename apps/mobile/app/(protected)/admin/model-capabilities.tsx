@@ -1,2 +1,2 @@
-import { ModelCapabilitiesScreen } from "../../../src/features/admin/ModelCapabilitiesScreen";
-export default ModelCapabilitiesScreen;
+import { Redirect } from "expo-router";
+export default function LegacyModelCapabilitiesRoute() { return <Redirect href="/admin/models" />; }
