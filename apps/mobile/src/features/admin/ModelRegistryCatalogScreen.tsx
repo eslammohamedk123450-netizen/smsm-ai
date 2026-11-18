@@ -28,8 +28,6 @@ type RegistryModel = {
   display_name: string;
   lifecycle_state: "active" | "candidate" | "archived";
   legacy_chat_model_id: number | null;
-  legacy_chat_enabled?: boolean;
-  legacy_chat_routing_group?: string | null;
   legacy_media_model_id: string | null;
   capability_key: string | null;
   review_status?: CapabilityReviewStatus | null;
@@ -130,8 +128,10 @@ export function ModelRegistryCatalogScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async (preserveScreen = false) => {
-    if (!preserveScreen) setLoading(true);
-    setError(null);
+    if (!preserveScreen) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const [registry, providers, chat, media, health, priceRows, chatRoutes, mediaPrices] = await Promise.all([
         supabase.rpc("suly_admin_list_unified_model_capabilities"),
@@ -171,8 +171,6 @@ export function ModelRegistryCatalogScreen() {
         } else if (raw.lifecycle_state === "candidate") operational_state = "candidate";
         return {
           ...raw,
-          legacy_chat_enabled: legacy?.enabled,
-          legacy_chat_routing_group: legacy?.routing_group ?? null,
           provider_name: provider?.name ?? raw.provider_name ?? null,
           provider_type: provider?.provider_type ?? null,
           provider_enabled: provider?.enabled === true,
@@ -308,7 +306,7 @@ export function ModelRegistryCatalogScreen() {
     });
   }, [models, search, status, capability, capabilitiesByModel]);
 
-  return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+  return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" maintainVisibleContentPosition={{ minIndexForVisible: 0 }}>
     <AdminMobileBreadcrumb />
     <View style={styles.header}>
       <Text style={styles.eyebrow}>SULY · MODEL REGISTRY</Text>
