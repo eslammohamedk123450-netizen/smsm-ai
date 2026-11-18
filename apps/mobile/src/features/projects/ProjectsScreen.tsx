@@ -104,7 +104,13 @@ export default function ProjectsScreen() {
 
         {!archived ? (
           <View style={styles.createCard}>
-            <Text style={styles.sectionTitle}>{isArabic ? "إنشاء مشروع جديد" : "Create a project"}</Text>
+            <View style={styles.createHeader}>
+              <View style={styles.createIcon}><Ionicons name="add" size={21} color={colors.onPrimary} /></View>
+              <View style={styles.createHeaderCopy}>
+                <Text style={styles.sectionTitle}>{isArabic ? "مساحة عمل جديدة" : "New workspace"}</Text>
+                <Text style={styles.createHint}>{isArabic ? "ابدأ مشروعًا يجمع محادثاتك وملفاتك في مكان واحد." : "Bring related conversations and files together in one place."}</Text>
+              </View>
+            </View>
             <TextInput value={name} onChangeText={setName} placeholder={isArabic ? "اسم المشروع" : "Project name"}
               placeholderTextColor={colors.textMuted} maxLength={100} style={styles.input}
               textAlign={isArabic ? "right" : "left"} accessibilityLabel={isArabic ? "اسم المشروع" : "Project name"} />
@@ -121,7 +127,10 @@ export default function ProjectsScreen() {
         ) : null}
 
         <View style={styles.listHeader}>
-          <Text style={styles.sectionTitle}>{archived ? (isArabic ? "المشاريع المؤرشفة" : "Archived projects") : (isArabic ? "المشاريع النشطة" : "Active projects")}</Text>
+          <View style={styles.listTitleGroup}>
+            <Text style={styles.sectionTitle}>{archived ? (isArabic ? "المشاريع المؤرشفة" : "Archived projects") : (isArabic ? "المشاريع النشطة" : "Active projects")}</Text>
+            {!loading && !loadError ? <Text style={styles.projectCount}>{projects.length.toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text> : null}
+          </View>
           <Pressable onPress={() => setArchived((value) => !value)} style={styles.archiveToggle}>
             <Ionicons name={archived ? "folder-open-outline" : "archive-outline"} size={16} color={colors.primary} />
             <Text style={styles.archiveToggleText}>{archived ? (isArabic ? "عرض النشطة" : "Show active") : (isArabic ? "الأرشيف" : "Archive")}</Text>
@@ -140,8 +149,8 @@ export default function ProjectsScreen() {
           </View>
         ) : projects.length ? projects.map((project) => (
           <View key={project.id} style={styles.projectCard}>
-            <View style={[styles.projectIcon, { borderColor: project.color }]}>
-              <Ionicons name={ICONS[project.icon_key] ?? "folder-outline"} size={23} color={project.color} />
+            <View style={styles.projectIcon}>
+              <Ionicons name={ICONS[project.icon_key] ?? "folder-outline"} size={22} color={colors.textPrimary} />
             </View>
             <View style={styles.projectCopy}>
               <Text style={styles.projectName}>{project.name}</Text>
@@ -177,31 +186,37 @@ export default function ProjectsScreen() {
 
 const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  content: { padding: 18, gap: 16, paddingBottom: 36, maxWidth: 900, width: "100%", alignSelf: "center" },
-  header: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 12, marginBottom: 4 },
-  backButton: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface },
-  headerCopy: { flex: 1, alignItems: isArabic ? "flex-end" : "flex-start", gap: 4 },
-  title: { color: colors.textPrimary, fontSize: 22, fontWeight: "800" },
-  subtitle: { color: colors.textSecondary, fontSize: 12, textAlign: isArabic ? "right" : "left", lineHeight: 19 },
-  createCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 18, padding: 16, gap: 10 },
-  sectionTitle: { color: colors.textPrimary, fontSize: 15, fontWeight: "700" },
+  content: { padding: 22, gap: 18, paddingBottom: 42, maxWidth: 960, width: "100%", alignSelf: "center" },
+  header: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 14, marginBottom: 4 },
+  backButton: { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider },
+  headerCopy: { flex: 1, alignItems: isArabic ? "flex-end" : "flex-start", gap: 5 },
+  title: { color: colors.textPrimary, fontSize: 25, fontWeight: "900" },
+  subtitle: { color: colors.textSecondary, fontSize: 13, textAlign: isArabic ? "right" : "left", lineHeight: 21 },
+  createCard: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 20, padding: 18, gap: 13 },
+  createHeader: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 12, marginBottom: 2 },
+  createIcon: { width: 42, height: 42, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: colors.primary },
+  createHeaderCopy: { flex: 1, gap: 3, alignItems: isArabic ? "flex-end" : "flex-start" },
+  createHint: { color: colors.textSecondary, fontSize: 11, lineHeight: 17, textAlign: isArabic ? "right" : "left" },
+  sectionTitle: { color: colors.textPrimary, fontSize: 15, fontWeight: "800" },
   input: { backgroundColor: colors.background, borderWidth: 1, borderColor: colors.divider, borderRadius: 12, color: colors.textPrimary, paddingHorizontal: 13, paddingVertical: 12, minHeight: 46 },
   descriptionInput: { minHeight: 76, textAlignVertical: "top" },
   createButton: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 44, borderRadius: 12, backgroundColor: colors.primary },
   createButtonText: { color: colors.onPrimary, fontSize: 13, fontWeight: "800" },
   disabled: { opacity: 0.45 },
   listHeader: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 },
-  archiveToggle: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 5, padding: 8 },
-  archiveToggleText: { color: colors.primary, fontSize: 12, fontWeight: "700" },
+  listTitleGroup: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 9 },
+  projectCount: { minWidth: 25, textAlign: "center", color: colors.textSecondary, fontSize: 11, fontWeight: "800", backgroundColor: colors.surfaceElevated, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 },
+  archiveToggle: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 6, paddingHorizontal: 11, paddingVertical: 8, borderRadius: 10, backgroundColor: colors.surfaceElevated },
+  archiveToggleText: { color: colors.textPrimary, fontSize: 12, fontWeight: "700" },
   loader: { marginTop: 24 },
   retryButton: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 42, paddingHorizontal: 16, borderRadius: 12, backgroundColor: colors.primary, marginTop: 12 },
   retryButtonText: { color: colors.onPrimary, fontWeight: "700", fontSize: 12 },
-  projectCard: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 16, padding: 13 },
-  projectIcon: { width: 44, height: 44, borderRadius: 14, borderWidth: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background },
-  projectCopy: { flex: 1, alignItems: isArabic ? "flex-end" : "flex-start", gap: 4 },
-  projectName: { color: colors.textPrimary, fontSize: 14, fontWeight: "800", textAlign: isArabic ? "right" : "left" },
-  projectDescription: { color: colors.textSecondary, fontSize: 11, textAlign: isArabic ? "right" : "left", lineHeight: 17 },
-  projectDate: { color: colors.textMuted, fontSize: 10 },
+  projectCard: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, borderRadius: 18, padding: 15 },
+  projectIcon: { width: 48, height: 48, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceElevated },
+  projectCopy: { flex: 1, minWidth: 0, alignItems: isArabic ? "flex-end" : "flex-start", gap: 5 },
+  projectName: { color: colors.textPrimary, fontSize: 15, fontWeight: "800", textAlign: isArabic ? "right" : "left" },
+  projectDescription: { color: colors.textSecondary, fontSize: 12, textAlign: isArabic ? "right" : "left", lineHeight: 18 },
+  projectDate: { color: colors.textMuted, fontSize: 10, marginTop: 2 },
   projectActions: { alignItems: "center", gap: 8 },
   openButton: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 5, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: colors.primary },
   openButtonText: { color: colors.onPrimary, fontSize: 11, fontWeight: "800" },
