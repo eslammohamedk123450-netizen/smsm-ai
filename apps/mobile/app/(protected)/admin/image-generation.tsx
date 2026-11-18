@@ -1,2 +1,2 @@
-import { MediaGenerationModelsAdminScreen } from "../../../src/features/admin/MediaGenerationModelsAdminScreen";
-export default MediaGenerationModelsAdminScreen;
+import { Redirect } from "expo-router";
+export default function LegacyImageGenerationRoute() { return <Redirect href="/admin/models" />; }
