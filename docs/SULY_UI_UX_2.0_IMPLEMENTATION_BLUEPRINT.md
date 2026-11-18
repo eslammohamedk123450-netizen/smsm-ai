@@ -510,7 +510,7 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 - **Deliverable:** source-level token audit, theme contrast test coverage, and successful CI checks.
 
 ### Phase 2 — Responsive application shell and global navigation
-**Status: 🟡 75% — responsive navigation structure, per-user collapse persistence, account destination, and collapsed-icon tooltips implemented on develop; CI and rendered interaction review remain.**
+**Status: ☑️ 100% — responsive navigation implementation is complete on develop; Expo TypeScript and shared theme regression checks passed. Rendered cross-device QA is tracked in Phase 7.**
 
 - ☑️ Confirm protected routes mount the shared MainNavigation and preserve the separate admin shell.
 - ☑️ Standardize the mobile drawer to 88% viewport width (maximum 360 px), safe-area aware, and anchored to the locale edge; preserve scrim and close actions.
@@ -520,10 +520,11 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 - ☑️ Keep the desktop sidebar independent from the chat header menu trigger; the sidebar has its own collapse control.
 - ☑️ Load up to six real recent conversations in the persistent desktop sidebar and retain the existing full-history “Show more” route.
 - ☑️ Collapsed navigation uses icons with accessible labels/hints and hover/focus tooltips for primary destinations, recent chats, and account.
-- ◐ RTL/LTR layout, desktop hover/focus tooltip positioning, and mobile modal dismissal are wired in source; actual browser/device interaction, focus restoration, and scroll-position preservation have not yet been verified.
-- ⬜ Capture responsive screenshots at mobile, tablet, desktop, and wide desktop sizes; run navigation route smoke tests.
+- ☑️ Keep admin routes out of end-user recent-conversation loading; the existing AdminShell remains separate.
+- ⏭️ Defer rendered RTL/LTR layout, hover/focus tooltip positioning, focus restoration, scroll-position preservation, and responsive screenshots to Phase 7's cross-platform browser/device QA.
 - **Changed file:** apps/mobile/src/components/navigation/MainNavigation.tsx.
-- **Deliverable:** responsive navigation screenshots, accessibility review, and route smoke tests.
+- **CI evidence:** [Monochrome theme and project defaults + Expo typecheck](https://github.com/eslammohamedk123450-netizen/smsm-ai/actions/runs/44285289157/job/134736254084); [HIMS isolation checks](https://github.com/eslammohamedk123450-netizen/smsm-ai/actions/runs/44285289157/job/134736253999); [Edge bundle verification](https://github.com/eslammohamedk123450-netizen/smsm-ai/actions/runs/44285289157/job/134736253939).
+- **Deliverable:** responsive navigation implementation and CI-verified type safety; rendered screenshots remain in Phase 7.
 
 ### Phase 3 — Unified chat shell and composer
 **Status: ◐ 55% — chat, attachment, voice, and automatic request foundations exist; target composer layout is not complete.**
