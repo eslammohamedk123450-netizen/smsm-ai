@@ -7,7 +7,8 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 const MAX_OUTPUT_TOKENS = 8;
-const MAX_PROBE_TIMEOUT_MS = 20_000;
+const MAX_PROBE_TIMEOUT_MS = 10_000;
+const MANUAL_PROBE_TIMEOUT_MS = 20_000;
 const SCHEDULED_CONCURRENCY = 5;
 const PROBE_PROMPT = "Reply with OK.";
 const MANUAL_PROBE_PROMPT = "Reply with OK.";
@@ -114,13 +115,19 @@ async function authorizeRequest(
   return { mode: "manual" };
 }
 
-async function probeModel(model: ModelRow, provider: ProviderRow, apiKey: string, prompt = PROBE_PROMPT): Promise<ProbeResult> {
+async function probeModel(
+  model: ModelRow,
+  provider: ProviderRow,
+  apiKey: string,
+  prompt = PROBE_PROMPT,
+  timeoutCap = MAX_PROBE_TIMEOUT_MS,
+): Promise<ProbeResult> {
   const startedAt = Date.now();
   const endpoint = safeChatEndpoint(provider.base_url, provider.provider_type);
   if (!endpoint) return { status: "error", duration_ms: 0, error_code: "provider_url_invalid" };
 
   const configuredTimeout = Number(model.response_timeout_ms) || 10_000;
-  const timeoutMs = Math.max(1_000, Math.min(MAX_PROBE_TIMEOUT_MS, configuredTimeout));
+  const timeoutMs = Math.max(1_000, Math.min(timeoutCap, configuredTimeout));
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -359,7 +366,7 @@ async function runManualTest(serviceClient: SupabaseClient, modelId: number): Pr
 
   const apiKey = await getProviderKey(serviceClient, provider.id);
   const result = apiKey
-    ? await probeModel(model, provider, apiKey, MANUAL_PROBE_PROMPT)
+    ? await probeModel(model, provider, apiKey, MANUAL_PROBE_PROMPT, MANUAL_PROBE_TIMEOUT_MS)
     : { status: "error", duration_ms: 0, error_code: "credential_unavailable" } satisfies ProbeResult;
   // Recording the manual run as the current periodic slot makes a manual test
   // count as one of the day's scheduled checks instead of duplicating effort.
