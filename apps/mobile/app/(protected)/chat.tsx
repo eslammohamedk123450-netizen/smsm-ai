@@ -782,6 +782,18 @@ export default function ChatPage() {
           </Pressable>
 
           <View style={styles.headerActions}>
+            {isAdmin ? (
+              <TouchableOpacity
+                onPress={() => router.push("/admin")}
+                style={styles.adminShortcut}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={isArabic ? "فتح لوحة الأدمن" : "Open admin dashboard"}
+              >
+                <Ionicons name="shield-checkmark-outline" size={16} color={colors.primary} />
+                <Text style={styles.adminShortcutText}>{isArabic ? "الأدمن" : "Admin"}</Text>
+              </TouchableOpacity>
+            ) : null}
             {creditBalance !== null ? (
               <TouchableOpacity onPress={() => router.push("/(protected)/balance")} style={styles.creditPill} accessibilityRole="button" accessibilityLabel={isArabic ? "رصيد Suly" : "SULY credits"}>
                 <Ionicons name="flash-outline" size={14} color={colors.textSecondary} />
