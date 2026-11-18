@@ -8,9 +8,10 @@ const corsHeaders = {
 };
 const MAX_OUTPUT_TOKENS = 8;
 const MAX_PROBE_TIMEOUT_MS = 10_000;
+const MANUAL_PROBE_TIMEOUT_MS = 20_000;
 const SCHEDULED_CONCURRENCY = 5;
 const PROBE_PROMPT = "Reply with OK.";
-const MANUAL_PROBE_PROMPT = "xqzv kjt pqlm";
+const MANUAL_PROBE_PROMPT = "Reply with OK.";
 
 type ModelRow = {
   id: number;
@@ -114,13 +115,19 @@ async function authorizeRequest(
   return { mode: "manual" };
 }
 
-async function probeModel(model: ModelRow, provider: ProviderRow, apiKey: string, prompt = PROBE_PROMPT): Promise<ProbeResult> {
+async function probeModel(
+  model: ModelRow,
+  provider: ProviderRow,
+  apiKey: string,
+  prompt = PROBE_PROMPT,
+  timeoutCap = MAX_PROBE_TIMEOUT_MS,
+): Promise<ProbeResult> {
   const startedAt = Date.now();
   const endpoint = safeChatEndpoint(provider.base_url, provider.provider_type);
   if (!endpoint) return { status: "error", duration_ms: 0, error_code: "provider_url_invalid" };
 
   const configuredTimeout = Number(model.response_timeout_ms) || 10_000;
-  const timeoutMs = Math.max(1_000, Math.min(MAX_PROBE_TIMEOUT_MS, configuredTimeout));
+  const timeoutMs = Math.max(1_000, Math.min(timeoutCap, configuredTimeout));
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -156,7 +163,9 @@ async function probeModel(model: ModelRow, provider: ProviderRow, apiKey: string
       const choices = Array.isArray(payload.choices) ? payload.choices : [];
       const firstChoice = asRecord(choices[0]);
       const message = asRecord(firstChoice.message);
-      const text = contentText(message.content);
+      const text = [message.content, firstChoice.text, payload.output_text]
+        .map(contentText)
+        .find((value) => value.trim().length > 0) ?? "";
       return text.trim()
         ? { status: "success", duration_ms: Date.now() - startedAt, error_code: null }
         : { status: "error", duration_ms: Date.now() - startedAt, error_code: "empty_response" };
@@ -181,7 +190,15 @@ async function probeModel(model: ModelRow, provider: ProviderRow, apiKey: string
                 const choices = Array.isArray(payload.choices) ? payload.choices : [];
                 const firstChoice = asRecord(choices[0]);
                 const delta = asRecord(firstChoice.delta);
-                const text = contentText(delta.content);
+                const message = asRecord(firstChoice.message);
+                const text = [
+                  delta.content,
+                  message.content,
+                  delta.text,
+                  message.text,
+                  firstChoice.text,
+                  payload.output_text,
+                ].map(contentText).find((value) => value.trim().length > 0) ?? "";
                 if (text.trim()) {
                   await reader.cancel().catch(() => undefined);
                   return { status: "success", duration_ms: Date.now() - startedAt, error_code: null };
@@ -350,13 +367,13 @@ async function runManualTest(serviceClient: SupabaseClient, modelId: number): Pr
     const skipped: ProbeResult = { status: "error", duration_ms: 0, error_code: "provider_disabled" };
     // Manual tests count toward the periodic daily checks; provider-disabled
     // models are logged on their own key so they never consume a live slot.
-    await recordProbe(serviceClient, model, provider, "scheduled", `scheduled:${model.id}:manual-offline:${crypto.randomUUID()}`, skipped);
+    await recordProbe(serviceClient, model, provider, "manual", `scheduled:${model.id}:manual-offline:${crypto.randomUUID()}`, skipped);
     return jsonResponse({ model_id: model.id, status: "error", duration_ms: 0, error_code: "provider_disabled" });
   }
 
   const apiKey = await getProviderKey(serviceClient, provider.id);
   const result = apiKey
-    ? await probeModel(model, provider, apiKey, MANUAL_PROBE_PROMPT)
+    ? await probeModel(model, provider, apiKey, MANUAL_PROBE_PROMPT, MANUAL_PROBE_TIMEOUT_MS)
     : { status: "error", duration_ms: 0, error_code: "credential_unavailable" } satisfies ProbeResult;
   // Recording the manual run as the current periodic slot makes a manual test
   // count as one of the day's scheduled checks instead of duplicating effort.
@@ -365,7 +382,7 @@ async function runManualTest(serviceClient: SupabaseClient, modelId: number): Pr
     serviceClient,
     model,
     provider,
-    "scheduled",
+    "manual",
     checkKey,
     result,
   );
