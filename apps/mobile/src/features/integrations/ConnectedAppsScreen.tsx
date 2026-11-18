@@ -35,6 +35,7 @@ export default function ConnectedAppsScreen() {
       setServiceReady(result.serviceReady);
       if (showSuccess) show(isArabic ? "تم فحص خدمة الموصلات وحالة الحسابات." : "Connector service and account status checked.", "success");
     } catch (cause) {
+      setStatuses([]);
       setServiceReady(false);
       show(cause instanceof Error ? cause.message : (isArabic ? "تعذّر تحميل حالة التطبيقات المرتبطة." : "Could not load connected app status."), "error");
     } finally {
@@ -124,7 +125,8 @@ export default function ConnectedAppsScreen() {
           <TouchableOpacity
             activeOpacity={0.7}
             onPress={() => setAddSheetVisible(true)}
-            style={styles.addButton}
+            disabled={refreshing || serviceReady !== true}
+            style={[styles.addButton, (refreshing || serviceReady !== true) && styles.disabledButton]}
             accessibilityRole="button"
             accessibilityLabel={isArabic ? "إضافة موصل" : "Add connector"}
           >
@@ -221,6 +223,7 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   headerActions: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 8 },
   iconButton: { width: 40, height: 40, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider },
   addButton: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "center", gap: 5, paddingHorizontal: 12, height: 40, borderRadius: 13, backgroundColor: colors.primary },
+  disabledButton: { opacity: 0.45 },
   addText: { color: colors.onPrimary, fontSize: 12, fontWeight: "800" },
   explainer: { color: colors.textSecondary, fontSize: 13, lineHeight: 21, textAlign: isArabic ? "right" : "left", marginTop: 9 },
   serviceStatus: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 8, marginTop: 16, padding: 12, borderRadius: 13, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider },
