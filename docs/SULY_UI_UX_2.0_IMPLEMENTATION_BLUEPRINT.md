@@ -713,4 +713,41 @@ These observations are a starting point only. Phase 0 must re-fetch the current 
 
 ---
 
+## 15. Source-level integration and authorization matrix (2026-11-18)
+
+This matrix records what was inspected in the current source. It is not a substitute for server-side authorization tests or provider/device verification.
+
+| Surface / user action | Current source path | Existing service / data boundary | Honest UI state / remaining verification |
+|---|---|---|---|
+| Studio image availability | `apps/mobile/src/features/studio/StudioScreen.tsx` | `suly_list_public_image_models`; only active models with supported qualities and positive published credit prices are enabled | Registry error has retry; video/audio/transcription remain explicitly unavailable; verify on deployed preview with real registry data |
+| Image generation and status | `apps/mobile/src/features/media/ImageStudioScreen.tsx` | `image-generator`, `suly_get_my_media_generation_job`, `getCurrentCreditBalance`, `media-gateway` delivery | Positive price and known balance required; request ID retained across uncertain retry; provider/credit reconciliation still needs live test |
+| Library list and jobs | `apps/mobile/src/features/media/MediaScreen.tsx`, `media-service.ts` | `suly_media_list_self`, `suly_list_my_media_generation_jobs`, signed delivery via `media-gateway` | Load failure clears stale rows and exposes retry; verify owner isolation and real signed URL expiry |
+| Library upload and deletion | `media-service.ts` | `media-gateway` sign-upload, register, delete; current session token passed to gateway | Upload/delete errors are surfaced; verify supported MIME/size cases and server ownership in integration tests |
+| Library folders and favorites | `media-service.ts` | Existing user-scoped queries and owner ID checks for mutations; RLS remains authoritative | Rename/delete/favorite/folder removal require a changed row; verify cross-user denial against preview data |
+| Projects CRUD and archive | `apps/mobile/src/features/projects/ProjectsScreen.tsx`, `project-service.ts` | Existing `suly_projects` and `suly_conversations` rows, current user ID filters, RLS | Loading/error/retry/empty and mutation states exist; verify CRUD, archive, restore, and conversation assignment with two accounts |
+| Connectors | `ConnectedAppsScreen.tsx`, `integration-service.ts` | `composito-integration` Edge Function; fresh server status after OAuth; server-confirmed disconnect | Status fails closed; success only after active account confirmation; provider OAuth/revocation still needs live verification |
+| Account and settings | `SettingsScreen.tsx`, `ProfileDetailsScreen.tsx` | Auth provider, profile RPC, existing credit ledger, theme/locale providers | Credit/theme/language/archive have retry/persistence paths; device management and direct account deletion are explicitly unavailable; official policy URLs/text are not configured |
+| Memory display | `MemoryStorageScreen.tsx` | `agent_memories` query filtered by authenticated user ID | Read-only; edit/delete explicitly unavailable; verify RLS with separate accounts |
+
+### Mutation concurrency hardening added on develop
+
+The following immediate in-flight locks were added to prevent rapid repeated taps from racing React state updates and submitting duplicate operations:
+
+- Projects create and archive/restore — commit `b3515a7adcf50303553bff0f96e604a44a524b44`.
+- Connector connect/disconnect — commit `1de77c4aa327bb47b14d4753b54004d0e6a4c3b5`.
+- Library upload, favorite/folder organization, and asset deletion — commit `ac7c6e302323b462bb73499728a8606fa30c2d5c`.
+- Image generation and start-conversation action — commit `57139e4598aa4040c1fc2cfa9a7a208029ca3250`.
+
+These locks are client-side duplicate-submission safeguards only. Server-side authentication, ownership checks, RLS, request idempotency, and credit-ledger controls remain authoritative. CI for the latest UI commit must pass before these changes are marked verified.
+
+### Phase 6 account/security findings
+
+- The profile screen supports name updates and sign-out.
+- Connected-device management is not available because no dedicated device-session registry is wired.
+- Direct account deletion is not available; the UI submits a support request and explicitly states that this does not delete the account.
+- Privacy/terms sheets clearly disclose that official published policy content is not configured; official owner-approved URLs/text are still a release prerequisite.
+- Memory is read-only in this client; editing/deletion must not be represented as available.
+
+---
+
 **Final instruction to implementers:** Follow this document literally unless a requirement conflicts with an existing security boundary, a verified backend contract, or an existing user-facing feature. In that case, do not silently improvise: preserve the feature, document the conflict, and request a scoped decision. Work only on the existing develop branch; never create another branch. The current owner-approved product decision is one unified conversation mode with an always-available central Agent and fully automatic model/tool/execution routing. No user-facing Agent toggle, Chat/Agent switch, or manual model/profile selector may be reintroduced.
