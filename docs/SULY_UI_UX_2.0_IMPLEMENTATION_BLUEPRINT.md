@@ -534,7 +534,7 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 - ☑️ Confirm the attachment sheet and permission-aware microphone/speech-recognition handling exist in ChatComposer.
 - ☑️ Wire the far-right plus action to the existing connectors/tools sheet through MainNavigation's plus-menu context.
 - ☑️ Add a separate paperclip control that opens only the supported attachment sheet; the two actions are no longer conflated.
-- ☑️ Preserve the flexible 42–132 px multiline input and microphone/send controls; replace the streaming spinner-only control with a labeled Stop action using the existing cancellation callback.
+- ☑️ Preserve the flexible 42–132 px multiline input; standardize composer spacing to 8 px and action hit targets to 42 px; replace the streaming spinner-only control with a labeled Stop action using the existing cancellation callback.
 - ◐ Verify exact RTL/LTR visual ordering, touch targets, disabled states, and composer wrapping on real viewport sizes.
 - ☑️ Remove legacy chat-route model-profile option types, hardcoded defaults, and stale picker styles; verify the chat composer/message renderers contain no user-facing model/profile selector. Admin-only model governance is untouched.
 - ⬜ Run Arabic/English send, attachment, voice permission, cancellation, retry, and draft-preservation tests.
