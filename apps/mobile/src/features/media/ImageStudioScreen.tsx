@@ -37,6 +37,8 @@ export function ImageStudioScreen() {
   const [notice, setNotice] = useState<string | null>(null);
   const [result, setResult] = useState<GeneratedImage | null>(null);
   const [pendingRequest, setPendingRequest] = useState<{ prompt: string; quality: string; id: string } | null>(null);
+  const generationLock = useRef(false);
+  const conversationLock = useRef(false);
   const breathingScale = useRef(new Animated.Value(1)).current;
   const resultOpacity = useRef(new Animated.Value(0)).current;
 
@@ -115,7 +117,8 @@ export function ImageStudioScreen() {
   };
 
   const generate = async () => {
-    if (!canGenerate || !selectedModel || !selectedPrice || !prompt.trim()) return;
+    if (generationLock.current || !canGenerate || !selectedModel || !selectedPrice || !prompt.trim()) return;
+    generationLock.current = true;
     setGenerating(true); setError(null); setNotice(null); setResult(null);
     try {
       const normalizedPrompt = prompt.trim();
@@ -176,7 +179,10 @@ export function ImageStudioScreen() {
       setBalance(await getCurrentCreditBalance().catch(() => null));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : (isArabic ? "تعذر إكمال توليد الصورة." : "Image generation could not be completed."));
-    } finally { setGenerating(false); }
+    } finally {
+      generationLock.current = false;
+      setGenerating(false);
+    }
   };
 
   const copyResultLink = async () => {
@@ -190,7 +196,8 @@ export function ImageStudioScreen() {
   };
 
   const startConversationAboutImage = async () => {
-    if (!result || openingChat) return;
+    if (!result || openingChat || conversationLock.current) return;
+    conversationLock.current = true;
     setOpeningChat(true); setError(null);
     try {
       const conversation = await chatService.createConversation(isArabic ? "محادثة حول صورة من استوديو الصور" : "Chat about an image from Image Studio");
@@ -222,7 +229,10 @@ export function ImageStudioScreen() {
       router.push("/(protected)/chat");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : (isArabic ? "تعذر بدء محادثة حول الصورة." : "Could not start a conversation about the image."));
-    } finally { setOpeningChat(false); }
+    } finally {
+      conversationLock.current = false;
+      setOpeningChat(false);
+    }
   };
 
   return <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: 16, gap: 14, maxWidth: 1000, width: "100%", alignSelf: "center" }} keyboardShouldPersistTaps="handled">
