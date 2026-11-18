@@ -55,7 +55,14 @@ export function MediaScreen() {
   }, [isArabic]);
   useEffect(() => {
     void load();
-    void supabase.rpc("suly_is_admin").then(({ data }) => setIsAdmin(data === true)).catch(() => setIsAdmin(false));
+    void (async () => {
+      try {
+        const { data } = await supabase.rpc("suly_is_admin");
+        setIsAdmin(data === true);
+      } catch {
+        setIsAdmin(false);
+      }
+    })();
   }, [load]);
 
   const pickAndUpload = async (kind: PickKind) => {
