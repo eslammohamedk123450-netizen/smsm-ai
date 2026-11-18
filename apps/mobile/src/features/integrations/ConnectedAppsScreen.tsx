@@ -53,8 +53,20 @@ export default function ConnectedAppsScreen() {
     setConnecting(toolkit);
     try {
       const completed = await integrationService.openConnectFlow(toolkit);
-      if (completed) show(isArabic ? "عادت صفحة الربط. حدّث الحالة للتأكد من اكتمال الاتصال." : "Returned from the connection page. Refresh to verify the connection.", "success");
-      await load();
+      if (completed) {
+        const result = await integrationService.getStatus();
+        setStatuses(result.toolkits);
+        setServiceReady(result.serviceReady);
+        const account = result.toolkits.find((item) => item.toolkit === toolkit);
+        if (account?.connected) {
+          show(isArabic ? `تم ربط ${account.label} والتحقق من نشاط الحساب.` : `${account.label} connected and verified active.`, "success");
+        } else {
+          show(isArabic ? "عادت صفحة التفويض، لكن لم يؤكد الخادم اتصال الحساب بعد. راجع الحالة قبل استخدام الموصل." : "Authorization returned, but the server has not confirmed an active connection yet. Check the status before using this connector.", "info");
+        }
+      } else {
+        await load();
+        show(isArabic ? "لم يكتمل ربط التطبيق. يمكنك المحاولة مرة أخرى." : "The app connection was not completed. You can try again.", "info");
+      }
     } catch (cause) {
       show(cause instanceof Error ? cause.message : (isArabic ? "تعذّر بدء ربط التطبيق." : "Could not start app connection."), "error");
     } finally {
