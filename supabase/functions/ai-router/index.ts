@@ -355,7 +355,7 @@ async function openCandidate(candidate: Candidate, controller: AbortController):
 }
 
 // The first model that produces actual non-empty text wins; HTTP headers alone do not win the race.
-async function firstReady(candidates: Candidate[], waitMs: number, recordAttempt: AttemptRecorder, onStart?: (count: number) => void): Promise<ReadyCandidate | null> {
+async function firstReady(candidates: Candidate[], waitMs: number, recordAttempt: AttemptRecorder, onStart?: (count: number) => void, signal?: AbortSignal): Promise<ReadyCandidate | null> {
   if (candidates.length === 0) return null;
   const raceState = { winnerSelected: false, deadlineExpired: false };
   const attempts = candidates.map((candidate) => {
@@ -391,6 +391,9 @@ async function firstReady(candidates: Candidate[], waitMs: number, recordAttempt
     return { candidate: attemptCandidate, controller, promise, startedAtMs };
   });
   onStart?.(attempts.length);
+  const abortAttempts = () => attempts.forEach((attempt) => attempt.controller.abort());
+  if (signal?.aborted) abortAttempts();
+  else signal?.addEventListener("abort", abortAttempts, { once: true });
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<null>((resolve) => {
     timer = setTimeout(() => resolve(null), waitMs);
@@ -398,10 +401,12 @@ async function firstReady(candidates: Candidate[], waitMs: number, recordAttempt
   const ready = Promise.any(attempts.map((attempt) => attempt.promise)).catch(() => null);
   const winner = await Promise.race([ready, timeout]);
   if (timer) clearTimeout(timer);
-  if (!winner) raceState.deadlineExpired = true;
+  signal?.removeEventListener("abort", abortAttempts);
+  if (signal?.aborted) abortAttempts();
+  if (!winner || signal?.aborted) raceState.deadlineExpired = true;
   else raceState.winnerSelected = true;
   for (const attempt of attempts) {
-    if (!winner || attempt.controller !== winner.controller) {
+    if (!winner || signal?.aborted || attempt.controller !== winner.controller) {
       attempt.controller.abort();
       if (winner) {
         void attempt.promise.then(async (loser) => {
@@ -411,7 +416,7 @@ async function firstReady(candidates: Candidate[], waitMs: number, recordAttempt
       }
     }
   }
-  return winner;
+  return signal?.aborted ? null : winner;
 }
 
 const OUTPUT_GUARD_NOTICE_RESERVE = 64;
@@ -445,12 +450,17 @@ function applyFinalOutputLimit(content: string, maxChars: number): { content: st
   return { content: `${bounded.trimEnd()}${notice}`, reason: "max_output" };
 }
 
-async function collectCandidate(candidate: ReadyCandidate, maxChars: number): Promise<{ content: string; reason: "repetition" | "max_output" | null }> {
+async function collectCandidate(candidate: ReadyCandidate, maxChars: number, signal?: AbortSignal): Promise<{ content: string; reason: "repetition" | "max_output" | null }> {
+  const abortCandidate = () => candidate.controller.abort();
+  if (signal?.aborted) abortCandidate();
+  else signal?.addEventListener("abort", abortCandidate, { once: true });
   const guard = new OutputGuard({ maxChars: Math.max(512, maxChars - OUTPUT_GUARD_NOTICE_RESERVE) });
   let content = guard.push(candidate.firstChunk).text;
   try {
+    if (signal?.aborted) throw new DOMException("Request aborted", "AbortError");
     if (!guard.reason) {
       for await (const chunk of candidate.iterator) {
+        if (signal?.aborted) throw new DOMException("Request aborted", "AbortError");
         const result = guard.push(chunk);
         content += result.text;
         if (result.stopped) {
@@ -463,6 +473,7 @@ async function collectCandidate(candidate: ReadyCandidate, maxChars: number): Pr
     content += tail.text;
     return { content, reason: guard.reason };
   } finally {
+    signal?.removeEventListener("abort", abortCandidate);
     candidate.cleanup();
   }
 }
@@ -1783,9 +1794,9 @@ async function handleRequest(req: Request): Promise<Response> {
     const dagRequestMessages = providerMessagesForModel(dagMessages, []);
     for (const baseCandidate of dagPlannerCandidates) {
       const candidate: Candidate = { ...baseCandidate, requestMessages: dagRequestMessages, temperature: 0, maxTokens: 1200, inputTokens: 0, outputTokens: 0, usageStepKey: "dag-planner", usageAttemptNo: 1 };
-      const ready = await firstReady([candidate], settings.freeRaceTimeoutMs, recordAttempt, countModelStarts);
+      const ready = await firstReady([candidate], settings.freeRaceTimeoutMs, recordAttempt, countModelStarts, req.signal);
       if (!ready) continue;
-      const planned = await collectCandidate(ready, 12000);
+      const planned = await collectCandidate(ready, 12000, req.signal);
       const inputTokens = ready.inputTokens > 0 ? ready.inputTokens : estimateTokens(dagRequestMessages.map((message) => message.content).join("\n"));
       const outputTokens = ready.outputTokens > 0 ? ready.outputTokens : estimateTokens(planned.content);
       const parsedPlan = parseModelGeneratedTaskPlan(planned.content, settings.taskSplitMaxParts);
@@ -1950,10 +1961,10 @@ async function handleRequest(req: Request): Promise<Response> {
         usageAttemptNo: candidateIndex + 1,
       }));
       for (let attempt = 0; attempt < Math.min(2, remaining.length); attempt += 1) {
-        const partWinner = await firstReady(remaining, settings.freeRaceTimeoutMs, recordAttempt, countModelStarts);
+        const partWinner = await firstReady(remaining, settings.freeRaceTimeoutMs, recordAttempt, countModelStarts, req.signal);
         if (!partWinner) break;
         try {
-          const collected = await collectCandidate(partWinner, Math.max(1600, Math.floor(maxOutputChars / splitParts.length)));
+          const collected = await collectCandidate(partWinner, Math.max(1600, Math.floor(maxOutputChars / splitParts.length)), req.signal);
           const content = collected.content + (collected.reason ? outputGuardNotice(collected.reason) : "");
           accountWorkerUsage(partWinner, content);
           if (content.trim()) {
@@ -2272,9 +2283,10 @@ async function handleRequest(req: Request): Promise<Response> {
             pool.timeoutMs,
             recordAttempt,
             countModelStarts,
+            req.signal,
           );
           if (!ready) continue;
-          const collected = await collectCandidate(ready, 8000);
+          const collected = await collectCandidate(ready, 8000, req.signal);
           plannerCandidatesUsed.push(ready);
           plannerInputTokens += ready.inputTokens > 0 ? ready.inputTokens : estimateTokens(requestMessages.map((message) => typeof message.content === "string" ? message.content : JSON.stringify(message.content)).join("\n"));
           plannerOutputTokens += ready.outputTokens > 0 ? ready.outputTokens : estimateTokens(collected.content);
@@ -2739,9 +2751,9 @@ async function handleRequest(req: Request): Promise<Response> {
             inputTokens: 0,
             outputTokens: 0,
           };
-          const ready = await firstReady([candidate], pool.timeoutMs, recordAttempt, countModelStarts);
+          const ready = await firstReady([candidate], pool.timeoutMs, recordAttempt, countModelStarts, req.signal);
           if (!ready) continue;
-          const collected = await collectCandidate(ready, 8000);
+          const collected = await collectCandidate(ready, 8000, req.signal);
           summarizerInputTokens += ready.inputTokens > 0 ? ready.inputTokens : estimateTokens(requestMessages.map((message) => message.content).join("\n"));
           summarizerOutputTokens += ready.outputTokens > 0 ? ready.outputTokens : estimateTokens(collected.content);
           if (await checkAgentCancellation()) { agentCancellationObserved = true; break; }
@@ -2783,9 +2795,9 @@ async function handleRequest(req: Request): Promise<Response> {
           for (const baseCandidate of pool.candidates) {
             if (agentCancellationObserved || await checkAgentCancellation()) { agentCancellationObserved = true; break; }
             const candidate: Candidate = { ...baseCandidate, requestMessages: providerMessagesForModel(reviewMessages, []), temperature: 0, maxTokens: 500, inputTokens: 0, outputTokens: 0 };
-            const ready = await firstReady([candidate], pool.timeoutMs, recordAttempt, countModelStarts);
+            const ready = await firstReady([candidate], pool.timeoutMs, recordAttempt, countModelStarts, req.signal);
             if (!ready) continue;
-            const collected = await collectCandidate(ready, 2000);
+            const collected = await collectCandidate(ready, 2000, req.signal);
             reviewerInputTokens += ready.inputTokens > 0 ? ready.inputTokens : estimateTokens(reviewMessages.map((message) => message.content).join("\n"));
             reviewerOutputTokens += ready.outputTokens > 0 ? ready.outputTokens : estimateTokens(collected.content);
             if (await checkAgentCancellation()) { agentCancellationObserved = true; break; }
@@ -2818,9 +2830,9 @@ async function handleRequest(req: Request): Promise<Response> {
           for (const baseCandidate of pool.candidates) {
             if (await checkAgentCancellation()) { agentCancellationObserved = true; break; }
             const candidate: Candidate = { ...baseCandidate, requestMessages: providerMessagesForModel(revisionMessages, []), temperature: 0.1, maxTokens: Math.min(1800, Math.max(256, maxTokens)), inputTokens: 0, outputTokens: 0 };
-            const ready = await firstReady([candidate], pool.timeoutMs, recordAttempt, countModelStarts);
+            const ready = await firstReady([candidate], pool.timeoutMs, recordAttempt, countModelStarts, req.signal);
             if (!ready) continue;
-            const collected = await collectCandidate(ready, 8000);
+            const collected = await collectCandidate(ready, 8000, req.signal);
             summarizerInputTokens += ready.inputTokens > 0 ? ready.inputTokens : estimateTokens(revisionMessages.map((message) => message.content).join("\n"));
             summarizerOutputTokens += ready.outputTokens > 0 ? ready.outputTokens : estimateTokens(collected.content);
             if (await checkAgentCancellation()) { agentCancellationObserved = true; break; }
@@ -2953,7 +2965,7 @@ async function handleRequest(req: Request): Promise<Response> {
     // slow primary cannot consume the entire deadline before fallback starts.
     const candidatesLeft = boundedFreeCandidates.length - index;
     const candidateBudget = candidatesLeft > 1 ? Math.ceil(remaining / candidatesLeft) : remaining;
-    winner = await firstReady([boundedFreeCandidates[index]], candidateBudget, recordAttempt, countModelStarts);
+    winner = await firstReady([boundedFreeCandidates[index]], candidateBudget, recordAttempt, countModelStarts, req.signal);
     if (winner) break;
   }
 
@@ -2975,7 +2987,7 @@ async function handleRequest(req: Request): Promise<Response> {
     for (const candidate of paidCandidates) {
       const remaining = fallbackDeadline - Date.now();
       if (remaining <= 0) break;
-      winner = await firstReady([candidate], remaining, recordAttempt, countModelStarts);
+      winner = await firstReady([candidate], remaining, recordAttempt, countModelStarts, req.signal);
       if (winner) break;
     }
   }
@@ -3152,7 +3164,7 @@ async function handleRequest(req: Request): Promise<Response> {
   }
 
   try {
-    const collected = await collectCandidate(winner, maxOutputChars);
+    const collected = await collectCandidate(winner, maxOutputChars, req.signal);
     const content = collected.content + (collected.reason ? outputGuardNotice(collected.reason) : "");
     if (!content.trim()) throw new Error("model returned no safe response text");
     const messageId = await persistAssistant(supabase, conversationId, user.id, billingTaskId, winner, content);
