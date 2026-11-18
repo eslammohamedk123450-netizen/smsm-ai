@@ -254,20 +254,24 @@ export async function renameMediaFolder(folderId: string, name: string): Promise
   const trimmed = name.trim();
   if (!trimmed || trimmed.length > 80) throw new MediaUploadError("folder_name_invalid", "اسم المجلد يجب أن يكون من حرف إلى 80 حرفًا.");
   const userId = await requireMediaOwner();
-  const { error } = await supabase.from("suly_media_folders")
+  const { data, error } = await supabase.from("suly_media_folders")
     .update({ name: trimmed, updated_at: new Date().toISOString() })
-    .eq("id", folderId).eq("user_id", userId);
+    .eq("id", folderId).eq("user_id", userId)
+    .select("id").maybeSingle();
   if (error) {
     if (error.code === "23505") throw new MediaUploadError("folder_exists", "يوجد مجلد بهذا الاسم بالفعل.");
     throw new MediaUploadError("folder_rename_failed", "تعذر تغيير اسم المجلد.");
   }
+  if (!data) throw new MediaUploadError("folder_rename_failed", "المجلد غير موجود أو لا تملك صلاحية تعديله.");
 }
 
 export async function deleteMediaFolder(folderId: string): Promise<void> {
   const userId = await requireMediaOwner();
-  const { error } = await supabase.from("suly_media_folders").delete()
-    .eq("id", folderId).eq("user_id", userId);
+  const { data, error } = await supabase.from("suly_media_folders").delete()
+    .eq("id", folderId).eq("user_id", userId)
+    .select("id").maybeSingle();
   if (error) throw new MediaUploadError("folder_delete_failed", "تعذر حذف المجلد.");
+  if (!data) throw new MediaUploadError("folder_delete_failed", "المجلد غير موجود أو لا تملك صلاحية حذفه.");
 }
 
 export async function listMyMediaAssetFolders(): Promise<Record<string, string>> {
@@ -281,9 +285,11 @@ export async function listMyMediaAssetFolders(): Promise<Record<string, string>>
 export async function setMediaAssetFolder(assetId: string, folderId: string | null): Promise<void> {
   const userId = await requireMediaOwner();
   if (folderId === null) {
-    const { error } = await supabase.from("suly_media_asset_folders").delete()
-      .eq("asset_id", assetId).eq("user_id", userId);
+    const { data, error } = await supabase.from("suly_media_asset_folders").delete()
+      .eq("asset_id", assetId).eq("user_id", userId)
+      .select("asset_id").maybeSingle();
     if (error) throw new MediaUploadError("folder_remove_failed", "تعذر إزالة الملف من المجلد.");
+    if (!data) throw new MediaUploadError("folder_remove_failed", "الملف غير موجود داخل هذا المجلد.");
     return;
   }
   const { error } = await supabase.from("suly_media_asset_folders").upsert(
@@ -310,7 +316,9 @@ export async function setMediaFavorite(assetId: string, favorite: boolean): Prom
     if (error) throw new MediaUploadError("favorite_add_failed", "تعذر إضافة الملف إلى المفضلة.");
     return;
   }
-  const { error } = await supabase.from("suly_media_favorites").delete()
-    .eq("user_id", userId).eq("asset_id", assetId);
+  const { data, error } = await supabase.from("suly_media_favorites").delete()
+    .eq("user_id", userId).eq("asset_id", assetId)
+    .select("asset_id").maybeSingle();
   if (error) throw new MediaUploadError("favorite_remove_failed", "تعذر إزالة الملف من المفضلة.");
+  if (!data) throw new MediaUploadError("favorite_remove_failed", "الملف غير موجود في المفضلة.");
 }
