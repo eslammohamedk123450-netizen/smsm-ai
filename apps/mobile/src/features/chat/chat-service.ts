@@ -78,16 +78,21 @@ const TITLE_LIMIT = 48;
 
 export const chatService = {
   async getAvailableModels(): Promise<ChatModel[]> {
-    // Provider credentials/configuration are intentionally hidden from normal
-    // clients. The security-invoker ai_providers_catalog view therefore cannot
-    // be queried by non-admin users; model discovery must not depend on it.
-    const { data, error } = await supabase.from("ai_models")
-      .select("id,name,provider_id,model_identifier,enabled,priority,context_window,routing_group,allowed_tiers")
-      .eq("enabled", true)
-      .order("priority", { ascending: false })
-      .limit(200);
+    // The safe server-side catalog exposes only models whose provider is
+    // enabled and whose circuit breaker has not restricted them. It never
+    // exposes provider credentials or subscription-tier metadata.
+    const { data, error } = await supabase.rpc("suly_list_available_chat_models");
     if (error) throw new Error("تعذر تحميل النماذج المتاحة.");
-    return (data ?? []).map((item) => ({
+    return ((data ?? []) as Array<{
+      id: number;
+      name: string;
+      provider_id: number;
+      model_identifier: string;
+      enabled: boolean;
+      priority: number;
+      context_window: number | null;
+      routing_group: string;
+    }>).map((item) => ({
       id: String(item.id),
       name: String(item.name ?? item.model_identifier ?? "Model"),
       providerId: Number(item.provider_id),

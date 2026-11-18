@@ -1205,10 +1205,10 @@ async function handleRequest(req: Request): Promise<Response> {
     const needsWebSearch = shouldSearchWeb;
     const needsComplexExecution = profileIntent === "complex_task" && executionMode === "agent";
     if (needsWebSearch && profileCapabilities.web_search !== true) {
-      return await failedResponse(jsonResponse({ error: `${selectedProfileKey.toUpperCase()} لا يتضمن البحث على الويب. اختر مستوى أعلى أو غيّر اختيارك يدويًا.` }, 403, req), "profile_capability_unavailable");
+      return await failedResponse(jsonResponse({ error: `${String(selectedProfileKey).toUpperCase()} لا يتضمن البحث على الويب. اختر مستوى أعلى أو غيّر اختيارك يدويًا.` }, 403, req), "profile_capability_unavailable");
     }
     if (needsComplexExecution && (profileCapabilities.multi_step_agent !== true || profileCapabilities.advanced_reasoning !== true)) {
-      return await failedResponse(jsonResponse({ error: `${selectedProfileKey.toUpperCase()} لا يملك القدرات المطلوبة لتنفيذ هذه المهمة المعقدة. اختر مستوى أعلى أو استخدم Auto.` }, 403, req), "profile_capability_unavailable");
+      return await failedResponse(jsonResponse({ error: `${String(selectedProfileKey).toUpperCase()} لا يملك القدرات المطلوبة لتنفيذ هذه المهمة المعقدة. اختر مستوى أعلى أو استخدم Auto.` }, 403, req), "profile_capability_unavailable");
     }
   } else if (selectedProfileKey && requestedProfileKey === "auto") {
     if (shouldSearchWeb && profileCapabilities.web_search !== true) {
@@ -1253,7 +1253,7 @@ async function handleRequest(req: Request): Promise<Response> {
 
   if (routingMode === "manual" && candidatesFrom.length === 0) {
     const message = selectedProfileKey
-      ? `لا توجد نماذج مفعّلة ومؤهلة حاليًا ضمن ${selectedProfileKey.toUpperCase()} لهذا الطلب. لم يتم التحويل إلى مستوى آخر.`
+      ? `لا توجد نماذج مفعّلة ومؤهلة حاليًا ضمن ${String(selectedProfileKey).toUpperCase()} لهذا الطلب. لم يتم التحويل إلى مستوى آخر.`
       : manuallyRequested ? "النموذج المحدد لا يملك القدرات المطلوبة لهذا المرفق." : "Model not found or disabled.";
     return await failedResponse(jsonResponse({ error: message }, manuallyRequested ? 422 : selectedProfileKey ? 503 : 404, req), "manual_model_unavailable");
   }
