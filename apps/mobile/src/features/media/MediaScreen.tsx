@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Image, Linking, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { useRouter } from "expo-router";
@@ -23,6 +23,8 @@ export function MediaScreen() {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [folderEditor, setFolderEditor] = useState<"create" | "rename" | null>(null);
   const [folderName, setFolderName] = useState("");
+  const [folderMutationBusy, setFolderMutationBusy] = useState(false);
+  const folderMutationLock = useRef(false);
   const [organizationBusyId, setOrganizationBusyId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<PickKind | null>(null);
@@ -90,6 +92,9 @@ export function MediaScreen() {
   const selectedFolder = folders.find((folder) => folder.id === selectedFolderId) ?? null;
 
   const saveFolder = async () => {
+    if (folderMutationLock.current) return;
+    folderMutationLock.current = true;
+    setFolderMutationBusy(true);
     setError(null); setNotice(null);
     try {
       if (folderEditor === "create") {
@@ -106,11 +111,14 @@ export function MediaScreen() {
       setFolderEditor(null); setFolderName("");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : (isArabic ? "تعذر حفظ المجلد." : "Could not save folder."));
+    } finally {
+      folderMutationLock.current = false;
+      setFolderMutationBusy(false);
     }
   };
 
   const confirmDeleteFolder = () => {
-    if (!selectedFolder) return;
+    if (!selectedFolder || folderMutationLock.current) return;
     Alert.alert(
       isArabic ? "حذف المجلد" : "Delete folder",
       isArabic ? "سيتم حذف المجلد وإزالة تنظيم ملفاته فقط. لن تُحذف الملفات نفسها." : "This deletes the folder and its organization links only. The files themselves will remain in your Library.",
@@ -118,6 +126,9 @@ export function MediaScreen() {
         { text: isArabic ? "إلغاء" : "Cancel", style: "cancel" },
         { text: isArabic ? "حذف" : "Delete", style: "destructive", onPress: () => {
           void (async () => {
+            if (folderMutationLock.current) return;
+            folderMutationLock.current = true;
+            setFolderMutationBusy(true);
             try {
               await deleteMediaFolder(selectedFolder.id);
               setFolders((current) => current.filter((folder) => folder.id !== selectedFolder.id));
@@ -126,6 +137,9 @@ export function MediaScreen() {
               setNotice(isArabic ? "تم حذف المجلد، والملفات ما زالت محفوظة." : "Folder deleted; files were kept.");
             } catch (cause) {
               setError(cause instanceof Error ? cause.message : (isArabic ? "تعذر حذف المجلد." : "Could not delete folder."));
+            } finally {
+              folderMutationLock.current = false;
+              setFolderMutationBusy(false);
             }
           })();
         } },
@@ -214,14 +228,14 @@ export function MediaScreen() {
     <Text style={styles.explainer}>{isArabic ? "كل ملفاتك ومرفقات محادثاتك ومخرجات الاستوديو في مكان واحد. الملفات الخاصة لا تظهر إلا لصاحبها أو لمن يملك صلاحية الوصول." : "Your files, chat attachments, and Studio outputs in one place. Private files are visible only to their owner or an authorized user."}</Text>
     <TextInput value={search} onChangeText={setSearch} placeholder={isArabic ? "ابحث باسم الملف أو وصفه" : "Search by file name or description"} placeholderTextColor={colors.textMuted} style={styles.search} />
     <View style={styles.actions}>
-      <Pressable onPress={() => { setFolderEditor("create"); setFolderName(""); }}><Text style={styles.link}>{isArabic ? "＋ مجلد جديد" : "＋ New folder"}</Text></Pressable>
-      {selectedFolder ? <Pressable onPress={() => { setFolderEditor("rename"); setFolderName(selectedFolder.name); }}><Text style={styles.link}>{isArabic ? "إعادة تسمية" : "Rename"}</Text></Pressable> : null}
-      {selectedFolder ? <Pressable onPress={confirmDeleteFolder}><Text style={styles.link}>{isArabic ? "حذف المجلد" : "Delete folder"}</Text></Pressable> : null}
+      <Pressable disabled={folderMutationBusy} accessibilityRole="button" onPress={() => { setFolderEditor("create"); setFolderName(""); }}><Text style={[styles.link, folderMutationBusy && styles.disabledText]}>{isArabic ? "＋ مجلد جديد" : "＋ New folder"}</Text></Pressable>
+      {selectedFolder ? <Pressable disabled={folderMutationBusy} accessibilityRole="button" onPress={() => { setFolderEditor("rename"); setFolderName(selectedFolder.name); }}><Text style={[styles.link, folderMutationBusy && styles.disabledText]}>{isArabic ? "إعادة تسمية" : "Rename"}</Text></Pressable> : null}
+      {selectedFolder ? <Pressable disabled={folderMutationBusy} accessibilityRole="button" onPress={confirmDeleteFolder}><Text style={[styles.link, folderMutationBusy && styles.disabledText]}>{isArabic ? "حذف المجلد" : "Delete folder"}</Text></Pressable> : null}
     </View>
     {folderEditor ? <View style={styles.actions}>
-      <TextInput value={folderName} onChangeText={setFolderName} maxLength={80} placeholder={isArabic ? "اسم المجلد" : "Folder name"} placeholderTextColor={colors.textMuted} style={[styles.search, { flex: 1, minWidth: 160 }]} />
-      <Pressable onPress={() => void saveFolder()}><Text style={styles.link}>{isArabic ? "حفظ" : "Save"}</Text></Pressable>
-      <Pressable onPress={() => { setFolderEditor(null); setFolderName(""); }}><Text style={styles.link}>{isArabic ? "إلغاء" : "Cancel"}</Text></Pressable>
+      <TextInput value={folderName} onChangeText={setFolderName} editable={!folderMutationBusy} maxLength={80} placeholder={isArabic ? "اسم المجلد" : "Folder name"} placeholderTextColor={colors.textMuted} style={[styles.search, { flex: 1, minWidth: 160 }]} />
+      <Pressable disabled={folderMutationBusy} accessibilityRole="button" onPress={() => void saveFolder()}><Text style={[styles.link, folderMutationBusy && styles.disabledText]}>{folderMutationBusy ? (isArabic ? "جارٍ الحفظ…" : "Saving…") : (isArabic ? "حفظ" : "Save")}</Text></Pressable>
+      <Pressable disabled={folderMutationBusy} onPress={() => { setFolderEditor(null); setFolderName(""); }}><Text style={[styles.link, folderMutationBusy && styles.disabledText]}>{isArabic ? "إلغاء" : "Cancel"}</Text></Pressable>
     </View> : null}
     {isAdmin && (
       <View style={styles.actions}>

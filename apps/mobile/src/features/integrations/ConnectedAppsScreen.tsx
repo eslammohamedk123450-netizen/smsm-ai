@@ -129,8 +129,8 @@ export default function ConnectedAppsScreen() {
           <TouchableOpacity
             activeOpacity={0.7}
             onPress={() => setAddSheetVisible(true)}
-            disabled={refreshing || serviceReady !== true}
-            style={[styles.addButton, (refreshing || serviceReady !== true) && styles.disabledButton]}
+            disabled={refreshing || connecting !== null || serviceReady !== true}
+            style={[styles.addButton, (refreshing || connecting !== null || serviceReady !== true) && styles.disabledButton]}
             accessibilityRole="button"
             accessibilityLabel={isArabic ? "إضافة موصل" : "Add connector"}
           >
