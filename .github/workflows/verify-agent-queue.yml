@@ -5,6 +5,7 @@ on:
     paths:
       - "apps/mobile/**"
       - "supabase/functions/ai-router/**"
+      - "supabase/deploy-artifacts/ai-router.bundle.js"
       - "supabase/functions/_shared/**"
       - "supabase/functions/brain-router/**"
       - "supabase/functions/agent-task-worker/**"
@@ -39,6 +40,7 @@ on:
       - "supabase/functions/_shared/activation_command.ts"
       - "supabase/functions/_shared/activation_command.test.ts"
       - "supabase/functions/ai-router/**"
+      - "supabase/deploy-artifacts/ai-router.bundle.js"
       - "supabase/functions/brain-router/**"
       - "supabase/functions/agent-task-worker/**"
       - "supabase/functions/agent-task-scheduler/**"
