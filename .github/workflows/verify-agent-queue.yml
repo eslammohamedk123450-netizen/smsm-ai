@@ -131,6 +131,7 @@ jobs:
         run: |
           deno test --node-modules-dir=auto supabase/functions/ai-router/agent/orchestrator.test.ts
           deno test --node-modules-dir=auto supabase/functions/ai-router/resilience.test.ts
+          deno test --node-modules-dir=auto supabase/functions/ai-router/openai_compat_stream.test.ts
           deno test --node-modules-dir=auto supabase/functions/ai-router/agent/agent_profiles.test.ts
           deno test --node-modules-dir=auto supabase/functions/ai-router/agent/model_eligibility.test.ts
           deno test --node-modules-dir=auto supabase/functions/ai-router/agent/model_routing_test.ts
