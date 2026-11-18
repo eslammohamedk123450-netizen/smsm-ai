@@ -33,6 +33,17 @@ type RegistryModel = {
   suly_test_status?: "not_tested" | "passed" | "failed" | null;
   operational_state: OperationalState;
 };
+type ModelUsageTransaction = {
+  id: string; user_id: string; request_id: string | null; event_type: string; amount: number;
+  balance_delta: number; input_tokens: number; output_tokens: number; model_id: number | null;
+  source: string; reason: string | null; created_at: string;
+};
+type ModelCompanyCost = {
+  request_id: string; user_id: string | null; provider_cost_usd: number; cost_status: string;
+  user_credits_charged: number; revenue_egp: number; provider_cost_egp: number;
+  other_cost_egp: number; gross_profit_egp: number; price_version: string | null;
+  created_at: string;
+};
 type CapabilityKey = string;
 type StatusFilter = "all" | "active" | "available" | "restricted" | "disabled";
 
@@ -77,6 +88,10 @@ export function ModelRegistryCatalogScreen() {
   const [testResults, setTestResults] = useState<Record<number, string>>({});
   const [capabilityPickerOpen, setCapabilityPickerOpen] = useState(false);
   const [savingCapability, setSavingCapability] = useState<string | null>(null);
+  const [usageTransactions, setUsageTransactions] = useState<ModelUsageTransaction[]>([]);
+  const [companyCosts, setCompanyCosts] = useState<ModelCompanyCost[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<RegistryModel | null>(null);
   const [selectedDetailTab, setSelectedDetailTab] = useState<DetailTab>("info");
   const [rows, setRows] = useState<RegistryModel[]>([]);
@@ -142,6 +157,43 @@ export function ModelRegistryCatalogScreen() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const modelId = selectedModel?.legacy_chat_model_id;
+    if (modelId == null) {
+      setUsageTransactions([]);
+      setCompanyCosts([]);
+      setHistoryError(null);
+      return;
+    }
+    let active = true;
+    setHistoryLoading(true);
+    setHistoryError(null);
+    void Promise.all([
+      supabase.from("suly_credit_transactions")
+        .select("id,user_id,request_id,event_type,amount,balance_delta,input_tokens,output_tokens,model_id,source,reason,created_at")
+        .eq("model_id", modelId).eq("event_type", "settle")
+        .order("created_at", { ascending: false }).limit(100),
+      supabase.from("suly_company_cost_ledger")
+        .select("request_id,user_id,provider_cost_usd,cost_status,user_credits_charged,revenue_egp,provider_cost_egp,other_cost_egp,gross_profit_egp,price_version,created_at")
+        .eq("model_id", modelId).order("created_at", { ascending: false }).limit(100),
+    ]).then(([transactions, costs]) => {
+      if (!active) return;
+      if (transactions.error) throw transactions.error;
+      if (costs.error) throw costs.error;
+      setUsageTransactions((transactions.data ?? []) as ModelUsageTransaction[]);
+      setCompanyCosts((costs.data ?? []) as ModelCompanyCost[]);
+    }).catch((cause) => {
+      if (!active) return;
+      setUsageTransactions([]);
+      setCompanyCosts([]);
+      setHistoryError(cause instanceof Error ? cause.message : "تعذر تحميل سجل الاستخدام والتكلفة.");
+    }).finally(() => {
+      if (active) setHistoryLoading(false);
+    });
+    return () => { active = false; };
+  }, [selectedModel?.legacy_chat_model_id]);
+
+
   const capabilitiesByModel = useMemo(() => capabilityKeys(rows), [rows]);
   const capabilityReviewsByModel = useMemo(() => {
     const result = new Map<string, Map<string, CapabilityReviewStatus>>();
@@ -223,6 +275,16 @@ export function ModelRegistryCatalogScreen() {
   };
 
   const models = useMemo(() => [...new Map(rows.map((row) => [row.model_id, row])).values()], [rows]);
+  const usageTotals = useMemo(() => ({
+    requests: usageTransactions.length,
+    inputTokens: usageTransactions.reduce((sum, row) => sum + Number(row.input_tokens ?? 0), 0),
+    outputTokens: usageTransactions.reduce((sum, row) => sum + Number(row.output_tokens ?? 0), 0),
+    revenue: companyCosts.reduce((sum, row) => sum + Number(row.revenue_egp ?? 0), 0),
+    providerCost: companyCosts.reduce((sum, row) => sum + Number(row.provider_cost_egp ?? 0), 0),
+    profit: companyCosts.reduce((sum, row) => sum + Number(row.gross_profit_egp ?? 0), 0),
+    estimated: companyCosts.filter((row) => row.cost_status === "estimated").length,
+    confirmed: companyCosts.filter((row) => row.cost_status === "confirmed" || row.cost_status === "reconciled").length,
+  }), [usageTransactions, companyCosts]);
   const filtered = useMemo(() => {
     const q = search.trim().toLocaleLowerCase();
     return models.filter((model) => {
@@ -373,9 +435,31 @@ export function ModelRegistryCatalogScreen() {
               <Pressable accessibilityRole="button" onPress={() => { setSelectedModel(null); router.push("/admin/models-operations"); }} style={styles.detailLink}><Text style={styles.detailLinkText}>فتح التشغيل والاختبارات</Text></Pressable>
             </> : null}
             {selectedDetailTab === "history" ? <>
-              <Text style={styles.detailSectionTitle}>سجل التغييرات والتدقيق</Text>
-              <Text style={styles.meta}>يُعرض سجل التغييرات في شاشة التدقيق المركزية؛ لا يعرض هذا الملخص سجلات غير محمّلة.</Text>
-              <Pressable accessibilityRole="button" onPress={() => { setSelectedModel(null); router.push("/admin/audit"); }} style={styles.detailLink}><Text style={styles.detailLinkText}>فتح سجل التدقيق</Text></Pressable>
+              <Text style={styles.detailSectionTitle}>سجل الاستخدام والتكلفة لهذا النموذج</Text>
+              {selectedModel.legacy_chat_model_id === null ? <Text style={styles.meta}>سجل العمليات التفصيلي لهذا النوع غير متاح في سجل المحادثات الحالي.</Text> : <>
+                <View style={styles.detailMetaGrid}>
+                  <View style={styles.detailMetaCell}><Text style={styles.detailMetaLabel}>طلبات التسوية</Text><Text style={styles.detailMetaValue}>{usageTotals.requests}</Text></View>
+                  <View style={styles.detailMetaCell}><Text style={styles.detailMetaLabel}>Input Tokens</Text><Text style={styles.detailMetaValue}>{usageTotals.inputTokens.toLocaleString("en-EG")}</Text></View>
+                  <View style={styles.detailMetaCell}><Text style={styles.detailMetaLabel}>Output Tokens</Text><Text style={styles.detailMetaValue}>{usageTotals.outputTokens.toLocaleString("en-EG")}</Text></View>
+                  <View style={styles.detailMetaCell}><Text style={styles.detailMetaLabel}>الإيراد المسجل</Text><Text style={styles.detailMetaValue}>{usageTotals.revenue.toLocaleString("en-EG", { maximumFractionDigits: 4 })} ج.م</Text></View>
+                  <View style={styles.detailMetaCell}><Text style={styles.detailMetaLabel}>تكلفة المزود المسجلة</Text><Text style={styles.detailMetaValue}>{usageTotals.providerCost.toLocaleString("en-EG", { maximumFractionDigits: 4 })} ج.م</Text></View>
+                  <View style={styles.detailMetaCell}><Text style={styles.detailMetaLabel}>صافي المساهمة المسجل</Text><Text style={styles.detailMetaValue}>{usageTotals.profit.toLocaleString("en-EG", { maximumFractionDigits: 4 })} ج.م</Text></View>
+                </View>
+                <Text style={styles.meta}>بيانات التكلفة: {usageTotals.confirmed} مؤكدة/مسوّاة · {usageTotals.estimated} تقديرية. القيم المالية مأخوذة من سجل تكلفة الشركة، ولا تُستنتج من أسعار التوكن وحدها.</Text>
+                {historyLoading ? <ActivityIndicator color={colors.primary}/> : null}
+                {historyError ? <Text style={styles.error}>{historyError}</Text> : null}
+                {usageTransactions.map((transaction) => {
+                  const cost = companyCosts.find((row) => row.request_id === transaction.request_id);
+                  return <View key={transaction.id} style={styles.historyRow}>
+                    <Text style={styles.detailMetaLabel}>{new Date(transaction.created_at).toLocaleString("ar-EG")}</Text>
+                    <Text style={styles.detailMetaValue}>المستخدم: {transaction.user_id.slice(0, 8)}… · Tokens: {Number(transaction.input_tokens ?? 0).toLocaleString("en-EG")} إدخال + {Number(transaction.output_tokens ?? 0).toLocaleString("en-EG")} إخراج</Text>
+                    <Text style={styles.meta}>خصم المستخدم: {cost ? Number(cost.user_credits_charged).toLocaleString("en-EG") + " Credits" : Number(transaction.amount).toLocaleString("en-EG") + " Credits"}</Text>
+                    <Text style={styles.meta}>تكلفة المزود: {cost ? Number(cost.provider_cost_egp).toLocaleString("en-EG", { maximumFractionDigits: 4 }) + " ج.م · " + cost.cost_status : "لا توجد مطابقة في سجل تكلفة الشركة"}</Text>
+                    <Text style={styles.meta}>الربح المسجل: {cost ? Number(cost.gross_profit_egp).toLocaleString("en-EG", { maximumFractionDigits: 4 }) + " ج.م" : "غير متاح"} · الطلب: {transaction.request_id ? transaction.request_id.slice(0, 12) + "…" : "بدون معرّف"}</Text>
+                  </View>;
+                })}
+                {!historyLoading && usageTransactions.length === 0 ? <Text style={styles.meta}>لا توجد عمليات تسوية مسجلة لهذا النموذج.</Text> : null}
+              </>}
             </> : null}
             <Pressable accessibilityRole="button" onPress={() => { const model = selectedModel; setSelectedModel(null); openOperationalRecord(model); }} style={styles.detailPrimaryAction}><Text style={styles.detailPrimaryActionText}>{selectedModel.provider_enabled ? "فتح شاشة إدارة النموذج" : "فتح إدارة المزود"}</Text></Pressable>
           </> : null}
@@ -458,6 +542,7 @@ const createStyles = (c: ThemePalette) => StyleSheet.create({
   detailModal: { flex: 1, width: "100%", maxWidth: 900, alignSelf: "center", borderWidth: 1, borderColor: c.divider, borderRadius: 14, backgroundColor: c.surface },
   detailModalContent: { padding: 15, gap: 11, paddingBottom: 28 },
   detailModalHeader: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", gap: 12 }, detailModalCopy: { flex: 1, alignItems: "flex-end", gap: 3 }, detailModalEyebrow: { color: c.primary, fontSize: 8, fontWeight: "900", letterSpacing: 1 }, detailModalTitle: { color: c.textPrimary, fontSize: 17, fontWeight: "900", textAlign: "right" },
+  historyRow: { borderWidth: 1, borderColor: c.divider, borderRadius: 9, padding: 10, gap: 5, backgroundColor: c.surfaceElevated },
   detailMetaGrid: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 7 }, detailMetaCell: { flexBasis: "48%", flexGrow: 1, minWidth: 120, backgroundColor: c.surfaceElevated, borderRadius: 8, padding: 9, gap: 4 }, detailMetaLabel: { color: c.textMuted, fontSize: 8, textAlign: "right" }, detailMetaValue: { color: c.textPrimary, fontSize: 9, fontWeight: "700", textAlign: "right" },
   detailTabs: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 5, borderBottomWidth: 1, borderBottomColor: c.divider, paddingBottom: 8 },
   detailTab: { borderWidth: 1, borderColor: c.divider, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 7 },
