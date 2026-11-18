@@ -368,6 +368,12 @@ export function ModelRegistryCatalogScreen() {
               })()}
               style={styles.modelStateAction}
             ><Ionicons name="lock-open-outline" size={12} color={colors.primary}/><Text style={styles.modelStateActionText}>فك القيد</Text></Pressable> : null}
+            {model.legacy_chat_model_id !== null && !model.provider_enabled && model.lifecycle_state === "active" ? <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="إدارة مزود النموذج"
+              onPress={() => router.push("/admin/api-keys")}
+              style={styles.modelStateAction}
+            ><Ionicons name="key-outline" size={12} color={colors.primary}/><Text style={styles.modelStateActionText}>إدارة المزود</Text></Pressable> : null}
             {model.legacy_chat_model_id !== null && model.operational_state === "disabled" && model.provider_enabled && model.lifecycle_state === "active" ? <Pressable
               accessibilityRole="button"
               accessibilityLabel="تفعيل النموذج وإضافته إلى أولوية الشات"
@@ -399,7 +405,7 @@ export function ModelRegistryCatalogScreen() {
         </View>
         <View style={styles.modelTileActions}>
           <Pressable accessibilityRole="button" accessibilityLabel="عرض القدرات المسجلة" onPress={() => { setSelectedModel(model); setSelectedDetailTab("capabilities"); }} style={styles.tileAction}><Ionicons name="eye-outline" size={16} color={colors.primary}/><Text style={styles.tileActionLabel}>القدرات</Text></Pressable>
-          {model.legacy_chat_model_id !== null ? <Pressable accessibilityRole="button" accessibilityLabel="اختبار النموذج" disabled={testingModelId !== null || updatingModelId !== null} onPress={() => void (async () => {
+          {model.legacy_chat_model_id !== null ? <Pressable accessibilityRole="button" accessibilityLabel="اختبار النموذج" disabled={testingModelId !== null || updatingModelId !== null || !model.provider_enabled} onPress={() => void (async () => {
             const modelId = Number(model.legacy_chat_model_id); setTestingModelId(modelId);
             try {
               const result = await adminService.testModel(modelId);
@@ -641,7 +647,6 @@ const createStyles = (c: ThemePalette) => StyleSheet.create({
   detailTabActive: { borderColor: c.primary, backgroundColor: c.primary + "16" },
   detailTabText: { color: c.textMuted, fontSize: 8, fontWeight: "800" }, detailTabTextActive: { color: c.primary },
   capabilityHeader: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", gap: 8 },
-  capabilityPicker: { borderWidth: 1, borderColor: c.divider, borderRadius: 9, padding: 10, gap: 8, backgroundColor: c.surfaceElevated },
   detailSectionTitle: { color: c.textPrimary, fontSize: 10, fontWeight: "900", textAlign: "right" }, detailNotice: { borderWidth: 1, borderColor: c.divider, borderRadius: 8, padding: 9 }, detailNoticeText: { color: c.textMuted, fontSize: 9, lineHeight: 16, textAlign: "right" }, detailLinks: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 6 }, detailLink: { borderWidth: 1, borderColor: c.divider, borderRadius: 7, paddingHorizontal: 9, paddingVertical: 7 }, detailLinkText: { color: c.textSecondary, fontSize: 8, fontWeight: "800" }, detailPrimaryAction: { minHeight: 40, borderRadius: 9, backgroundColor: c.primary, alignItems: "center", justifyContent: "center", paddingHorizontal: 12 }, detailPrimaryActionText: { color: c.onPrimary, fontSize: 10, fontWeight: "900" },
   errorBox: { borderWidth: 1, borderColor: c.error, borderRadius: 9, padding: 10, gap: 6 },
   success: { color: c.success, fontSize: 9, fontWeight: "800", textAlign: "right" },
