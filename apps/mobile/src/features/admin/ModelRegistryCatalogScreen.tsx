@@ -99,8 +99,7 @@ export function ModelRegistryCatalogScreen() {
       );
       const mediaById = new Map<string, boolean>((media.data ?? []).map((item) => [String(item.id), item.is_active === true]));
       const restricted = new Set<number>((health.data ?? []).filter((item) => item.auto_restricted === true).map((item) => Number(item.model_id)));
-      const unique = new Map<string, RegistryModel>();
-      for (const raw of (registry.data ?? []) as Array<Omit<RegistryModel, "operational_state">>) {
+      const normalizedRows: RegistryModel[] = ((registry.data ?? []) as Array<Omit<RegistryModel, "operational_state">>).map((raw) => {
         const provider = providerById.get(Number(raw.provider_id));
         let operational_state: OperationalState = "unknown";
         if (raw.lifecycle_state === "archived") operational_state = "archived";
@@ -115,10 +114,10 @@ export function ModelRegistryCatalogScreen() {
           if (active === false) operational_state = "disabled";
           else if (active === true && provider?.enabled) operational_state = "active";
         } else if (raw.lifecycle_state === "candidate") operational_state = "candidate";
-        const model = { ...raw, provider_name: provider?.name ?? raw.provider_name ?? null, provider_type: provider?.provider_type ?? null, provider_enabled: provider?.enabled === true, operational_state };
-        if (!unique.has(model.model_id)) unique.set(model.model_id, model);
-      }
-      setRows([...unique.values()].sort((a, b) => a.display_name.localeCompare(b.display_name)));
+        return { ...raw, provider_name: provider?.name ?? raw.provider_name ?? null, provider_type: provider?.provider_type ?? null, provider_enabled: provider?.enabled === true, operational_state };
+      });
+      // Retain all capability rows; the model cards deduplicate models separately.
+      setRows(normalizedRows.sort((a, b) => a.display_name.localeCompare(b.display_name)));
       const priceMap = new Map<number, { input: number; output: number }>();
       for (const price of (priceRows ?? []) as Array<{ model_id: number; provider_input_cost_egp_per_million: number; provider_output_cost_egp_per_million: number }>) priceMap.set(Number(price.model_id), { input: Number(price.provider_input_cost_egp_per_million), output: Number(price.provider_output_cost_egp_per_million) });
       setPricesByModel(priceMap);
@@ -242,7 +241,7 @@ export function ModelRegistryCatalogScreen() {
         </View>
       </View>
       <View style={styles.capabilityLine}>
-        {(CAPABILITIES.filter(([key]) => capabilitiesByModel.get(model.model_id)?.has(key))).slice(0, 7).map(([key, label, icon]) => <View key={key} style={styles.capabilityBadge}><Ionicons name={icon} size={13} color={colors.textSecondary}/><Text style={styles.capabilityText}>{label}</Text></View>)}
+        {(CAPABILITIES.filter(([key]) => capabilitiesByModel.get(model.model_id)?.has(key))).map(([key, label, icon]) => <View key={key} style={styles.capabilityBadge}><Ionicons name={icon} size={13} color={colors.textSecondary}/><Text style={styles.capabilityText}>{label}</Text></View>)}
         {!capabilitiesByModel.get(model.model_id)?.size ? <Text style={styles.meta}>لا توجد قدرات مسجلة بعد</Text> : null}
       </View>
       {model.legacy_chat_model_id !== null ? <View style={styles.priceLine}>
