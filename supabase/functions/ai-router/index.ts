@@ -2043,12 +2043,16 @@ async function handleRequest(req: Request): Promise<Response> {
     if (await checkAgentCancellation()) {
       await updateWorkspace("cancelled", { parts: splitParts.length, completed: resumedResults.size, cancelled: true });
       await clearSharedTaskMemory(supabase, billingTaskId);
-      const completedDuringRun = taskExecution.filter((outcome) => outcome.status === "completed" && Boolean(outcome.result)).length;
+      const completedOutcomes = taskExecution.filter((outcome) => outcome.status === "completed" && Boolean(outcome.result));
+      const completedDuringRun = completedOutcomes.length;
+      const partialResponse = mergePartAnswers([...resumedResults.entries(), ...completedOutcomes.map((outcome) => [outcome.stepId, outcome.result!] as [string, string])]);
+      const billing = await finalizeBilling(billingCandidate, partialResponse, "client_cancelled", Boolean(billingCandidate));
       await finishAiRequest("cancelled", null, null, {
         route: "task_split",
         parts: splitParts.length,
         completed_parts: resumedResults.size + completedDuringRun,
         partial: true,
+        billing,
       }, "client_cancelled");
       return jsonResponse({
         agent_status: "cancelled",
@@ -2924,7 +2928,7 @@ async function handleRequest(req: Request): Promise<Response> {
       });
     }
     await recordEvent(selected?.model ?? null, operationalReply ? "error" : "success", operationalReply ? "agent_operational_outcome" : null);
-    const billing = await finalizeBilling(billingCandidate, content, "agent", Boolean(billingCandidate));
+    const billing = await finalizeBilling(billingCandidate, content, agentWorkspaceStatus === "cancelled" ? "client_cancelled" : "agent", Boolean(billingCandidate));
     const info = {
       model_id: selected?.model.id ?? null,
       model: selected?.model.model_identifier ?? "agent",
