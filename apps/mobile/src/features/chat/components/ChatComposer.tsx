@@ -34,7 +34,7 @@ export interface ChatComposerProps {
   basicMode?: boolean;
 }
 
-const MIN_INPUT_HEIGHT = 44;
+const MIN_INPUT_HEIGHT = 38;
 const MAX_INPUT_HEIGHT = 136;
 
 export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(function ChatComposer(
@@ -305,14 +305,14 @@ const createStyles = (colors: ThemePalette, isArabic: boolean, canvasBackground:
   container: {
     minHeight: 96,
     paddingHorizontal: 14,
-    paddingTop: 9,
-    paddingBottom: 9,
+    paddingTop: 8,
+    paddingBottom: 8,
     borderRadius: 22,
     borderWidth: 1,
     borderColor: colors.background === "#0A0A0A" ? "#262626" : colors.inputBorder,
     backgroundColor: colors.surface,
     justifyContent: "space-between",
-    gap: 4,
+    gap: 3,
   },
   input: {
     width: "100%",
@@ -344,9 +344,9 @@ const createStyles = (colors: ThemePalette, isArabic: boolean, canvasBackground:
     gap: 10,
   },
   circleButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -361,9 +361,9 @@ const createStyles = (colors: ThemePalette, isArabic: boolean, canvasBackground:
     borderColor: colors.primary,
   },
   plusCircleButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.primary,
