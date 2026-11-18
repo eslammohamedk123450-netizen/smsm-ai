@@ -74,6 +74,146 @@ export async function getTaskProgress(taskId: string, jobId?: string): Promise<T
 }
 
 
+
+
+export type ChatAgentStep = {
+  key: string;
+  description: string;
+  status: "pending" | "running" | "reviewing" | "waiting_approval" | "retrying" | "completed" | "failed";
+  sequenceOrder: number;
+  attemptNo: number;
+  startedAt: string | null;
+  completedAt: string | null;
+};
+
+export type ChatAgentToolActivity = {
+  tool: "connected_app.status" | "connected_app.read" | "connected_app.read_multiple" | "connected_app.write" | "web.search";
+  effect: "read" | "write";
+  status: "pending" | "approved" | "rejected" | "running" | "completed" | "failed";
+  startedAt: string | null;
+  completedAt: string | null;
+};
+
+export type ChatAgentProgress = {
+  workspaceId: string;
+  requestId: string;
+  userMessageId: string;
+  status: "planning" | "executing" | "reviewing" | "waiting_approval" | "retrying" | "completed" | "failed" | "cancelled";
+  currentStepKey: string | null;
+  attemptCount: number;
+  maxAttempts: number;
+  updatedAt: string | null;
+  completedAt: string | null;
+  cancelledAt: string | null;
+  plan: Array<{ key: string; description: string; dependsOn: string[] }>;
+  steps: ChatAgentStep[];
+  tools: ChatAgentToolActivity[];
+};
+
+const CHAT_AGENT_STATUSES = new Set(["planning", "executing", "reviewing", "waiting_approval", "retrying", "completed", "failed", "cancelled"]);
+const CHAT_AGENT_STEP_STATUSES = new Set(["pending", "running", "reviewing", "waiting_approval", "retrying", "completed", "failed"]);
+const CHAT_AGENT_TOOL_STATUSES = new Set(["pending", "approved", "rejected", "running", "completed", "failed"]);
+const CHAT_AGENT_TOOLS = new Set(["connected_app.status", "connected_app.read", "connected_app.read_multiple", "connected_app.write", "web.search"]);
+
+/** Safe, owner-visible projection of the central Agent workspace. Raw results, inputs, and internal reasoning are intentionally excluded. */
+export function mapChatAgentProgress(workspaceValue: unknown, stepValues: unknown[], toolValues: unknown[] = []): ChatAgentProgress | null {
+  const workspace = asRecord(workspaceValue);
+  if (!workspace || typeof workspace.id !== "string" || typeof workspace.request_id !== "string" || typeof workspace.status !== "string" || !CHAT_AGENT_STATUSES.has(workspace.status)) return null;
+  const metadata = asRecord(workspace.metadata);
+  const rawPlan = Array.isArray(workspace.plan) ? workspace.plan : [];
+  const plan = rawPlan.slice(0, 12).flatMap((value, index) => {
+    const row = asRecord(value);
+    if (!row || typeof row.description !== "string") return [];
+    const key = typeof row.step_id === "string" ? row.step_id.slice(0, 100) : `step-${index + 1}`;
+    const dependsOn = Array.isArray(row.depends_on) ? row.depends_on.filter((item): item is string => typeof item === "string").slice(0, 12) : [];
+    return [{ key, description: row.description.trim().slice(0, 240), dependsOn }];
+  });
+  const steps = stepValues.flatMap((value) => {
+    const row = asRecord(value);
+    if (!row || typeof row.step_key !== "string" || typeof row.status !== "string" || !CHAT_AGENT_STEP_STATUSES.has(row.status)) return [];
+    return [{
+      key: row.step_key.slice(0, 100),
+      description: typeof row.description === "string" ? row.description.trim().slice(0, 240) : "خطوة تنفيذ",
+      status: row.status as ChatAgentStep["status"],
+      sequenceOrder: Number.isSafeInteger(row.sequence_order) ? Number(row.sequence_order) : 0,
+      attemptNo: Number.isSafeInteger(row.attempt_no) ? Number(row.attempt_no) : 0,
+      startedAt: typeof row.started_at === "string" ? row.started_at : null,
+      completedAt: typeof row.completed_at === "string" ? row.completed_at : null,
+    }];
+  }).sort((a, b) => a.sequenceOrder - b.sequenceOrder).slice(0, 40);
+  const tools = toolValues.flatMap((value) => {
+    const row = asRecord(value);
+    if (!row || typeof row.tool_name !== "string" || !CHAT_AGENT_TOOLS.has(row.tool_name) || typeof row.status !== "string" || !CHAT_AGENT_TOOL_STATUSES.has(row.status)) return [];
+    return [{
+      tool: row.tool_name as ChatAgentToolActivity["tool"],
+      effect: row.effect === "write" ? "write" as const : "read" as const,
+      status: row.status as ChatAgentToolActivity["status"],
+      startedAt: typeof row.started_at === "string" ? row.started_at : null,
+      completedAt: typeof row.completed_at === "string" ? row.completed_at : null,
+    }];
+  }).slice(0, 20);
+  return {
+    workspaceId: workspace.id,
+    requestId: workspace.request_id,
+    userMessageId: typeof metadata?.user_message_id === "string" ? metadata.user_message_id : workspace.request_id,
+    status: workspace.status as ChatAgentProgress["status"],
+    currentStepKey: typeof workspace.current_step_key === "string" ? workspace.current_step_key : null,
+    attemptCount: Number.isSafeInteger(workspace.attempt_count) ? Number(workspace.attempt_count) : 0,
+    maxAttempts: Number.isSafeInteger(workspace.max_attempts) ? Number(workspace.max_attempts) : 3,
+    updatedAt: typeof workspace.updated_at === "string" ? workspace.updated_at : null,
+    completedAt: typeof workspace.completed_at === "string" ? workspace.completed_at : null,
+    cancelledAt: typeof workspace.cancelled_at === "string" ? workspace.cancelled_at : null,
+    plan,
+    steps,
+    tools,
+  };
+}
+
+const CHAT_AGENT_WORKSPACE_COLUMNS = "id,request_id,conversation_id,status,plan,current_step_key,attempt_count,max_attempts,metadata,updated_at,completed_at,cancelled_at";
+const CHAT_AGENT_STEP_COLUMNS = "workspace_id,step_key,sequence_order,description,status,attempt_no,started_at,completed_at";
+const CHAT_AGENT_TOOL_COLUMNS = "request_id,tool_name,effect,status,started_at,completed_at";
+
+async function mapChatAgentWorkspaceRows(workspaces: unknown[]): Promise<ChatAgentProgress[]> {
+  const rows = workspaces.flatMap((value) => {
+    const row = asRecord(value);
+    return row && typeof row.id === "string" && typeof row.request_id === "string" ? [row] : [];
+  });
+  if (!rows.length) return [];
+  const workspaceIds = rows.map((row) => row.id as string);
+  const requestIds = rows.map((row) => row.request_id as string);
+  const [stepResult, toolResult] = await Promise.all([
+    supabase.from("agent_workspace_steps").select(CHAT_AGENT_STEP_COLUMNS).in("workspace_id", workspaceIds).order("sequence_order", { ascending: true }).limit(500),
+    supabase.from("agent_tool_execution_log").select(CHAT_AGENT_TOOL_COLUMNS).in("request_id", requestIds).order("started_at", { ascending: true }).limit(300),
+  ]);
+  if (stepResult.error || toolResult.error) throw new Error("تعذر تحميل تفاصيل تنفيذ الوكيل.");
+  return rows.flatMap((row) => {
+    const progress = mapChatAgentProgress(
+      row,
+      (stepResult.data ?? []).filter((step) => step.workspace_id === row.id),
+      (toolResult.data ?? []).filter((tool) => tool.request_id === row.request_id),
+    );
+    return progress ? [progress] : [];
+  });
+}
+
+/** Read one live Agent workspace by request ID. RLS restricts the result to its owner. */
+export async function getChatAgentProgress(requestId: string): Promise<ChatAgentProgress | null> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) return null;
+  const { data, error } = await supabase.from("agent_workspaces").select(CHAT_AGENT_WORKSPACE_COLUMNS).eq("request_id", requestId).maybeSingle();
+  if (error) throw new Error("تعذر تحميل حالة تنفيذ الوكيل.");
+  return (await mapChatAgentWorkspaceRows(data ? [data] : []))[0] ?? null;
+}
+
+/** Recover recent Agent execution cards for a conversation after reload/reconnect. */
+export async function listConversationAgentProgress(conversationId: string, limit = 20): Promise<ChatAgentProgress[]> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(conversationId)) return [];
+  const safeLimit = Math.max(1, Math.min(30, Math.floor(Number.isFinite(limit) ? limit : 20)));
+  const { data, error } = await supabase.from("agent_workspaces").select(CHAT_AGENT_WORKSPACE_COLUMNS)
+    .eq("conversation_id", conversationId).order("updated_at", { ascending: false }).limit(safeLimit);
+  if (error) throw new Error("تعذر استعادة سجل تنفيذ الوكيل.");
+  return mapChatAgentWorkspaceRows(data ?? []);
+}
+
 export type TaskHistoryItem = {
   jobId: string;
   taskId: string | null;
