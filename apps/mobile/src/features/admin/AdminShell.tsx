@@ -137,7 +137,7 @@ export function AdminShell() {
     return () => { active = false; };
   }, []);
 
-  const navGroups = useMemo<readonly NavGroup[]>(() => NAV_GROUPS.map((group) => {
+  const navGroups = useMemo<readonly NavGroup[]>(() => NAV_GROUPS.filter((group) => group.key === "ai").map((group) => {
     if (group.key !== "system" || customPages.length === 0) return group;
     return {
       ...group,
@@ -166,6 +166,11 @@ export function AdminShell() {
     finally { setChecking(false); }
   };
   useEffect(() => { void refreshHealth(); }, []);
+
+  useEffect(() => {
+    if (pathname === "/admin") router.replace("/admin/models");
+    else if (!pathname.startsWith("/admin/models") && !pathname.startsWith("/admin/api-keys")) router.replace("/admin/models");
+  }, [pathname, router]);
 
   const isActive = (path: string) => { const route = path.split("?")[0]; return route === "/admin" ? pathname === route : pathname === route || pathname.startsWith(route); };
   const activeGroupKey = navGroups.find((group) => group.items.some((item) => isActive(item.path)))?.key ?? "overview";
