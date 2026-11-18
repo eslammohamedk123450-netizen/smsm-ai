@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from "reac
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
+import { AppLogo } from "../../components/ui/AppLogo";
 import { useAuth } from "../auth/auth-provider";
 import { chatService, type Conversation } from "../chat/chat-service";
 import { useSulyTheme } from "../../theme/ThemeProvider";
@@ -67,9 +68,7 @@ export function HomeScreen() {
     >
       <View style={[styles.hero, { backgroundColor: colors.surface, borderColor: colors.divider }]}>
         <View style={styles.heroBrandRow}>
-          <View style={[styles.brandMark, { backgroundColor: colors.primary }]}>
-            <Text style={styles.brandMarkText}>S</Text>
-          </View>
+          <AppLogo size={38} />
           <View style={styles.brandCopy}>
             <Text style={[styles.brandName, { color: colors.textPrimary }]}>SULY</Text>
           </View>
