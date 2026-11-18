@@ -2,7 +2,7 @@ name: Deploy Agent Edge Functions to Supabase
 
 on:
   push:
-    branches: [release/v1]
+    branches: [develop]
     paths:
       - "supabase/functions/ai-router/**"
       - "supabase/functions/composito-integration/**"

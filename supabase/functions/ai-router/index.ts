@@ -2862,7 +2862,7 @@ async function handleRequest(req: Request): Promise<Response> {
       if (explicitSkill) await storeLearnedSkillCandidate({
         supabase, userId: user.id, ...explicitSkill, sourceKind: "conversation", sourceRef: conversationId, confidence: 0.9,
       });
-      if (completedSkillSteps.length > 0) await storeLearnedSkillCandidate({
+      if (completedSkillSteps.length > 0 && reviewerCandidateUsed && reviewVerdict === "approved") await storeLearnedSkillCandidate({
         supabase,
         userId: user.id,
         name: makeSkillTitle(latestUserMessage),
