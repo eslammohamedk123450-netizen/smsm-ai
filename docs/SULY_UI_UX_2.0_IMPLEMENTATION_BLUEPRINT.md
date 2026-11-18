@@ -606,14 +606,15 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 - **Deliverable:** billing/ledger regression report and settings tests.
 
 ### Phase 7 — Cross-platform polish and quality gate
-**Status: ◐ 35% — automated quality gate is passing across the current branch; visual, responsive, accessibility, and real-device acceptance remain.**
+**Status: ◐ 40% — automated quality gate is passing and screen-reader roles/labels were added to core chat, attachment, task-history, image-preview, HIMS filter, and Agent task controls; visual, responsive, broader accessibility, and real-device acceptance remain.**
 
 - ⬜ Test small mobile, large mobile/tablet, desktop, and wide desktop.
 - ⬜ Test Arabic RTL and English LTR.
 - ⬜ Test Light / Dark / System.
 - ⬜ Test keyboard, touch targets, reduced motion, focus order, screen-reader labels, and modal dismissal.
 - ⬜ Run the chat composer interaction matrix in Arabic RTL and English LTR: plus/connectors, paperclip attachments, send, voice permissions, Stop/cancel, retry, and draft preservation.
-- ☑️ Pass Expo TypeScript typecheck, full Jest suite (25 suites / 161 tests), Deno Agent/scheduler tests (22 files / 126 tests), and Web/Android/iOS Expo exports in CI run `44319558439`. This verifies JS bundle exports, not native APK/AAB installation.
+- ☑️ Pass Expo TypeScript typecheck, full Jest suite (25 suites / 161 tests), Deno Agent/scheduler tests (22 files / 126 tests), and Web/Android/iOS Expo exports in CI run `44324117457`. This verifies JS bundle exports, not native APK/AAB installation.
+- ☑️ Add accessible labels/roles and selected states to conversation-history actions, task-history rows, attachment choices, image preview, HIMS filters, and Agent task form controls; provide bilingual Agent task templates. Commits: `48c54351cb43d4168f894040672eab677c9d34d2`, `6135e4a8cda72139c9fc0147e26cb9134174219b`.
 - ⬜ Inspect actual browser and native screenshots. No rendered screenshots or real-device session have been captured; do not claim visual verification.
 - **Deliverable:** exact test report, screenshots, changed-file list, and known limitations.
 
@@ -630,7 +631,7 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 
 | Area | Inspected source / evidence | Current finding | Phase |
 |---|---|---|---|
-| Universal app and routes | apps/mobile/app/, protected layout, CI run `44319558439` | Expo Router shared client; successful Web/Android/iOS exports enumerated 98 static routes including HIMS, Studio, Library, Projects, and admin routes; native install/runtime still unverified | 0 / 2 / 7 |
+| Universal app and routes | apps/mobile/app/, protected layout, CI run `44324117457` | Expo Router shared client; successful Web/Android/iOS exports enumerated 98 static routes including HIMS, Studio, Library, Projects, and admin routes; native install/runtime still unverified | 0 / 2 / 7 |
 | Navigation | apps/mobile/src/components/navigation/MainNavigation.tsx | Mobile drawer, bounded recent-conversation query, Studio/Library/Projects/Tools entries; desktop collapsible sidebar not verified | 2 |
 | Chat request contract | apps/mobile/app/(protected)/chat.tsx | Inspected send/retry/regenerate calls use modelProfileKey: "auto" and executionMode: "auto" | 3 / 4 |
 | Composer and media | apps/mobile/src/features/chat/components/ChatComposer.tsx, AttachSheet.tsx | Attachment sheet and speech-recognition handling exist; exact plus/paperclip target order needs verification | 3 |
@@ -639,7 +640,7 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 | Plans | apps/mobile/src/features/billing/UpgradeScreen.tsx | Reads active plan/features and current tier; paid upgrade action is explicitly unavailable (“coming soon”) | 6 |
 | Settings and credits | apps/mobile/src/features/settings/SettingsScreen.tsx | Theme/language controls and credit history are present; broader security/account sections need audit | 6 |
 | HIMS and admin | docs/PHASES_1_4_BUILD_AUDIT.md, src/features/hims/, src/features/admin/, Supabase functions/migrations | Existing HIMS/admin are protected product areas; preserve them and their authorization boundaries | All |
-| Automated checks | apps/mobile/package.json, .github/workflows/verify-agent-queue.yml | CI run `44319558439` passed: TypeScript, full Jest (25/25 suites, 161/161 tests), Deno tests (22 files, 126 passed / 0 failed), and Web/Android/iOS exports | 1 / 7 |
+| Automated checks | apps/mobile/package.json, .github/workflows/verify-agent-queue.yml | CI run `44324117457` passed: TypeScript, full Jest (25/25 suites, 161/161 tests), Deno tests (22 files, 126 passed / 0 failed), and Web/Android/iOS exports | 1 / 7 |
 
 ## 12. Acceptance criteria (must all pass)
 
