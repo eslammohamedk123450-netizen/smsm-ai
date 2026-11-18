@@ -2041,30 +2041,29 @@ async function handleRequest(req: Request): Promise<Response> {
       return result;
     }, resumedResults);
     if (await checkAgentCancellation()) {
-      await updateWorkspace("cancelled", { parts: splitParts.length, completed: resumedResults.size, cancelled: true });
-      await clearSharedTaskMemory(supabase, billingTaskId);
-      const completedOutcomes = taskExecution.filter((outcome) => outcome.status === "completed" && typeof outcome.result === "string");
-      const completedDuringRun = completedOutcomes.length;
-      const partialParts = splitParts.flatMap((part, index) => {
-        const content = resumedResults.get(part.step_id) ?? completedOutcomes.find((outcome) => outcome.step_id === part.step_id)?.result;
-        return typeof content === "string" ? [{ index, content, model: null }] : [];
+      const partialParts = taskExecution.flatMap((outcome) => {
+        if (outcome.status !== "completed" || !outcome.result?.content?.trim()) return [];
+        return [{ index: outcome.result.index, content: outcome.result.content, model: outcome.result.model }];
       });
+      const completedDuringRun = partialParts.length;
+      await updateWorkspace("cancelled", { parts: splitParts.length, completed: completedDuringRun, cancelled: true });
+      await clearSharedTaskMemory(supabase, billingTaskId);
       const partialResponse = partialParts.length ? mergePartAnswers(partialParts) : "";
-      const billing = await finalizeBilling(billingCandidate, partialResponse, "client_cancelled", Boolean(billingCandidate));
+      const billing = await finalizeBilling(workerBillingCandidate, partialResponse, "client_cancelled", Boolean(workerBillingCandidate));
       const partialMessageId = partialResponse.trim()
-        ? await persistAssistantText(supabase, conversationId, user.id, billingTaskId, billingCandidate?.model.id ?? null, partialResponse)
+        ? await persistAssistantText(supabase, conversationId, user.id, billingTaskId, workerBillingCandidate?.model.id ?? null, partialResponse)
         : null;
       await finishAiRequest("cancelled", partialMessageId, partialMessageId ? null : (partialResponse || null), {
         route: "task_split",
         parts: splitParts.length,
-        completed_parts: resumedResults.size + completedDuringRun,
+        completed_parts: completedDuringRun,
         partial: true,
         billing,
       }, "client_cancelled");
       return jsonResponse({
         agent_status: "cancelled",
         response: "تم إيقاف المهمة بناءً على طلبك، واحتفظت بالخطوات التي اكتملت قبل الإيقاف.",
-        completed_parts: resumedResults.size,
+        completed_parts: completedDuringRun,
         ...(internalBrainCall ? { usage: { input_tokens: workerInputTokens, output_tokens: workerOutputTokens } } : {}),
       }, 200, req);
     }
