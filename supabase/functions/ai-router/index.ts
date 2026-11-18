@@ -857,7 +857,7 @@ async function handleRequest(req: Request): Promise<Response> {
   // forcing them to simple_task would disable the central Agent's compound plan.
   const mind = classifyIntent(latestUserMessage);
   const shouldSearchWeb = shouldSearchWebForMessage(latestUserMessage, isWebSearchRequest);
-  executionMode = resolveExecutionMode({
+  executionMode = internalBrainCall ? resolveExecutionMode({
     requestedMode: body.execution_mode === "chat" || body.execution_mode === "agent" || body.execution_mode === "auto"
       ? body.execution_mode
       : undefined,
@@ -866,7 +866,7 @@ async function handleRequest(req: Request): Promise<Response> {
     hasAttachments: trustedAttachments.length > 0,
     requiresLiveSearch: shouldSearchWeb,
     internalBrainCall,
-  });
+  }) : "chat";
   const profileIntent = mind.intent === "complex_task" || shouldSearchWeb
     || Boolean(requestedConnector || requestedMultiReadToolkits || internalBrainCall)
     ? "complex_task"
