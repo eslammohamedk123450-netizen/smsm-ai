@@ -111,9 +111,18 @@ export function StudioScreen() {
 
   return (
     <ScrollView style={[styles.screen, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
-      <Text style={[styles.eyebrow, { color: colors.textMuted }]}>SULY STUDIO</Text>
-      <Text style={[styles.title, { color: colors.textPrimary }]}>{isArabic ? "الاستوديو" : "Studio"}</Text>
-      <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{isArabic ? "مساحة مستقلة لإنشاء الصور والفيديو والصوت، وتفريغ التسجيلات إلى نصوص. اختر الخدمة ثم أكّد الطلب داخل الاستوديو." : "A dedicated space for image, video, and audio creation, plus transcription. Choose a service and confirm the request here."}</Text>
+      <View style={styles.introCard}>
+        <View style={styles.introTop}>
+          <View style={styles.introIcon}><Ionicons name="sparkles" size={22} color={colors.onPrimary} /></View>
+          <Text style={styles.eyebrow}>{isArabic ? "مساحة الإبداع" : "CREATIVE WORKSPACE"}</Text>
+        </View>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>{isArabic ? "استوديو SULY" : "SULY Studio"}</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{isArabic ? "حوّل أفكارك إلى محتوى. اختر الأداة المناسبة، وراجع تفاصيل الطلب قبل أي تنفيذ أو خصم رصيد." : "Turn ideas into content. Choose a tool and review the request before anything runs or credits are charged."}</Text>
+      </View>
+      <View style={styles.sectionHeading}>
+        <Text style={styles.sectionTitle}>{isArabic ? "أدوات الاستوديو" : "Studio tools"}</Text>
+        <Text style={styles.sectionMeta}>{isArabic ? "٤ خدمات" : "4 services"}</Text>
+      </View>
       <View style={styles.grid}>
         {services.map((item) => (
           <Pressable
@@ -153,16 +162,22 @@ export function StudioScreen() {
 
 const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.create({
   screen: { flex: 1 },
-  content: { width: "100%", maxWidth: 1040, alignSelf: "center", padding: 20, paddingBottom: 36, gap: 10 },
-  eyebrow: { fontSize: 10, fontWeight: "900", letterSpacing: 1.5, textAlign: isArabic ? "right" : "left" },
-  title: { fontSize: 27, fontWeight: "900", textAlign: isArabic ? "right" : "left" },
+  content: { width: "100%", maxWidth: 1080, alignSelf: "center", padding: 20, paddingBottom: 40, gap: 14 },
+  introCard: { padding: 22, borderRadius: 22, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface, gap: 10 },
+  introTop: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 10, marginBottom: 4 },
+  introIcon: { width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.primary },
+  eyebrow: { fontSize: 10, fontWeight: "900", letterSpacing: 1.5, color: colors.textMuted, textAlign: isArabic ? "right" : "left" },
+  title: { fontSize: 29, fontWeight: "900", textAlign: isArabic ? "right" : "left" },
   subtitle: { fontSize: 14, lineHeight: 23, textAlign: isArabic ? "right" : "left", maxWidth: 700 },
-  grid: { flexDirection: isArabic ? "row-reverse" : "row", flexWrap: "wrap", gap: 12, marginTop: 12 },
-  card: { flexBasis: 220, flexGrow: 1, minHeight: 190, borderWidth: 1, borderRadius: 18, padding: 17, gap: 9 },
-  iconBox: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  sectionHeading: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "space-between", marginTop: 6 },
+  sectionTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: "800", textAlign: isArabic ? "right" : "left" },
+  sectionMeta: { color: colors.textMuted, fontSize: 11, fontWeight: "700" },
+  grid: { flexDirection: isArabic ? "row-reverse" : "row", flexWrap: "wrap", gap: 12, marginTop: 2 },
+  card: { flexBasis: 240, flexGrow: 1, minHeight: 205, borderWidth: 1, borderColor: colors.divider, borderRadius: 18, padding: 18, gap: 11, backgroundColor: colors.surface },
+  iconBox: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceElevated },
   cardTitle: { fontSize: 16, fontWeight: "900", textAlign: isArabic ? "right" : "left" },
-  cardDescription: { fontSize: 12, lineHeight: 19, textAlign: isArabic ? "right" : "left", flex: 1 },
-  cardFooter: { flexDirection: isArabic ? "row-reverse" : "row", justifyContent: "space-between", alignItems: "center" },
+  cardDescription: { fontSize: 12, lineHeight: 20, textAlign: isArabic ? "right" : "left", flex: 1 },
+  cardFooter: { flexDirection: isArabic ? "row-reverse" : "row", justifyContent: "space-between", alignItems: "center", borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 12, marginTop: 3 },
   status: { fontSize: 11, fontWeight: "800" },
-  disabled: { opacity: 0.52 },
+  disabled: { opacity: 0.62 },
 });
