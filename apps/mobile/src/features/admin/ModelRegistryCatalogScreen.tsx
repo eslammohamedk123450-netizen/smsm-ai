@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, TextInput, View, useWindowDimensions } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
@@ -88,6 +88,9 @@ function capabilityKeys(rows: RegistryModel[]): Map<string, Set<string>> {
 
 export function ModelRegistryCatalogScreen() {
   const { colors } = useSulyTheme();
+  const { width } = useWindowDimensions();
+  const columns = width >= 1180 ? 5 : width >= 900 ? 4 : width >= 620 ? 3 : 2;
+  const tileWidth = `${(100 - (columns - 1) * 2.5) / columns}%`;
   const styles = useMemo(() => createStyles(colors), [colors]);
   const router = useRouter();
   const [testingModelId, setTestingModelId] = useState<number | null>(null);
@@ -344,53 +347,30 @@ export function ModelRegistryCatalogScreen() {
     <Text style={styles.resultCount}>عرض {filtered.length} من {models.length}</Text>
     {loading ? <ActivityIndicator color={colors.primary}/> : null}
     {error ? <View style={styles.errorBox}><Text style={styles.error}>{error}</Text><Pressable onPress={() => void load()}><Text style={styles.link}>إعادة المحاولة</Text></Pressable></View> : null}
-    {!loading ? filtered.map((model) => <View key={model.model_id} style={styles.modelCard}>
-      <View style={styles.modelHeading}>
-        <View style={styles.modelIcon}><Ionicons name={model.service_type === "image" ? "image-outline" : model.service_type === "video" ? "videocam-outline" : model.service_type === "audio" ? "volume-high-outline" : "hardware-chip-outline"} size={23} color={colors.primary}/></View>
-        <View style={styles.modelCopy}>
-          <Text style={styles.modelName}>{model.display_name}</Text>
-          <Text style={styles.meta}>اسم المفتاح: {model.provider_name ?? `مزود #${model.provider_id}`} · المزود: {model.provider_type ?? "—"}</Text>
-          <Text style={styles.meta}>المعرّف: {model.model_identifier} · النوع: {model.service_type}</Text>
+    {!loading ? <View style={styles.modelGrid}>
+      {filtered.map((model) => <View key={model.model_id} style={[styles.modelTile, { width: tileWidth }]}>
+        <View style={styles.modelTileTop}>
+          <View style={styles.modelIcon}><Ionicons name={model.service_type === "image" ? "image-outline" : model.service_type === "video" ? "videocam-outline" : model.service_type === "audio" ? "volume-high-outline" : "hardware-chip-outline"} size={25} color={colors.primary}/></View>
+          <View style={[styles.status, (model.operational_state === "active" || model.operational_state === "available") ? styles.statusActive : model.operational_state === "restricted" ? styles.statusRestricted : styles.statusDisabled]}><Text style={styles.statusText}>{STATUS_LABEL[model.operational_state]}</Text></View>
         </View>
-        <View style={[styles.status, (model.operational_state === "active" || model.operational_state === "available") ? styles.statusActive : model.operational_state === "restricted" ? styles.statusRestricted : styles.statusDisabled]}>
-          <Text style={styles.statusText}>{STATUS_LABEL[model.operational_state]}</Text>
+        <View style={styles.modelTileInfo}>
+          <Text numberOfLines={2} style={styles.modelName}>{model.display_name}</Text>
+          <Text numberOfLines={1} style={styles.meta}>{model.provider_name ?? `مزود #${model.provider_id}`} · {model.provider_type ?? model.service_type}</Text>
+          <Text numberOfLines={1} style={styles.meta}>{model.model_identifier}</Text>
         </View>
-      </View>
-      {model.legacy_chat_model_id !== null ? <View style={styles.priceLine}>
-        <View style={styles.priceCell}><Text style={styles.priceLabel}>تكلفة الإدخال / مليون</Text><Text style={styles.priceValue}>{pricesByModel.has(Number(model.legacy_chat_model_id)) ? `${pricesByModel.get(Number(model.legacy_chat_model_id))!.input.toLocaleString("en-EG")} ج.م` : "غير مسجلة"}</Text></View>
-        <View style={styles.priceCell}><Text style={styles.priceLabel}>تكلفة الإخراج / مليون</Text><Text style={styles.priceValue}>{pricesByModel.has(Number(model.legacy_chat_model_id)) ? `${pricesByModel.get(Number(model.legacy_chat_model_id))!.output.toLocaleString("en-EG")} ج.م` : "غير مسجلة"}</Text></View>
-        <View style={styles.priceCell}><Text style={styles.priceLabel}>ترتيب الشات</Text><Text style={styles.priceValue}>{chatOrderByModel.has(Number(model.legacy_chat_model_id)) ? `#${chatOrderByModel.get(Number(model.legacy_chat_model_id))}` : "غير مربوط"}</Text></View>
-      </View> : (() => { const price = mediaPriceRows.find((row) => row.provider_id === model.provider_id && row.service_type === model.service_type && row.model_identifier === model.model_identifier); return price ? <View style={styles.priceLine}><View style={styles.priceCell}><Text style={styles.priceLabel}>تكلفة المزود / الوحدة</Text><Text style={styles.priceValue}>{Number(price.provider_cost_egp_per_unit).toLocaleString("en-EG", { maximumFractionDigits: 4 })} ج.م</Text></View><View style={styles.priceCell}><Text style={styles.priceLabel}>سعر البيع / الوحدة</Text><Text style={styles.priceValue}>{Number(price.selling_price_egp_per_unit).toLocaleString("en-EG", { maximumFractionDigits: 4 })} ج.م</Text></View><View style={styles.priceCell}><Text style={styles.priceLabel}>إصدار السعر</Text><Text style={styles.priceValue}>v{price.price_version}</Text></View></View> : <Text style={styles.meta}>لا يوجد سعر مسجل لهذا النموذج.</Text>; })()}
-      <View style={styles.capabilityHeader}>
-        <Text style={styles.detailSectionTitle}>القدرات</Text>
-        <Pressable accessibilityRole="button" onPress={() => { setSelectedModel(model); setSelectedDetailTab("capabilities"); setCapabilityPickerOpen(false); }} style={styles.detailLink}>
-          <Ionicons name="add" size={14} color={colors.primary}/><Text style={styles.detailLinkText}>إضافة قدرة</Text>
-        </Pressable>
-      </View>
-      <View style={styles.capabilityLine}>
-        {(CAPABILITIES.filter(([key]) => [key, ...(CAPABILITY_ALIASES[key] ?? [])].some((candidate) => capabilitiesByModel.get(model.model_id)?.has(candidate)))).map(([key, label, icon]) => {
-          const review = capabilityReviewsByModel.get(model.model_id)?.get(key) ?? (CAPABILITY_ALIASES[key] ?? []).map((alias) => capabilityReviewsByModel.get(model.model_id)?.get(alias)).find(Boolean) ?? "legacy_unreviewed";
-          const evidence = rows.find((row) => row.model_id === model.model_id && [key, ...(CAPABILITY_ALIASES[key] ?? [])].includes(row.capability_key ?? ""));
-          return <View key={key} style={[styles.capabilityBadge, review === "approved" ? styles.capabilityBadgeApproved : review === "rejected" ? styles.capabilityBadgeRejected : styles.capabilityBadgePending]}><Ionicons name={icon} size={13} color={colors.textSecondary}/><View style={styles.capabilityBadgeCopy}><Text style={styles.capabilityText}>{label}</Text><Text style={styles.capabilityReviewText}>{REVIEW_LABEL[review]} · دعم المزود: {evidence?.vendor_claim_status ?? "غير معروف"}</Text><Text style={styles.capabilityReviewText}>اختبار المزود: {evidence?.provider_test_status ?? "غير مختبر"} · SULY: {evidence?.suly_test_status ?? "غير مختبر"}</Text></View></View>;
-        })}
-        {!capabilitiesByModel.get(model.model_id)?.size ? <Text style={styles.meta}>لا توجد قدرات مسجلة بعد</Text> : null}
-      </View>
-      <View style={styles.modelCardActions}>
-        {model.legacy_chat_model_id !== null ? <Pressable accessibilityRole="button" disabled={testingModelId !== null} onPress={() => void (async () => {
-          const modelId = Number(model.legacy_chat_model_id);
-          setTestingModelId(modelId);
-          try {
-            const result = await adminService.testModel(modelId);
-            setTestResults((current) => ({ ...current, [modelId]: result.status === "success" ? `نجح الاختبار · ${result.duration_ms}ms` : `فشل الاختبار · ${result.error_code ?? "provider_error"}` }));
-            await load();
-          } catch (cause) {
-            setTestResults((current) => ({ ...current, [modelId]: cause instanceof Error ? cause.message : "تعذر تشغيل الاختبار." }));
-          } finally { setTestingModelId(null); }
-        })()} style={styles.detailAction}><Ionicons name="flask-outline" size={14} color={colors.primary}/><Text style={styles.detailActionText}>{testingModelId === Number(model.legacy_chat_model_id) ? "جارٍ الاختبار…" : "اختبر الآن"}</Text></Pressable> : <Text style={styles.meta}>اختبار هذا النوع غير متاح حالياً</Text>}
-        <Pressable accessibilityRole="button" onPress={() => { setSelectedModel(model); setSelectedDetailTab("info"); setCapabilityPickerOpen(false); }} style={styles.manageAction}><Ionicons name="time-outline" size={14} color={colors.textSecondary}/><Text style={styles.manageActionText}>السجل والتفاصيل</Text></Pressable>
-      </View>
-      {model.legacy_chat_model_id !== null && testResults[Number(model.legacy_chat_model_id)] ? <Text style={testResults[Number(model.legacy_chat_model_id)].startsWith("نجح") ? styles.success : styles.error}>{testResults[Number(model.legacy_chat_model_id)]}</Text> : null}
-    </View>) : null}
+        <View style={styles.modelTileActions}>
+          <Pressable accessibilityRole="button" accessibilityLabel="القدرات" onPress={() => { setSelectedModel(model); setSelectedDetailTab("capabilities"); setCapabilityPickerOpen(false); }} style={styles.tileAction}><Ionicons name="add-circle-outline" size={18} color={colors.primary}/></Pressable>
+          {model.legacy_chat_model_id !== null ? <Pressable accessibilityRole="button" accessibilityLabel="اختبار النموذج" disabled={testingModelId !== null} onPress={() => void (async () => {
+            const modelId = Number(model.legacy_chat_model_id); setTestingModelId(modelId);
+            try { const result = await adminService.testModel(modelId); setTestResults((current) => ({ ...current, [modelId]: result.status === "success" ? `نجح الاختبار · ${result.duration_ms}ms` : `فشل الاختبار · ${result.error_code ?? "provider_error"}` })); await load(); }
+            catch (cause) { setTestResults((current) => ({ ...current, [modelId]: cause instanceof Error ? cause.message : "تعذر تشغيل الاختبار." })); }
+            finally { setTestingModelId(null); }
+          })()} style={styles.tileAction}><Ionicons name={testingModelId === Number(model.legacy_chat_model_id) ? "hourglass-outline" : "flask-outline"} size={17} color={colors.primary}/></Pressable> : <View style={styles.tileActionDisabled}><Ionicons name="flask-outline" size={17} color={colors.textMuted}/></View>}
+          <Pressable accessibilityRole="button" accessibilityLabel="السجل والتفاصيل" onPress={() => { setSelectedModel(model); setSelectedDetailTab("info"); setCapabilityPickerOpen(false); }} style={styles.tileAction}><Ionicons name="document-text-outline" size={17} color={colors.textSecondary}/></Pressable>
+        </View>
+        {model.legacy_chat_model_id !== null && testResults[Number(model.legacy_chat_model_id)] ? <Text numberOfLines={2} style={testResults[Number(model.legacy_chat_model_id)].startsWith("نجح") ? styles.success : styles.error}>{testResults[Number(model.legacy_chat_model_id)]}</Text> : null}
+      </View>)}
+    </View> : null}
     {!loading && filtered.length === 0 ? <Text style={styles.empty}>لا توجد نماذج تطابق البحث والفلاتر.</Text> : null}
     <Modal visible={selectedModel !== null} transparent={false} animationType="slide" onRequestClose={() => setSelectedModel(null)}>
       <View style={styles.fullPageDetail}>
@@ -570,6 +550,13 @@ const createStyles = (c: ThemePalette) => StyleSheet.create({
   tableCellText: { color: c.textSecondary, fontSize: 9, textAlign: "right" },
   tableAction: { flexDirection: "row-reverse", alignItems: "center", gap: 3, paddingVertical: 4 },
   tableActionText: { color: c.textSecondary, fontSize: 8, fontWeight: "700" },
+  modelGrid: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 8 },
+  modelTile: { borderWidth: 1, borderColor: c.divider, borderRadius: 14, backgroundColor: c.surface, padding: 10, aspectRatio: 1, justifyContent: "space-between", gap: 7 },
+  modelTileTop: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between" },
+  modelTileInfo: { alignItems: "flex-end", gap: 4, flex: 1, justifyContent: "center" },
+  modelTileActions: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-around", borderTopWidth: 1, borderTopColor: c.divider, paddingTop: 5 },
+  tileAction: { width: 32, height: 32, borderWidth: 1, borderColor: c.divider, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  tileActionDisabled: { width: 32, height: 32, borderWidth: 1, borderColor: c.divider, borderRadius: 10, alignItems: "center", justifyContent: "center", opacity: 0.4 },
   modelCardActions: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", gap: 8, borderTopWidth: 1, borderTopColor: c.divider, paddingTop: 7 },
   detailAction: { flexDirection: "row-reverse", alignItems: "center", gap: 5, paddingVertical: 5 }, detailActionText: { color: c.primary, fontSize: 9, fontWeight: "800" },
   manageAction: { flexDirection: "row-reverse", alignItems: "center", gap: 5, paddingVertical: 5 }, manageActionText: { color: c.textSecondary, fontSize: 9, fontWeight: "700" },
