@@ -10,6 +10,7 @@ import type { ThemePalette } from "../../theme/colors";
 import { AdminMobileBreadcrumb } from "./AdminMobileBreadcrumb";
 import { MediaModelPricingAdminCard } from "./MediaModelPricingAdminCard";
 import { MediaGenerationModelsAdminScreen } from "./MediaGenerationModelsAdminScreen";
+import { ModelsAdminScreen } from "./AdminScreens";
 
 type ServiceType = "chat" | "image" | "video" | "audio";
 type OperationalState = "active" | "available" | "disabled" | "restricted" | "candidate" | "archived" | "unknown";
@@ -97,6 +98,7 @@ export function ModelRegistryCatalogScreen() {
   const [probeLogs, setProbeLogs] = useState<ModelProbeLog[]>([]);
   const [mediaPriceRows, setMediaPriceRows] = useState<MediaPriceSummary[]>([]);
   const [mediaEditorOpen, setMediaEditorOpen] = useState(false);
+  const [advancedManagementOpen, setAdvancedManagementOpen] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<RegistryModel | null>(null);
@@ -404,6 +406,7 @@ export function ModelRegistryCatalogScreen() {
               <View style={styles.detailMetaCell}><Text style={styles.detailMetaLabel}>حالة المزود</Text><Text style={styles.detailMetaValue}>{selectedModel.provider_enabled ? "مفعّل" : "معطّل أو غير متاح"}</Text></View>
             </View>
             {selectedModel.service_type === "image" ? <Pressable accessibilityRole="button" onPress={() => { setSelectedModel(null); setMediaEditorOpen(true); }} style={styles.detailLink}><Text style={styles.detailLinkText}>تعديل إعدادات نموذج الصور</Text></Pressable> : null}
+            {selectedModel.legacy_chat_model_id !== null ? <Pressable accessibilityRole="button" onPress={() => { router.setParams({ q: selectedModel.model_identifier }); setSelectedModel(null); setAdvancedManagementOpen(true); }} style={styles.detailLink}><Text style={styles.detailLinkText}>إعدادات النموذج المتقدمة · القيود والتوجيه والصلاحيات</Text></Pressable> : null}
             </> : null}
             {selectedDetailTab === "capabilities" ? <>
               <View style={styles.capabilityHeader}><Text style={styles.detailSectionTitle}>القدرات المسجلة وحالة اعتماد كل قدرة</Text><Pressable accessibilityRole="button" onPress={() => setCapabilityPickerOpen((value) => !value)} style={styles.detailLink}><Ionicons name="add" size={14} color={colors.primary}/><Text style={styles.detailLinkText}>إضافة قدرة</Text></Pressable></View>
@@ -478,6 +481,17 @@ export function ModelRegistryCatalogScreen() {
             <Pressable accessibilityRole="button" onPress={() => { const model = selectedModel; setSelectedModel(null); openOperationalRecord(model); }} style={styles.detailPrimaryAction}><Text style={styles.detailPrimaryActionText}>{selectedModel.provider_enabled ? "فتح شاشة إدارة النموذج" : "فتح إدارة المزود"}</Text></Pressable>
           </> : null}
         </ScrollView>
+      </View>
+    </Modal>
+    <Modal visible={advancedManagementOpen} transparent={false} animationType="slide" onRequestClose={() => { setAdvancedManagementOpen(false); router.setParams({ q: "" }); }}>
+      <View style={styles.fullPageDetail}>
+        <View style={styles.detailModalHeader}>
+          <Text style={styles.detailModalTitle}>إعدادات النموذج المتقدمة</Text>
+          <Pressable accessibilityRole="button" onPress={() => { setAdvancedManagementOpen(false); router.setParams({ q: "" }); }}>
+            <Ionicons name="close-circle-outline" size={24} color={colors.textMuted}/>
+          </Pressable>
+        </View>
+        <View style={{ flex: 1 }}><ModelsAdminScreen showPricing={false}/></View>
       </View>
     </Modal>
     <Modal visible={mediaEditorOpen} transparent={false} animationType="slide" onRequestClose={() => setMediaEditorOpen(false)}>
