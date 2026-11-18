@@ -3214,9 +3214,10 @@ Deno.serve(async (req: Request) => {
   try {
     return await handleRequest(req);
   } catch (error) {
+    const clientCancelled = req.signal.aborted || (error instanceof Error && error.name === "AbortError");
     const claim = activeAiClaims.get(req);
     if (claim) {
-      // An unhandled router failure must not strand a credit reservation.
+      // An unhandled router failure or client cancellation must not strand a credit reservation.
       // finalize_credits is idempotent: settled/expired holds are untouched,
       // and a missing hold is a normal case for non-billed/internal requests.
       const { data: creditRecovery, error: creditRecoveryError } = await claim.supabase.rpc("finalize_credits", {
@@ -3239,11 +3240,11 @@ Deno.serve(async (req: Request) => {
       const { error } = await claim.supabase.rpc("suly_finish_ai_request", {
         p_request_id: claim.requestId,
         p_user_id: claim.userId,
-        p_status: "failed",
+        p_status: clientCancelled ? "cancelled" : "failed",
         p_response_message_id: null,
         p_response_text: null,
-        p_response_metadata: {},
-        p_error_code: "unhandled_router_error",
+        p_response_metadata: clientCancelled ? { cancelled: true } : {},
+        p_error_code: clientCancelled ? "client_cancelled" : "unhandled_router_error",
       });
       if (error) console.error("Could not finalize unhandled AI request:", error.message);
       activeAiClaims.delete(req);
