@@ -115,6 +115,8 @@ export default function ChatPage() {
   const routeProjectId = Array.isArray(params.projectId) ? params.projectId[0] : params.projectId;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [agentProgress, setAgentProgress] = useState<ChatAgentProgress[]>([]);
+  const [activeTaskMessageId, setActiveTaskMessageId] = useState<string | null>(null);
+  const [cancelPendingMessageId, setCancelPendingMessageId] = useState<string | null>(null);
   const [responseIndexByUser, setResponseIndexByUser] = useState<Record<string, number>>({});
   const [conversationId, setConversationId] = useState<string | null>(routeConversationId || null);
   const [isSending, setIsSending] = useState(false);
@@ -145,6 +147,11 @@ export default function ChatPage() {
   const lock = useRef(false);
   const preflightLock = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
+  const cancelAgentExecution = useCallback((userMessageId: string) => {
+    if (!abortRef.current) return;
+    setCancelPendingMessageId(userMessageId);
+    abortRef.current.abort();
+  }, []);
   const internalConversationTransitionRef = useRef<string | null>(null);
   const optimisticMessageIdRef = useRef<string | null>(null);
   const streamedTextRef = useRef("");
@@ -263,12 +270,16 @@ export default function ChatPage() {
   }, []);
 
   useEffect(() => {
-    if (!conversationId) { setAgentProgress([]); return; }
+    if (!conversationId) { setAgentProgress([]); setActiveTaskMessageId(null); setCancelPendingMessageId(null); return; }
     let active = true;
     const refresh = async () => {
       try {
         const progress = await listConversationAgentProgress(conversationId);
-        if (active) setAgentProgress(progress);
+        if (active) {
+          setAgentProgress(progress);
+          const terminalIds = new Set(progress.filter((item) => ["completed", "failed", "cancelled"].includes(item.status)).map((item) => item.userMessageId));
+          if (terminalIds.size) setCancelPendingMessageId((current) => current && terminalIds.has(current) ? null : current);
+        }
       } catch {
         // Keep the last owner-visible snapshot during transient network failures.
       }
@@ -320,6 +331,8 @@ export default function ChatPage() {
       setError(null);
       setRetryFailure(null);
       
+      setActiveTaskMessageId(null);
+      setCancelPendingMessageId(null);
       setIsSending(true);
       setActiveTaskLabel(studioIntent ? isArabic ? "تجهيز بطاقة الاستوديو…" : "Preparing Studio card…" : isArabic ? "جارٍ الرد على رسالتك…" : "Responding to your message…");
       void logFrictionEvent({ eventKind: "task_start", screenKey: "chat", featureKey: "chat", stepKey: "send_message", conversationId });
@@ -360,6 +373,7 @@ export default function ChatPage() {
           mediaAsset: uploadedAsset,
           signal: controller.signal,
           async onUserSaved(message) {
+            setActiveTaskMessageId(message.id);
             savedUserMessage = true;
             savedUserMessageId = message.id;
             setMessages((current) => [...current.filter((item) => item.id !== STREAMING_ID && item.id !== optimisticMessageId), message]);
@@ -442,6 +456,7 @@ export default function ChatPage() {
         if (abortRef.current === controller) abortRef.current = null;
         void refreshCreditBalance();
         setIsSending(false);
+        setActiveTaskMessageId(null);
         setActiveTaskLabel(null);
       }
     });
@@ -450,6 +465,8 @@ export default function ChatPage() {
   const retryResponse = async () => {
     const failed = retryFailure;
     if (!failed || isSending) return;
+    setActiveTaskMessageId(failed.userMessageId);
+    setCancelPendingMessageId(null);
     await runOnce(lock, async () => {
       setError(null);
       setRetryFailure(null);
@@ -510,6 +527,7 @@ export default function ChatPage() {
         if (abortRef.current === controller) abortRef.current = null;
         void refreshCreditBalance();
         setIsSending(false);
+        setActiveTaskMessageId(null);
         setActiveTaskLabel(null);
       }
     });
@@ -612,6 +630,8 @@ export default function ChatPage() {
 
   const editMessageAndRegenerate = async (messageId: string, content: string) => {
     if (!conversationId || isSending) return;
+    setActiveTaskMessageId(messageId);
+    setCancelPendingMessageId(null);
     const userIndex = messages.findIndex((message) => message.id === messageId && message.role === "user");
     if (userIndex < 0) throw new Error(isArabic ? "تعذر العثور على الرسالة المطلوب تعديلها." : "Could not find the message to edit.");
     const updatedUser = await chatService.updateUserMessage(messageId, content);
@@ -648,6 +668,7 @@ export default function ChatPage() {
       abortRef.current = null;
       void refreshCreditBalance();
       setIsSending(false);
+      setActiveTaskMessageId(null);
       setActiveTaskLabel(null);
     }
   };
@@ -662,6 +683,8 @@ export default function ChatPage() {
       show(isArabic ? "تعذّر العثور على رسالة المستخدم المرتبطة بهذا الرد." : "Could not find the user message associated with this response.", "error");
       return;
     }
+    setActiveTaskMessageId(messages[userIndex].id);
+    setCancelPendingMessageId(null);
     const history = messages.slice(0, userIndex + 1);
     setMessages(history);
     setIsSending(true);
@@ -690,6 +713,7 @@ export default function ChatPage() {
       abortRef.current = null;
       void refreshCreditBalance();
       setIsSending(false);
+      setActiveTaskMessageId(null);
     }
   };
 
@@ -714,7 +738,7 @@ export default function ChatPage() {
       onEditSave={item.role === "user" ? (content) => editMessageAndRegenerate(item.id, content) : undefined}
       onFeedback={item.role === "assistant" && item.status !== "streaming" ? (value) => updateFeedback(item.id, value) : undefined}
     />
-    {execution ? <AgentExecutionCard progress={execution} canCancel={isSending} onCancel={() => abortRef.current?.abort()} /> : null}
+    {execution ? <AgentExecutionCard progress={execution} canCancel={isSending && activeTaskMessageId === execution.userMessageId && Boolean(abortRef.current)} cancelPending={cancelPendingMessageId === execution.userMessageId} onCancel={() => cancelAgentExecution(execution.userMessageId)} /> : null}
       </View>
     );
   };
