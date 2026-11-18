@@ -31,7 +31,7 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
-    shadowColor: "#FFFFFF",
+    shadowColor: colors.primary,
     shadowOpacity: 0.24,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 3 },
