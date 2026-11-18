@@ -245,14 +245,15 @@ The visual grouping should be one single composer container, not a row of unrela
 - Failed upload leaves the message draft intact and provides retry/remove.
 - No fake attachment previews. Use real local preview for images only where supported.
 
-### 5.5 Plus / connectors sheet
+### 5.5 Plus / connectors destination
 
 - Trigger: plus.
-- Display actual registered connectors and their state: connected, disconnected, needs authorization, unavailable, or error.
+- Open the existing /integrations destination rather than duplicating connector connection UI inside the composer.
+- The destination displays actual registered connectors and their server-backed state: connected, disconnected, needs authorization, unavailable, or error.
 - Actions: connect, reconnect, open, disconnect only where the existing integration flow supports them.
 - Do not show connectors that have no implementation or authorization path as active buttons.
 - Do not execute write actions without existing approval/permission policy.
-- Keep this sheet separate from the file attachment sheet.
+- Keep this destination separate from the paperclip attachment sheet.
 
 ### 5.6 Automatic model and execution routing (no manual selector)
 
@@ -532,7 +533,7 @@ Percentages are source-audit estimates of deliverable coverage, not test pass ra
 - ☑️ Confirm chat uses one chronological conversation stream and existing send/retry/regenerate services.
 - ☑️ Confirm send/retry/regenerate requests use automatic model profile and execution mode values in the inspected chat route.
 - ☑️ Confirm the attachment sheet and permission-aware microphone/speech-recognition handling exist in ChatComposer.
-- ☑️ Wire the far-right plus action to the existing connectors/tools sheet through MainNavigation's plus-menu context.
+- ☑️ Wire the far-right plus action to the existing /integrations destination through MainNavigation's plus action; that screen already displays real connector states and supported connection actions, avoiding duplicate connector UI.
 - ☑️ Add a separate paperclip control that opens only the supported attachment sheet; the two actions are no longer conflated.
 - ☑️ Preserve the flexible 42–132 px multiline input; standardize composer spacing to 8 px and action hit targets to 42 px; replace the streaming spinner-only control with a labeled Stop action using the existing cancellation callback.
 - ◐ Verify exact RTL/LTR visual ordering, touch targets, disabled states, and composer wrapping on real viewport sizes.
