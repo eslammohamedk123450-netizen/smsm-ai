@@ -10,11 +10,13 @@ import { AdminMobileBreadcrumb } from "./AdminMobileBreadcrumb";
 
 type ServiceType = "chat" | "image" | "video" | "audio";
 type OperationalState = "active" | "disabled" | "restricted" | "candidate" | "archived" | "unknown";
+type CapabilityReviewStatus = "suggested" | "legacy_unreviewed" | "approved" | "rejected";
 type StatusFilter = "all" | "active" | "restricted" | "disabled";
 type RegistryModel = {
   model_id: string; provider_id: number; provider_name: string | null; provider_type?: string | null; service_type: ServiceType;
   model_identifier: string; display_name: string; lifecycle_state: "active" | "candidate" | "archived";
   legacy_chat_model_id: number | null; legacy_media_model_id: string | null; capability_key: string | null;
+  review_status?: CapabilityReviewStatus | null;
   operational_state: OperationalState;
 };
 type Capability = { key: string; label: string; icon: keyof typeof Ionicons.glyphMap };
@@ -48,6 +50,7 @@ const MEDIA_CAPABILITIES: Record<Exclude<ServiceType, "chat">, string[]> = {
   video: ["text", "video_generation", "video_input", "vision", "audio_output"],
   audio: ["text", "audio_input", "audio_output", "transcription"],
 };
+const REVIEW_LABEL: Record<CapabilityReviewStatus, string> = { approved: "معتمدة", suggested: "مقترحة", legacy_unreviewed: "تحتاج مراجعة", rejected: "مرفوضة" };
 const STATUS_LABEL: Record<OperationalState, string> = {
   active: "متوفر", disabled: "معطّل", restricted: "مقيّد", candidate: "مرشح", archived: "مؤرشف", unknown: "غير معلوم",
 };
@@ -174,11 +177,17 @@ export function ModelCapabilitiesScreen() {
       </View>
       <View style={styles.grid}>
         {CAPABILITIES.map((item) => {
-          const count = models.filter((model) => capabilityMap.get(model.model_id)?.has(item.key) || (ALIASES[item.key] ?? []).some((alias) => capabilityMap.get(model.model_id)?.has(alias))).length;
+          const linkedIds = new Set(models.filter((model) => capabilityMap.get(model.model_id)?.has(item.key) || (ALIASES[item.key] ?? []).some((alias) => capabilityMap.get(model.model_id)?.has(alias))).map((model) => model.model_id));
+          const count = linkedIds.size;
+          const matchingRows = rows.filter((row) => linkedIds.has(row.model_id) && (row.capability_key === item.key || (ALIASES[item.key] ?? []).includes(row.capability_key ?? "")));
+          const approvedCount = matchingRows.filter((row) => row.review_status === "approved").length;
+          const pendingCount = matchingRows.filter((row) => row.review_status === "suggested" || row.review_status === "legacy_unreviewed" || !row.review_status).length;
+          const rejectedCount = matchingRows.filter((row) => row.review_status === "rejected").length;
           return <Pressable key={item.key} onPress={() => { setSelectedCapability(item.key); setSearch(""); setNotice(null); setError(null); }} style={styles.tile}>
             <View style={styles.tileIcon}><Ionicons name={item.icon} size={23} color={colors.primary}/></View>
             <Text style={styles.tileTitle}>{item.label}</Text>
             <Text style={styles.tileCount}>{count} نموذج</Text>
+            <Text style={styles.tileMeta}>{approvedCount} معتمد · {pendingCount} للمراجعة · {rejectedCount} مرفوض</Text>
           </Pressable>;
         })}
       </View>
@@ -189,14 +198,17 @@ export function ModelCapabilitiesScreen() {
           <View style={styles.tileIcon}><Ionicons name={selected.icon} size={23} color={colors.primary}/></View>
           <View style={styles.detailTitleCopy}><Text style={styles.eyebrow}>إدارة القدرة</Text><Text style={styles.title}>{selected.label}</Text></View>
         </View>
-        <Text style={styles.subtitle}>النماذج المرتبطة بهذه القدرة. إضافة النموذج لا تفعّله ولا تعتمد قدرته تلقائيًا.</Text>
+        <Text style={styles.subtitle}>النماذج المرتبطة بهذه القدرة. تظهر حالة الاعتماد لكل نموذج؛ الإضافة تنشئ اقتراحًا فقط ولا تفعّل النموذج أو تعتمد القدرة تلقائيًا.</Text>
       </View>
       <View style={styles.actions}>
         <Pressable onPress={() => { setAddOpen(true); setSearch(""); setStatusFilter("all"); setCapabilityFilter("all"); }} style={styles.primaryButton}><Ionicons name="add-circle-outline" size={17} color={colors.onPrimary}/><Text style={styles.primaryText}>إضافة نموذج</Text></Pressable>
         <Link href="/admin/model-capability-review" asChild><Pressable style={styles.secondaryButton}><Ionicons name="clipboard-outline" size={16} color={colors.primary}/><Text style={styles.secondaryText}>مراجعة الأدلة والاختبارات</Text></Pressable></Link>
       </View>
       <Text style={styles.sectionTitle}>النماذج المرتبطة: {linked.length}</Text>
-      {linked.map((model) => <View key={model.model_id} style={styles.modelCard}>
+      {linked.map((model) => {
+        const capabilityRow = rows.find((row) => row.model_id === model.model_id && row.capability_key && [selected.key, ...(ALIASES[selected.key] ?? [])].includes(row.capability_key));
+        const reviewStatus = capabilityRow?.review_status ?? "legacy_unreviewed";
+        return <View key={model.model_id} style={styles.modelCard}>
         <View style={styles.modelCopy}>
           <Text style={styles.modelName}>{model.display_name}</Text>
           <Text style={styles.meta}>اسم المفتاح: {model.provider_name ?? `مزود #${model.provider_id}`} · المزود: {model.provider_type ?? "—"}</Text>
@@ -204,9 +216,10 @@ export function ModelCapabilitiesScreen() {
         </View>
         <View style={styles.modelFooter}>
           <Text style={styles.meta}>حالة التشغيل: {STATUS_LABEL[model.operational_state]}</Text>
-          <Text style={styles.meta}>المراجعة: {rows.find((row) => row.model_id === model.model_id && row.capability_key === selected.key)?.capability_key ? "مسجلة" : "مرتبطة عبر اسم قدرة قديم"}</Text>
+          <Text style={styles.meta}>حالة القدرة: {REVIEW_LABEL[reviewStatus]}</Text>
         </View>
-      </View>)}
+      </View>;
+      })}
       {linked.length === 0 ? <Text style={styles.empty}>لا توجد نماذج مرتبطة بهذه القدرة حاليًا. استخدم زر إضافة نموذج.</Text> : null}
     </>}
     {loading ? <ActivityIndicator color={colors.primary}/> : null}
@@ -256,7 +269,7 @@ const createStyles = (c: ThemePalette) => StyleSheet.create({
   grid: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 8 },
   tile: { width: "31.5%", minHeight: 112, borderWidth: 1, borderColor: c.divider, borderRadius: 12, backgroundColor: c.surface, alignItems: "center", justifyContent: "center", padding: 9, gap: 7 },
   tileIcon: { width: 42, height: 42, borderRadius: 12, backgroundColor: c.primary + "14", alignItems: "center", justifyContent: "center" },
-  tileTitle: { color: c.textPrimary, fontSize: 9, fontWeight: "800", textAlign: "center" }, tileCount: { color: c.textMuted, fontSize: 8 },
+  tileTitle: { color: c.textPrimary, fontSize: 9, fontWeight: "800", textAlign: "center" }, tileCount: { color: c.textMuted, fontSize: 8 }, tileMeta: { color: c.textMuted, fontSize: 7, textAlign: "center" },
   back: { flexDirection: "row-reverse", alignItems: "center", gap: 5, alignSelf: "flex-start" }, backText: { color: c.primary, fontSize: 10, fontWeight: "800" },
   detailTitleRow: { flexDirection: "row-reverse", alignItems: "center", gap: 9 }, detailTitleCopy: { flex: 1, alignItems: "flex-end", gap: 2 },
   actions: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 7 },
