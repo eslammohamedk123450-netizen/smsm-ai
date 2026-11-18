@@ -37,6 +37,8 @@ function stepStatusLabel(status: string, isArabic: boolean): string {
     running: ["قيد التنفيذ", "Running"],
     reviewing: ["مراجعة", "Reviewing"],
     waiting_approval: ["تحتاج موافقة", "Needs approval"],
+    approved: ["تمت الموافقة", "Approved"],
+    rejected: ["مرفوضة", "Rejected"],
     retrying: ["إعادة المحاولة", "Retrying"],
     completed: ["مكتملة", "Completed"],
     failed: ["تعذّر تنفيذها", "Failed"],
@@ -79,7 +81,7 @@ export function AgentExecutionCard({ progress, canCancel = false, cancelPending 
   const isTerminal = TERMINAL.has(progress.status);
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, { alignSelf: isArabic ? "flex-end" : "flex-start" }]}>
       <Pressable
         onPress={() => setExpanded((value) => !value)}
         style={styles.header}
@@ -161,7 +163,7 @@ export function AgentExecutionCard({ progress, canCancel = false, cancelPending 
 }
 
 const createStyles = (colors: ThemePalette) => StyleSheet.create({
-  card: { width: "94%", alignSelf: "flex-end", marginHorizontal: 16, marginTop: 4, marginBottom: 10, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
+  card: { width: "94%", maxWidth: 680, marginTop: 4, marginBottom: 10, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
   header: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 42 },
   iconWrap: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceElevated },
   headerCopy: { flex: 1, minWidth: 0, gap: 2 },
