@@ -251,7 +251,7 @@ export function MainNavigation({ children }: Props) {
             <SafeAreaView style={styles.content} edges={[]}>{children}</SafeAreaView>
           </View>
 
-          <Modal visible={!isDesktop && drawerVisible} transparent animationType="fade" onRequestClose={() => setDrawerVisible(false)}>
+          <Modal visible={drawerVisible} transparent animationType="fade" onRequestClose={() => setDrawerVisible(false)}>
             <View style={styles.modalRoot}>
               <Pressable style={styles.scrim} onPress={() => setDrawerVisible(false)} accessibilityRole="button" accessibilityLabel={isArabic ? "إغلاق القائمة" : "Close menu"} />
               <SafeAreaView edges={["top", "bottom"]} style={[styles.drawer, { alignSelf: isArabic ? "flex-end" : "flex-start", backgroundColor: colors.surface, borderColor: colors.divider }]}>
@@ -290,8 +290,8 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
   root: { flex: 1, minWidth: 0 },
   mainContent: { flex: 1, minWidth: 0, minHeight: 0 },
   desktopSidebar: { height: "100%", flexShrink: 0, borderColor: colors.divider },
-  collapsedHeader: { justifyContent: "center", paddingHorizontal: 0 },
-  collapseButtonCentered: { position: "absolute", bottom: -8, right: 0 },
+  collapsedHeader: { flexDirection: "column", alignItems: "center", justifyContent: "center", paddingHorizontal: 0, paddingBottom: 12, gap: 10 },
+  collapseButtonCentered: { alignSelf: "center" },
   collapsedDrawerItem: { width: 44, minHeight: 44, alignSelf: "center", justifyContent: "center", paddingHorizontal: 0 },
   collapsedRecentList: { alignItems: "center", gap: 5, marginTop: 12 },
   collapsedRecentButton: { width: 40, height: 40, borderRadius: 11, alignItems: "center", justifyContent: "center" },
