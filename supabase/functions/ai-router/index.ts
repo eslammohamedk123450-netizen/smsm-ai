@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { classifyProviderAttemptFailure, readOpenAiResponse } from "./openai_compat_stream.ts";
 import { corsHeadersForRequest } from "../_shared/cors.ts";
 import { buildAgentUsageLedgerRecord } from "./agent_usage_ledger.ts";
 import { prepareAgentMemory, saveAgentMemory } from "./agent/memory.ts";
@@ -228,83 +229,20 @@ function capabilityLabel(capability: ModelCapability): string {
   return capability === "vision" ? "قراءة الصور" : capability === "pdf" ? "قراءة PDF" : capability === "word" ? "قراءة Word" : capability === "video" ? "تحليل الفيديو" : capability === "gmail" ? "تحليل Gmail" : capability === "google_drive" ? "تحليل Google Drive" : capability === "github" ? "تحليل GitHub" : "النص";
 }
 
-async function* readOpenAiStream(
-  body: ReadableStream<Uint8Array>,
-  onUsage: (inputTokens: number | null, outputTokens: number | null, providerCostEgp: number | null) => void,
-): AsyncGenerator<string> {
-  const reader = body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  try {
-    while (true) {
-      const { value, done } = await reader.read();
-      buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
-      let newline = buffer.indexOf("\n");
-      while (newline >= 0) {
-        const line = buffer.slice(0, newline).trimEnd();
-        buffer = buffer.slice(newline + 1);
-        if (line.startsWith("data:")) {
-          const data = line.slice(5).trim();
-          if (data === "[DONE]") return;
-          if (data) {
-            try {
-              const parsed = JSON.parse(data);
-              const rawInputTokens = Number(parsed?.usage?.prompt_tokens ?? parsed?.usage?.input_tokens);
-              const rawOutputTokens = Number(parsed?.usage?.completion_tokens ?? parsed?.usage?.output_tokens);
-              const rawProviderCostEgp = Number(parsed?.x_billing?.cost_egp);
-              const inputTokens = Number.isFinite(rawInputTokens) && rawInputTokens >= 0 ? Math.floor(rawInputTokens) : null;
-              const outputTokens = Number.isFinite(rawOutputTokens) && rawOutputTokens >= 0 ? Math.floor(rawOutputTokens) : null;
-              const providerCostEgp = Number.isFinite(rawProviderCostEgp) && rawProviderCostEgp >= 0 ? rawProviderCostEgp : null;
-              if (inputTokens !== null || outputTokens !== null || providerCostEgp !== null) {
-                onUsage(inputTokens, outputTokens, providerCostEgp);
-              }
-              const content = parsed?.choices?.[0]?.delta?.content;
-              if (typeof content === "string" && content.length > 0) yield content;
-            } catch {
-              // Ignore SSE keep-alives and non-JSON provider events.
-            }
-          }
-        }
-        newline = buffer.indexOf("\n");
-      }
-      if (done) break;
-    }
-    if (buffer.startsWith("data:")) {
-      const data = buffer.slice(5).trim();
-      if (data && data !== "[DONE]") {
-        try {
-          const parsed = JSON.parse(data);
-          const rawInputTokens = Number(parsed?.usage?.prompt_tokens ?? parsed?.usage?.input_tokens);
-          const rawOutputTokens = Number(parsed?.usage?.completion_tokens ?? parsed?.usage?.output_tokens);
-          const rawProviderCostEgp = Number(parsed?.x_billing?.cost_egp);
-          const inputTokens = Number.isFinite(rawInputTokens) && rawInputTokens >= 0 ? Math.floor(rawInputTokens) : null;
-          const outputTokens = Number.isFinite(rawOutputTokens) && rawOutputTokens >= 0 ? Math.floor(rawOutputTokens) : null;
-          const providerCostEgp = Number.isFinite(rawProviderCostEgp) && rawProviderCostEgp >= 0 ? rawProviderCostEgp : null;
-          if (inputTokens !== null || outputTokens !== null || providerCostEgp !== null) {
-            onUsage(inputTokens, outputTokens, providerCostEgp);
-          }
-          const content = parsed?.choices?.[0]?.delta?.content;
-          if (typeof content === "string" && content.length > 0) yield content;
-        } catch {
-          // Ignore an incomplete final provider frame.
-        }
-      }
-    }
-  } finally {
-    try { reader.releaseLock(); } catch { /* already released */ }
-  }
-}
-
 async function openCandidate(candidate: Candidate, controller: AbortController): Promise<ReadyCandidate> {
   const providerTimeout = Math.max(1000, Math.min(120000, (Number(candidate.provider.timeout_seconds) || 30) * 1000));
   const modelTimeout = Math.max(1000, Math.min(120000, Number(candidate.model.response_timeout_ms) || 15000));
   const timeoutMs = Math.min(providerTimeout, modelTimeout);
   const startedAtMs = Date.now();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  let timeoutTriggered = false;
+  const timeoutId = setTimeout(() => {
+    timeoutTriggered = true;
+    controller.abort();
+  }, timeoutMs);
   try {
     const response = await fetch(candidate.endpoint, {
       method: "POST",
-      headers: { "Authorization": `Bearer ${candidate.apiKey}`, "Content-Type": "application/json", "Accept": "text/event-stream" },
+      headers: { "Authorization": `Bearer ${candidate.apiKey}`, "Content-Type": "application/json", "Accept": "text/event-stream, application/json" },
       body: JSON.stringify({
         model: candidate.model.model_identifier,
         messages: candidate.requestMessages,
@@ -321,7 +259,7 @@ async function openCandidate(candidate: Candidate, controller: AbortController):
       throw new Error(`provider_http_${response.status}${body ? `: ${body.slice(0, 300)}` : ""}`);
     }
     let readyCandidate: ReadyCandidate | null = null;
-    const iterator = readOpenAiStream(response.body, (inputTokens, outputTokens, providerCostEgp) => {
+    const iterator = readOpenAiResponse(response, (inputTokens, outputTokens, providerCostEgp) => {
       if (inputTokens !== null) candidate.inputTokens = inputTokens;
       if (outputTokens !== null) candidate.outputTokens = outputTokens;
       if (inputTokens !== null && outputTokens !== null) candidate.usageReported = true;
@@ -350,6 +288,7 @@ async function openCandidate(candidate: Candidate, controller: AbortController):
   } catch (error) {
     clearTimeout(timeoutId);
     controller.abort();
+    if (timeoutTriggered) throw new Error("provider timed out after " + timeoutMs + "ms");
     throw error;
   }
 }
@@ -377,13 +316,11 @@ async function firstReady(candidates: Candidate[], waitMs: number, recordAttempt
       if (providerCallStarted) {
         const cancelledByWinner = raceState.winnerSelected && controller.signal.aborted;
         const cancelledByRequest = signal?.aborted === true;
-        const status: AttemptStatus = cancelledByWinner || cancelledByRequest
-          ? "cancelled"
-          : controller.signal.aborted || raceState.deadlineExpired || /timeout|timed out|abort/i.test(errorText)
-            ? "timeout"
-            : /no text|empty/i.test(errorText)
-              ? "empty"
-              : "error";
+        const status: AttemptStatus = classifyProviderAttemptFailure(errorText, {
+          cancelledByWinner,
+          cancelledByRequest,
+          raceDeadlineExpired: raceState.deadlineExpired,
+        });
         const errorCode = status === "cancelled" ? "client_cancelled" : status === "timeout" ? "model_timeout" : status === "empty" ? "empty_response" : "provider_error";
         await recordAttempt(attemptCandidate, status, Math.max(0, Date.now() - startedAtMs), errorCode, errorText, "finished");
       }
