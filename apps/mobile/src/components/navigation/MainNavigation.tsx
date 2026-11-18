@@ -86,7 +86,7 @@ export function MainNavigation({ children }: Props) {
   const toggleSidebar = () => setSidebarPreference({ key: sidebarStorageKey, collapsed: !sidebarCollapsed });
 
   useEffect(() => {
-    if (!isDesktop && !drawerVisible) return;
+    if (pathname.startsWith("/admin") || (!isDesktop && !drawerVisible)) return;
     let activeRequest = true;
     setRecentLoading(true);
     setRecentError(false);
@@ -98,7 +98,7 @@ export function MainNavigation({ children }: Props) {
       if (activeRequest) setRecentLoading(false);
     });
     return () => { activeRequest = false; };
-  }, [drawerVisible, isDesktop, recentRefresh]);
+  }, [drawerVisible, isDesktop, pathname, recentRefresh]);
 
   if (pathname.startsWith("/admin")) return <>{children}</>;
 
