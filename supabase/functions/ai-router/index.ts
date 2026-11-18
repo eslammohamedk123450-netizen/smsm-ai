@@ -1181,10 +1181,15 @@ async function handleRequest(req: Request): Promise<Response> {
         ignoreCapabilityEvidence: true,
       }))
     : [];
+  const assignedRestrictedChatFallbackModels = restrictModelsToAssignedRoute(
+    restrictedChatFallbackModels,
+    orderedRouteAssignments,
+    routeRole,
+  ).filter((model) => model.routing_group === "free_race");
   const anyCapabilityEligible = profileEligibleModels.some((model: ModelRow) =>
     isEligibleModel(model, requiredModelRole, allowedAutoRoutingGroups, {
       ignoreCapabilityEvidence: basicChatRecoveryMode,
-    })) || restrictedChatFallbackModels.length > 0;
+    })) || assignedRestrictedChatFallbackModels.length > 0;
   if (routingMode === "auto" && !anyCapabilityEligible) {
     const labels = [...new Set([
       ...connectorCapabilities.map(capabilityLabel),
@@ -1213,13 +1218,12 @@ async function handleRequest(req: Request): Promise<Response> {
       orderedRouteAssignments,
       routeRole,
     );
-    if (basicChatRecoveryMode && restrictedChatFallbackModels.length > 0) {
-      const assignedRecovery = restrictModelsToAssignedRoute(
-        restrictedChatFallbackModels,
+    if (basicChatRecoveryMode && assignedRestrictedChatFallbackModels.length > 0) {
+      const recoveryOrdered = orderModelsByRoute(
+        assignedRestrictedChatFallbackModels,
         orderedRouteAssignments,
         routeRole,
-      ).filter((model) => model.routing_group === "free_race");
-      const recoveryOrdered = orderModelsByRoute(assignedRecovery, orderedRouteAssignments, routeRole);
+      );
       const alreadyIncluded = new Set(healthyOrdered.map((model) => model.id));
       candidatesFrom = [
         ...healthyOrdered,
