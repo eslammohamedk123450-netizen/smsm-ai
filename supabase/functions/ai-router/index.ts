@@ -2049,9 +2049,12 @@ async function handleRequest(req: Request): Promise<Response> {
       await updateWorkspace("cancelled", { parts: splitParts.length, completed: completedDuringRun, cancelled: true });
       await clearSharedTaskMemory(supabase, billingTaskId);
       const partialResponse = partialParts.length ? mergePartAnswers(partialParts) : "";
-      const billing = await finalizeBilling(workerBillingCandidate, partialResponse, "client_cancelled", Boolean(workerBillingCandidate));
+      const partialBillingCandidate = workerBillingCandidate
+        ? { ...workerBillingCandidate, inputTokens: workerInputTokens, outputTokens: workerOutputTokens }
+        : null;
+      const billing = await finalizeBilling(partialBillingCandidate, partialResponse, "client_cancelled", Boolean(partialBillingCandidate));
       const partialMessageId = partialResponse.trim()
-        ? await persistAssistantText(supabase, conversationId, user.id, billingTaskId, workerBillingCandidate?.model.id ?? null, partialResponse)
+        ? await persistAssistantText(supabase, conversationId, user.id, billingTaskId, partialBillingCandidate?.model.id ?? null, partialResponse)
         : null;
       await finishAiRequest("cancelled", partialMessageId, partialMessageId ? null : (partialResponse || null), {
         route: "task_split",
