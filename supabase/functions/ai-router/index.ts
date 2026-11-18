@@ -2043,9 +2043,13 @@ async function handleRequest(req: Request): Promise<Response> {
     if (await checkAgentCancellation()) {
       await updateWorkspace("cancelled", { parts: splitParts.length, completed: resumedResults.size, cancelled: true });
       await clearSharedTaskMemory(supabase, billingTaskId);
-      const completedOutcomes = taskExecution.filter((outcome) => outcome.status === "completed" && Boolean(outcome.result));
+      const completedOutcomes = taskExecution.filter((outcome) => outcome.status === "completed" && typeof outcome.result === "string");
       const completedDuringRun = completedOutcomes.length;
-      const partialResponse = mergePartAnswers([...resumedResults.entries(), ...completedOutcomes.map((outcome) => [outcome.stepId, outcome.result!] as [string, string])]);
+      const partialParts = splitParts.flatMap((part, index) => {
+        const content = resumedResults.get(part.step_id) ?? completedOutcomes.find((outcome) => outcome.step_id === part.step_id)?.result;
+        return typeof content === "string" ? [{ index, content, model: null }] : [];
+      });
+      const partialResponse = partialParts.length ? mergePartAnswers(partialParts) : "";
       const billing = await finalizeBilling(billingCandidate, partialResponse, "client_cancelled", Boolean(billingCandidate));
       await finishAiRequest("cancelled", null, null, {
         route: "task_split",
