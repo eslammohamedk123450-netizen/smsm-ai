@@ -278,6 +278,17 @@ export function ModelRegistryCatalogScreen() {
           <Text style={styles.statusText}>{STATUS_LABEL[model.operational_state]}</Text>
         </View>
       </View>
+      {model.legacy_chat_model_id !== null ? <View style={styles.priceLine}>
+        <View style={styles.priceCell}><Text style={styles.priceLabel}>تكلفة الإدخال / مليون</Text><Text style={styles.priceValue}>{pricesByModel.has(Number(model.legacy_chat_model_id)) ? `${pricesByModel.get(Number(model.legacy_chat_model_id))!.input.toLocaleString("en-EG")} ج.م` : "غير مسجلة"}</Text></View>
+        <View style={styles.priceCell}><Text style={styles.priceLabel}>تكلفة الإخراج / مليون</Text><Text style={styles.priceValue}>{pricesByModel.has(Number(model.legacy_chat_model_id)) ? `${pricesByModel.get(Number(model.legacy_chat_model_id))!.output.toLocaleString("en-EG")} ج.م` : "غير مسجلة"}</Text></View>
+        <View style={styles.priceCell}><Text style={styles.priceLabel}>ترتيب الشات</Text><Text style={styles.priceValue}>{chatOrderByModel.has(Number(model.legacy_chat_model_id)) ? `#${chatOrderByModel.get(Number(model.legacy_chat_model_id))}` : "غير مربوط"}</Text></View>
+      </View> : null}
+      <View style={styles.capabilityHeader}>
+        <Text style={styles.detailSectionTitle}>القدرات</Text>
+        <Pressable accessibilityRole="button" onPress={() => { setSelectedModel(model); setSelectedDetailTab("capabilities"); setCapabilityPickerOpen(false); }} style={styles.detailLink}>
+          <Ionicons name="add" size={14} color={colors.primary}/><Text style={styles.detailLinkText}>إضافة قدرة</Text>
+        </Pressable>
+      </View>
       <View style={styles.capabilityLine}>
         {(CAPABILITIES.filter(([key]) => [key, ...(CAPABILITY_ALIASES[key] ?? [])].some((candidate) => capabilitiesByModel.get(model.model_id)?.has(candidate)))).map(([key, label, icon]) => {
           const review = capabilityReviewsByModel.get(model.model_id)?.get(key) ?? (CAPABILITY_ALIASES[key] ?? []).map((alias) => capabilityReviewsByModel.get(model.model_id)?.get(alias)).find(Boolean) ?? "legacy_unreviewed";
@@ -286,11 +297,6 @@ export function ModelRegistryCatalogScreen() {
         })}
         {!capabilitiesByModel.get(model.model_id)?.size ? <Text style={styles.meta}>لا توجد قدرات مسجلة بعد</Text> : null}
       </View>
-      {model.legacy_chat_model_id !== null ? <View style={styles.priceLine}>
-        <View style={styles.priceCell}><Text style={styles.priceLabel}>تكلفة الإدخال / مليون</Text><Text style={styles.priceValue}>{pricesByModel.has(Number(model.legacy_chat_model_id)) ? `${pricesByModel.get(Number(model.legacy_chat_model_id))!.input.toLocaleString("en-EG")} ج.م` : "غير مسجلة"}</Text></View>
-        <View style={styles.priceCell}><Text style={styles.priceLabel}>تكلفة الإخراج / مليون</Text><Text style={styles.priceValue}>{pricesByModel.has(Number(model.legacy_chat_model_id)) ? `${pricesByModel.get(Number(model.legacy_chat_model_id))!.output.toLocaleString("en-EG")} ج.م` : "غير مسجلة"}</Text></View>
-        <View style={styles.priceCell}><Text style={styles.priceLabel}>ترتيب الشات</Text><Text style={styles.priceValue}>{chatOrderByModel.has(Number(model.legacy_chat_model_id)) ? `#${chatOrderByModel.get(Number(model.legacy_chat_model_id))}` : "غير مربوط"}</Text></View>
-      </View> : null}
       <View style={styles.modelCardActions}>
         {model.legacy_chat_model_id !== null ? <Pressable accessibilityRole="button" disabled={testingModelId !== null} onPress={() => void (async () => {
           const modelId = Number(model.legacy_chat_model_id);
@@ -302,7 +308,6 @@ export function ModelRegistryCatalogScreen() {
             setTestResults((current) => ({ ...current, [modelId]: cause instanceof Error ? cause.message : "تعذر تشغيل الاختبار." }));
           } finally { setTestingModelId(null); }
         })()} style={styles.detailAction}><Ionicons name="flask-outline" size={14} color={colors.primary}/><Text style={styles.detailActionText}>{testingModelId === Number(model.legacy_chat_model_id) ? "جارٍ الاختبار…" : "اختبر الآن"}</Text></Pressable> : <Text style={styles.meta}>اختبار هذا النوع غير متاح حالياً</Text>}
-        <Pressable accessibilityRole="button" onPress={() => { setSelectedModel(model); setSelectedDetailTab("capabilities"); setCapabilityPickerOpen(false); }} style={styles.manageAction}><Ionicons name="add-circle-outline" size={14} color={colors.textSecondary}/><Text style={styles.manageActionText}>القدرات +</Text></Pressable>
         <Pressable accessibilityRole="button" onPress={() => { setSelectedModel(model); setSelectedDetailTab("info"); setCapabilityPickerOpen(false); }} style={styles.manageAction}><Ionicons name="time-outline" size={14} color={colors.textSecondary}/><Text style={styles.manageActionText}>السجل والتفاصيل</Text></Pressable>
       </View>
       {model.legacy_chat_model_id !== null && testResults[Number(model.legacy_chat_model_id)] ? <Text style={testResults[Number(model.legacy_chat_model_id)].startsWith("نجح") ? styles.success : styles.error}>{testResults[Number(model.legacy_chat_model_id)]}</Text> : null}
