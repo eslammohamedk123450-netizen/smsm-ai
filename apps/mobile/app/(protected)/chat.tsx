@@ -712,7 +712,7 @@ export default function ChatPage() {
       onEditSave={item.role === "user" ? (content) => editMessageAndRegenerate(item.id, content) : undefined}
       onFeedback={item.role === "assistant" && item.status !== "streaming" ? (value) => updateFeedback(item.id, value) : undefined}
     />
-    {execution ? <AgentExecutionCard progress={execution} /> : null}
+    {execution ? <AgentExecutionCard progress={execution} canCancel={isSending} onCancel={() => abortRef.current?.abort()} /> : null}
       </View>
     );
   };
