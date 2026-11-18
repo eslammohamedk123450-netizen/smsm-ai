@@ -68,6 +68,19 @@ describe("adminService tests", () => {
     });
   });
 
+  test("testModel reports a health-check transport failure without claiming provider credentials were not saved", async () => {
+    (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "admin-1" } }, error: null });
+    (supabase.rpc as jest.Mock).mockResolvedValue({ data: true, error: null });
+    (supabase.functions.invoke as jest.Mock).mockResolvedValue({
+      data: null,
+      error: { message: "Failed to send a request", context: { status: 0 } },
+    });
+
+    await expect(adminService.testModel(42)).rejects.toThrow(
+      "تعذر الاتصال بخدمة فحص النماذج. لم يتم تغيير بيانات المزوّد أو مفتاحه؛ أعد المحاولة بعد تحديث الصفحة.",
+    );
+  });
+
   test("testModelsBatch tests specified models and does not call updateModel", async () => {
     (supabase.auth.getUser as jest.Mock).mockResolvedValue({ data: { user: { id: "admin-1" } }, error: null });
     (supabase.rpc as jest.Mock).mockResolvedValue({ data: true, error: null });
