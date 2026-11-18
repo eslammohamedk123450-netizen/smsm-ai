@@ -373,7 +373,7 @@ export function ProvidersAdminScreen() {
   </ScrollView>;
 }
 
-export function ModelsAdminScreen() {
+export function ModelsAdminScreen({ showPricing = true }: { showPricing?: boolean } = {}) {
   const { colors } = useSulyTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const { q } = useLocalSearchParams<{ q?: string }>();
@@ -381,7 +381,7 @@ export function ModelsAdminScreen() {
   const [modelPrices, setModelPrices] = useState<Record<number, ModelPriceSummary>>({});
   const [search, setSearch] = useState(typeof q === "string" ? q : "");
   const [modelFilter, setModelFilter] = useState<"all" | "enabled" | "disabled" | "restricted">(typeof q === "string" && q.trim() ? "all" : "enabled");
-  const [modelViewMode, setModelViewMode] = useState<"table" | "cards">("table");
+  const [modelViewMode, setModelViewMode] = useState<"table" | "cards">("cards");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [testingModelId, setTestingModelId] = useState<number | null>(null);
@@ -582,7 +582,7 @@ export function ModelsAdminScreen() {
           </> : null}
         </View>}
         ListEmptyComponent={loading ? <ActivityIndicator color={colors.primary} style={styles.listLoading} /> : <Card><Text style={styles.emptyIcon}>⌕</Text><Text style={styles.detail}>لا توجد نماذج تطابق البحث أو عامل التصفية المحدد.</Text></Card>}
-        ListFooterComponent={<View style={{ paddingTop: 14 }}><ModelPricingAdminCard /></View>}
+        ListFooterComponent={showPricing ? <View style={{ paddingTop: 14 }}><ModelPricingAdminCard /></View> : null}
         renderItem={({ item: model }) => {
           const providerIsOff = model.provider_enabled === false;
           const isManuallyOff = !model.enabled || model.routing_group === "disabled";
