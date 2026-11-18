@@ -93,6 +93,7 @@ jobs:
         run: npm ci
       - name: Typecheck mobile application
         run: npm run typecheck
+      # Run every mobile unit test before exporting any platform bundle.
       - name: Run full mobile Jest regression suite
         run: npm test -- --runInBand
       - name: Export static Expo web app
