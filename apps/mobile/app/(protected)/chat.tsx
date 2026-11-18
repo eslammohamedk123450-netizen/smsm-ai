@@ -761,12 +761,6 @@ export default function ChatPage() {
                   <Text style={styles.adminShortcutText}>{isArabic ? "الأدمن" : "Admin"}</Text>
                 </TouchableOpacity>
               ) : null}
-              {creditBalance !== null ? (
-                <TouchableOpacity onPress={() => router.push("/(protected)/balance")} style={styles.creditPill} accessibilityRole="button" accessibilityLabel={isArabic ? "رصيد Suly" : "SULY credits"}>
-                  <Ionicons name="flash-outline" size={14} color={colors.textSecondary} />
-                  <Text style={styles.creditPillText}>{creditBalance.toLocaleString("en-US")}</Text>
-                </TouchableOpacity>
-              ) : null}
 
               <TouchableOpacity onPress={() => setShareVisible(true)} style={styles.headerButton} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={isArabic ? "مشاركة المحادثة" : "Share conversation"}>
                 <Ionicons name="share-social-outline" size={18} color={colors.textMuted} />
