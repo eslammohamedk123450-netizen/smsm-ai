@@ -55,7 +55,7 @@ export function MediaScreen() {
   }, [isArabic]);
   useEffect(() => {
     void load();
-    supabase.rpc("suly_is_admin").then(({ data }) => setIsAdmin(data === true));
+    void supabase.rpc("suly_is_admin").then(({ data }) => setIsAdmin(data === true)).catch(() => setIsAdmin(false));
   }, [load]);
 
   const pickAndUpload = async (kind: PickKind) => {
@@ -267,7 +267,7 @@ export function MediaScreen() {
         <Text style={[styles.filterText, selectedFolderId === folder.id && styles.filterTextSelected]}>{folder.name}</Text>
       </Pressable>)}
     </View> : null}
-    {filter === "in_progress" ? (jobs.length ? <View style={styles.jobsList}>
+    {!error && filter === "in_progress" ? (jobs.length ? <View style={styles.jobsList}>
       {jobs.map((job) => <View key={job.id} style={styles.jobCard}>
         <View style={styles.jobHeader}>
           <Text style={styles.jobStatus}>{job.status === "queued" ? (isArabic ? "في قائمة الانتظار" : "Queued") : (isArabic ? "جاري التنفيذ" : "Running")}</Text>
@@ -276,7 +276,7 @@ export function MediaScreen() {
         <Text numberOfLines={3} style={styles.filename}>{job.prompt}</Text>
         <Text style={styles.meta}>{new Date(job.createdAt).toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text>
       </View>)}
-    </View> : <Text style={styles.empty}>لا توجد مهام وسائط قيد التنفيذ مسجلة حاليًا.</Text>) : null}
+    </View> : <Text style={styles.empty}>{isArabic ? "لا توجد مهام وسائط قيد التنفيذ مسجلة حاليًا." : "No media jobs are currently in progress."}</Text>) : null}
     {!loading && !error && filter !== "in_progress" && visibleAssets.length === 0 ? <Text style={styles.empty}>{assets.length === 0 ? (isArabic ? "لا يوجد ملف بعد. ابدأ برفع صورة." : "No files yet. Start by uploading an image.") : (isArabic ? "لا توجد عناصر في هذا التصنيف." : "No items in this category.")}</Text> : null}
     <View style={styles.grid}>
       {filter !== "in_progress" ? visibleAssets.map((asset) => <View key={asset.id || asset.url} style={styles.card}>

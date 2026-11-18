@@ -7,7 +7,7 @@ import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import { supabase } from "../../lib/supabase/client";
 import { getCurrentCreditBalance } from "../credits/credit-service";
-import { getMediaDeliveryUrl, type MediaAsset } from "../media/media-service";
+import { getMediaDeliveryUrl, listMyGenerationJobs, type MediaAsset } from "../media/media-service";
 import { chatService } from "../chat/chat-service";
 
 type Price = { quality: string; price_credits: number; resolution: string };
@@ -105,8 +105,12 @@ export function ImageStudioScreen() {
   const generate = async () => {
     if (!canGenerate || !selectedModel || !selectedPrice || !prompt.trim()) return;
     setGenerating(true); setError(null); setNotice(null); setResult(null);
-    const requestId = randomUUID();
     try {
+      const activeJobs = await listMyGenerationJobs();
+      const matchingJob = activeJobs.find((job) =>
+        job.serviceType === "image" && job.prompt.trim() === prompt.trim() && job.quality === effectiveQuality
+      );
+      const requestId = matchingJob?.id ?? randomUUID();
       const { data, error: invokeError } = await supabase.functions.invoke("image-generator", {
         body: {
           source: "image_studio",
@@ -123,9 +127,14 @@ export function ImageStudioScreen() {
       let mediaId = typeof data.media_id === "string" ? data.media_id : "";
       let chargedCredits = Number(data.charged_credits ?? estimatedCredits);
       let billingStatus = String(data.billing_status ?? "settled");
-      if (!mediaId && typeof data.job_id === "string" && (data.status === "running" || data.status === "queued")) {
+      const pendingJobId = typeof data.job_id === "string"
+        ? data.job_id
+        : (data.status === "running" || data.status === "queued") && typeof data.request_id === "string"
+          ? data.request_id
+          : null;
+      if (!mediaId && pendingJobId) {
         setNotice("تم تسجيل المهمة. ستستمر في الخلفية ويمكنك إغلاق التطبيق ومتابعتها من مكتبتي.");
-        const completedJob = await waitForGenerationJob(data.job_id);
+        const completedJob = await waitForGenerationJob(pendingJobId);
         if (!completedJob) {
           setNotice("المهمة ما زالت تعمل في الخلفية. يمكنك متابعة حالتها ونتيجتها من مكتبتي.");
           return;
