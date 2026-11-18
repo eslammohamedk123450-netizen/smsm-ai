@@ -6,6 +6,7 @@ Deno.test("allows only the exact configured GitHub Pages origin", () => {
     headers: { origin: "https://eslammohamedk123450-netizen.github.io" },
   }));
   assertEquals(allowed["Access-Control-Allow-Origin"], "https://eslammohamedk123450-netizen.github.io");
+  assertEquals(allowed["Access-Control-Allow-Headers"].includes("x-suly-health-check-secret"), true);
 
   const denied = corsHeadersForRequest(new Request("https://api.example.test", {
     headers: { origin: "https://evil.example" },
