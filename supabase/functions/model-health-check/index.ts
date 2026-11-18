@@ -163,7 +163,9 @@ async function probeModel(
       const choices = Array.isArray(payload.choices) ? payload.choices : [];
       const firstChoice = asRecord(choices[0]);
       const message = asRecord(firstChoice.message);
-      const text = contentText(message.content ?? firstChoice.text ?? payload.output_text);
+      const text = [message.content, firstChoice.text, payload.output_text]
+        .map(contentText)
+        .find((value) => value.trim().length > 0) ?? "";
       return text.trim()
         ? { status: "success", duration_ms: Date.now() - startedAt, error_code: null }
         : { status: "error", duration_ms: Date.now() - startedAt, error_code: "empty_response" };
@@ -189,9 +191,14 @@ async function probeModel(
                 const firstChoice = asRecord(choices[0]);
                 const delta = asRecord(firstChoice.delta);
                 const message = asRecord(firstChoice.message);
-                const text = contentText(
-                  delta.content ?? message.content ?? delta.text ?? message.text ?? firstChoice.text ?? payload.output_text,
-                );
+                const text = [
+                  delta.content,
+                  message.content,
+                  delta.text,
+                  message.text,
+                  firstChoice.text,
+                  payload.output_text,
+                ].map(contentText).find((value) => value.trim().length > 0) ?? "";
                 if (text.trim()) {
                   await reader.cancel().catch(() => undefined);
                   return { status: "success", duration_ms: Date.now() - startedAt, error_code: null };
