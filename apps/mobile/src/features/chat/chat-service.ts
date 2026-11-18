@@ -5,7 +5,6 @@ import type { ChatRequestBody } from "../../lib/network/sse-transport";
 import { summarizeContent } from "./conversation-title";
 import { buildRetryHistory, createRetryRequestId } from "./chat-retry";
 import { chatStreamManager } from "./chat-stream-manager";
-import { getStudioIntent } from "./image-generation";
 import { getMediaDeliveryUrls, type MediaAsset } from "../media/media-service";
 export { titleFromMessage } from "./conversation-title";
 export { summarizeContent } from "./conversation-title";
@@ -299,6 +298,7 @@ export const chatService = {
     conversationId: string;
     content: string;
     modelProfileKey?: ChatRequestBody["model_profile_key"];
+    modelId?: number;
     executionMode?: ChatRequestBody["execution_mode"];
     writeApproval?: { requestId: string; originalText: string };
     mediaAsset?: MediaAsset;
@@ -344,8 +344,6 @@ export const chatService = {
     if (updateError) throw new Error("حُفظت رسالتك، لكن تعذر تحديث ترتيب المحادثة.");
 
     // Media requests are saved as chat messages, but execution and credit reservation happen only in Studio.
-    const studioIntent = getStudioIntent(content);
-    if (studioIntent) return;
 
     const history: ChatRequestBody["messages"] = priorMessages
       .filter((entry): entry is ChatMessage & { role: "user" | "assistant" } => entry.role === "user" || entry.role === "assistant")
@@ -358,7 +356,8 @@ export const chatService = {
       media_asset_ids: options.mediaAsset ? [options.mediaAsset.id] : undefined,
       request_id: options.writeApproval?.requestId ?? stableMessageRequestId(String(inserted.id)),
       messages: history,
-      routing_mode: "auto",
+      routing_mode: options.modelId ? "manual" : "auto",
+      model_id: options.modelId,
       model_profile_key: options.modelProfileKey ?? "auto",
       execution_mode: options.executionMode ?? "chat",
       stream: true,
@@ -373,6 +372,7 @@ export const chatService = {
     conversationId: string;
     history: ChatMessage[];
     modelProfileKey?: ChatRequestBody["model_profile_key"];
+    modelId?: number;
     executionMode?: ChatRequestBody["execution_mode"];
     requestId?: string;
     signal: AbortSignal;
@@ -397,7 +397,8 @@ export const chatService = {
       media_asset_ids: latestUser?.attachments?.map((asset) => asset.id),
       request_id: requestId,
       messages,
-      routing_mode: "auto",
+      routing_mode: options.modelId ? "manual" : "auto",
+      model_id: options.modelId,
       model_profile_key: options.modelProfileKey ?? "auto",
       execution_mode: options.executionMode ?? "chat",
       stream: true,
@@ -408,6 +409,7 @@ export const chatService = {
     conversationId: string;
     userMessageId: string;
     modelProfileKey?: ChatRequestBody["model_profile_key"];
+    modelId?: number;
     executionMode?: ChatRequestBody["execution_mode"];
     signal: AbortSignal;
     onChunk(text: string): void;
@@ -417,13 +419,14 @@ export const chatService = {
   }): Promise<void> {
     const savedMessages = await this.getMessages(options.conversationId);
     const targetUserMessage = savedMessages.find((message) => message.id === options.userMessageId && message.role === "user");
-    if (targetUserMessage && getStudioIntent(targetUserMessage.content)) return;
+    // Studio execution is disabled during the basic-chat phase.
     const history = buildRetryHistory(savedMessages, options.userMessageId);
     await this.regenerateAssistant({
       conversationId: options.conversationId,
       history,
       requestId: createRetryRequestId(randomUUID),
       modelProfileKey: options.modelProfileKey,
+      modelId: options.modelId,
       executionMode: options.executionMode,
       signal: options.signal,
       onChunk: options.onChunk,
