@@ -11,7 +11,6 @@ import { AdminMobileBreadcrumb } from "./AdminMobileBreadcrumb";
 import { MediaModelPricingAdminCard } from "./MediaModelPricingAdminCard";
 import { MediaGenerationModelsAdminScreen } from "./MediaGenerationModelsAdminScreen";
 import { ModelsAdminScreen } from "./AdminScreens";
-import { UnifiedModelCapabilitiesAdminCard } from "./UnifiedModelCapabilitiesAdminCard";
 
 type ServiceType = "chat" | "image" | "video" | "audio";
 type OperationalState = "active" | "available" | "disabled" | "restricted" | "candidate" | "archived" | "unknown";
@@ -117,7 +116,6 @@ export function ModelRegistryCatalogScreen() {
   const [mediaPriceRows, setMediaPriceRows] = useState<MediaPriceSummary[]>([]);
   const [mediaEditorOpen, setMediaEditorOpen] = useState(false);
   const [advancedManagementOpen, setAdvancedManagementOpen] = useState(false);
-  const [capabilityReviewOpen, setCapabilityReviewOpen] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<RegistryModel | null>(null);
@@ -460,7 +458,6 @@ export function ModelRegistryCatalogScreen() {
               </View>
               <Text style={styles.detailNoticeText}>القدرات المقترحة أو القديمة غير المعتمدة لا تُعرض كقدرات مؤكدة ولا ينبغي استخدامها في التوجيه قبل اعتمادها.</Text>
               <Text style={styles.detailNoticeText}>إضافة القدرة لا تعني أن النموذج يدعمها أو أنها مفعّلة. لا تعتمد أو تستخدم قبل إثبات دعم المزود ونجاح الاختبار.</Text>
-              <Pressable accessibilityRole="button" onPress={() => setCapabilityReviewOpen(true)} style={styles.detailLink}><Text style={styles.detailLinkText}>مراجعة أدلة الدعم والاعتماد والاختبار</Text></Pressable>
             </> : null}
             {selectedDetailTab === "pricing" ? <>
               <Text style={styles.detailSectionTitle}>التكلفة المسجلة</Text>
@@ -521,17 +518,6 @@ export function ModelRegistryCatalogScreen() {
             <Pressable accessibilityRole="button" onPress={() => { const model = selectedModel; setSelectedModel(null); openOperationalRecord(model); }} style={styles.detailPrimaryAction}><Text style={styles.detailPrimaryActionText}>{selectedModel.provider_enabled ? "فتح شاشة إدارة النموذج" : "فتح إدارة المزود"}</Text></Pressable>
           </> : null}
         </ScrollView>
-      </View>
-    </Modal>
-    <Modal visible={capabilityReviewOpen} transparent={false} animationType="slide" onRequestClose={() => setCapabilityReviewOpen(false)}>
-      <View style={styles.fullPageDetail}>
-        <View style={styles.detailModalHeader}>
-          <Text style={styles.detailModalTitle}>مراجعة أدلة القدرات</Text>
-          <Pressable accessibilityRole="button" onPress={() => { setCapabilityReviewOpen(false); void load(true); }}>
-            <Ionicons name="close-circle-outline" size={24} color={colors.textMuted}/>
-          </Pressable>
-        </View>
-        <View style={{ flex: 1 }}>{capabilityReviewOpen ? <UnifiedModelCapabilitiesAdminCard/> : null}</View>
       </View>
     </Modal>
     <Modal visible={advancedManagementOpen} transparent={false} animationType="slide" onRequestClose={() => { setAdvancedManagementOpen(false); router.setParams({ q: "" }); }}>
