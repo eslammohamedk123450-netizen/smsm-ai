@@ -131,6 +131,9 @@ export function ProvidersAdminScreen() {
   const [archivedProviders, setArchivedProviders] = useState<ProviderRow[]>([]);
   const [showArchivedProviders, setShowArchivedProviders] = useState(false);
   const [providerModels, setProviderModels] = useState<ModelRow[]>([]);
+  const [expandedProviderId, setExpandedProviderId] = useState<number | null>(null);
+  const [testingProviderModelId, setTestingProviderModelId] = useState<number | null>(null);
+  const [providerModelTestResults, setProviderModelTestResults] = useState<Record<number, string>>({});
   const [selectedType, setSelectedType] = useState("");
   const [name, setName] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
@@ -177,10 +180,48 @@ export function ProvidersAdminScreen() {
     setBusyId(provider.id); setError(null); setNotice(null);
     try {
       await adminService.setProviderLifecycle(provider.id, !provider.enabled, true);
-      setNotice(`${provider.name}: تم إيقاف المزود وإخفاؤه من الكتالوج. حُفظت إعداداته لاستعادتها لاحقًا، والسجلات المالية لم تتغير.`);
+      setNotice(`${provider.name}: تم تغيير حالة المفتاح. راجع ترتيب النماذج وصحتها قبل الاعتماد عليها.`);
       await load();
     } catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر تغيير حالة المزود."); }
     finally { setBusyId(null); }
+  };
+
+  const deleteProvider = async (provider: ProviderRow) => {
+    const approved = await confirmAdminAction(
+      "حذف المفتاح نهائيًا؟",
+      `سيُحذف المفتاح «${provider.name}» وسجل نماذجه المرتبطة. لا يمكن التراجع عن الحذف. استخدم الإيقاف بدلًا منه إذا كنت تريد الاحتفاظ بإعداداته.`,
+      "حذف نهائي",
+    );
+    if (!approved) return;
+    setBusyId(provider.id); setError(null); setNotice(null);
+    try {
+      await adminService.deleteProvider(provider.id);
+      setExpandedProviderId((current) => current === provider.id ? null : current);
+      setNotice(`تم حذف المفتاح «${provider.name}».`);
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "تعذر حذف المفتاح. قد تكون له سجلات مرتبطة يجب الحفاظ عليها.");
+    } finally { setBusyId(null); }
+  };
+
+  const testProviderModel = async (model: ModelRow) => {
+    setTestingProviderModelId(model.id);
+    setProviderModelTestResults((current) => ({ ...current, [model.id]: "جارٍ الاختبار…" }));
+    try {
+      const result = await adminService.testModel(model.id);
+      setProviderModelTestResults((current) => ({
+        ...current,
+        [model.id]: result.status === "success"
+          ? `ناجح · ${Number(result.duration_ms ?? 0)}ms`
+          : `فشل · ${result.error_code ?? "unknown"}`,
+      }));
+      await load();
+    } catch (cause) {
+      setProviderModelTestResults((current) => ({
+        ...current,
+        [model.id]: cause instanceof Error ? cause.message : "فشل الاختبار.",
+      }));
+    } finally { setTestingProviderModelId(null); }
   };
 
   const selectPreset = (preset: ProviderPreset) => {
@@ -304,14 +345,36 @@ export function ProvidersAdminScreen() {
           <View style={styles.providerTileInfo}>
             <Text numberOfLines={2} style={styles.cardTitle}>{provider.name}</Text>
             <Text numberOfLines={1} style={styles.detail}>{provider.provider_type} · {provider.last_test_status ?? "لم يُختبر"}</Text>
-            <Text style={styles.providerStat}>{modelsForProvider.length} نموذج · {routableCount} جاهز</Text>
-            {restrictedCount ? <Text style={styles.providerRestrictedStat}>{restrictedCount} مقيّد</Text> : null}
+            <Text selectable style={styles.detail}>URL: {provider.base_url ?? "غير محدد"}</Text>
+            <Text style={styles.providerStat}>{modelsForProvider.length} نموذج · {routableCount} متاح</Text>
+            {restrictedCount ? <Text style={styles.providerRestrictedStat}>{restrictedCount} مقيّد صحيًا</Text> : null}
           </View>
           <View style={styles.providerTileActions}>
             <Pressable accessibilityRole="button" accessibilityLabel="مزامنة النماذج" disabled={busyId !== null} onPress={() => void syncProvider(provider)} style={styles.providerTileAction}><Ionicons name="sync-outline" size={17} color={colors.primary}/></Pressable>
-            <Link href="/admin/models" asChild><Pressable accessibilityRole="button" accessibilityLabel="إدارة النماذج" style={styles.providerTileAction}><Ionicons name="grid-outline" size={17} color={colors.textSecondary}/></Pressable></Link>
+            <Pressable accessibilityRole="button" accessibilityLabel="عرض نماذج المفتاح" accessibilityState={{ expanded: expandedProviderId === provider.id }} onPress={() => setExpandedProviderId((current) => current === provider.id ? null : provider.id)} style={styles.providerTileAction}><Ionicons name={expandedProviderId === provider.id ? "chevron-up" : "grid-outline"} size={17} color={colors.textSecondary}/></Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel={provider.enabled ? "إيقاف المزود" : "تفعيل المزود"} disabled={busyId !== null} onPress={() => void toggleProvider(provider)} style={styles.providerTileAction}><Ionicons name={provider.enabled ? "power-outline" : "play-outline"} size={17} color={provider.enabled ? colors.warning : colors.success}/></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="حذف المفتاح نهائيًا" disabled={busyId !== null} onPress={() => void deleteProvider(provider)} style={styles.providerTileAction}><Ionicons name="trash-outline" size={17} color={colors.error}/></Pressable>
           </View>
+          {expandedProviderId === provider.id ? (
+            <View style={styles.providerModelsList}>
+              {modelsForProvider.length === 0 ? <Text style={styles.detail}>لا توجد نماذج مسجلة لهذا المفتاح.</Text> : modelsForProvider.map((model) => (
+                <View key={model.id} style={styles.providerModelRow}>
+                  <View style={styles.providerModelHeader}>
+                    <View style={styles.providerModelInfo}>
+                      <Text style={styles.providerModelName}>{model.name}</Text>
+                      <Text selectable style={styles.providerModelIdentifier}>{model.model_identifier}</Text>
+                    </View>
+                    <Pressable accessibilityRole="button" disabled={testingProviderModelId !== null || !provider.enabled} onPress={() => void testProviderModel(model)} style={styles.providerTileAction}>
+                      {testingProviderModelId === model.id ? <ActivityIndicator size="small" color={colors.primary}/> : <Ionicons name="flask-outline" size={17} color={provider.enabled ? colors.primary : colors.textMuted}/>}
+                    </Pressable>
+                  </View>
+                  <Text style={styles.detail}>{model.enabled ? "النموذج مفعّل" : "النموذج معطّل"} · {model.health?.auto_restricted ? "مقيّد صحيًا" : model.routing_group === "disabled" ? "غير مضاف لمسار" : model.routing_group}</Text>
+                  {providerModelTestResults[model.id] ? <Text style={styles.probeFeedback}>{providerModelTestResults[model.id]}</Text> : null}
+                </View>
+              ))}
+              <Link href="/admin/models" asChild><Pressable><Text style={styles.link}>فتح كتالوج النماذج وإدارة الأولوية</Text></Pressable></Link>
+            </View>
+          ) : null}
         </View>;
       })}
     </View>}
@@ -923,7 +986,7 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
   providerFormHeading: { flexDirection: "row-reverse", alignItems: "center", gap: 11, marginBottom: 8 },
   providerFormHeadingText: { flex: 1, gap: 3 },
   providerGrid: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 8 },
-  providerTile: { borderWidth: 1, borderColor: colors.divider, borderRadius: 14, backgroundColor: colors.cardBackground, padding: 10, aspectRatio: 1, justifyContent: "space-between", gap: 7 },
+  providerTile: { borderWidth: 1, borderColor: colors.divider, borderRadius: 14, backgroundColor: colors.cardBackground, padding: 10, minHeight: 190, justifyContent: "space-between", gap: 7 },
   providerTileTop: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between" },
   providerTileInfo: { alignItems: "flex-end", gap: 4, flex: 1, justifyContent: "center" },
   providerTileActions: { flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-around", borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 5 },
