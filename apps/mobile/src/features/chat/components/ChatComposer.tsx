@@ -149,7 +149,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
     const before = text.slice(0, start);
     const selected = text.slice(start, end);
     const after = text.slice(end);
-    const codeBlock = "```\\n" + selected + "\\n```";
+    const codeBlock = "```\n" + selected + "\n```";
     const nextText = before + codeBlock + after;
     const cursor = before.length + (selected ? codeBlock.length : 4);
     setText(nextText);
