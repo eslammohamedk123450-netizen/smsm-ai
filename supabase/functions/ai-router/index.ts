@@ -100,6 +100,7 @@ type Candidate = {
   usageAttemptNo?: number;
   usageCallKey?: string;
   usageReported?: boolean;
+  finishReason?: string | null;
 };
 type ReadyCandidate = Candidate & {
   controller: AbortController;
@@ -273,6 +274,9 @@ async function openCandidate(candidate: Candidate, controller: AbortController):
         if (inputTokens !== null && outputTokens !== null) readyCandidate.usageReported = true;
         if (providerCostEgp !== null) readyCandidate.providerCostEgp = providerCostEgp;
       }
+    }, (reason) => {
+      candidate.finishReason = reason;
+      if (readyCandidate) readyCandidate.finishReason = reason;
     });
     const first = await iterator.next();
     if (first.done || !first.value) throw new Error("provider returned no text");
@@ -1973,7 +1977,10 @@ async function handleRequest(req: Request): Promise<Response> {
         if (!partWinner) break;
         try {
           const collected = await collectCandidate(partWinner, Math.max(1600, Math.floor(maxOutputChars / splitParts.length)), req.signal);
-          const content = collected.content + (collected.reason ? outputGuardNotice(collected.reason) : "");
+          const providerTruncated = /^(length|max_tokens|token_limit)$/i.test(winner.finishReason ?? "");
+    const content = collected.content
+      + (collected.reason ? outputGuardNotice(collected.reason) : "")
+      + (providerTruncated ? "\n\n[توقف النموذج بسبب بلوغ حد الإخراج؛ قد يكون الرد أو الكود غير مكتمل. اطلب المتابعة من آخر سطر.]" : "");
           accountWorkerUsage(partWinner, content);
           if (content.trim()) {
             const trimmedPart = content.trim();
@@ -3118,6 +3125,11 @@ async function handleRequest(req: Request): Promise<Response> {
               }
             }
           }
+          if (/^(length|max_tokens|token_limit)$/i.test(winner!.finishReason ?? "")) {
+            const notice = "\n\n[توقف النموذج بسبب بلوغ حد الإخراج؛ قد يكون الرد أو الكود غير مكتمل. اطلب المتابعة من آخر سطر.]";
+            fullContent += notice;
+            emit({ chunk: notice, done: false });
+          }
           if (!outputGuard.reason) {
             const cleanTail = outputSanitizer.finish();
             const sanitizedTail = outputGuard.push(cleanTail);
@@ -3158,6 +3170,7 @@ async function handleRequest(req: Request): Promise<Response> {
               billing_estimated: winner!.usageReported !== true,
             },
             output_guard: outputGuard.reason,
+            provider_finish_reason: winner!.finishReason ?? null,
             model_calls: modelInvocationCount,
             first_chunk_ms: firstClientChunkAt === null ? Date.now() - startedAt : firstClientChunkAt - startedAt,
             total_ms: Date.now() - startedAt,
@@ -3237,6 +3250,7 @@ async function handleRequest(req: Request): Promise<Response> {
         billing_estimated: winner.usageReported !== true,
       },
       output_guard: collected.reason,
+      provider_finish_reason: winner.finishReason ?? null,
       model_calls: modelInvocationCount,
       first_chunk_ms: Date.now() - startedAt,
       total_ms: Date.now() - startedAt,
