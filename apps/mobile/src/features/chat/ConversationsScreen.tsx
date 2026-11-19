@@ -111,6 +111,15 @@ export function ConversationsScreen() {
       await load();
     } catch (cause) { setError(cause instanceof Error ? cause.message : (isArabic ? "تعذر أرشفة المحادثة." : "Could not archive the chat.")); }
   };
+  const restoreSelected = async () => {
+    if (!selected) return;
+    try {
+      await chatService.setConversationArchived(selected.id, false);
+      setSelected(null);
+      setNotice(isArabic ? "تمت استعادة المحادثة." : "Chat restored.");
+      await load();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : (isArabic ? "تعذر استعادة المحادثة." : "Could not restore the chat.")); }
+  };
   const beginRename = () => {
     if (!selected) return;
     setRenameTarget(selected); setRenameValue(selected.title); setSelected(null);
@@ -182,7 +191,7 @@ export function ConversationsScreen() {
           <Pressable accessibilityRole="button" accessibilityLabel={selected?.isPinned ? (isArabic ? "إلغاء تثبيت المحادثة" : "Unpin chat") : (isArabic ? "تثبيت المحادثة" : "Pin chat")} onPress={() => void togglePin()} style={styles.sheetAction><Text style={styles.sheetActionText}>{selected?.isPinned ? (isArabic ? "إلغاء التثبيت" : "Unpin chat") : (isArabic ? "تثبيت المحادثة" : "Pin chat")}</Text></Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "إعادة تسمية المحادثة" : "Rename chat"} onPress={beginRename} style={styles.sheetAction}><Text style={styles.sheetActionText}>{isArabic ? "إعادة تسمية" : "Rename"}</Text></Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "حذف المحادثة" : "Delete chat"} onPress={() => { setDeleteTarget(selected); setSelected(null); }} style={[styles.sheetAction, styles.dangerAction]}><Text style={styles.dangerText}>{isArabic ? "حذف المحادثة" : "Delete chat"}</Text></Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "أرشفة المحادثة" : "Archive chat"} onPress={() => void archiveSelected()} style={styles.sheetAction}><Text style={styles.sheetActionText}>{isArabic ? "أرشفة المحادثة" : "Archive chat"}</Text></Pressable>
+          {filter === "archived" ? <Pressable accessibilityRole="button" onPress={() => void restoreSelected()} style={styles.sheetAction}><Text style={styles.sheetActionText}>{isArabic ? "استعادة من الأرشيف" : "Restore from archive"}</Text></Pressable> : <Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "أرشفة المحادثة" : "Archive chat"} onPress={() => void archiveSelected()} style={styles.sheetAction}><Text style={styles.sheetActionText}>{isArabic ? "أرشفة المحادثة" : "Archive chat"}</Text></Pressable>}
         </View>
       </BottomSheet>
       <BottomSheet visible={Boolean(renameTarget)} title={isArabic ? "إعادة تسمية المحادثة" : "Rename chat"} onClose={() => setRenameTarget(null)}>
