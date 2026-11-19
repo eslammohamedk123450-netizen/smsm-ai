@@ -82,6 +82,71 @@ begin
     raise exception 'Provider lifecycle v2 is missing its administrator authorization guard';
   end if;
 
+
+  -- Every authenticated admin RPC must guard the caller, either directly
+  -- or through one of the explicitly approved compatibility wrappers.
+  select count(*) into v_count
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'public'
+    and p.prosecdef
+    and p.proname like 'suly_admin_%'
+    and has_function_privilege('authenticated', p.oid, 'EXECUTE')
+    and p.proname not in ('suly_admin_set_provider_enabled', 'suly_admin_set_provider_lifecycle', 'suly_admin_update_provider')
+    and pg_get_functiondef(p.oid) !~* 'suly_is_admin\\(\\)';
+  if v_count <> 0 then
+    raise exception 'Authenticated admin RPCs without an administrator guard: %', v_count;
+  end if;
+
+  select pg_get_functiondef('public.suly_admin_update_provider(uuid,integer,text,text,text,text)'::regprocedure)
+    into v_definition;
+  if position('auth.uid() <> p_user_id' in v_definition) = 0
+     or position('public.suly_admins' in v_definition) = 0 then
+    raise exception 'Provider update RPC is missing its caller-to-admin identity binding';
+  end if;
+
+  -- User-targeted credit and subscription RPCs may only act for the caller,
+  -- an administrator, or the trusted service role.
+  select pg_get_functiondef('public.suly_claim_daily_credits(uuid)'::regprocedure)
+    into v_definition;
+  if position('auth.uid() is distinct from v_user_id' in v_definition) = 0
+     or position('public.suly_is_admin()' in v_definition) = 0
+     or position('service_role' in v_definition) = 0 then
+    raise exception 'Daily credit claim is missing its user/service authorization boundary';
+  end if;
+
+  select pg_get_functiondef('public.suly_effective_subscription_tier(uuid)'::regprocedure)
+    into v_definition;
+  if position('auth.uid() is distinct from p_user_id' in v_definition) = 0
+     or position('public.suly_is_admin()' in v_definition) = 0
+     or position('service_role' in v_definition) = 0 then
+    raise exception 'Subscription tier lookup is missing its user/service authorization boundary';
+  end if;
+
+  -- Conversation share-management RPCs must scope reads and writes to the
+  -- authenticated conversation owner.
+  select pg_get_functiondef('public.suly_set_conversation_sharing(uuid,boolean)'::regprocedure)
+    into v_definition;
+  if position('user_id = auth.uid()' in v_definition) = 0 then
+    raise exception 'Conversation sharing RPC is missing conversation ownership filtering';
+  end if;
+
+  select pg_get_functiondef('public.suly_get_conversation_share_status(uuid)'::regprocedure)
+    into v_definition;
+  if position('user_id = auth.uid()' in v_definition) = 0 then
+    raise exception 'Conversation share status RPC is missing conversation ownership filtering';
+  end if;
+
+  -- HIMS resource access must remain gated by the authenticated active user
+  -- and the HIMS activation flag; never weaken this to role-only access.
+  select pg_get_functiondef('public.suly_my_feature_resources(integer,integer)'::regprocedure)
+    into v_definition;
+  if position('auth.uid()' in v_definition) = 0
+     or position('suly_is_active_user()' in v_definition) = 0
+     or position('hims_activated' in v_definition) = 0 then
+    raise exception 'HIMS resource RPC is missing its active-user/activation boundary';
+  end if;
+
   -- All exposed SECURITY DEFINER functions must pin search_path explicitly.
   select count(*) into v_count
   from pg_proc p
