@@ -223,6 +223,6 @@ Deno.test("recognizes Gemini MAX_TOKENS and preserves its final text", async () 
 
 Deno.test("serializes router events with real SSE frame delimiters", () => {
   const frame = formatSseDataEvent({ chunk: "hello", done: false });
-  assertEquals(frame, 'data: {"chunk":"hello","done":false}\\n\\n');
-  assertEquals(frame.split("\\n").length, 3);
+  assertEquals(frame, 'data: {"chunk":"hello","done":false}\n\n');
+  assertEquals(frame.split("\n").length, 3);
 });
