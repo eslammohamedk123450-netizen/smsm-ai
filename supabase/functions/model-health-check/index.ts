@@ -137,7 +137,7 @@ async function probeModel(
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
-        Accept: "text/event-stream, application/json",
+        Accept: "application/json",
       },
       body: JSON.stringify({
         model: model.model_identifier,
