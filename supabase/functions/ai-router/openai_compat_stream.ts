@@ -3,6 +3,22 @@ export function formatSseDataEvent(payload: unknown): string {
   return `data: ${JSON.stringify(payload)}\n\n`;
 }
 
+/** SSE comments keep intermediaries and clients aware that a long generation is still active. */
+export function formatSseKeepAlive(): string {
+  return ": suly-keepalive\\n\\n";
+}
+
+/** Long code-generation requests get a bounded 120s provider window, independent of short chat defaults. */
+export function providerStreamTimeoutMs(
+  providerTimeoutMs: number,
+  modelTimeoutMs: number,
+  longGeneration: boolean,
+): number {
+  const provider = Math.max(1000, Math.min(120000, Number(providerTimeoutMs) || 30000));
+  const model = Math.max(1000, Math.min(120000, Number(modelTimeoutMs) || 15000));
+  return longGeneration ? 120000 : Math.min(provider, model);
+}
+
 export type ProviderUsage = {
   inputTokens: number | null;
   outputTokens: number | null;
