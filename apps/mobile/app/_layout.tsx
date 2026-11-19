@@ -1,4 +1,5 @@
 import { Stack, type ErrorBoundaryProps } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import { useFonts } from "expo-font";
 import { Pressable, Text, View, useColorScheme } from "react-native";
@@ -27,9 +28,11 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
 }
 
 function AppNavigator() {
-  const { colors: palette } = useSulyTheme();
+  const { colors: palette, effectiveMode } = useSulyTheme();
   const { direction } = useAppLocale();
   return (
+    <>
+    <StatusBar style={effectiveMode === "dark" ? "light" : "dark"} />
     <AuthProvider>
       <ToastProvider>
         <View style={{ flex: 1, direction }}>
@@ -41,6 +44,7 @@ function AppNavigator() {
         </View>
       </ToastProvider>
     </AuthProvider>
+    </>
   );
 }
 
