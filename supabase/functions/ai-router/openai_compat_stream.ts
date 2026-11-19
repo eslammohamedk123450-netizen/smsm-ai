@@ -137,6 +137,7 @@ export function classifyProviderAttemptFailure(
 function parseSseFrame(
   data: string,
   onUsage: ProviderUsageReporter,
+  onFinishReason?: (reason: string) => void,
 ): { done: boolean; text: string } {
   if (data === "[DONE]") return { done: true, text: "" };
   let payload: unknown;
@@ -148,6 +149,10 @@ function parseSseFrame(
   }
   const providerError = extractProviderError(payload);
   if (providerError) throw new Error(`provider_error: ${providerError}`);
+  const root = asRecord(payload);
+  const choices = Array.isArray(root.choices) ? root.choices : [];
+  const finishReason = asRecord(choices[0]).finish_reason;
+  if (typeof finishReason === "string" && finishReason) onFinishReason?.(finishReason);
   const usage = extractOpenAiUsage(payload);
   if (usage.inputTokens !== null || usage.outputTokens !== null || usage.providerCostEgp !== null) {
     onUsage(usage.inputTokens, usage.outputTokens, usage.providerCostEgp);
@@ -162,6 +167,7 @@ function parseSseFrame(
 export async function* readOpenAiResponse(
   response: Response,
   onUsage: ProviderUsageReporter,
+  onFinishReason?: (reason: string) => void,
 ): AsyncGenerator<string> {
   const contentType = (response.headers.get("content-type") ?? "").toLowerCase();
   if (!response.body) return;
@@ -179,6 +185,10 @@ export async function* readOpenAiResponse(
     }
     const providerError = extractProviderError(payload);
     if (providerError) throw new Error(`provider_error: ${providerError}`);
+    const root = asRecord(payload);
+    const choices = Array.isArray(root.choices) ? root.choices : [];
+    const finishReason = asRecord(choices[0]).finish_reason;
+    if (typeof finishReason === "string" && finishReason) onFinishReason?.(finishReason);
     const usage = extractOpenAiUsage(payload);
     if (usage.inputTokens !== null || usage.outputTokens !== null || usage.providerCostEgp !== null) {
       onUsage(usage.inputTokens, usage.outputTokens, usage.providerCostEgp);
@@ -201,7 +211,7 @@ export async function* readOpenAiResponse(
       for (const rawLine of lines) {
         const line = rawLine.trimEnd();
         if (!line.startsWith("data:")) continue;
-        const frame = parseSseFrame(line.slice(5).trim(), onUsage);
+        const frame = parseSseFrame(line.slice(5).trim(), onUsage, onFinishReason);
         if (frame.done) return;
         if (frame.text) yield frame.text;
       }
@@ -211,7 +221,7 @@ export async function* readOpenAiResponse(
 
     const finalLine = buffer.trimEnd();
     if (finalLine.startsWith("data:")) {
-      const frame = parseSseFrame(finalLine.slice(5).trim(), onUsage);
+      const frame = parseSseFrame(finalLine.slice(5).trim(), onUsage, onFinishReason);
       if (frame.text) yield frame.text;
     }
   } finally {
