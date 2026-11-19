@@ -114,9 +114,11 @@ export function UnifiedModelCapabilitiesAdminCard() {
         else operational_state = operationalDataAvailable ? "unknown" : "unknown";
         return {...model,operational_state};
       });
-      setRows(next);
+      // Do not expose registry rows whose owning provider key is disabled or missing.
+      const visibleNext = next.filter((model) => providerEnabled.get(Number(model.provider_id)) === true);
+      setRows(visibleNext);
       setAudit((auditResult.data ?? []) as AuditRow[]);
-      setSelectedId((current) => current && next.some((r) => r.model_id === current) ? current : (next[0]?.model_id ?? ""));
+      setSelectedId((current) => current && visibleNext.some((r) => r.model_id === current) ? current : (visibleNext[0]?.model_id ?? ""));
     } catch(cause) {
       setError(cause instanceof Error ? cause.message : "تعذر تحميل سجل النماذج الموحد.");
     } finally { setLoading(false); }
