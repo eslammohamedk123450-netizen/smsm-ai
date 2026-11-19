@@ -35,7 +35,7 @@ const ALLOWED_PROVIDER_TYPES = [
 
 /** Non-chat model families that must not be inserted into the chat routing catalog. */
 const NON_CHAT_PATTERN =
-  /(embed|embedding|whisper|tts|speech|audio|dall-e|image|imagen|moderation|rerank|guard|veo|sora|stable-diffusion|flux|bge-|e5-|kling|seedance|seedream|ideogram|nano-banana|minimax|lyria|transcrib|robotics|deep-research|computer-use)/i;
+  /(embed|embedding|whisper|tts|speech|audio|dall-e|image|imagen|moderation|rerank|veo|sora|stable-diffusion|flux|bge-|e5-|kling|seedance|seedream|ideogram|nano-banana|lyria|transcrib|robotics)/i;
 
 function jsonResponse(payload: Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(payload), {
@@ -130,17 +130,41 @@ async function insertMissingModels(
   supabase: SupabaseClient,
   providerId: number,
   identifiers: string[],
-): Promise<{ created: number; failed: string | null }> {
-  if (identifiers.length === 0) return { created: 0, failed: null };
+): Promise<{ created: number; capabilitiesUpdated: number; failed: string | null }> {
+  if (identifiers.length === 0) return { created: 0, capabilitiesUpdated: 0, failed: null };
   const { data: existing, error: existingError } = await supabase
     .from("ai_models")
-    .select("model_identifier")
+    .select("id,model_identifier,capabilities_json")
     .eq("provider_id", providerId)
     .limit(2000);
-  if (existingError) return { created: 0, failed: existingError.message };
+  if (existingError) return { created: 0, capabilitiesUpdated: 0, failed: existingError.message };
   const known = new Set((existing ?? []).map((row) => String((row as { model_identifier: unknown }).model_identifier)));
+  let capabilitiesUpdated = 0;
+  // Older discovery builds stored every newly found model as chat:false. Correct
+  // only those untouched placeholder rows; preserve any admin-authored capability
+  // evidence and every routing, pricing, enablement, and health field.
+  for (const row of existing ?? []) {
+    const item = row as { id: number; model_identifier: string; capabilities_json: unknown };
+    const raw = item.capabilities_json;
+    let capabilities: Record<string, unknown> = {};
+    if (raw && typeof raw === "object" && !Array.isArray(raw)) capabilities = raw as Record<string, unknown>;
+    else if (typeof raw === "string") {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) capabilities = parsed as Record<string, unknown>;
+      } catch { /* leave unrecognized capability data untouched */ }
+    }
+    const isUntouchedPlaceholder = capabilities.chat === false
+      && Object.keys(capabilities).every((key) => key === "chat");
+    if (!isUntouchedPlaceholder) continue;
+    const { error: updateError } = await supabase.from("ai_models")
+      .update({ capabilities_json: JSON.stringify({ chat: !NON_CHAT_PATTERN.test(item.model_identifier), catalog_discovered: true }) })
+      .eq("id", item.id);
+    if (updateError) return { created: 0, capabilitiesUpdated, failed: updateError.message };
+    capabilitiesUpdated += 1;
+  }
   const missing = identifiers.filter((identifier) => !known.has(identifier));
-  if (missing.length === 0) return { created: 0, failed: null };
+  if (missing.length === 0) return { created: 0, capabilitiesUpdated, failed: null };
   const rows = missing.map((identifier) => ({
     provider_id: providerId,
     name: identifier,
@@ -163,8 +187,8 @@ async function insertMissingModels(
     onConflict: "provider_id,model_identifier",
     ignoreDuplicates: true,
   });
-  if (insertError) return { created: 0, failed: insertError.message };
-  return { created: rows.length, failed: null };
+  if (insertError) return { created: 0, capabilitiesUpdated, failed: insertError.message };
+  return { created: rows.length, capabilitiesUpdated, failed: null };
 }
 
 async function handleSyncModelsRequest(request: Request): Promise<Response> {
@@ -244,6 +268,7 @@ async function handleSyncModelsRequest(request: Request): Promise<Response> {
       chat_eligible: discovery.identifiers.filter((identifier) => !NON_CHAT_PATTERN.test(identifier)).length,
       non_chat: discovery.identifiers.filter((identifier) => NON_CHAT_PATTERN.test(identifier)).length,
       created: insertion.created,
+      capabilities_updated: insertion.capabilitiesUpdated,
       warning: insertion.failed ?? discovery.warning,
     });
   }
@@ -296,6 +321,7 @@ async function handleSyncModelsRequest(request: Request): Promise<Response> {
     chat_eligible: discovery.identifiers.filter((identifier) => !NON_CHAT_PATTERN.test(identifier)).length,
     non_chat: discovery.identifiers.filter((identifier) => NON_CHAT_PATTERN.test(identifier)).length,
     created: insertion.created,
+    capabilities_updated: insertion.capabilitiesUpdated,
     warning: insertion.failed ?? discovery.warning,
   });
 }
