@@ -770,7 +770,7 @@ export default function ChatPage() {
         <View style={styles.appBar}>
           {messages.length === 0 ? (
             <Pressable onPress={() => router.replace("/home" as never)} style={styles.headerButton} accessibilityRole="button" accessibilityLabel={isArabic ? "العودة إلى مهامي" : "Return to My tasks"}>
-              <Ionicons name={isArabic ? "arrow-forward" : "arrow-back"} size={24} color={colors.textPrimary} />
+              <Ionicons name="home-outline" size={21} color={colors.textPrimary} />
             </Pressable>
           ) : (
             <>
