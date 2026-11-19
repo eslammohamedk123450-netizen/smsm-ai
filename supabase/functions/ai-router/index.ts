@@ -16,6 +16,7 @@ import { lookupSemanticCache, recordCacheHit, storeSemanticCache } from "../_sha
 import { buildMemoryContext, searchTaskMemories, storeTaskMemory } from "../_shared/task_memory.ts";
 import { buildMindPolicy, classifyIntent } from "../_shared/intent_classifier.ts";
 import { OutputGuard } from "../_shared/output_guard.ts";
+import { InternalMarkerSanitizer } from "../_shared/internal_marker_sanitizer.ts";
 import { fingerprintAiRequest, isCompletedAiRequestClaim, requestClaimHttpStatus } from "../_shared/ai_request_idempotency.ts";
 import { isConnectorApprovalBoundToRequest } from "../_shared/connector_approval.ts";
 import { lookupQuickReply, storeQuickReply } from "../_shared/quick_replies_cache.ts";
@@ -393,13 +394,16 @@ async function collectCandidate(candidate: ReadyCandidate, maxChars: number, sig
   if (signal?.aborted) abortCandidate();
   else signal?.addEventListener("abort", abortCandidate, { once: true });
   const guard = new OutputGuard({ maxChars: Math.max(512, maxChars - OUTPUT_GUARD_NOTICE_RESERVE) });
-  let content = guard.push(candidate.firstChunk).text;
+  const sanitizer = new InternalMarkerSanitizer();
+  let content = guard.push(sanitizer.push(candidate.firstChunk)).text;
   try {
     if (signal?.aborted) throw new DOMException("Request aborted", "AbortError");
     if (!guard.reason) {
       for await (const chunk of candidate.iterator) {
         if (signal?.aborted) throw new DOMException("Request aborted", "AbortError");
-        const result = guard.push(chunk);
+        const clean = sanitizer.push(chunk);
+        if (!clean) continue;
+        const result = guard.push(clean);
         content += result.text;
         if (result.stopped) {
           candidate.controller.abort();
@@ -407,6 +411,7 @@ async function collectCandidate(candidate: ReadyCandidate, maxChars: number, sig
         }
       }
     }
+    if (!guard.reason) content += guard.push(sanitizer.finish()).text;
     const tail = guard.finish();
     content += tail.text;
     return { content, reason: guard.reason };
@@ -3065,7 +3070,8 @@ async function handleRequest(req: Request): Promise<Response> {
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
         const outputGuard = new OutputGuard({ maxChars: Math.max(512, maxOutputChars - OUTPUT_GUARD_NOTICE_RESERVE) });
-        const firstOutput = outputGuard.push(winner!.firstChunk);
+        const outputSanitizer = new InternalMarkerSanitizer();
+        const firstOutput = outputGuard.push(outputSanitizer.push(winner!.firstChunk));
         let fullContent = firstOutput.text;
         let firstClientChunkAt: number | null = null;
         const emit = (value: Record<string, unknown>) => {
@@ -3077,7 +3083,9 @@ async function handleRequest(req: Request): Promise<Response> {
           if (firstOutput.stopped) winner!.controller.abort();
           if (!firstOutput.stopped) {
             for await (const chunk of winner!.iterator) {
-              const guarded = outputGuard.push(chunk);
+              const cleanChunk = outputSanitizer.push(chunk);
+              if (!cleanChunk) continue;
+              const guarded = outputGuard.push(cleanChunk);
               fullContent += guarded.text;
               if (guarded.text) emit({ chunk: guarded.text, done: false });
               if (guarded.stopped) {
@@ -3087,6 +3095,10 @@ async function handleRequest(req: Request): Promise<Response> {
             }
           }
           if (!outputGuard.reason) {
+            const cleanTail = outputSanitizer.finish();
+            const sanitizedTail = outputGuard.push(cleanTail);
+            fullContent += sanitizedTail.text;
+            if (sanitizedTail.text) emit({ chunk: sanitizedTail.text, done: false });
             const finalOutput = outputGuard.finish();
             fullContent += finalOutput.text;
             if (finalOutput.text) emit({ chunk: finalOutput.text, done: false });
