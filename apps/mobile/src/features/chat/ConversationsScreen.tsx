@@ -19,7 +19,7 @@ const TASK_STATUS_EN: Record<TaskHistoryItem["status"], string> = { queued: "Que
 
 export function ConversationsScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ filter?: string }>();
+  const params = useLocalSearchParams<{ filter?: string; taskId?: string | string[] }>();
   const filter = params.filter === "archived" || params.filter === "favorites" ? params.filter : "all";
   const { colors } = useSulyTheme();
   const { isArabic } = useAppLocale();
@@ -51,6 +51,12 @@ export function ConversationsScreen() {
     finally { setLoading(false); }
   }, [filter, isArabic]);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const requestedTaskId = Array.isArray(params.taskId) ? params.taskId[0] : params.taskId;
+    if (!requestedTaskId) return;
+    const match = tasks.find((task) => task.jobId === requestedTaskId);
+    if (match) setSelectedTask(match);
+  }, [params.taskId, tasks]);
 
   const filtered = useMemo<UnifiedHistoryItem[]>(() => {
     const value = query.trim().toLocaleLowerCase(isArabic ? "ar" : "en");
