@@ -12,7 +12,7 @@ export function AppLogo({ size = 76, accessibilityLabel = "شعار SULY", isAni
   }, [isAnimating, rotation]);
   const rotate = rotation.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
   return <View accessible accessibilityRole="image" accessibilityLabel={accessibilityLabel} style={[styles.clip, { width: size, height: size, borderRadius: Math.round(size * 0.22) }]}>
-    <Animated.Image source={brandImage} resizeMode="cover" style={[StyleSheet.absoluteFillObject, { width: size, height: size, transform: [{ rotate }] }]} />
+    <Animated.Image source={brandImage} resizeMode="cover" style={[{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }, { width: size, height: size, transform: [{ rotate }] }]} />
   </View>;
 }
 const styles = StyleSheet.create({ clip: { overflow: "hidden", backgroundColor: "#000000", alignItems: "center", justifyContent: "center" } });
