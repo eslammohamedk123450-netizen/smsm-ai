@@ -163,7 +163,7 @@ export default function SettingsScreen() {
         <Text style={styles.sectionTitle}>{isArabic ? "الباقة والرصيد" : "Plan & credits"}</Text>
         <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/upgrade")} accessibilityRole="button">
           <View style={styles.planSummaryCopy}>
-            <Text style={styles.rowText}>{currentTier === "ultra_team" ? "Ultra Team" : currentTier.toUpperCase()}</Text>
+            <Text style={styles.planNameText}>{currentTier === "ultra_team" ? "Ultra Team" : currentTier.toUpperCase()}</Text>
             <Text style={styles.email}>{isArabic ? "باقتك الحالية" : "Current plan"}</Text>
           </View>
           <View style={styles.upgradePill}><Text style={styles.upgradePillText}>{isArabic ? "ترقية" : "Upgrade"}</Text></View>
@@ -171,7 +171,7 @@ export default function SettingsScreen() {
         <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/balance")} accessibilityRole="button">
           <View style={styles.creditSummaryLabel}>
             <Ionicons name="cash-outline" size={19} color={colors.textPrimary} />
-            <Text style={styles.rowText}>Credit</Text>
+            <Text style={styles.creditLabelText}>Credit</Text>
           </View>
           <Text style={styles.creditSummaryValue}>{loadingCredits ? "…" : balance === null ? "—" : balance.toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text>
         </TouchableOpacity>
@@ -327,6 +327,8 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   email: { color: colors.textSecondary, marginTop: 4, fontSize: 13 },
   cardRow: { minHeight: 58, paddingHorizontal: 15, paddingVertical: 10, borderRadius: 16, backgroundColor: "#1E1E1E", borderWidth: 0, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
   planSummaryCopy: { flex: 1, alignItems: isArabic ? "flex-end" : "flex-start", gap: 3 },
+  planNameText: { color: "#FFFFFF", fontSize: 14, fontWeight: "800", textAlign: isArabic ? "right" : "left" },
+  creditLabelText: { color: "#FFFFFF", fontSize: 14, fontWeight: "700" },
   upgradePill: { minHeight: 34, paddingHorizontal: 17, borderRadius: 11, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
   upgradePillText: { color: colors.onPrimary, fontSize: 12, fontWeight: "800" },
   creditSummaryLabel: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 9 },
