@@ -41,9 +41,14 @@ export default function SettingsScreen() {
   useEffect(() => {
     let active = true;
     if (!user?.id) { setCurrentTier("free"); return () => { active = false; }; }
-    void supabase.rpc("suly_effective_subscription_tier", { p_user_id: user.id }).then(({ data, error }) => {
-      if (active && !error && typeof data === "string") setCurrentTier(data.toLowerCase());
-    }).catch(() => undefined);
+    void (async () => {
+      try {
+        const { data, error } = await supabase.rpc("suly_effective_subscription_tier", { p_user_id: user.id });
+        if (active && !error && typeof data === "string") setCurrentTier(data.toLowerCase());
+      } catch {
+        // Keep the safe Free fallback when the subscription lookup is unavailable.
+      }
+    })();
     return () => { active = false; };
   }, [user?.id]);
 
