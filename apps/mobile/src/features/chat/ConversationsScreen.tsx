@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -19,6 +19,7 @@ const TASK_STATUS_EN: Record<TaskHistoryItem["status"], string> = { queued: "Que
 
 export function ConversationsScreen() {
   const router = useRouter();
+  const longPressHandled = useRef(false);
   const params = useLocalSearchParams<{ filter?: string; taskId?: string | string[] }>();
   const filter = params.filter === "archived" || params.filter === "favorites" ? params.filter : "all";
   const { colors } = useSulyTheme();
@@ -166,7 +167,7 @@ export function ConversationsScreen() {
         <View style={[styles.empty, { backgroundColor: colors.surface, borderColor: colors.divider }]}><Ionicons name="chatbubbles-outline" size={32} color={colors.textMuted} /><Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>{query ? (isArabic ? "لا توجد نتائج" : "No results") : (filter === "archived" ? (isArabic ? "الأرشيف فارغ" : "Archive is empty") : filter === "favorites" ? (isArabic ? "لا توجد محادثات مفضلة" : "No favorite chats") : (isArabic ? "ابدأ أول محادثة" : "Start your first chat"))}</Text><Text style={[styles.subtitle, { color: colors.textSecondary }]}>{query ? (isArabic ? "جرّب كلمة بحث مختلفة." : "Try a different search term.") : (filter === "archived" ? (isArabic ? "المحادثات التي تؤرشفها ستظهر هنا." : "Archived chats will appear here.") : filter === "favorites" ? (isArabic ? "أضف المحادثات للمفضلة من قائمة الضغط المطول." : "Favorite chats from the long-press menu.") : (isArabic ? "كل محادثة جديدة ستظهر هنا." : "New chats will appear here."))}</Text></View>
       ) : filtered.map((entry) => entry.kind === "conversation" ? (
         <View key={`chat-${entry.conversation.id}`} style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.divider }]}>
-          <Pressable accessibilityRole="button" accessibilityLabel={entry.conversation.title || (isArabic ? "فتح المحادثة" : "Open conversation")} style={styles.rowMain} onPress={() => router.push({ pathname: "/chat", params: { conversationId: entry.conversation.id } })} onLongPress={() => setSelected(entry.conversation)} delayLongPress={350}>
+          <Pressable accessibilityRole="button" accessibilityLabel={entry.conversation.title || (isArabic ? "فتح المحادثة" : "Open conversation")} style={styles.rowMain} onPress={() => { if (longPressHandled.current) { longPressHandled.current = false; return; } router.push({ pathname: "/chat", params: { conversationId: entry.conversation.id } }); }} onLongPress={() => { longPressHandled.current = true; setSelected(entry.conversation); }} delayLongPress={350}>
             <View style={[styles.rowIcon, { backgroundColor: colors.surfaceElevated }]}><Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.textPrimary} /></View>
             <View style={styles.rowCopy}><Text numberOfLines={1} style={[styles.rowTitle, { color: colors.textPrimary }]}>{entry.conversation.title || (isArabic ? "محادثة جديدة" : "New conversation")}</Text><Text style={[styles.rowDate, { color: colors.textMuted }]}>{new Date(entry.updatedAt).toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text></View>
             {entry.conversation.isPinned || entry.conversation.isFavorite ? <View style={styles.rowMarkers}>{entry.conversation.isPinned ? <Ionicons name="pin" size={15} color={colors.textMuted} /> : null}{entry.conversation.isFavorite ? <Ionicons name="star" size={15} color={colors.primary} /> : null}</View> : null}
