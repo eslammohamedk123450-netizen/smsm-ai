@@ -2995,7 +2995,9 @@ async function handleRequest(req: Request): Promise<Response> {
     if (req.signal.aborted) break;
     const providerTimeout = Math.max(1000, Math.min(120000, (Number(candidate.provider.timeout_seconds) || 30) * 1000));
     const modelTimeout = Math.max(1000, Math.min(120000, Number(candidate.model.response_timeout_ms) || 15000));
-    const candidateBudget = Math.max(1000, Math.min(settings.freeRaceTimeoutMs, providerTimeout, modelTimeout));
+    const candidateBudget = codeGenerationRequest
+      ? providerStreamTimeoutMs(providerTimeout, modelTimeout, true)
+      : Math.max(1000, Math.min(settings.freeRaceTimeoutMs, providerTimeout, modelTimeout));
     winner = await firstReady([candidate], candidateBudget, recordAttempt, countModelStarts, req.signal);
     if (winner) break;
   }
@@ -3014,7 +3016,7 @@ async function handleRequest(req: Request): Promise<Response> {
     await recordPreflightProblems(orderedPaidModels);
     const paidCandidates = makeCandidates(orderedPaidModels);
     providerCandidateAvailable ||= paidCandidates.length > 0;
-    const fallbackDeadline = Date.now() + settings.paidFallbackTimeoutMs;
+    const fallbackDeadline = Date.now() + (codeGenerationRequest ? 120000 : settings.paidFallbackTimeoutMs);
     for (const candidate of paidCandidates) {
       const remaining = fallbackDeadline - Date.now();
       if (remaining <= 0) break;
