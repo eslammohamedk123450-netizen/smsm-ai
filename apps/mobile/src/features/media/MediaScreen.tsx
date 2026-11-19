@@ -337,7 +337,7 @@ export function MediaScreen() {
           <Pressable onPress={() => void Linking.openURL(asset.url)}><Text style={styles.link}>{isArabic ? "فتح / تنزيل" : "Open / Download"}</Text></Pressable>
           <Pressable onPress={() => void copy(asset.url)}><Text style={styles.link}>{isArabic ? "نسخ الرابط" : "Copy link"}</Text></Pressable>
           <Pressable disabled={organizationBusyId === asset.id} onPress={() => void toggleFavorite(asset)}><Text style={styles.link}><Ionicons name={favoriteIds.includes(asset.id) ? "star" : "star-outline"} size={14} color={colors.primary} /> {favoriteIds.includes(asset.id) ? (isArabic ? "إزالة من المفضلة" : "Unfavorite") : (isArabic ? "إضافة للمفضلة" : "Favorite")}</Text></Pressable>
-          {false ? {selectedFolderId ? <Pressable disabled={organizationBusyId === asset.id} onPress={() => void toggleAssetFolder(asset)}><Text style={styles.link}>{assetFolderIds[asset.id] === selectedFolderId ? (isArabic ? "إزالة من المجلد" : "Remove from folder") : (isArabic ? "نقل إلى هذا المجلد" : "Move to this folder")}</Text></Pressable> : null} : null}
+          {null}
           {asset.kind === "image" ? <Pressable disabled={reuseBusyId !== null} onPress={() => void reuseImageInChat(asset)}><Text style={[styles.link, reuseBusyId === asset.id && styles.disabledText]}>{reuseBusyId === asset.id ? (isArabic ? "جارٍ فتح المحادثة…" : "Opening chat…") : (isArabic ? "استخدم في محادثة" : "Use in chat")}</Text></Pressable> : null}
           <Pressable disabled={deletingId !== null} onPress={() => confirmDeleteAsset(asset)}><Text style={[styles.link, deletingId === asset.id && styles.disabledText]}>{deletingId === asset.id ? (isArabic ? "جارٍ الحذف…" : "Deleting…") : (isArabic ? "حذف" : "Delete")}</Text></Pressable>
         </View>
