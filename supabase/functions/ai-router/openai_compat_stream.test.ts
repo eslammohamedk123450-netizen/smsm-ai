@@ -171,3 +171,21 @@ Deno.test("real timeouts and cancellations retain their status", () => {
     "error",
   );
 });
+
+
+Deno.test("rejects an SSE stream that closes without a completion marker", async () => {
+  const response = new Response([
+    'data: {"choices":[{"delta":{"content":"partial output"}}]}',
+    "",
+  ].join("\n"), { headers: { "content-type": "text/event-stream" } });
+  const chunks: string[] = [];
+  let errorMessage = "";
+  try {
+    for await (const chunk of readOpenAiResponse(response, () => undefined)) chunks.push(chunk);
+  } catch (error) {
+    errorMessage = error instanceof Error ? error.message : String(error);
+  }
+  assertEquals(chunks, ["partial output"]);
+  assertEquals(errorMessage, "provider_stream_incomplete: stream closed before a completion marker");
+});
+
