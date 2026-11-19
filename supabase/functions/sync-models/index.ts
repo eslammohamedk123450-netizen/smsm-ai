@@ -265,7 +265,7 @@ async function handleSyncModelsRequest(request: Request): Promise<Response> {
       updated_at: new Date().toISOString(),
     }).eq("id", providerId);
     return jsonResponse({
-      success: !insertion.failed,
+      success: !insertion.failed && !discovery.warning,
       discovered: discovery.identifiers.length,
       provider_total: discovery.identifiers.length,
       chat_eligible: discovery.identifiers.filter((identifier) => !NON_CHAT_PATTERN.test(identifier)).length,
@@ -318,6 +318,7 @@ async function handleSyncModelsRequest(request: Request): Promise<Response> {
 
   return jsonResponse({
     success: true,
+    catalog_sync_success: !insertion.failed && !discovery.warning,
     provider_id: providerId,
     discovered: discovery.identifiers.length,
     provider_total: discovery.identifiers.length,
