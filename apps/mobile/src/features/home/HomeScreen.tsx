@@ -17,8 +17,8 @@ type HomeItem =
 const SHORTCUTS = [
   { key: "upgrade", icon: "arrow-up-circle-outline" as const, ar: "ترقية", en: "Upgrade", route: "/upgrade" },
   { key: "library", icon: "library-outline" as const, ar: "المكتبة", en: "Library", route: "/media" },
-  { key: "projects", icon: "folder-outline" as const, ar: "المشاريع", en: "Projects", route: "/projects" },
   { key: "studio", icon: "sparkles-outline" as const, ar: "الاستوديو", en: "Studio", route: "/studio" },
+  { key: "projects", icon: "folder-outline" as const, ar: "المشاريع", en: "Projects", route: "/projects" },
   { key: "skills", icon: "bulb-outline" as const, ar: "المهارات", en: "Skills", route: "/skills" },
   { key: "favorites", icon: "heart-outline" as const, ar: "المفضلة", en: "Favorites", route: "/conversations?filter=favorites" },
   { key: "archive", icon: "archive-outline" as const, ar: "الأرشيف", en: "Archive", route: "/conversations?filter=archived" },
