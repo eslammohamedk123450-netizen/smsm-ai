@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { classifyProviderAttemptFailure, formatSseDataEvent, readOpenAiResponse } from "./openai_compat_stream.ts";
+import { classifyProviderAttemptFailure, formatSseDataEvent, formatSseKeepAlive, providerStreamTimeoutMs, readOpenAiResponse } from "./openai_compat_stream.ts";
 import { corsHeadersForRequest } from "../_shared/cors.ts";
 import { buildAgentUsageLedgerRecord } from "./agent_usage_ledger.ts";
 import { prepareAgentMemory, saveAgentMemory } from "./agent/memory.ts";
@@ -232,9 +232,12 @@ function capabilityLabel(capability: ModelCapability): string {
 }
 
 async function openCandidate(candidate: Candidate, controller: AbortController): Promise<ReadyCandidate> {
-  const providerTimeout = Math.max(1000, Math.min(120000, (Number(candidate.provider.timeout_seconds) || 30) * 1000));
-  const modelTimeout = Math.max(1000, Math.min(120000, Number(candidate.model.response_timeout_ms) || 15000));
-  const timeoutMs = Math.min(providerTimeout, modelTimeout);
+  const lastUserPrompt = [...candidate.requestMessages].reverse().find((message) => message.role === "user");
+  const promptText = typeof lastUserPrompt?.content === "string" ? lastUserPrompt.content : JSON.stringify(lastUserPrompt?.content ?? "");
+  const longGeneration = isCodeGenerationRequest(promptText) || candidate.maxTokens >= 4096;
+  const providerTimeout = (Number(candidate.provider.timeout_seconds) || 30) * 1000;
+  const modelTimeout = Number(candidate.model.response_timeout_ms) || 15000;
+  const timeoutMs = providerStreamTimeoutMs(providerTimeout, modelTimeout, longGeneration);
   const startedAtMs = Date.now();
   let timeoutTriggered = false;
   const timeoutId = setTimeout(() => {
@@ -3099,8 +3102,13 @@ async function handleRequest(req: Request): Promise<Response> {
     let clientCancelled = false;
     let attemptRecorded = false;
     let activeCandidate = winner!;
+    let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
+        heartbeatTimer = setInterval(() => {
+          if (clientCancelled) return;
+          try { controller.enqueue(encoder.encode(formatSseKeepAlive())); } catch { /* disconnected client */ }
+        }, 10000);
         const outputGuard = new OutputGuard({ maxChars: Math.max(512, maxOutputChars - OUTPUT_GUARD_NOTICE_RESERVE) });
         const outputSanitizer = new InternalMarkerSanitizer();
         let fullContent = "";
@@ -3109,6 +3117,10 @@ async function handleRequest(req: Request): Promise<Response> {
         let streamComplete = false;
         let failureSummary: string | null = null;
         const attemptedModelIds = new Set<number>([activeCandidate.model.id]);
+        const continuationBaseCandidates = new Map<number, Candidate>();
+        for (const candidate of [activeCandidate, ...raceCandidates]) {
+          if (!continuationBaseCandidates.has(candidate.model.id)) continuationBaseCandidates.set(candidate.model.id, candidate);
+        }
         const usedCandidates: Candidate[] = [];
         let totalInputTokens = 0;
         let totalOutputTokens = 0;
@@ -3151,7 +3163,7 @@ async function handleRequest(req: Request): Promise<Response> {
           usedCandidates.push(candidate);
         };
         const getContinuationPool = async (): Promise<Candidate[]> => {
-          const pool = [...raceCandidates];
+          const pool = [activeCandidate, ...raceCandidates];
           if (routingMode === "auto" && settings.paidFallbackEnabled) {
             const paidModels: ModelRow[] = healthyModels
               .filter((model: ModelRow) => isEligibleModel(model, "chat", ["paid_fallback"]));
@@ -3168,7 +3180,10 @@ async function handleRequest(req: Request): Promise<Response> {
           }
           const unique = new Map<number, Candidate>();
           for (const candidate of pool) {
-            if (!attemptedModelIds.has(candidate.model.id) && !unique.has(candidate.model.id)) unique.set(candidate.model.id, candidate);
+            const isCurrentModel = candidate.model.id === activeCandidate.model.id;
+            if ((!attemptedModelIds.has(candidate.model.id) || isCurrentModel) && !unique.has(candidate.model.id)) {
+              unique.set(candidate.model.id, continuationBaseCandidates.get(candidate.model.id) ?? candidate);
+            }
           }
           return [...unique.values()].slice(0, 8);
         };
@@ -3248,9 +3263,11 @@ async function handleRequest(req: Request): Promise<Response> {
                 usageStepKey: "chat-continuation",
                 usageAttemptNo: continuationCount + 2,
               };
-              const providerTimeout = Math.max(1000, Math.min(120000, (Number(baseCandidate.provider.timeout_seconds) || 30) * 1000));
-              const modelTimeout = Math.max(1000, Math.min(120000, Number(baseCandidate.model.response_timeout_ms) || 15000));
-              const budget = Math.max(1000, Math.min(settings.freeRaceTimeoutMs, providerTimeout, modelTimeout));
+              const providerTimeout = (Number(baseCandidate.provider.timeout_seconds) || 30) * 1000;
+              const modelTimeout = Number(baseCandidate.model.response_timeout_ms) || 15000;
+              const budget = codeGenerationRequest
+                ? providerStreamTimeoutMs(providerTimeout, modelTimeout, true)
+                : Math.max(1000, Math.min(settings.freeRaceTimeoutMs, providerTimeout, modelTimeout));
               nextCandidate = await firstReady([continuationCandidate], budget, recordAttempt, countModelStarts, req.signal);
               if (nextCandidate) {
                 attemptedModelIds.add(nextCandidate.model.id);
@@ -3392,11 +3409,13 @@ async function handleRequest(req: Request): Promise<Response> {
           }
           try { controller.close(); } catch { /* disconnected client */ }
         } finally {
+          if (heartbeatTimer) clearInterval(heartbeatTimer);
           activeCandidate.cleanup();
         }
       },
       cancel() {
         clientCancelled = true;
+        if (heartbeatTimer) clearInterval(heartbeatTimer);
         activeCandidate.controller.abort();
         if (!attemptRecorded) {
           attemptRecorded = true;
