@@ -201,6 +201,12 @@ export async function* readOpenAiResponse(
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let sawDoneMarker = false;
+  let sawFinishReason = false;
+  const reportFinishReason = (reason: string) => {
+    sawFinishReason = true;
+    onFinishReason?.(reason);
+  };
   try {
     while (true) {
       const { value, done } = await reader.read();
@@ -211,8 +217,11 @@ export async function* readOpenAiResponse(
       for (const rawLine of lines) {
         const line = rawLine.trimEnd();
         if (!line.startsWith("data:")) continue;
-        const frame = parseSseFrame(line.slice(5).trim(), onUsage, onFinishReason);
-        if (frame.done) return;
+        const frame = parseSseFrame(line.slice(5).trim(), onUsage, reportFinishReason);
+        if (frame.done) {
+          sawDoneMarker = true;
+          return;
+        }
         if (frame.text) yield frame.text;
       }
 
@@ -221,8 +230,14 @@ export async function* readOpenAiResponse(
 
     const finalLine = buffer.trimEnd();
     if (finalLine.startsWith("data:")) {
-      const frame = parseSseFrame(finalLine.slice(5).trim(), onUsage, onFinishReason);
+      const frame = parseSseFrame(finalLine.slice(5).trim(), onUsage, reportFinishReason);
+      if (frame.done) sawDoneMarker = true;
       if (frame.text) yield frame.text;
+    }
+    // EOF without [DONE] or a provider finish_reason means the gateway may
+    // have silently truncated the stream. Surface this to the continuation layer.
+    if (!sawDoneMarker && !sawFinishReason) {
+      throw new Error("provider_stream_incomplete: stream closed before a completion marker");
     }
   } finally {
     try { reader.releaseLock(); } catch { /* already released */ }
