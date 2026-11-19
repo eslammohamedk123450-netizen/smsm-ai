@@ -352,9 +352,9 @@ export function ModelRegistryCatalogScreen() {
           <View style={styles.modelIcon}><Ionicons name={model.service_type === "image" ? "image-outline" : model.service_type === "video" ? "videocam-outline" : model.service_type === "audio" ? "volume-high-outline" : "hardware-chip-outline"} size={25} color={colors.primary}/></View>
           <View style={styles.modelTileStatusActions}>
             <View style={[styles.status, (model.operational_state === "active" || model.operational_state === "available") ? styles.statusActive : model.operational_state === "restricted" ? styles.statusRestricted : styles.statusDisabled]}><Text style={styles.statusText}>{STATUS_LABEL[model.operational_state]}</Text></View>
-            {model.legacy_chat_model_id !== null && model.operational_state === "restricted" ? <Pressable
+            {model.legacy_chat_model_id !== null && model.operational_state === "restricted" && model.provider_enabled && model.lifecycle_state === "active" ? <Pressable
               accessibilityRole="button"
-              accessibilityLabel="فك قيد النموذج"
+              accessibilityLabel="فك قيد النموذج وتفعيله في مسار الشات"
               disabled={updatingModelId !== null}
               onPress={() => void (async () => {
                 const modelId = Number(model.legacy_chat_model_id);
@@ -362,14 +362,19 @@ export function ModelRegistryCatalogScreen() {
                 try {
                   const result = await adminService.resetModelHealth(modelId);
                   if (result?.success !== true) throw new Error("لم تؤكد قاعدة البيانات فك القيد.");
-                  setTestResults((current) => ({ ...current, [modelId]: "تم فك القيد. اختبر النموذج للتأكد من استجابته." }));
+                  await adminService.updateModel(modelId, { enabled: true, routing_group: "free_race" });
+                  const assignments = await adminService.getRouteModelAssignments();
+                  const chatIds = assignments.filter((item) => item.route_role === "chat" && item.enabled).map((item) => Number(item.model_id));
+                  if (!chatIds.includes(modelId)) await adminService.saveRouteModelAssignments("chat", [...chatIds, modelId]);
+                  setTestResults((current) => ({ ...current, [modelId]: "تم فك القيد وتفعيل النموذج وإضافته إلى نهاية أولوية الشات. اختبره للتأكد من استجابته." }));
                   await load(true);
                 } catch (cause) {
-                  setTestResults((current) => ({ ...current, [modelId]: cause instanceof Error ? cause.message : "تعذر فك القيد." }));
+                  setTestResults((current) => ({ ...current, [modelId]: cause instanceof Error ? cause.message : "تعذر فك القيد وتفعيل النموذج." }));
+                  await load(true);
                 } finally { setUpdatingModelId(null); }
               })()}
               style={styles.modelStateAction}
-            ><Ionicons name="lock-open-outline" size={12} color={colors.primary}/><Text style={styles.modelStateActionText}>فك القيد</Text></Pressable> : null}
+            ><Ionicons name="lock-open-outline" size={12} color={colors.primary}/><Text style={styles.modelStateActionText}>فك القيد وتفعيل</Text></Pressable> : null}
             {model.legacy_chat_model_id !== null && !model.provider_enabled && model.lifecycle_state === "active" ? <Pressable
               accessibilityRole="button"
               accessibilityLabel="إدارة مزود النموذج"
