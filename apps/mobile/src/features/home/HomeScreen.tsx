@@ -82,18 +82,11 @@ export function HomeScreen() {
     })),
   ].sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()), [conversations, tasks, isArabic]);
 
-  const newConversation = async () => {
+  const newConversation = () => {
     if (creating) return;
+    // Open an unsaved draft. chat.tsx creates the database row only on first send.
     setCreating(true);
-    setError(null);
-    try {
-      const conversation = await chatService.createConversation(isArabic ? "محادثة جديدة" : "New conversation");
-      router.push({ pathname: "/chat", params: { conversationId: conversation.id } });
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : (isArabic ? "تعذر بدء محادثة جديدة." : "Could not start a new chat."));
-    } finally {
-      setCreating(false);
-    }
+    router.push("/chat");
   };
 
   const openItem = (item: HomeItem) => {
