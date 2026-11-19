@@ -108,17 +108,15 @@ async function discoverModels(providerType: string, baseUrl: string, apiKey: str
     const identifiers: string[] = [];
     for (const row of rows) {
       const item = asRecord(row);
-      if (providerType === "google_ai") {
-        const methods = Array.isArray(item.supportedGenerationMethods) ? item.supportedGenerationMethods.map((method) => String(method)) : [];
-        if (methods.length > 0 && !methods.includes("generateContent")) continue;
-      }
+      // Keep the provider's complete catalog, including image/audio/video and
+      // embedding models. Non-chat entries are stored as inert catalog rows and
+      // explicitly marked chat:false; they can never enter the chat router.
       const raw = cleanText(item.id, 200) || cleanText(item.name, 200);
       if (!raw) continue;
       const identifier = raw.replace(/^models\//, "");
-      if (NON_CHAT_PATTERN.test(identifier)) continue;
       if (!identifiers.includes(identifier)) identifiers.push(identifier);
     }
-    return { identifiers, warning: identifiers.length === 0 ? "لم يُعثر على نماذج دردشة لدى المزود." : null };
+    return { identifiers, warning: identifiers.length === 0 ? "لم يُرجع المزود أي نماذج في كتالوجه." : null };
   } catch (error) {
     const reason = error instanceof Error && error.name === "AbortError" ? "انتهت مهلة الاتصال بالمزود." : "تعذر الاتصال بالمزود.";
     return { identifiers: [], warning: reason };
@@ -153,7 +151,7 @@ async function insertMissingModels(
     context_window: 32768,
     // Newly discovered catalog entries are inert until an admin verifies
     // capabilities, task roles, and explicitly assigns a route.
-    capabilities_json: JSON.stringify({ chat: false }),
+    capabilities_json: JSON.stringify({ chat: !NON_CHAT_PATTERN.test(identifier), catalog_discovered: true }),
     task_roles: [],
     enabled: false,
     priority: 50,
@@ -242,6 +240,9 @@ async function handleSyncModelsRequest(request: Request): Promise<Response> {
     return jsonResponse({
       success: !insertion.failed,
       discovered: discovery.identifiers.length,
+      provider_total: discovery.identifiers.length,
+      chat_eligible: discovery.identifiers.filter((identifier) => !NON_CHAT_PATTERN.test(identifier)).length,
+      non_chat: discovery.identifiers.filter((identifier) => NON_CHAT_PATTERN.test(identifier)).length,
       created: insertion.created,
       warning: insertion.failed ?? discovery.warning,
     });
