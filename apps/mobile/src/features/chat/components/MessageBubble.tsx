@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Animated, Image, Platform, Pressable, StyleSheet, TextInput, TouchableOpacity, View, Modal } from "react-native";
 import { PremiumText as Text } from "../../../components/ui/PremiumText";
+import { AppLogo } from "../../../components/ui/AppLogo";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { useSulyTheme } from "../../../theme/ThemeProvider";
@@ -247,6 +248,10 @@ export function MessageBubble({
             </>
           ) : (
             <>
+              <View style={styles.assistantBrandHeader}>
+                <AppLogo size={27} isAnimating={isStreaming} accessibilityLabel="شعار SULY" />
+                <Text style={styles.assistantTitle}>SULY</Text>
+              </View>
               {responseVariants.length > 1 ? (
                 <View style={styles.variantNav} accessibilityLabel={`نسخة الرد ${responseIndex + 1} من ${responseVariants.length}`}>
                   <Pressable onPress={() => onResponseIndexChange?.(Math.max(0, responseIndex - 1))} disabled={responseIndex === 0} style={styles.variantArrow} accessibilityLabel="الرد القديم"><Text style={[styles.variantArrowText, responseIndex === 0 && styles.variantDisabled]}>&gt;</Text></Pressable>
@@ -334,18 +339,8 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
     shadowOpacity: 0,
     elevation: 0,
   },
-  assistantHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingBottom: 8,
-    marginBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.divider,
-  },
-  assistantBrand: { flexDirection: "row", alignItems: "center", gap: 6 },
-  sulySmallIcon: { width: 18, height: 18, borderRadius: 4 },
-  assistantTitle: { color: colors.textPrimary, fontSize: 13, fontWeight: "700" },
+  assistantBrandHeader: { flexDirection: "row", alignItems: "center", gap: 9, marginTop: 12, marginBottom: 13, paddingHorizontal: 2 },
+  assistantTitle: { color: colors.textPrimary, fontSize: 13, fontWeight: "800", letterSpacing: 1.1 },
   variantNav: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 10, marginBottom: 8 },
   variantArrow: { minWidth: 24, minHeight: 24, alignItems: "center", justifyContent: "center", borderRadius: 6, backgroundColor: colors.surfaceElevated },
   variantArrowText: { color: colors.textPrimary, fontSize: 18, lineHeight: 22, fontWeight: "700" },

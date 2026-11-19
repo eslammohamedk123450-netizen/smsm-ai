@@ -1,97 +1,25 @@
-import { useEffect, useMemo, useRef } from "react";
-import { Animated, Pressable, StyleSheet, View } from "react-native";
+import { useMemo } from "react";
+import { Pressable, StyleSheet, View } from "react-native";
 import { PremiumText as Text } from "../../../components/ui/PremiumText";
+import { AppLogo } from "../../../components/ui/AppLogo";
 import { useSulyTheme } from "../../../theme/ThemeProvider";
 import { useAppLocale } from "../../../theme/LocaleProvider";
 import type { ThemePalette } from "../../../theme/colors";
-
-export interface StreamingStatusProps {
-  isStreaming: boolean;
-  onCancel?(): void;
-  taskLabel?: string | null;
-}
-
+export interface StreamingStatusProps { isStreaming: boolean; onCancel?(): void; taskLabel?: string | null; }
 export function StreamingStatus({ isStreaming, onCancel, taskLabel }: StreamingStatusProps) {
-  const { colors } = useSulyTheme();
-  const { isArabic } = useAppLocale();
+  const { colors } = useSulyTheme(); const { isArabic } = useAppLocale();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const dots = useRef([
-    new Animated.Value(0.35),
-    new Animated.Value(0.35),
-    new Animated.Value(0.35),
-  ]).current;
-
-  useEffect(() => {
-    if (!isStreaming) {
-      dots.forEach((dot) => {
-        dot.stopAnimation();
-        dot.setValue(0.35);
-      });
-      return;
-    }
-
-    const animations = dots.map((dot, index) =>
-      Animated.loop(
-        Animated.sequence([
-          Animated.delay(index * 150),
-          Animated.timing(dot, { toValue: 1, duration: 250, useNativeDriver: true }),
-          Animated.timing(dot, { toValue: 0.35, duration: 450, useNativeDriver: true }),
-        ])
-      )
-    );
-
-    animations.forEach((animation) => animation.start());
-    return () => animations.forEach((animation) => animation.stop());
-  }, [dots, isStreaming]);
-
   if (!isStreaming) return null;
-
-  return (
-    <View
-      style={styles.row}
-      accessibilityRole="progressbar"
-      accessibilityLabel={taskLabel || (isArabic ? "Suly يكتب ردًا" : "SULY is responding")}
-    >
-      <Text style={styles.taskLabel}>{taskLabel || (isArabic ? "SULY بيكتب" : "SULY is writing")}</Text>
-      <View style={styles.dots} accessibilityLabel={isArabic ? "جاري كتابة الرد" : "Writing a response"}>
-        {dots.map((opacity, index) => (
-          <Animated.View key={index} style={[styles.dot, { opacity }]} />
-        ))}
-      </View>
-      {onCancel ? (
-        <Pressable
-          onPress={onCancel}
-          accessibilityRole="button"
-          accessibilityLabel={isArabic ? "إيقاف الرد" : "Stop response"}
-          style={styles.stop}
-        >
-          <Text style={styles.stopText}>{isArabic ? "إيقاف" : "Stop"}</Text>
-        </Pressable>
-      ) : null}
-    </View>
-  );
+  return <View style={styles.row} accessibilityRole="progressbar" accessibilityLabel={taskLabel || (isArabic ? "SULY يجهّز الرد" : "SULY is preparing a response")}>
+    <AppLogo size={28} isAnimating accessibilityLabel="شعار SULY المتحرك" />
+    <View style={styles.copy}><Text style={styles.brand}>SULY</Text><Text style={styles.taskLabel}>{taskLabel || (isArabic ? "يجهّز إجابتك…" : "Preparing your answer…")}</Text></View>
+    {onCancel ? <Pressable onPress={onCancel} accessibilityRole="button" accessibilityLabel={isArabic ? "إيقاف الرد" : "Stop response"} style={styles.stop}><Text style={styles.stopText}>{isArabic ? "إيقاف" : "Stop"}</Text></Pressable> : null}
+  </View>;
 }
-
 const createStyles = (colors: ThemePalette) => StyleSheet.create({
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
-    marginHorizontal: 18,
-    marginVertical: 8,
-    gap: 8,
-    minHeight: 28,
-  },
-  taskLabel: { color: colors.textSecondary, fontSize: 12, lineHeight: 18 },
-  dots: { flexDirection: "row", alignItems: "center", gap: 5, paddingLeft: 2 },
-  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.primary },
-  stop: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
-    backgroundColor: "transparent",
-    borderWidth: 1,
-    borderColor: colors.error,
-  },
-  stopText: { color: colors.error, fontSize: 11, fontWeight: "700" },
+  row: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", marginHorizontal: 18, marginVertical: 12, gap: 10, minHeight: 36 },
+  copy: { gap: 1 }, brand: { color: colors.textPrimary, fontSize: 12, lineHeight: 16, fontWeight: "800", letterSpacing: 1.1 },
+  taskLabel: { color: colors.textSecondary, fontSize: 11, lineHeight: 16 },
+  stop: { marginLeft: 8, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: "transparent", borderWidth: 1, borderColor: colors.error },
+  stopText: { color: colors.error, fontSize: 11, fontWeight: "700" }
 });

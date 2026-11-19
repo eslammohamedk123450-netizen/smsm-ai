@@ -1,50 +1,18 @@
-import { StyleSheet, Text, View } from "react-native";
-
-type Props = { size?: number; accessibilityLabel?: string };
-
-/** High-contrast geometric S mark; avoids the low-contrast raster logo. */
-export function AppLogo({ size = 76, accessibilityLabel = "أيقونة SULY" }: Props) {
-
-  const radius = Math.round(size * 0.24);
-  return (
-    <View
-      accessible
-      accessibilityRole="image"
-      accessibilityLabel={accessibilityLabel}
-      style={[styles.wrap, { width: size, height: size, borderRadius: radius }]}
-    >
-      <Text allowFontScaling={false} style={[styles.mark, { fontSize: size * 0.76, lineHeight: size * 0.86 }]}>S</Text>
-      <View style={[styles.accent, { width: Math.max(5, size * 0.105), height: Math.max(5, size * 0.105), borderRadius: size * 0.03 }]} />
-    </View>
-  );
+import { useEffect, useRef } from "react";
+import { Animated, Easing, StyleSheet, View } from "react-native";
+const brandImage = require("../../../assets/suly-icon.jpg");
+type Props = { size?: number; accessibilityLabel?: string; isAnimating?: boolean };
+export function AppLogo({ size = 76, accessibilityLabel = "شعار SULY", isAnimating = false }: Props) {
+  const rotation = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    rotation.stopAnimation(); rotation.setValue(0);
+    if (!isAnimating) return;
+    const spin = Animated.loop(Animated.timing(rotation, { toValue: 1, duration: 1800, easing: Easing.linear, useNativeDriver: true }));
+    spin.start(); return () => spin.stop();
+  }, [isAnimating, rotation]);
+  const rotate = rotation.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
+  return <View accessible accessibilityRole="image" accessibilityLabel={accessibilityLabel} style={[styles.clip, { width: size, height: size, borderRadius: Math.round(size * 0.22) }]}>
+    <Animated.Image source={brandImage} resizeMode="cover" style={[StyleSheet.absoluteFillObject, { width: size, height: size, transform: [{ rotate }] }]} />
+  </View>;
 }
-
-const styles = StyleSheet.create({
-  wrap: {
-    backgroundColor: "#080B14",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.22)",
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-    shadowColor: "#D4AF37",
-    shadowOpacity: 0.24,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 6,
-  },
-  mark: {
-    color: "#FFFFFF",
-    fontWeight: "900",
-    letterSpacing: -3,
-    textAlign: "center",
-    includeFontPadding: false,
-    marginLeft: -2,
-  },
-  accent: {
-    position: "absolute",
-    right: "18%",
-    bottom: "17%",
-    backgroundColor: "#D4AF37",
-  },
-});
+const styles = StyleSheet.create({ clip: { overflow: "hidden", backgroundColor: "#000000", alignItems: "center", justifyContent: "center" } });
