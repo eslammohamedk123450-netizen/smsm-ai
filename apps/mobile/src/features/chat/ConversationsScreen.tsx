@@ -30,7 +30,6 @@ export function ConversationsScreen() {
   const [selectedTask, setSelectedTask] = useState<TaskHistoryItem | null>(null);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [selected, setSelected] = useState<Conversation | null>(null);
@@ -78,9 +77,7 @@ export function ConversationsScreen() {
   }, [items, tasks, query, isArabic, filter]);
 
   const create = () => {
-    if (creating) return;
     // Keep this as a local draft until the user sends a message or runs a task.
-    setCreating(true);
     router.push("/chat");
   };
 
@@ -144,8 +141,8 @@ export function ConversationsScreen() {
     <ScrollView style={[styles.screen, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
       <View style={styles.header}>
         <View style={styles.headerCopy}><Text style={[styles.title, { color: colors.textPrimary }]}>{filter === "archived" ? (isArabic ? "الأرشيف" : "Archive") : filter === "favorites" ? (isArabic ? "المفضلة" : "Favorites") : (isArabic ? "السجل" : "History")}</Text><Text style={[styles.subtitle, { color: colors.textSecondary }]}>{filter === "archived" ? (isArabic ? "المحادثات التي أرشفتها فقط." : "Only conversations you archived.") : filter === "favorites" ? (isArabic ? "محادثاتك المفضلة فقط." : "Only your favorite conversations.") : (isArabic ? "محادثاتك وتنفيذاتك في مكان واحد." : "Your conversations and task activity in one place.")}</Text></View>
-        {filter === "all" ? <Pressable accessibilityRole="button" disabled={creating} onPress={() => void create()} style={[styles.newButton, { backgroundColor: colors.primary }]}>
-          {creating ? <ActivityIndicator color={colors.onPrimary} /> : <Ionicons name="add" size={18} color={colors.onPrimary} />}
+        {filter === "all" ? <Pressable accessibilityRole="button" onPress={create} style={[styles.newButton, { backgroundColor: colors.primary }]}>
+          <Ionicons name="add" size={18} color={colors.onPrimary} />
           <Text style={styles.newButtonText}>{isArabic ? "محادثة جديدة" : "New chat"}</Text>
         </Pressable> : null}
       </View>
