@@ -5,7 +5,7 @@ export function formatSseDataEvent(payload: unknown): string {
 
 /** SSE comments keep intermediaries and clients aware that a long generation is still active. */
 export function formatSseKeepAlive(): string {
-  return ": suly-keepalive\\n\\n";
+  return ": suly-keepalive\n\n";
 }
 
 /** Long code-generation requests get a bounded 120s provider window, independent of short chat defaults. */
