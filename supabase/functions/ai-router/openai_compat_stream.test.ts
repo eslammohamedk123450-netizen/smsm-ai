@@ -191,3 +191,30 @@ Deno.test("rejects an SSE stream that closes without a completion marker", async
   assertEquals(errorMessage, "provider_stream_incomplete: stream closed before a completion marker");
 });
 
+
+Deno.test("accepts Anthropic message_stop as a complete stream", async () => {
+  const response = new Response([
+    'event: content_block_delta',
+    'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"Complete answer."}}',
+    "",
+    'event: message_stop',
+    'data: {"type":"message_stop"}',
+    "",
+  ].join("\n"), { headers: { "content-type": "text/event-stream" } });
+  const chunks: string[] = [];
+  for await (const chunk of readOpenAiResponse(response, () => undefined)) chunks.push(chunk);
+  assertEquals(chunks, ["Complete answer."]);
+});
+
+Deno.test("recognizes Gemini MAX_TOKENS and preserves its final text", async () => {
+  const response = new Response([
+    'data: {"candidates":[{"content":{"parts":[{"text":"partial game code"}]},"finishReason":"MAX_TOKENS"}]}',
+    "",
+  ].join("\n"), { headers: { "content-type": "text/event-stream" } });
+  const reasons: string[] = [];
+  const chunks: string[] = [];
+  for await (const chunk of readOpenAiResponse(response, () => undefined, reason => reasons.push(reason))) chunks.push(chunk);
+  assertEquals(chunks, ["partial game code"]);
+  assertEquals(reasons, ["length"]);
+});
+
