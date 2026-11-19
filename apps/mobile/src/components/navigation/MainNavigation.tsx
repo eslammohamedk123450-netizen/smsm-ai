@@ -236,7 +236,7 @@ export function MainNavigation({ children }: Props) {
           <View style={[styles.mainContent, { backgroundColor: colors.background }]}>
             {!isChat ? (
               <SafeAreaView edges={["top"]} style={[styles.topSafe, { backgroundColor: colors.background }]}>
-                <View style={[styles.topBar, { borderColor: colors.divider, flexDirection: "row", direction: isArabic ? "rtl" : "ltr" }]}>
+                <View style={[styles.topBar, { borderColor: colors.divider, flexDirection: "row", direction: "ltr" }]}>
                   <Pressable onPress={isHome ? () => router.push("/conversations" as never) : openDrawer} style={styles.headerButton} accessibilityRole="button" accessibilityLabel={isHome ? (isArabic ? "البحث في مهامي" : "Search tasks") : (isArabic ? "فتح القائمة الجانبية" : "Open sidebar")}>
                     <Ionicons name={isHome ? "search-outline" : "menu-outline"} size={23} color={colors.textPrimary} />
                   </Pressable>
