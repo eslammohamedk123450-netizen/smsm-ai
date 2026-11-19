@@ -213,9 +213,11 @@ export function ProvidersAdminScreen() {
         ? `نجح اختبار ${model.name} · ${Number(result.duration_ms ?? 0)}ms`
         : `فشل اختبار ${model.name}: ${result.error_code ?? "سبب غير محدد"}`;
       setProviderModelTestResults((current) => ({ ...current, [model.id]: resultLabel }));
+      // load() clears the page-level error state, so refresh first and publish
+      // the result afterwards; otherwise a failed probe disappears immediately.
+      await load();
       if (result.status === "success") setNotice(resultLabel);
       else setError(resultLabel);
-      await load();
     } catch (cause) {
       const failure = cause instanceof Error ? cause.message : "فشل الاختبار.";
       setProviderModelTestResults((current) => ({ ...current, [model.id]: failure }));
