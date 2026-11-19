@@ -5,6 +5,7 @@ import { useSulyTheme } from "../../../theme/ThemeProvider";
 import type { ThemePalette } from "../../../theme/colors";
 import { PremiumText as Text } from "../../../components/ui/PremiumText";
 import { parseMarkdownBlocks, type MarkdownBlock } from "./markdown-parser";
+import { getPlaygroundIssue } from "./playground-validation";
 
 type InlineToken = { type: "text" | "bold" | "italic" | "code" | "link" | "image"; text: string; url?: string };
 
@@ -131,21 +132,6 @@ function makePlaygroundDocument(language: string, code: string): string {
   if (/^(python|py)$/.test(lang)) return `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font:14px system-ui;margin:12px}pre{white-space:pre-wrap;background:#f3f4f6;padding:10px;border-radius:8px}#out{direction:ltr;text-align:left}</style><h3>Python Output</h3><pre id="out">جاري تحميل بيئة Python…</pre><script src="https://cdn.jsdelivr.net/pyodide/v0.27.7/full/pyodide.js"></script><script>const out=document.getElementById('out');const source=${safeCode};(async()=>{try{const py=await loadPyodide();let logs=[];py.setStdout({batched:(s)=>logs.push(s)});py.setStderr({batched:(s)=>logs.push('ERROR: '+s)});await py.runPythonAsync(source);out.textContent=logs.join('\\n')||'تم التنفيذ بنجاح (لا يوجد إخراج)'}catch(e){out.textContent=e.stack||e}})()</script>`;
   return "";
 }
-function getPlaygroundIssue(language: string, code: string, incomplete = false): string | null {
-  if (incomplete) return "الكود غير مكتمل: لم يصل إغلاق كتلة الكود. انتظر اكتمال الرد أو أعد طلب الكود كاملًا.";
-  const lang = language.trim().toLowerCase();
-  if (!/^(html|htm|html5)$/.test(lang)) return null;
-  const source = code.trim();
-  const isDocument = /^<!doctype\s+html/i.test(source) || /<html[\s>]/i.test(source);
-  if (!isDocument) return null;
-  if (!/<\/html\s*>/i.test(source)) return "مستند HTML غير مكتمل: وسم </html> غير موجود.";
-  if (/<body\b[^>]*>/i.test(source) && !/<\/body\s*>/i.test(source)) return "مستند HTML غير مكتمل: وسم </body> غير موجود.";
-  const count = (pattern: RegExp) => (source.match(pattern) ?? []).length;
-  if (count(/<style\b[^>]*>/gi) > count(/<\/style\s*>/gi)) return "ملف HTML غير مكتمل: وسم </style> غير موجود، لذلك لن تظهر الصفحة بشكل صحيح.";
-  if (count(/<script\b[^>]*>/gi) > count(/<\/script\s*>/gi)) return "ملف HTML غير مكتمل: وسم </script> غير موجود.";
-  return null;
-}
-
 function CodePlayground(props: { language: string; code: string; incomplete?: boolean; onCopyCode?: (code: string) => void; styles: ReturnType<typeof createStyles> }) {
   const [preview, setPreview] = useState(false);
   const [revision, setRevision] = useState(0);
