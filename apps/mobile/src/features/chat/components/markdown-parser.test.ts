@@ -29,6 +29,12 @@ const answer = 42;
     ]);
   });
 
+  it("marks an unfinished fenced code block so it cannot be previewed as complete", () => {
+    expect(parseMarkdownBlocks("```html\\n<!doctype html><html><body><h1>Incomplete</h1>")).toEqual([
+      { type: "code", language: "html", code: "<!doctype html><html><body><h1>Incomplete</h1>", incomplete: true },
+    ]);
+  });
+
   it("parses numbered lists and language-less code blocks", () => {
     expect(parseMarkdownBlocks("1. الأول\n2. الثاني\n\n```\ncode\n```" )).toEqual([
       { type: "list", ordered: true, items: ["الأول", "الثاني"] },
