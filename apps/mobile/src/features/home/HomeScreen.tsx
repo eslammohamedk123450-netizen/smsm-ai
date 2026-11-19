@@ -40,7 +40,6 @@ export function HomeScreen() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [tasks, setTasks] = useState<TaskHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Conversation | null>(null);
@@ -83,9 +82,7 @@ export function HomeScreen() {
   ].sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()), [conversations, tasks, isArabic]);
 
   const newConversation = () => {
-    if (creating) return;
     // Open an unsaved draft. chat.tsx creates the database row only on first send.
-    setCreating(true);
     router.push("/chat");
   };
 
@@ -236,21 +233,19 @@ export function HomeScreen() {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={isArabic ? "محادثة جديدة" : "New conversation"}
-        disabled={creating}
         onPress={() => void newConversation()}
         style={({ pressed }) => [
           styles.createButton,
           { backgroundColor: colors.textPrimary },
-          creating && styles.disabled,
           pressed && styles.pressedButton,
         ]}
       >
-        {creating ? <ActivityIndicator color={colors.background} /> : (
+        {
           <>
             <Ionicons name="add" size={25} color={colors.background} />
             <Ionicons name="chatbubble-outline" size={16} color={colors.background} style={styles.createChatIcon} />
           </>
-        )}
+        }
       </Pressable>
       <BottomSheet visible={Boolean(selectedConversation)} title={selectedConversation?.title ?? (isArabic ? "إجراءات المحادثة" : "Conversation actions")} onClose={() => setSelectedConversation(null)}>
         <View style={styles.actionSheet}>
