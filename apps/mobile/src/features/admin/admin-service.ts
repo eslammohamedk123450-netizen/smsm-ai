@@ -289,7 +289,7 @@ export const adminService = {
     });
     if (error) throw new Error(describeFunctionFailure(error, "sync-models"));
     if (!data || typeof data !== "object" || data.success !== true) {
-      throw new Error("لم تقبل وظيفة المزامنة المزوّد. تحقق من البيانات ثم أعد المحاولة.");
+      throw new Error(typeof data?.warning === "string" && data.warning ? data.warning : "لم تقبل وظيفة المزامنة المزوّد. تحقق من البيانات ثم أعد المحاولة.");
     }
     return {
       discovered: Number(data.discovered ?? 0),
@@ -372,7 +372,7 @@ export const adminService = {
     const [modelsResult, healthResult, probeResult, settingsResult] = await Promise.all([
       supabase.from("ai_models")
         .select("id,name,provider_id,model_identifier,enabled,priority,context_window,routing_group,allowed_tiers,capabilities_json,task_roles,response_timeout_ms,restriction_failure_threshold,restriction_window_minutes")
-        .in("provider_id", activeProviderIds)
+        .in("provider_id", activeProviderIds.length ? activeProviderIds : [-1])
         .order("priority", { ascending: false }).order("name").limit(500),
       supabase.from("ai_model_health")
         .select("model_id,total_attempts,successful_attempts,failed_attempts,consecutive_failures,last_attempt_at,last_success_at,last_failure_at,last_status,last_error_code,last_error_reason,average_latency_ms,auto_restricted,restriction_reason,restricted_at")
