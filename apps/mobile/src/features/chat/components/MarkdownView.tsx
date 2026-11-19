@@ -117,23 +117,35 @@ function ChartRows({ labels, values, styles }: { labels: string[]; values: numbe
   </View>;
 }
 
+function makePlaygroundDocument(language: string, code: string): string {
+  const lang = language.trim().toLowerCase();
+  const safeCode = JSON.stringify(code).replace(/</g, "\\u003c");
+  if (/^(html|htm|html5)$/.test(lang)) return code;
+  if (/^(javascript|js|jsx)$/.test(lang)) return `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font:14px system-ui;margin:12px}pre{white-space:pre-wrap;background:#f3f4f6;padding:10px;border-radius:8px}#out{direction:ltr;text-align:left}</style><h3>Console / Output</h3><pre id="out"></pre><script>const out=document.getElementById('out');const log=(...a)=>out.textContent+=a.map(x=>typeof x==='object'?JSON.stringify(x):String(x)).join(' ')+'\\n';console.log=log;console.error=(...a)=>log('ERROR:',...a);try{eval(${safeCode})}catch(e){log(e.stack||e)}</script>`;
+  if (/^(typescript|ts)$/.test(lang)) return `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font:14px system-ui;margin:12px}pre{white-space:pre-wrap;background:#f3f4f6;padding:10px;border-radius:8px}#out{direction:ltr;text-align:left}</style><h3>Console / Output</h3><pre id="out"></pre><script src="https://unpkg.com/@babel/standalone/babel.min.js"></script><script>const out=document.getElementById('out');const log=(...a)=>out.textContent+=a.map(x=>typeof x==='object'?JSON.stringify(x):String(x)).join(' ')+'\\n';console.log=log;console.error=(...a)=>log('ERROR:',...a);try{const transpiled=Babel.transform(${safeCode},{presets:['typescript']}).code;eval(transpiled)}catch(e){log(e.stack||e)}</script>`;
+  if (/^(python|py)$/.test(lang)) return `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font:14px system-ui;margin:12px}pre{white-space:pre-wrap;background:#f3f4f6;padding:10px;border-radius:8px}#out{direction:ltr;text-align:left}</style><h3>Python Output</h3><pre id="out">جاري تحميل بيئة Python…</pre><script src="https://cdn.jsdelivr.net/pyodide/v0.27.7/full/pyodide.js"></script><script>const out=document.getElementById('out');const source=${safeCode};(async()=>{try{const py=await loadPyodide();let logs=[];py.setStdout({batched:(s)=>logs.push(s)});py.setStderr({batched:(s)=>logs.push('ERROR: '+s)});await py.runPythonAsync(source);out.textContent=logs.join('\\n')||'تم التنفيذ بنجاح (لا يوجد إخراج)'}catch(e){out.textContent=e.stack||e}})()</script>`;
+  return "";
+}
 function CodePlayground(props: { language: string; code: string; onCopyCode?: (code: string) => void; styles: ReturnType<typeof createStyles> }) {
   const [preview, setPreview] = useState(false);
-  const canPreview = Platform.OS === "web" && /^(html|htm|html5)$/i.test(props.language.trim());
-  const iframe = canPreview && preview ? createElement("iframe", { title: "HTML preview", srcDoc: props.code, sandbox: "allow-scripts", style: { width: "100%", height: "360px", border: "0", background: "#fff" } } as any) : null;
+  const [revision, setRevision] = useState(0);
+  const lang = props.language.trim().toLowerCase();
+  const supported = /^(html|htm|html5|javascript|js|jsx|typescript|ts|python|py)$/.test(lang);
+  const canPreview = Platform.OS === "web" && supported;
+  const iframe = canPreview && preview ? createElement("iframe", { key: revision, title: "Code playground", srcDoc: makePlaygroundDocument(lang, props.code), sandbox: "allow-scripts", style: { width: "100%", height: "360px", border: "0", background: "#fff" } } as any) : null;
   return <View style={props.styles.codeContainer}>
     <View style={props.styles.codeHeader}>
       <Text style={props.styles.codeLanguage}>{props.language || "كود"}</Text>
       <View style={{ flexDirection: "row", gap: 8 }}>
-        {canPreview ? <Pressable onPress={() => setPreview(v => !v)} style={props.styles.copyButton}><Text style={props.styles.copyText}>{preview ? "عرض الكود" : "معاينة ▶"}</Text></Pressable> : null}
+        {canPreview ? <Pressable onPress={() => setPreview(v => !v)} style={props.styles.copyButton}><Text style={props.styles.copyText}>{preview ? "عرض الكود" : "تشغيل ▶"}</Text></Pressable> : null}
+        {canPreview && preview ? <Pressable onPress={() => setRevision(v => v + 1)} style={props.styles.copyButton}><Text style={props.styles.copyText}>إعادة ↻</Text></Pressable> : null}
         <Pressable onPress={() => props.onCopyCode?.(props.code)} style={props.styles.copyButton}><Text style={props.styles.copyText}>نسخ</Text></Pressable>
       </View>
     </View>
     {preview ? <View style={props.styles.previewFrame}>{iframe}</View> : <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator={false} directionalLockEnabled style={props.styles.codeScroll} contentContainerStyle={props.styles.codeContent}><Text selectable style={props.styles.codeText}>{props.code}</Text></ScrollView>}
-    {canPreview ? <Text style={props.styles.previewHint}>HTML preview runs in an isolated sandbox.</Text> : null}
+    {canPreview ? <Text style={props.styles.previewHint}>التشغيل داخل إطار معزول. يحتاج TypeScript وPython اتصالًا لتحميل بيئة التشغيل.</Text> : null}
   </View>;
 }
-
 function renderBlock(block: MarkdownBlock, index: number, onCopyCode: ((code: string) => void) | undefined, styles: ReturnType<typeof createStyles>) {
   if (block.type === "heading") {
     const headingStyle = block.level === 1 ? styles.heading1 : block.level === 2 ? styles.heading2 : styles.heading3;
