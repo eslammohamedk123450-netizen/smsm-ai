@@ -167,7 +167,7 @@ export function ProvidersAdminScreen() {
     setBusyId(provider.id); setError(null); setNotice(null);
     try {
       const result = await adminService.syncProviderModels(provider.id);
-      setNotice(`مزامنة ${provider.name}: نماذج مكتشفة ${result.discovered}، مضافة ${result.created}.${result.warning ? ` تنبيه: ${result.warning}` : ""}`);
+      setNotice(`مزامنة ${provider.name}: إجمالي كتالوج المزود ${result.providerTotal}، نماذج دردشة ${result.chatEligible}، نماذج أخرى ${result.nonChat}، سجلات جديدة محفوظة ${result.created}.${result.warning ? ` تنبيه: ${result.warning}` : ""}`);
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "تعذرت مزامنة النماذج.");
@@ -264,7 +264,7 @@ export function ProvidersAdminScreen() {
         api_key: key.trim(),
       });
       setKey("");
-      setNotice(`تمت إضافة حساب المفتاح «${providerName}». نماذج مكتشفة: ${result.discovered}، مضافة: ${result.created}.${result.warning ? ` تنبيه: ${result.warning}` : ""}`);
+      setNotice(`تم حفظ المفتاح «${providerName}». إجمالي النماذج التي أعادها المزود: ${result.providerTotal}، نماذج دردشة: ${result.chatEligible}، نماذج أخرى (صورة/صوت/فيديو وغيرها): ${result.nonChat}، سجلات جديدة محفوظة: ${result.created}.${result.warning ? ` تنبيه: ${result.warning}` : ""}`);
       setName("");
       await load();
     } catch (cause) {
@@ -364,12 +364,16 @@ export function ProvidersAdminScreen() {
                       <Text style={styles.providerModelName}>{model.name}</Text>
                       <Text selectable style={styles.providerModelIdentifier}>{model.model_identifier}</Text>
                     </View>
-                    <Pressable accessibilityRole="button" disabled={testingProviderModelId !== null || !provider.enabled} onPress={() => void testProviderModel(model)} style={styles.providerTileAction}>
-                      {testingProviderModelId === model.id ? <ActivityIndicator size="small" color={colors.primary}/> : <Ionicons name="flask-outline" size={17} color={provider.enabled ? colors.primary : colors.textMuted}/>}
-                    </Pressable>
+                    {model.capabilities_json?.chat === false ? (
+                      <Text style={styles.detail}>غير دردشة</Text>
+                    ) : (
+                      <Pressable accessibilityRole="button" accessibilityLabel={`اختبار ${model.name}`} disabled={testingProviderModelId !== null || !provider.enabled} onPress={() => void testProviderModel(model)} style={styles.providerTileAction}>
+                        {testingProviderModelId === model.id ? <ActivityIndicator size="small" color={colors.primary}/> : <Ionicons name="flask-outline" size={17} color={provider.enabled ? colors.primary : colors.textMuted}/>}
+                      </Pressable>
+                    )}
                   </View>
                   <Text style={styles.detail}>{model.enabled ? "النموذج مفعّل" : "النموذج معطّل"} · {model.health?.auto_restricted ? "مقيّد صحيًا" : model.routing_group === "disabled" ? "غير مضاف لمسار" : model.routing_group}</Text>
-                  {providerModelTestResults[model.id] ? <Text style={styles.probeFeedback}>{providerModelTestResults[model.id]}</Text> : null}
+                  {providerModelTestResults[model.id] ? <Text accessibilityLiveRegion="polite" style={styles.probeFeedback}>{providerModelTestResults[model.id]}</Text> : null}
                 </View>
               ))}
               <Link href="/admin/models" asChild><Pressable><Text style={styles.link}>فتح كتالوج النماذج وإدارة الأولوية</Text></Pressable></Link>
