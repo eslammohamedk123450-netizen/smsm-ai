@@ -230,7 +230,7 @@ Deno.test("uses a bounded long timeout for code generation while preserving shor
 });
 
 Deno.test("formats SSE keepalive comments without creating data events", () => {
-  assertEquals(formatSseKeepAlive(), ": suly-keepalive\\n\\n");
+  assertEquals(formatSseKeepAlive(), ": suly-keepalive\n\n");
 });
 
 Deno.test("serializes router events with real SSE frame delimiters", () => {
