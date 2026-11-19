@@ -17,7 +17,7 @@ import { supabase } from "../../lib/supabase/client";
 import { useAppLocale, type AppLanguage } from "../../theme/LocaleProvider";
 
 export default function SettingsScreen() {
-  const { user, profileFullName, logout } = useAuth();
+  const { user, profileFullName } = useAuth();
   const { show } = useToast();
   const router = useRouter();
   const { colors, mode, effectiveMode, setMode } = useSulyTheme();
@@ -31,8 +31,6 @@ export default function SettingsScreen() {
   const [creditLoadError, setCreditLoadError] = useState(false);
   const [creditModal, setCreditModal] = useState(false);
   const [policyModal, setPolicyModal] = useState<"privacy" | "terms" | null>(null);
-  const [loggingOut, setLoggingOut] = useState(false);
-  const [confirmLogoutVisible, setConfirmLogoutVisible] = useState(false);
   const [archiveVisible, setArchiveVisible] = useState(false);
   const [archivedConversations, setArchivedConversations] = useState<Conversation[]>([]);
   const [archiveLoading, setArchiveLoading] = useState(false);
@@ -107,21 +105,6 @@ export default function SettingsScreen() {
     await setLanguage(next);
   };
 
-  const doLogout = async () => {
-    setLoggingOut(true);
-    try {
-      await logout();
-      router.replace("/(auth)/login");
-    } catch {
-      show(isArabic ? "تعذّر تسجيل الخروج. تحقق من الاتصال وحاول مجددًا." : "Sign out failed. Check your connection and try again.", "error");
-    } finally {
-      setLoggingOut(false);
-    }
-  };
-
-
-  const confirmLogout = () => setConfirmLogoutVisible(true);
-
   const openArchive = async () => {
     setArchiveVisible(true);
     setArchiveLoading(true);
@@ -169,8 +152,7 @@ export default function SettingsScreen() {
           <View style={styles.avatar}>{avatarUrl ? <Image source={{ uri: avatarUrl }} style={styles.avatarImage} /> : <Text style={styles.avatarText}>{name.slice(0, 1).toUpperCase()}</Text>}</View>
           <View style={styles.accountCopy}>
             <Text style={styles.userName}>{name}</Text>
-            <Text style={styles.email}>{user?.email ?? "—"}</Text>
-          </View>
+            </View>
           <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={18} color={colors.textMuted} />
         </TouchableOpacity>
         <Text style={styles.sectionTitle}>{isArabic ? "الباقة والرصيد" : "Plan & credits"}</Text>
@@ -183,7 +165,7 @@ export default function SettingsScreen() {
         </TouchableOpacity>
         <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/balance")} accessibilityRole="button">
           <View style={styles.creditSummaryLabel}>
-            <Ionicons name="wallet-outline" size={19} color={colors.textPrimary} />
+            <Ionicons name="cash-outline" size={19} color={colors.textPrimary} />
             <Text style={styles.rowText}>Credit</Text>
           </View>
           <Text style={styles.creditSummaryValue}>{loadingCredits ? "…" : balance === null ? "—" : balance.toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text>
@@ -318,13 +300,7 @@ export default function SettingsScreen() {
         <TouchableOpacity activeOpacity={0.7} onPress={() => setPolicyModal(null)} style={styles.modalClose}><Text style={styles.newChatText}>{isArabic ? "إغلاق" : "Close"}</Text></TouchableOpacity>
       </BottomSheet>
 
-      <BottomSheet visible={confirmLogoutVisible} title={isArabic ? "تسجيل الخروج؟" : "Sign out?"} onClose={() => setConfirmLogoutVisible(false)}>
-        <Text style={styles.policyNotice}>{isArabic ? "هل تريد تسجيل الخروج من حسابك؟" : "Do you want to sign out?"}</Text>
-        <View style={styles.confirmActions}>
-          <TouchableOpacity activeOpacity={0.7} onPress={() => setConfirmLogoutVisible(false)} style={styles.cancelAction}><Text style={styles.cancelActionText}>{isArabic ? "إلغاء" : "Cancel"}</Text></TouchableOpacity>
-          <TouchableOpacity activeOpacity={0.7} onPress={() => { setConfirmLogoutVisible(false); void doLogout(); }} style={styles.dangerAction} disabled={loggingOut}><Text style={styles.dangerActionText}>{isArabic ? "تسجيل الخروج" : "Sign out"}</Text></TouchableOpacity>
-        </View>
-      </BottomSheet>
+
     </>
   );
 }
