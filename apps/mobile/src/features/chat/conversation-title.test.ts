@@ -19,7 +19,7 @@ describe("conversation title generation", () => {
   });
 
   it("clips generic long content on a word boundary", () => {
-    const title = summarizeContent("من فضلك ساعدني في وضع خطة دراسية كاملة لمادة الفيزياء تشمل المحاضرات والملفات والاختبارات");
+    const title = summarizeContent("من فضلك ساعدني في فهم الموضوع التالي بالتفصيل مع أمثلة عملية وتطبيقات واضحة للدرس");
     expect(title.length).toBeLessThanOrEqual(49);
     expect(title.endsWith("…")).toBe(true);
   });
