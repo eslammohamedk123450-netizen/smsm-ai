@@ -15,9 +15,9 @@ type HomeItem =
 
 const SHORTCUTS = [
   { key: "upgrade", icon: "arrow-up-circle-outline" as const, ar: "ترقية", en: "Upgrade", route: "/upgrade" },
-  { key: "projects", icon: "folder-outline" as const, ar: "المشاريع", en: "Projects", route: "/projects" },
   { key: "library", icon: "library-outline" as const, ar: "المكتبة", en: "Library", route: "/media" },
   { key: "studio", icon: "sparkles-outline" as const, ar: "الاستوديو", en: "Studio", route: "/studio" },
+  { key: "projects", icon: "folder-outline" as const, ar: "المشاريع", en: "Projects", route: "/projects" },
   { key: "skills", icon: "bulb-outline" as const, ar: "المهارات", en: "Skills", route: "/skills" },
   { key: "favorites", icon: "heart-outline" as const, ar: "المفضلة", en: "Favorites", route: "/conversations?filter=favorites" },
   { key: "archive", icon: "archive-outline" as const, ar: "الأرشيف", en: "Archive", route: "/conversations?filter=archived" },
@@ -110,7 +110,7 @@ export function HomeScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.shortcuts} style={styles.shortcutScroller}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.shortcuts, { direction: isArabic ? "rtl" : "ltr" }]} style={[styles.shortcutScroller, { direction: isArabic ? "rtl" : "ltr" }]}>
           {SHORTCUTS.map((item) => (
             <Pressable
               key={item.key}
@@ -229,7 +229,7 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   scroll: { flex: 1 },
   content: { width: "100%", maxWidth: 1040, alignSelf: "center", paddingHorizontal: 18, paddingTop: 14, paddingBottom: 110, gap: 22 },
   shortcutScroller: { flexGrow: 0 },
-  shortcuts: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 9, paddingVertical: 3, paddingHorizontal: 1 },
+  shortcuts: { flexDirection: "row", alignItems: "center", gap: 9, paddingVertical: 3, paddingHorizontal: 1 },
   shortcut: { width: 82, minHeight: 76, borderWidth: 1, borderRadius: 14, alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 6, paddingVertical: 9 },
   shortcutLabel: { fontSize: 10, fontWeight: "700", textAlign: "center" },
   heading: { gap: 5, alignItems: isArabic ? "flex-end" : "flex-start" },
