@@ -108,7 +108,7 @@ const answer = 42;
   });
 
   it("supports escaped pipe characters and short valid divider cells", () => {
-    expect(parseMarkdownBlocks("| البند | الوصف |\\n|---|---|\\n| أ | قيمة بها \\| داخلية |")).toContainEqual({
+    expect(parseMarkdownBlocks("| البند | الوصف |\n|---|---|\n| أ | قيمة بها \\| داخلية |")).toContainEqual({
       type: "table",
       headers: ["البند", "الوصف"],
       rows: [["أ", "قيمة بها | داخلية"]],
