@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { classifyProviderAttemptFailure, readOpenAiResponse } from "./openai_compat_stream.ts";
+import { classifyProviderAttemptFailure, formatSseDataEvent, readOpenAiResponse } from "./openai_compat_stream.ts";
 import { corsHeadersForRequest } from "../_shared/cors.ts";
 import { buildAgentUsageLedgerRecord } from "./agent_usage_ledger.ts";
 import { prepareAgentMemory, saveAgentMemory } from "./agent/memory.ts";
@@ -131,8 +131,8 @@ function sseTextResponse(
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       for (const update of taskUpdates) controller.enqueue(encoder.encode(taskEvent(update.task, update.status)));
-      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ chunk: text, done: false, ...info })}\n\n`));
-      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, ...info })}\n\n`));
+      controller.enqueue(encoder.encode(formatSseDataEvent({ chunk: text, done: false, ...info })));
+      controller.enqueue(encoder.encode(formatSseDataEvent({ done: true, ...info })));
       controller.close();
     },
   });
@@ -148,7 +148,7 @@ function sseTextResponse(
 }
 
 function taskEvent(task: string, status: "pending" | "running" | "completed" | "failed") {
-  return `data: ${JSON.stringify({ task, status })}\n\n`;
+  return formatSseDataEvent({ task, status });
 }
 
 function estimateTokens(text: string): number {
@@ -3117,7 +3117,7 @@ async function handleRequest(req: Request): Promise<Response> {
         const emit = (value: Record<string, unknown>) => {
           if (clientCancelled) return;
           if (typeof value.chunk === "string" && value.chunk.length > 0 && firstClientChunkAt === null) firstClientChunkAt = Date.now();
-          try { controller.enqueue(encoder.encode(`data: ${JSON.stringify(value)}\\n\\n`)); } catch { /* disconnected client */ }
+          try { controller.enqueue(encoder.encode(formatSseDataEvent(value))); } catch { /* disconnected client */ }
         };
         const appendRaw = (raw: string) => {
           if (!raw || outputGuard.reason) return;
