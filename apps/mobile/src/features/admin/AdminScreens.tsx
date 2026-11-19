@@ -167,7 +167,7 @@ export function ProvidersAdminScreen() {
     setBusyId(provider.id); setError(null); setNotice(null);
     try {
       const result = await adminService.syncProviderModels(provider.id);
-      setNotice(`مزامنة ${provider.name}: إجمالي كتالوج المزود ${result.providerTotal}، نماذج دردشة ${result.chatEligible}، نماذج أخرى ${result.nonChat}، سجلات جديدة محفوظة ${result.created}.${result.warning ? ` تنبيه: ${result.warning}` : ""}`);
+      setNotice(`مزامنة ${provider.name}: إجمالي كتالوج المزود ${result.providerTotal}، نماذج دردشة ${result.chatEligible}، نماذج أخرى ${result.nonChat}، سجلات جديدة محفوظة ${result.created}، تصحيح تصنيف النماذج القديمة ${result.capabilitiesUpdated}.${result.warning ? ` تنبيه: ${result.warning}` : ""}`);
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "تعذرت مزامنة النماذج.");
@@ -265,7 +265,7 @@ export function ProvidersAdminScreen() {
         api_key: key.trim(),
       });
       setKey("");
-      setNotice(`تم حفظ المفتاح «${providerName}». إجمالي النماذج التي أعادها المزود: ${result.providerTotal}، نماذج دردشة: ${result.chatEligible}، نماذج أخرى (صورة/صوت/فيديو وغيرها): ${result.nonChat}، سجلات جديدة محفوظة: ${result.created}.${result.warning ? ` تنبيه: ${result.warning}` : ""}`);
+      setNotice(`تم حفظ المفتاح «${providerName}». إجمالي النماذج التي أعادها المزود: ${result.providerTotal}، نماذج دردشة: ${result.chatEligible}، نماذج أخرى (صورة/صوت/فيديو وغيرها): ${result.nonChat}، سجلات جديدة محفوظة: ${result.created}، تصحيح تصنيف النماذج القديمة: ${result.capabilitiesUpdated}.${result.warning ? ` تنبيه: ${result.warning}` : ""}`);
       setName("");
       await load();
     } catch (cause) {
