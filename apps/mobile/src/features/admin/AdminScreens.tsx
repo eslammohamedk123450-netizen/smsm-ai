@@ -105,12 +105,26 @@ function PageHeader({ title }: { title: string }) {
   </View>;
 }
 function ErrorText({ children }: { children: string | null }) { const { colors } = useSulyTheme(); const styles = useMemo(() => createStyles(colors), [colors]); return children ? <Text accessibilityRole="alert" style={styles.error}>{children}</Text> : null; }
+function isModelChatCapable(model: ModelRow): boolean {
+  if (typeof model.capabilities_json === "string") {
+    try { return JSON.parse(model.capabilities_json)?.chat !== false; } catch { return true; }
+  }
+  return model.capabilities_json?.chat !== false;
+}
 function probeErrorLabel(code: string | null) {
   if (!code) return "تعذر الحصول على رد صالح.";
+  if (code === "model_not_chat_capable") return "هذا نموذج غير دردشة؛ لا يمكن اختباره عبر واجهة الدردشة النصية.";
   if (code === "provider_http_401" || code === "provider_http_403" || code === "credential_unavailable") return "تحقق من المفتاح أو صلاحياته.";
   if (code === "provider_http_429") return "تجاوز المزود حد الطلبات أو الحصة.";
+  if (code === "provider_http_404") return "المزود لم يجد النموذج أو مسار الدردشة؛ قد يكون النموذج من نوع غير نصي مثل التفريغ الصوتي.";
+  if (code === "provider_http_400") return "المزود رفض صيغة الطلب أو النموذج غير متوافق مع واجهة الدردشة.";
   if (code === "model_timeout") return "انتهت مهلة استجابة النموذج.";
-  if (code === "empty_response") return "وصلت استجابة فارغة.";
+  if (code === "empty_response") return "المزود ردّ بدون محتوى نصي قابل للقراءة.";
+  if (code === "empty_response_no_choices") return "المزود أعاد استجابة بلا اختيارات أو محتوى.";
+  if (code === "response_truncated") return "انتهى حد التوكنز قبل وصول نص الرد؛ أُعيد الاختبار بحد أعلى.";
+  if (code === "tool_call_only") return "النموذج أعاد استدعاء أداة بدل نص؛ اختبار الدردشة النصية لم يكتمل.";
+  if (code === "unexpected_response_format") return "المزود أعاد صيغة غير متوافقة مع واجهة الدردشة.";
+  if (code === "provider_returned_error") return "المزود أعاد خطأ داخل الاستجابة رغم نجاح HTTP.";
   if (code === "provider_url_invalid") return "رابط المزود غير صالح.";
   if (code === "provider_disabled") return "المزود متوقف؛ فعّله قبل الاختبار.";
   return `فشل الاتصال (${code}).`;
@@ -167,7 +181,7 @@ export function ProvidersAdminScreen() {
     setBusyId(provider.id); setError(null); setNotice(null);
     try {
       const result = await adminService.syncProviderModels(provider.id);
-      setNotice(`مزامنة ${provider.name}: إجمالي كتالوج المزود ${result.providerTotal}، نماذج دردشة ${result.chatEligible}، نماذج أخرى ${result.nonChat}، سجلات جديدة محفوظة ${result.created}، تصحيح تصنيف النماذج القديمة ${result.capabilitiesUpdated}.${result.warning ? ` تنبيه: ${result.warning}` : ""}`);
+      setNotice(`مزامنة ${provider.name}: إجمالي كتالوج المزود ${result.providerTotal}، نماذج دردشة ${result.chatEligible}، نماذج أخرى ${result.nonChat}، سجلات جديدة محفوظة ${result.created}، تصحيح تصنيف النماذج القديمة ${result.capabilitiesUpdated}. ملاحظة: النماذج الجديدة تُحفظ معطّلة افتراضيًا، ولن تُحسب «جاهزة» حتى تراجعها وتفعّلها وتحدد مسارها.${result.warning ? ` تنبيه: ${result.warning}` : ""}`);
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "تعذرت مزامنة النماذج.");
@@ -211,7 +225,7 @@ export function ProvidersAdminScreen() {
       const result = await adminService.testModel(model.id);
       const resultLabel = result.status === "success"
         ? `نجح اختبار ${model.name} · ${Number(result.duration_ms ?? 0)}ms`
-        : `فشل اختبار ${model.name}: ${result.error_code ?? "سبب غير محدد"}`;
+        : `فشل اختبار ${model.name}: ${probeErrorLabel(result.error_code)}`;
       setProviderModelTestResults((current) => ({ ...current, [model.id]: resultLabel }));
       // load() clears the page-level error state, so refresh first and publish
       // the result afterwards; otherwise a failed probe disappears immediately.
@@ -645,7 +659,7 @@ export function ModelsAdminScreen({ showPricing = true }: { showPricing?: boolea
             <View style={styles.modelsTableMetric}><Text style={styles.modelMetricValue}>{model.health?.average_latency_ms == null ? "—" : `${Math.round(model.health.average_latency_ms)}ms`}</Text></View>
             <View style={styles.modelsTableActions}>
               <Pressable accessibilityRole="button" onPress={() => void openModelDetails(model)} style={styles.detailsAction}><Text style={styles.link}>⚙  القيود وسجل الفحوص</Text></Pressable>
-              <PrimaryButton label={testingModelId === model.id ? "جارٍ الفحص…" : "اختبار فوري"} onPress={() => void testModel(model)} disabled={busy || testingModelId !== null} />
+              {isModelChatCapable(model) ? <PrimaryButton label={testingModelId === model.id ? "جارٍ الفحص…" : "اختبار فوري"} onPress={() => void testModel(model)} disabled={busy || testingModelId !== null} /> : <Text style={styles.detail}>غير دردشة · لا يدعم اختبار الدردشة</Text>}
               {testResults[model.id] ? <Text accessibilityRole="text" style={testResults[model.id].startsWith("نجح الطلب") ? styles.success : styles.warning}>{testResults[model.id]}</Text> : null}
               {model.health?.auto_restricted ? <PrimaryButton label="مراجعة وإعادة تفعيل" onPress={() => void resetHealth(model)} disabled={busy || testingModelId !== null} /> : providerIsOff ? <Link href="/admin/api-keys" asChild><Pressable style={styles.detailsAction}><Text style={styles.link}>اذهب لتفعيل المفتاح</Text></Pressable></Link> : isManuallyOff ? <><PrimaryButton label="تفعيل ضمن سباق مجاني" onPress={() => void assignRoute(model, "free_race")} disabled={busy || testingModelId !== null} /><PrimaryButton label="تفعيل كبديل مدفوع" onPress={() => void assignRoute(model, "paid_fallback")} disabled={busy || testingModelId !== null} /></> : <PrimaryButton label="تعطيل" onPress={() => void disable(model)} disabled={busy || testingModelId !== null} />}
             </View>

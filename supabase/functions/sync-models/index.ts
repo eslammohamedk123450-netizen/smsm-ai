@@ -92,31 +92,65 @@ async function discoverModels(providerType: string, baseUrl: string, apiKey: str
       endpoint = `${baseUrl}/models`;
       headers["Authorization"] = `Bearer ${apiKey}`;
     }
-    const response = await fetch(endpoint, { method: "GET", headers, signal: controller.signal });
-    if (!response.ok) {
-      const errorBody = (await response.text().catch(() => "")).replace(/AIza[\w-]+/gi, "[redacted]").slice(0, 240);
-      return { identifiers: [], warning: `رفض المزود طلب النماذج (HTTP ${response.status})${errorBody ? `: ${errorBody}` : "."}` };
-    }
-    const payload = asRecord(await response.json());
-    const rows: unknown[] = Array.isArray(payload.data)
-      ? payload.data
-      : Array.isArray(payload.models)
-        ? payload.models
-        : Array.isArray((payload as { data?: { models?: unknown[] } }).data?.models)
-          ? ((payload as { data: { models: unknown[] } }).data.models)
-          : [];
+
     const identifiers: string[] = [];
-    for (const row of rows) {
-      const item = asRecord(row);
-      // Keep the provider's complete catalog, including image/audio/video and
-      // embedding models. Non-chat entries are stored as inert catalog rows and
-      // explicitly marked chat:false; they can never enter the chat router.
-      const raw = cleanText(item.id, 200) || cleanText(item.name, 200);
-      if (!raw) continue;
-      const identifier = raw.replace(/^models\//, "");
-      if (!identifiers.includes(identifier)) identifiers.push(identifier);
+    let cursor: string | null = null;
+    let cursorParam = "after";
+    let warning: string | null = null;
+    const maxPages = 10;
+    for (let page = 0; page < maxPages; page += 1) {
+      const pageUrl = new URL(endpoint);
+      if (cursor) pageUrl.searchParams.set(cursorParam, cursor);
+      const response = await fetch(pageUrl.toString(), { method: "GET", headers, signal: controller.signal });
+      if (!response.ok) {
+        const errorBody = (await response.text().catch(() => "")).replace(/AIza[\w-]+/gi, "[redacted]").slice(0, 240);
+        return {
+          identifiers,
+          warning: `رفض المزود طلب النماذج (HTTP ${response.status})${errorBody ? `: ${errorBody}` : "."}`,
+        };
+      }
+      const payload = asRecord(await response.json());
+      const dataRecord = asRecord(payload.data);
+      const pagination = asRecord(payload.pagination);
+      const meta = asRecord(payload.meta);
+      const rows: unknown[] = Array.isArray(payload.data)
+        ? payload.data
+        : Array.isArray(payload.models)
+          ? payload.models
+          : Array.isArray(dataRecord.models)
+            ? dataRecord.models
+            : [];
+      for (const row of rows) {
+        const item = asRecord(row);
+        const raw = cleanText(item.id, 200) || cleanText(item.name, 200);
+        if (!raw) continue;
+        const identifier = raw.replace(/^models\//, "");
+        if (!identifiers.includes(identifier)) identifiers.push(identifier);
+      }
+
+      const reportedTotal = Number(payload.total ?? payload.total_count ?? pagination.total ?? meta.total ?? 0);
+      const hasMore = payload.has_more === true || pagination.has_more === true || meta.has_more === true
+        || (Number.isFinite(reportedTotal) && reportedTotal > identifiers.length);
+      if (!hasMore) break;
+      const nextCursor = cleanText(payload.next_cursor, 300)
+        || cleanText(pagination.next_cursor, 300)
+        || cleanText(meta.next_cursor, 300)
+        || cleanText(payload.last_id, 300)
+        || (rows.length > 0 ? cleanText(asRecord(rows[rows.length - 1]).id, 300) : "");
+      if (!nextCursor || nextCursor === cursor) {
+        warning = "أعاد المزود إشارة لوجود صفحات إضافية دون مؤشر متابعة صالح؛ قد تكون قائمة النماذج غير مكتملة.";
+        break;
+      }
+      cursorParam = payload.next_cursor || pagination.next_cursor || meta.next_cursor ? "cursor" : "after";
+      cursor = nextCursor;
+      if (page === maxPages - 1) {
+        warning = "تجاوز كتالوج المزود الحد الآمن لعدد صفحات المزامنة؛ القائمة المحفوظة قد تكون غير مكتملة.";
+      }
     }
-    return { identifiers, warning: identifiers.length === 0 ? "لم يُرجع المزود أي نماذج في كتالوجه." : null };
+    return {
+      identifiers,
+      warning: warning ?? (identifiers.length === 0 ? "لم يُرجع المزود أي نماذج في كتالوجه." : null),
+    };
   } catch (error) {
     const reason = error instanceof Error && error.name === "AbortError" ? "انتهت مهلة الاتصال بالمزود." : "تعذر الاتصال بالمزود.";
     return { identifiers: [], warning: reason };
@@ -265,7 +299,7 @@ async function handleSyncModelsRequest(request: Request): Promise<Response> {
       updated_at: new Date().toISOString(),
     }).eq("id", providerId);
     return jsonResponse({
-      success: !insertion.failed,
+      success: !insertion.failed && !discovery.warning,
       discovered: discovery.identifiers.length,
       provider_total: discovery.identifiers.length,
       chat_eligible: discovery.identifiers.filter((identifier) => !NON_CHAT_PATTERN.test(identifier)).length,
@@ -318,6 +352,7 @@ async function handleSyncModelsRequest(request: Request): Promise<Response> {
 
   return jsonResponse({
     success: true,
+    catalog_sync_success: !insertion.failed && !discovery.warning,
     provider_id: providerId,
     discovered: discovery.identifiers.length,
     provider_total: discovery.identifiers.length,
