@@ -2,6 +2,7 @@ import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
   classifyProviderAttemptFailure,
   extractOpenAiText,
+  formatSseDataEvent,
   readOpenAiResponse,
 } from "./openai_compat_stream.ts";
 
@@ -218,3 +219,10 @@ Deno.test("recognizes Gemini MAX_TOKENS and preserves its final text", async () 
   assertEquals(reasons, ["length"]);
 });
 
+
+
+Deno.test("serializes router events with real SSE frame delimiters", () => {
+  const frame = formatSseDataEvent({ chunk: "hello", done: false });
+  assertEquals(frame, 'data: {"chunk":"hello","done":false}\\n\\n');
+  assertEquals(frame.split("\\n").length, 3);
+});
