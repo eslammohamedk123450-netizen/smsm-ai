@@ -123,7 +123,7 @@ function makePlaygroundDocument(language: string, code: string): string {
   if (/^(html|htm|html5)$/.test(lang)) {
     const source = code.trim();
     // srcDoc needs a complete document for consistent rendering across mobile browsers.
-    if (/^<!doctype\\s+html/i.test(source) || /<html[\\s>]/i.test(source)) return source;
+    if (/^<!doctype\s+html/i.test(source) || /<html[\s>]/i.test(source)) return source;
     return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body>${source}</body></html>`;
   }
   if (/^(javascript|js|jsx)$/.test(lang)) return `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font:14px system-ui;margin:12px}pre{white-space:pre-wrap;background:#f3f4f6;padding:10px;border-radius:8px}#out{direction:ltr;text-align:left}</style><h3>Console / Output</h3><pre id="out"></pre><script>const out=document.getElementById('out');const log=(...a)=>out.textContent+=a.map(x=>typeof x==='object'?JSON.stringify(x):String(x)).join(' ')+'\\n';console.log=log;console.error=(...a)=>log('ERROR:',...a);try{eval(${safeCode})}catch(e){log(e.stack||e)}</script>`;
@@ -131,24 +131,40 @@ function makePlaygroundDocument(language: string, code: string): string {
   if (/^(python|py)$/.test(lang)) return `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font:14px system-ui;margin:12px}pre{white-space:pre-wrap;background:#f3f4f6;padding:10px;border-radius:8px}#out{direction:ltr;text-align:left}</style><h3>Python Output</h3><pre id="out">جاري تحميل بيئة Python…</pre><script src="https://cdn.jsdelivr.net/pyodide/v0.27.7/full/pyodide.js"></script><script>const out=document.getElementById('out');const source=${safeCode};(async()=>{try{const py=await loadPyodide();let logs=[];py.setStdout({batched:(s)=>logs.push(s)});py.setStderr({batched:(s)=>logs.push('ERROR: '+s)});await py.runPythonAsync(source);out.textContent=logs.join('\\n')||'تم التنفيذ بنجاح (لا يوجد إخراج)'}catch(e){out.textContent=e.stack||e}})()</script>`;
   return "";
 }
-function CodePlayground(props: { language: string; code: string; onCopyCode?: (code: string) => void; styles: ReturnType<typeof createStyles> }) {
+function getPlaygroundIssue(language: string, code: string, incomplete = false): string | null {
+  if (incomplete) return "الكود غير مكتمل: لم يصل إغلاق كتلة الكود. انتظر اكتمال الرد أو أعد طلب الكود كاملًا.";
+  const lang = language.trim().toLowerCase();
+  if (!/^(html|htm|html5)$/.test(lang)) return null;
+  const source = code.trim();
+  const isDocument = /^<!doctype\s+html/i.test(source) || /<html[\s>]/i.test(source);
+  if (!isDocument) return null;
+  if (!/<\/html\s*>/i.test(source)) return "مستند HTML غير مكتمل: وسم </html> غير موجود.";
+  if (/<body\b[^>]*>/i.test(source) && !/<\/body\s*>/i.test(source)) return "مستند HTML غير مكتمل: وسم </body> غير موجود.";
+  const count = (pattern: RegExp) => (source.match(pattern) ?? []).length;
+  if (count(/<style\b[^>]*>/gi) > count(/<\/style\s*>/gi)) return "ملف HTML غير مكتمل: وسم </style> غير موجود، لذلك لن تظهر الصفحة بشكل صحيح.";
+  if (count(/<script\b[^>]*>/gi) > count(/<\/script\s*>/gi)) return "ملف HTML غير مكتمل: وسم </script> غير موجود.";
+  return null;
+}
+
+function CodePlayground(props: { language: string; code: string; incomplete?: boolean; onCopyCode?: (code: string) => void; styles: ReturnType<typeof createStyles> }) {
   const [preview, setPreview] = useState(false);
   const [revision, setRevision] = useState(0);
   const lang = props.language.trim().toLowerCase();
   const supported = /^(html|htm|html5|javascript|js|jsx|typescript|ts|python|py)$/.test(lang);
   const canPreview = Platform.OS === "web" && supported;
-  const iframe = canPreview && preview ? createElement("iframe", { key: revision, title: "Code playground", srcDoc: makePlaygroundDocument(lang, props.code), sandbox: "allow-scripts", style: { display: "block", width: "100%", minWidth: "100%", height: "360px", minHeight: "360px", border: "0", background: "#fff", flex: "0 0 auto" } } as any) : null;
+  const previewIssue = canPreview ? getPlaygroundIssue(lang, props.code, props.incomplete) : null;
+  const iframe = canPreview && preview && !previewIssue ? createElement("iframe", { key: revision, title: "Code playground", srcDoc: makePlaygroundDocument(lang, props.code), sandbox: "allow-scripts", style: { display: "block", width: "100%", minWidth: "100%", height: "360px", minHeight: "360px", border: "0", background: "#fff", flex: "0 0 auto" } } as any) : null;
   return <View style={props.styles.codeContainer}>
     <View style={props.styles.codeHeader}>
       <Text style={props.styles.codeLanguage}>{props.language || "كود"}</Text>
       <View style={{ flexDirection: "row", gap: 8 }}>
-        {canPreview ? <Pressable onPress={() => setPreview(v => !v)} style={props.styles.copyButton}><Text style={props.styles.copyText}>{preview ? "عرض الكود" : "تشغيل ▶"}</Text></Pressable> : null}
+        {canPreview ? <Pressable disabled={!!previewIssue} onPress={() => setPreview(v => !v)} style={[props.styles.copyButton, previewIssue ? { opacity: 0.45 } : null]}><Text style={props.styles.copyText}>{preview ? "عرض الكود" : "تشغيل ▶"}</Text></Pressable> : null}
         {canPreview && preview ? <Pressable onPress={() => setRevision(v => v + 1)} style={props.styles.copyButton}><Text style={props.styles.copyText}>إعادة ↻</Text></Pressable> : null}
         <Pressable onPress={() => props.onCopyCode?.(props.code)} style={props.styles.copyButton}><Text style={props.styles.copyText}>نسخ</Text></Pressable>
       </View>
     </View>
-    {preview ? <View style={props.styles.previewFrame}>{iframe}</View> : <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator={false} directionalLockEnabled style={props.styles.codeScroll} contentContainerStyle={props.styles.codeContent}><Text selectable style={props.styles.codeText}>{props.code}</Text></ScrollView>}
-    {canPreview ? <Text style={props.styles.previewHint}>التشغيل داخل إطار معزول. يحتاج TypeScript وPython اتصالًا لتحميل بيئة التشغيل.</Text> : null}
+    {preview && !previewIssue ? <View style={props.styles.previewFrame}>{iframe}</View> : <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator={false} directionalLockEnabled style={props.styles.codeScroll} contentContainerStyle={props.styles.codeContent}><Text selectable style={props.styles.codeText}>{props.code}</Text></ScrollView>}
+    {previewIssue ? <Text style={props.styles.previewHint}>{previewIssue}</Text> : canPreview ? <Text style={props.styles.previewHint}>التشغيل داخل إطار معزول. يحتاج TypeScript وPython اتصالًا لتحميل بيئة التشغيل.</Text> : null}
   </View>;
 }
 function renderBlock(block: MarkdownBlock, index: number, onCopyCode: ((code: string) => void) | undefined, styles: ReturnType<typeof createStyles>) {
@@ -198,7 +214,7 @@ function renderBlock(block: MarkdownBlock, index: number, onCopyCode: ((code: st
       <ChartRows labels={chart.labels} values={chart.values} styles={styles} />
     </View>)}
   </View>;
-  return <CodePlayground language={block.language} code={block.code} onCopyCode={onCopyCode} styles={styles} />;
+  return <CodePlayground language={block.language} code={block.code} incomplete={block.incomplete} onCopyCode={onCopyCode} styles={styles} />;
 }
 
 const createStyles = (colors: ThemePalette) => StyleSheet.create({
