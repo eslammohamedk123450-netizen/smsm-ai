@@ -1,4 +1,4 @@
-import { useMemo, useState, createElement } from "react";
+import { useEffect, useMemo, useRef, useState, createElement } from "react";
 import { Platform } from "react-native";
 import { Image, Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSulyTheme } from "../../../theme/ThemeProvider";
@@ -134,22 +134,51 @@ function makePlaygroundDocument(language: string, code: string): string {
 }
 function CodePlayground(props: { language: string; code: string; incomplete?: boolean; onCopyCode?: (code: string) => void; styles: ReturnType<typeof createStyles> }) {
   const [preview, setPreview] = useState(false);
+  const [mobileMode, setMobileMode] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [fullscreenUnavailable, setFullscreenUnavailable] = useState(false);
   const [revision, setRevision] = useState(0);
+  const previewContainerRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof document === "undefined") return;
+    const syncFullscreen = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", syncFullscreen);
+    return () => document.removeEventListener("fullscreenchange", syncFullscreen);
+  }, []);
+
+  const toggleFullscreen = async () => {
+    if (Platform.OS !== "web") return;
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else if (previewContainerRef.current?.requestFullscreen) {
+        await previewContainerRef.current.requestFullscreen();
+        setFullscreenUnavailable(false);
+      } else {
+        setFullscreenUnavailable(true);
+      }
+    } catch {
+      setFullscreenUnavailable(true);
+    }
+  };
   const lang = props.language.trim().toLowerCase();
   const supported = /^(html|htm|html5|javascript|js|jsx|typescript|ts|python|py)$/.test(lang);
   const canPreview = Platform.OS === "web" && supported;
   const previewIssue = canPreview ? getPlaygroundIssue(lang, props.code, props.incomplete) : null;
-  const iframe = canPreview && preview && !previewIssue ? createElement("iframe", { key: revision, title: "Code playground", srcDoc: makePlaygroundDocument(lang, props.code), sandbox: "allow-scripts", style: { display: "block", width: "100%", minWidth: "100%", height: "360px", minHeight: "360px", border: "0", background: "#fff", flex: "0 0 auto" } } as any) : null;
+  const iframe = canPreview && preview && !previewIssue ? createElement("iframe", { key: revision, title: mobileMode ? "Mobile app preview" : "Code playground", srcDoc: makePlaygroundDocument(lang, props.code), sandbox: "allow-scripts", style: { display: "block", width: "100%", minWidth: "100%", height: isFullscreen ? "100%" : mobileMode ? "780px" : "360px", minHeight: isFullscreen ? "100%" : mobileMode ? "780px" : "360px", border: "0", background: "#fff", flex: "0 0 auto" } } as any) : null;
   return <View style={props.styles.codeContainer}>
     <View style={props.styles.codeHeader}>
       <Text style={props.styles.codeLanguage}>{props.language || "كود"}</Text>
       <View style={{ flexDirection: "row", gap: 8 }}>
         {canPreview ? <Pressable disabled={!!previewIssue} onPress={() => setPreview(v => !v)} style={[props.styles.copyButton, previewIssue ? { opacity: 0.45 } : null]}><Text style={props.styles.copyText}>{preview ? "عرض الكود" : "تشغيل ▶"}</Text></Pressable> : null}
+        {canPreview && preview ? <Pressable onPress={() => setMobileMode(v => !v)} style={[props.styles.copyButton, mobileMode ? props.styles.activePreviewButton : null]}><Text style={props.styles.copyText}>{mobileMode ? "وضع عادي" : "📱 وضع الهاتف"}</Text></Pressable> : null}
+        {canPreview && preview ? <Pressable onPress={toggleFullscreen} style={props.styles.copyButton}><Text style={props.styles.copyText}>{isFullscreen ? "تصغير ⤢" : "تكبير ⛶"}</Text></Pressable> : null}
         {canPreview && preview ? <Pressable onPress={() => setRevision(v => v + 1)} style={props.styles.copyButton}><Text style={props.styles.copyText}>إعادة ↻</Text></Pressable> : null}
         <Pressable onPress={() => props.onCopyCode?.(props.code)} style={props.styles.copyButton}><Text style={props.styles.copyText}>نسخ</Text></Pressable>
       </View>
     </View>
-    {preview && !previewIssue ? <View style={props.styles.previewFrame}>{iframe}</View> : <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator={false} directionalLockEnabled style={props.styles.codeScroll} contentContainerStyle={props.styles.codeContent}><Text selectable style={props.styles.codeText}>{props.code}</Text></ScrollView>}
+    {preview && !previewIssue ? <View ref={previewContainerRef} style={[props.styles.previewFrame, mobileMode ? props.styles.mobilePreviewFrame : null, isFullscreen ? props.styles.fullscreenPreviewFrame : null]}>{mobileMode && !isFullscreen ? <View style={props.styles.mobilePreviewShell}><View style={props.styles.mobilePreviewCamera} />{iframe}</View> : iframe}</View> : <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator={false} directionalLockEnabled style={props.styles.codeScroll} contentContainerStyle={props.styles.codeContent}><Text selectable style={props.styles.codeText}>{props.code}</Text></ScrollView>}
+    {fullscreenUnavailable ? <Text style={props.styles.previewHint}>وضع ملء الشاشة غير مدعوم في هذا المتصفح. يمكنك استخدام وضع الهاتف داخل المعاينة.</Text> : null}
     {previewIssue ? <Text style={props.styles.previewHint}>{previewIssue}</Text> : canPreview ? <Text style={props.styles.previewHint}>التشغيل داخل إطار معزول. يحتاج TypeScript وPython اتصالًا لتحميل بيئة التشغيل.</Text> : null}
   </View>;
 }
@@ -221,5 +250,5 @@ const createStyles = (colors: ThemePalette) => StyleSheet.create({
   chartContainer: { width: "100%", padding: 14, marginVertical: 10, borderRadius: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, gap: 12 }, chartRows: { width: "100%", minHeight: 150, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 5 }, chartTitle: { color: colors.textPrimary, fontSize: 15, fontWeight: "800", textAlign: "right" }, chartColumn: { flex: 1, minWidth: 0, alignItems: "center", justifyContent: "flex-end", gap: 5 }, chartPlot: { width: "100%", height: 104, alignItems: "center", justifyContent: "flex-end", borderBottomWidth: 1, borderBottomColor: colors.divider }, chartLabel: { width: "100%", color: colors.textSecondary, fontSize: 10, lineHeight: 14, textAlign: "center" }, chartBar: { width: "66%", minHeight: 2, borderTopLeftRadius: 6, borderTopRightRadius: 6, backgroundColor: colors.primary }, chartValue: { color: colors.textPrimary, fontSize: 10, fontWeight: "700", textAlign: "center", writingDirection: "ltr" },
   flowContainer: { width: "100%", padding: 14, marginVertical: 10, borderRadius: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, alignItems: "center", gap: 4 }, flowStepGroup: { width: "100%", alignItems: "center" }, flowNode: { width: "100%", minHeight: 48, justifyContent: "center", paddingHorizontal: 14, paddingVertical: 11, borderRadius: 11, borderWidth: 1, borderColor: colors.primary, backgroundColor: colors.surfaceElevated }, flowNodeText: { color: colors.textPrimary, fontSize: 14, lineHeight: 21, fontWeight: "600", textAlign: "center" }, flowArrow: { color: colors.primary, fontSize: 24, lineHeight: 30, fontWeight: "700" },
   dashboardContainer: { width: "100%", padding: 12, marginVertical: 10, borderRadius: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, gap: 10 }, dashboardTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: "800", textAlign: "right", marginBottom: 2 }, dashboardMetrics: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", gap: 8 }, metricCard: { width: "48%", minHeight: 82, padding: 11, borderRadius: 11, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.divider, gap: 5 }, metricLabel: { color: colors.textMuted, fontSize: 12, textAlign: "right" }, metricValue: { color: colors.textPrimary, fontSize: 20, lineHeight: 26, fontWeight: "800", textAlign: "right" }, metricChange: { color: colors.primary, fontSize: 11, fontWeight: "700", textAlign: "right" },
-  previewFrame: { width: "100%", minHeight: 360, overflow: "hidden", borderRadius: 8, backgroundColor: "#fff" }, previewHint: { color: colors.textMuted, fontSize: 11, textAlign: "left", marginTop: 6 }, codeContainer: { width: "100%", backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.divider, padding: 12, marginVertical: 10, overflow: "hidden" }, codeHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }, codeLanguage: { color: colors.textMuted, fontSize: 12, writingDirection: "ltr", textAlign: "left" }, copyButton: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, backgroundColor: colors.surfaceElevated }, copyText: { color: colors.primary, fontSize: 12, fontWeight: "700" }, codeScroll: { maxHeight: 280, width: "100%" }, codeContent: { minWidth: "100%" }, codeText: { color: colors.textPrimary, fontFamily: "monospace", fontSize: 14, lineHeight: 22, writingDirection: "ltr", textAlign: "left" },
+  previewFrame: { width: "100%", minHeight: 360, overflow: "hidden", borderRadius: 8, backgroundColor: "#fff" }, mobilePreviewFrame: { width: "100%", maxWidth: 390, minHeight: 0, height: 780, alignSelf: "center", padding: 8, borderRadius: 28, borderWidth: 3, borderColor: "#343844", backgroundColor: "#11131a" }, mobilePreviewShell: { width: "100%", height: "100%", overflow: "hidden", borderRadius: 20, backgroundColor: "#fff" }, mobilePreviewCamera: { height: 12, width: "100%", backgroundColor: "#11131a" }, fullscreenPreviewFrame: { position: "fixed", top: 0, right: 0, bottom: 0, left: 0, zIndex: 99999, width: "100vw", height: "100vh", minHeight: 0, maxWidth: "none", borderRadius: 0, padding: 0, backgroundColor: "#080b14" } as any, activePreviewButton: { borderWidth: 1, borderColor: colors.primary }, previewHint: { color: colors.textMuted, fontSize: 11, textAlign: "left", marginTop: 6 }, codeContainer: { width: "100%", backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.divider, padding: 12, marginVertical: 10, overflow: "hidden" }, codeHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }, codeLanguage: { color: colors.textMuted, fontSize: 12, writingDirection: "ltr", textAlign: "left" }, copyButton: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 6, backgroundColor: colors.surfaceElevated }, copyText: { color: colors.primary, fontSize: 12, fontWeight: "700" }, codeScroll: { maxHeight: 280, width: "100%" }, codeContent: { minWidth: "100%" }, codeText: { color: colors.textPrimary, fontFamily: "monospace", fontSize: 14, lineHeight: 22, writingDirection: "ltr", textAlign: "left" },
 });
