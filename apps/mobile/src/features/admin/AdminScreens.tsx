@@ -209,18 +209,17 @@ export function ProvidersAdminScreen() {
     setProviderModelTestResults((current) => ({ ...current, [model.id]: "جارٍ الاختبار…" }));
     try {
       const result = await adminService.testModel(model.id);
-      setProviderModelTestResults((current) => ({
-        ...current,
-        [model.id]: result.status === "success"
-          ? `ناجح · ${Number(result.duration_ms ?? 0)}ms`
-          : `فشل · ${result.error_code ?? "unknown"}`,
-      }));
+      const resultLabel = result.status === "success"
+        ? `نجح اختبار ${model.name} · ${Number(result.duration_ms ?? 0)}ms`
+        : `فشل اختبار ${model.name}: ${result.error_code ?? "سبب غير محدد"}`;
+      setProviderModelTestResults((current) => ({ ...current, [model.id]: resultLabel }));
+      if (result.status === "success") setNotice(resultLabel);
+      else setError(resultLabel);
       await load();
     } catch (cause) {
-      setProviderModelTestResults((current) => ({
-        ...current,
-        [model.id]: cause instanceof Error ? cause.message : "فشل الاختبار.",
-      }));
+      const failure = cause instanceof Error ? cause.message : "فشل الاختبار.";
+      setProviderModelTestResults((current) => ({ ...current, [model.id]: failure }));
+      setError(`تعذر اختبار ${model.name}: ${failure}`);
     } finally { setTestingProviderModelId(null); }
   };
 
