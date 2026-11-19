@@ -19,9 +19,8 @@ import { MessageBubble, type MessageFeedback } from "../../src/features/chat/com
 import { StreamingStatus } from "../../src/features/chat/components/StreamingStatus";
 import { uploadMediaFile } from "../../src/features/media/media-service";
 import { logFrictionEvent } from "../../src/features/telemetry/friction";
-import { ShareConversationSheet } from "../../src/features/chat/components/ShareConversationSheet";
 import { BottomSheet } from "../../src/components/ui/BottomSheet";
-import { getCurrentCreditBalance, getTaskRating, getTaskUsage, saveTaskRating, type TaskRating, type TaskUsage } from "../../src/features/credits/credit-service";
+import { getCurrentCreditBalance, getTaskRating, saveTaskRating, type TaskRating } from "../../src/features/credits/credit-service";
 import { useToast } from "../../src/components/ui/Toast";
 import { supabase } from "../../src/lib/supabase/client";
 import { integrationService, type ToolkitStatus } from "../../src/features/integrations/integration-service";
@@ -165,12 +164,7 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = useState(Boolean(routeConversationId));
   const [error, setError] = useState<string | null>(null);
   const [retryFailure, setRetryFailure] = useState<{ conversationId: string; userMessageId: string } | null>(null);
-  const [adminAccess, setAdminAccess] = useState<{ userId: string | null; allowed: boolean }>({ userId: null, allowed: false });
   const [feedbackByMessage, setFeedbackByMessage] = useState<Record<string, MessageFeedback>>({});
-  const [shareVisible, setShareVisible] = useState(false);
-  const [usageVisible, setUsageVisible] = useState(false);
-  const [taskUsage, setTaskUsage] = useState<TaskUsage | null>(null);
-  const [usageLoading, setUsageLoading] = useState(false);
   const [taskRating, setTaskRating] = useState<TaskRating | null>(null);
   const [ratingStars, setRatingStars] = useState(0);
   const [ratingNote, setRatingNote] = useState("");
@@ -178,11 +172,6 @@ export default function ChatPage() {
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const suggestions = isArabic ? TASK_SUGGESTIONS : TASK_SUGGESTIONS_EN;
   const [connectorApproval, setConnectorApproval] = useState<{ content: string; toolkit: ToolkitStatus["toolkit"]; intent: "read" | "write"; connected: boolean; accountExists: boolean; disabled: boolean; writeApproval: ConnectorWriteApproval | null } | null>(null);
-  const closeShareSheet = useCallback(() => setShareVisible(false), []);
-  const startNewConversation = useCallback(() => {
-    if (isSending) return;
-    router.setParams({ conversationId: undefined });
-  }, [isSending, router]);
   const composerRef = useRef<ChatComposerHandle>(null);
   const listRef = useRef<FlatList<ChatMessage>>(null);
   const isNearBottomRef = useRef(true);
@@ -210,7 +199,6 @@ export default function ChatPage() {
   const internalConversationTransitionRef = useRef<string | null>(null);
   const optimisticMessageIdRef = useRef<string | null>(null);
   const streamedTextRef = useRef("");
-  const isAdmin = Boolean(user?.id && adminAccess.userId === user.id && adminAccess.allowed);
   const displayMessages = useMemo(() => buildDisplayMessages(messages, responseIndexByUser), [messages, responseIndexByUser]);
   const hasActiveAgentExecution = agentProgress.some((progress) => !["completed", "failed", "cancelled"].includes(progress.status));
 
@@ -223,14 +211,6 @@ export default function ChatPage() {
     catch { setCreditBalance(null); }
   }, [user?.id]);
 
-  const loadTaskUsage = useCallback(async () => {
-    if (!conversationId) { setTaskUsage(null); return; }
-    setUsageLoading(true);
-    try { setTaskUsage(await getTaskUsage(conversationId)); } catch { setTaskUsage(null); }
-    finally { setUsageLoading(false); }
-  }, [conversationId]);
-
-  useEffect(() => { void loadTaskUsage(); }, [loadTaskUsage, messages.length]);
   useEffect(() => {
     if (!conversationId) { setTaskRating(null); return; }
     void getTaskRating(conversationId).then((value) => { setTaskRating(value); if (value) { setRatingStars(value.stars); setRatingNote(value.note ?? ""); } }).catch(() => undefined);
@@ -240,25 +220,6 @@ export default function ChatPage() {
     return undefined;
   }, [refreshCreditBalance]));
 
-
-
-  useEffect(() => {
-    let active = true;
-    if (!user) {
-      setAdminAccess({ userId: null, allowed: false });
-      return () => { active = false; };
-    }
-    setAdminAccess({ userId: user.id, allowed: false });
-    void (async () => {
-      try {
-        const { data, error: rpcError } = await supabase.rpc("suly_is_admin");
-        if (active) setAdminAccess({ userId: user.id, allowed: !rpcError && data === true });
-      } catch {
-        if (active) setAdminAccess({ userId: user.id, allowed: false });
-      }
-    })();
-    return () => { active = false; };
-  }, [user?.id]);
 
   useEffect(() => {
     let active = true;
@@ -396,6 +357,7 @@ export default function ChatPage() {
       const controller = new AbortController();
       abortRef.current = controller;
       let id = conversationId;
+      let createdConversationId: string | null = null;
       let savedUserMessage = false;
       let savedUserMessageId: string | null = null;
       let streamCompleted = false;
@@ -403,6 +365,7 @@ export default function ChatPage() {
         if (!id) {
           const conversation = await chatService.createConversation(isArabic ? "محادثة جديدة" : "New Conversation", routeProjectId || null);
           id = conversation.id;
+          createdConversationId = conversation.id;
           setConversationId(id);
           internalConversationTransitionRef.current = id;
           // Update the current route params without replacing/remounting the chat screen.
@@ -453,7 +416,14 @@ export default function ChatPage() {
         streamCompleted = true;
         await reloadMessages(conversationKey);
       } catch (cause) {
-        if (!savedUserMessage) setMessages((current) => current.filter((item) => item.id !== optimisticMessageId));
+        if (!savedUserMessage) {
+          setMessages((current) => current.filter((item) => item.id !== optimisticMessageId));
+          if (createdConversationId) {
+            try { await chatService.deleteConversation(createdConversationId); } catch { /* best-effort cleanup of an unsent draft */ }
+            setConversationId(null);
+            router.setParams({ conversationId: undefined });
+          }
+        }
         const partialContent = streamedTextRef.current.trim();
         if (controller.signal.aborted) {
           if (partialContent) {
@@ -760,54 +730,18 @@ export default function ChatPage() {
     );
   };
 
-  const shareTitle = messages.find((message) => message.role === "user")?.content.slice(0, 48) || (isArabic ? "محادثة Suly" : "SULY conversation");
-
-  const shareText = messages.map((message) => `${message.role === "user" ? (isArabic ? "أنت" : "You") : "Suly"}:\n${message.content}`).join("\n\n");
-
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right", "bottom"]}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : Platform.OS === "android" ? "height" : undefined} keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}>
         <View style={styles.appBar}>
-          {messages.length === 0 ? (
-            <Pressable onPress={() => router.replace("/home" as never)} style={styles.headerButton} accessibilityRole="button" accessibilityLabel={isArabic ? "العودة إلى مهامي" : "Return to My tasks"}>
-              <Ionicons name="home-outline" size={21} color={colors.textPrimary} />
-            </Pressable>
-          ) : (
-            <>
-              <Pressable
-                onPress={startNewConversation}
-                disabled={isSending}
-                style={styles.headerButton}
-                accessibilityRole="button"
-                accessibilityLabel={isArabic ? "بدء محادثة جديدة" : "Start a new conversation"}
-              >
-                <Ionicons name="create-outline" size={22} color={colors.textPrimary} />
-              </Pressable>
-
-              <View style={styles.headerActions}>
-                {isAdmin ? (
-                  <TouchableOpacity
-                    onPress={() => router.push("/admin")}
-                    style={styles.adminShortcut}
-                    activeOpacity={0.7}
-                    accessibilityRole="button"
-                    accessibilityLabel={isArabic ? "فتح لوحة الأدمن" : "Open admin dashboard"}
-                  >
-                    <Ionicons name="shield-checkmark-outline" size={16} color={colors.primary} />
-                    <Text style={styles.adminShortcutText}>{isArabic ? "الأدمن" : "Admin"}</Text>
-                  </TouchableOpacity>
-                ) : null}
-
-                <TouchableOpacity onPress={() => setShareVisible(true)} style={styles.headerButton} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={isArabic ? "مشاركة المحادثة" : "Share conversation"}>
-                  <Ionicons name="share-social-outline" size={18} color={colors.textMuted} />
-                </TouchableOpacity>
-              </View>
-
-              <Pressable onPress={() => router.replace("/home" as never)} style={styles.headerButton} accessibilityRole="button" accessibilityLabel={isArabic ? "العودة إلى مهامي" : "Return to My tasks"}>
-                <Ionicons name="home-outline" size={21} color={colors.textPrimary} />
-              </Pressable>
-            </>
-          )}
+          <Pressable
+            onPress={() => router.canGoBack() ? router.back() : router.replace("/home" as never)}
+            style={styles.headerButton}
+            accessibilityRole="button"
+            accessibilityLabel={isArabic ? "الخروج من المحادثة" : "Exit conversation"}
+          >
+            <Ionicons name="arrow-forward" size={22} color={colors.textPrimary} />
+          </Pressable>
         </View>
 
         {error ? <Pressable onPress={() => setError(null)} style={styles.errorBox}><Text style={styles.errorText}>{error}  ×</Text></Pressable> : null}
@@ -855,18 +789,7 @@ export default function ChatPage() {
           onCancel={() => abortRef.current?.abort()}
         />
       </KeyboardAvoidingView>
-      <ShareConversationSheet visible={shareVisible} conversationId={conversationId} title={shareTitle} plainText={shareText} onClose={closeShareSheet} />
-      <BottomSheet visible={usageVisible} title={isArabic ? "إحصائيات المهمة الحالية" : "Current task usage"} onClose={() => setUsageVisible(false)}>
-        {usageLoading ? <ActivityIndicator color={colors.primary} /> : taskUsage ? <View style={styles.usageSheet}>
-          <Text style={styles.usageTaskTitle}>{taskUsage.taskTitle}</Text>
-          <Text style={styles.usageStatus}>{isArabic ? `الحالة: ${taskUsage.status === "settled" ? "مكتملة" : taskUsage.status === "held" ? "قيد التنفيذ" : taskUsage.status}` : `Status: ${taskUsage.status === "settled" ? "Completed" : taskUsage.status === "held" ? "In progress" : taskUsage.status}`}</Text>
-          <Text style={styles.ratingPrompt}>{taskRating ? (isArabic ? "تقييمك لهذه المهمة" : "Your task rating") : (isArabic ? "قيّم هذه المهمة" : "Rate this task")}</Text>
-          <View style={styles.starsRow}>{[1, 2, 3, 4, 5].map((star) => <Pressable key={star} onPress={() => setRatingStars(star)} accessibilityRole="button" accessibilityLabel={isArabic ? `تقييم ${star} نجوم` : `Rate ${star} stars`}><Text style={[styles.star, star <= (taskRating?.stars ?? ratingStars) && styles.starSelected]}>★</Text></Pressable>)}</View>
-          <TextInput value={ratingNote} onChangeText={setRatingNote} placeholder={isArabic ? "يمكنك تقديم ملاحظاتك للحصول على أفضل خدمة" : "Share feedback to help us improve."} placeholderTextColor={colors.textMuted} style={styles.ratingInput} multiline maxLength={2000} />
-          <Pressable disabled={ratingSaving || ratingStars === 0} style={[styles.ratingSubmit, (ratingSaving || ratingStars === 0) && styles.disabled]} onPress={() => { if (!conversationId) return; setRatingSaving(true); void saveTaskRating({ conversationId, taskId: taskUsage.taskId, stars: ratingStars, note: ratingNote }).then(() => { setTaskRating({ stars: ratingStars, note: ratingNote.trim() || null }); show(isArabic ? "تم إرسال تقييم المهمة." : "Task rating submitted.", "success"); }).catch((cause) => show(cause instanceof Error ? cause.message : (isArabic ? "تعذر إرسال التقييم." : "Could not submit rating."), "error")).finally(() => setRatingSaving(false)); }}><Text style={styles.ratingSubmitText}>{ratingSaving ? "جارٍ الإرسال…" : "حفظ التقييم"}</Text></Pressable>
-        </View> : <Text style={styles.loadingText}>{isArabic ? "لا يوجد استهلاك مسجل لهذه المحادثة بعد." : "No usage has been recorded for this conversation yet."}</Text>}
-      </BottomSheet>
-      <BottomSheet
+            <BottomSheet
         visible={Boolean(connectorApproval)}
         title={connectorApproval?.connected ? (isArabic ? "مراجعة الإجراء" : "Review action") : (isArabic ? "يلزم الاتصال قبل تنفيذ الطلب" : "Connect before running this request")}
         onClose={cancelConnectorApproval}
@@ -897,7 +820,7 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => {
   return StyleSheet.create({
   safe: { flex: 1, backgroundColor: canvasBackground },
   flex: { flex: 1 },
-  appBar: { minHeight: 58, flexDirection: "row", direction: "ltr", alignItems: "center", justifyContent: "space-between", gap: 10, paddingHorizontal: Platform.OS === "web" ? 24 : 18, backgroundColor: canvasBackground },
+  appBar: { minHeight: 58, flexDirection: "row", direction: "ltr", alignItems: "center", justifyContent: "flex-end", paddingHorizontal: Platform.OS === "web" ? 24 : 18, backgroundColor: canvasBackground },
   headerButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 22, backgroundColor: "transparent", borderWidth: 0 },
   diamondBadge: { width: 28, height: 28 },
   menuLinesWrap: { width: 22, gap: 6, alignItems: "center", justifyContent: "center" },
