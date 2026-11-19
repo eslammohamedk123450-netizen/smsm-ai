@@ -84,6 +84,7 @@ function inspectCompletion(payload: unknown): { hasText: boolean; errorCode: str
   const choices = Array.isArray(root.choices) ? root.choices : [];
   const firstChoice = asRecord(choices[0]);
   const message = asRecord(firstChoice.message);
+  const delta = asRecord(firstChoice.delta);
   const response = asRecord(root.response);
   const outputRows = Array.isArray(root.output) ? root.output : [];
   const outputText = outputRows.map((row) => {
@@ -92,7 +93,8 @@ function inspectCompletion(payload: unknown): { hasText: boolean; errorCode: str
   }).join("");
   const candidates = [
     message.content, message.reasoning_content, message.reasoning, message.analysis,
-    message.refusal, firstChoice.text, firstChoice.reasoning, root.output_text,
+    message.refusal, delta.content, delta.reasoning_content, delta.reasoning, delta.text,
+    firstChoice.text, firstChoice.reasoning, root.output_text,
     response.output_text, outputText,
   ];
   if (candidates.some((value) => contentText(value).trim().length > 0)) {
