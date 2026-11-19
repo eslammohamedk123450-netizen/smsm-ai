@@ -152,12 +152,18 @@ function parseSseFrame(
   const root = asRecord(payload);
   const choices = Array.isArray(root.choices) ? root.choices : [];
   const finishReason = asRecord(choices[0]).finish_reason;
+  const geminiCandidates = Array.isArray(root.candidates) ? root.candidates : [];
+  const geminiFinishReason = asRecord(geminiCandidates[0]).finishReason;
   if (typeof finishReason === "string" && finishReason) onFinishReason?.(finishReason);
+  if (typeof geminiFinishReason === "string" && geminiFinishReason) {
+    onFinishReason?.(geminiFinishReason.toUpperCase() === "MAX_TOKENS" ? "length" : geminiFinishReason.toLowerCase());
+  }
+  const terminalEvent = ["message_stop", "response.completed", "response.done"].includes(String(root.type ?? ""));
   const usage = extractOpenAiUsage(payload);
   if (usage.inputTokens !== null || usage.outputTokens !== null || usage.providerCostEgp !== null) {
     onUsage(usage.inputTokens, usage.outputTokens, usage.providerCostEgp);
   }
-  return { done: false, text: extractOpenAiText(payload) };
+  return { done: terminalEvent || typeof geminiFinishReason === "string" && geminiFinishReason.length > 0, text: extractOpenAiText(payload) };
 }
 
 /**
@@ -218,11 +224,11 @@ export async function* readOpenAiResponse(
         const line = rawLine.trimEnd();
         if (!line.startsWith("data:")) continue;
         const frame = parseSseFrame(line.slice(5).trim(), onUsage, reportFinishReason);
+        if (frame.text) yield frame.text;
         if (frame.done) {
           sawDoneMarker = true;
           return;
         }
-        if (frame.text) yield frame.text;
       }
 
       if (done) break;
@@ -231,8 +237,8 @@ export async function* readOpenAiResponse(
     const finalLine = buffer.trimEnd();
     if (finalLine.startsWith("data:")) {
       const frame = parseSseFrame(finalLine.slice(5).trim(), onUsage, reportFinishReason);
-      if (frame.done) sawDoneMarker = true;
       if (frame.text) yield frame.text;
+      if (frame.done) sawDoneMarker = true;
     }
     // EOF without [DONE] or a provider finish_reason means the gateway may
     // have silently truncated the stream. Surface this to the continuation layer.
