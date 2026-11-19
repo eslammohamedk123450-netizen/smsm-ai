@@ -342,10 +342,12 @@ export const chatService = {
     void supabase.from("suly_conversations")
       .update(conversationUpdate)
       .eq("id", options.conversationId).eq("user_id", user.id)
-      .then(({ error: updateError }) => {
-        if (updateError) console.warn("Could not update conversation metadata:", updateError.message);
-      })
-      .catch(() => undefined);
+      .then(
+        ({ error: updateError }) => {
+          if (updateError) console.warn("Could not update conversation metadata:", updateError.message);
+        },
+        () => undefined,
+      );
 
     // Basic-chat mode uses the administrator-managed priority chain; Studio execution is dormant.
 
