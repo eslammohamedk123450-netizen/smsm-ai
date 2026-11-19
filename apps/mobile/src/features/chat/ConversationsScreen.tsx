@@ -42,7 +42,7 @@ export function ConversationsScreen() {
     setLoading(true); setError(null);
     try {
       const [conversations, taskRows] = await Promise.all([
-        filter === "archived" ? chatService.listArchivedConversations(200) : chatService.listConversations(200),
+        filter === "archived" ? chatService.listArchivedConversations(200) : filter === "favorites" ? chatService.listFavoriteConversations(200) : chatService.listConversations(200),
         filter === "all" ? listTaskHistory(100).catch(() => [] as TaskHistoryItem[]) : Promise.resolve([] as TaskHistoryItem[]),
       ]);
       setItems(conversations);
