@@ -82,6 +82,27 @@ jobs:
           print(f"Verified single production export with {len(scripts)} JavaScript bundles.")
           PY
 
+      - name: Preserve bundles referenced by previously cached clients
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/suly-previous-assets
+          previous_runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/deploy-pages.yml/runs?branch=release%2Fv1&status=success&per_page=10" --jq ".workflow_runs[] | select(.id != ${GITHUB_RUN_ID}) | .id" | head -n 5)"
+          for run_id in ${previous_runs}; do
+            artifact_id="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts" --jq '.artifacts[] | select(.name | startswith("suly-web-assets-")) | .id' | head -n 1)"
+            if [ -z "${artifact_id}" ]; then
+              continue
+            fi
+            archive="/tmp/suly-previous-assets/${run_id}.zip"
+            destination="/tmp/suly-previous-assets/${run_id}"
+            mkdir -p "${destination}"
+            curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}/zip" -o "${archive}"
+            unzip -q "${archive}" -d "${destination}"
+            cp -an "${destination}/." site/_expo/
+          done
+          echo "Preserved prior hashed Expo bundles for clients holding cached HTML."
+
       - name: Archive production assets for stale-client recovery
         uses: actions/upload-artifact@v4
         with:
