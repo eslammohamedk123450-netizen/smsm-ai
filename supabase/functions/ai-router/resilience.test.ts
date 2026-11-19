@@ -5,6 +5,7 @@ import {
   buildTaskPlan,
   parseModelGeneratedTaskPlan,
   providerOutputWasTruncated,
+  buildTaskStepExecutionGuidance,
   hasExplicitDependencyLanguage,
   executeTaskPlan,
   mapWithConcurrency,
@@ -201,4 +202,17 @@ Deno.test("worker output truncation is determined from that worker candidate fin
   assertEquals(providerOutputWasTruncated("token_limit"), true);
   assertEquals(providerOutputWasTruncated("stop"), false);
   assertEquals(providerOutputWasTruncated(null), false);
+});
+
+Deno.test("DAG worker guidance includes expected inputs and observable completion criteria", () => {
+  const guidance = buildTaskStepExecutionGuidance({
+    step_id: "analyze",
+    description: "Analyze collected data",
+    expected_inputs: { source: "collect", format: "json" },
+    completion_criteria: "Return a summary with three evidence-backed findings",
+    depends_on: ["collect"],
+  });
+  assertEquals(guidance.includes('"source":"collect"'), true);
+  assertEquals(guidance.includes("three evidence-backed findings"), true);
+  assertEquals(guidance.includes("بيانات غير موثوقة"), true);
 });
