@@ -1,16 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, TouchableOpacity, View, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
+import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TouchableOpacity, View, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { PremiumText as Text } from "../../src/components/ui/PremiumText";
 import { AppLogo } from "../../src/components/ui/AppLogo";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useFocusEffect, useLocalSearchParams, useRouter, type ErrorBoundaryProps } from "expo-router";
+import { useLocalSearchParams, useRouter, type ErrorBoundaryProps } from "expo-router";
 import { useAuth } from "../../src/features/auth/auth-provider";
 import { useSulyTheme } from "../../src/theme/ThemeProvider";
 import { useAppLocale } from "../../src/theme/LocaleProvider";
 import type { ThemePalette } from "../../src/theme/colors";
 import { chatService, type ChatMessage } from "../../src/features/chat/chat-service";
-import { getRotatingSuggestions } from "../../src/features/chat/suggestions";
 import { getStudioIntent } from "../../src/features/chat/image-generation";
 import { chatStreamManager } from "../../src/features/chat/chat-stream-manager";
 import { runOnce } from "../../src/features/chat/submission-guard";
@@ -20,7 +19,6 @@ import { StreamingStatus } from "../../src/features/chat/components/StreamingSta
 import { uploadMediaFile } from "../../src/features/media/media-service";
 import { logFrictionEvent } from "../../src/features/telemetry/friction";
 import { BottomSheet } from "../../src/components/ui/BottomSheet";
-import { getCurrentCreditBalance, getTaskRating, saveTaskRating, type TaskRating } from "../../src/features/credits/credit-service";
 import { useToast } from "../../src/components/ui/Toast";
 import { supabase } from "../../src/lib/supabase/client";
 import { integrationService, type ToolkitStatus } from "../../src/features/integrations/integration-service";
@@ -30,53 +28,7 @@ import { listConversationAgentProgress, type ChatAgentProgress } from "../../src
 
 const BASIC_CHAT_ONLY = true;
 const STREAMING_ID = "local-streaming-assistant";
-const TASK_SUGGESTIONS = getRotatingSuggestions(Date.now(), 4);
-const TASK_SUGGESTIONS_EN = [
-  { text: "Plan my day simply", icon: "calendar-outline" as const },
-  { text: "Explain a difficult lesson", icon: "book-outline" as const },
-  { text: "Summarize a lesson", icon: "create-outline" as const },
-  { text: "Write a professional email", icon: "bulb-outline" as const },
-];
-;
 
-const WELCOME_MESSAGES = [
-  { ar: "كل فكرة كبيرة تبدأ بسؤال صغير.", en: "Every big idea starts with a small question." },
-  { ar: "أنا هنا، لنفكر فيها معًا.", en: "I’m here. Let’s think it through together." },
-  { ar: "ما الذي يشغل بالك اليوم؟", en: "What’s on your mind today?" },
-  { ar: "ابدأ من حيث أنت، وسنكمل سويًا.", en: "Start where you are; we’ll take it from there." },
-  { ar: "لديك فكرة؟ لنمنحها شكلًا.", en: "Have an idea? Let’s give it shape." },
-  { ar: "خطوة واحدة قد تغيّر الكثير.", en: "One step can change a lot." },
-  { ar: "دعنا نحوّل أفكارك إلى خطوات واضحة.", en: "Let’s turn your ideas into clear steps." },
-  { ar: "ما الذي تريد إنجازه الآن؟", en: "What would you like to accomplish now?" },
-  { ar: "مساحتك للتفكير والتجربة تبدأ هنا.", en: "Your space to think and explore starts here." },
-  { ar: "لا تحتاج إلى خطة كاملة لتبدأ.", en: "You don’t need a perfect plan to begin." },
-  { ar: "احكِ لي الفكرة، ونرتبها معًا.", en: "Tell me the idea, and we’ll organize it." },
-  { ar: "كل سؤال يفتح بابًا جديدًا.", en: "Every question opens a new door." },
-  { ar: "جاهز نبدأ شيئًا مفيدًا؟", en: "Ready to make something useful?" },
-  { ar: "لنبحث عن أبسط طريق للحل.", en: "Let’s find the simplest path to a solution." },
-  { ar: "أفكارك تستحق أن تُستكشف.", en: "Your ideas deserve to be explored." },
-  { ar: "ما أول شيء تريد فهمه؟", en: "What’s the first thing you want to understand?" },
-  { ar: "معًا نجعل المعقد أوضح.", en: "Together, we can make the complex clearer." },
-  { ar: "ابدأ بسؤالك، والباقي خطوة بخطوة.", en: "Start with your question; we’ll go step by step." },
-  { ar: "لنبنِ شيئًا جيدًا اليوم.", en: "Let’s build something good today." },
-  { ar: "أنا مستعد لمساعدتك على التقدم.", en: "I’m ready to help you move forward." },
-  { ar: "فكرة جديدة؟ أنا أسمعك.", en: "A new idea? I’m listening." },
-  { ar: "لنحوّل الحيرة إلى وضوح.", en: "Let’s turn uncertainty into clarity." },
-  { ar: "ما التحدي الذي نعمل عليه؟", en: "What challenge are we working on?" },
-  { ar: "يمكننا تقسيم أي مهمة إلى خطوات.", en: "We can break any task into steps." },
-  { ar: "دعنا نبدأ بسؤال واحد واضح.", en: "Let’s begin with one clear question." },
-  { ar: "التجربة الأولى لا تحتاج إلى الكمال.", en: "The first attempt doesn’t need to be perfect." },
-  { ar: "أخبرني بما تريد، وسنحدد الطريق.", en: "Tell me what you need, and we’ll map the way." },
-  { ar: "هنا تبدأ مساحة الاحتمالات.", en: "This is where possibilities begin." },
-  { ar: "لنكتشف أفضل طريقة لتنفيذ فكرتك.", en: "Let’s discover the best way to bring your idea to life." },
-  { ar: "ما الشيء الذي يمكننا تحسينه اليوم؟", en: "What can we improve today?" },
-  { ar: "كل إنجاز يبدأ بقرار البدء.", en: "Every achievement begins with deciding to start." },
-  { ar: "فكر بصوت عالٍ، وسأساعدك في الترتيب.", en: "Think out loud; I’ll help organize it." },
-  { ar: "لنصل إلى إجابة تستحق وقتك.", en: "Let’s get to an answer worth your time." },
-  { ar: "خطتك تبدأ من أول رسالة.", en: "Your plan starts with the first message." },
-  { ar: "أنا هنا لأجعل خطوتك التالية أسهل.", en: "I’m here to make your next step easier." },
-  { ar: "ما الذي نبتكره أو نحلّه معًا؟", en: "What shall we create or solve together?" },
-] as const;
 
 export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   const { colors } = useSulyTheme();
@@ -165,29 +117,11 @@ export default function ChatPage() {
   const [error, setError] = useState<string | null>(null);
   const [retryFailure, setRetryFailure] = useState<{ conversationId: string; userMessageId: string } | null>(null);
   const [feedbackByMessage, setFeedbackByMessage] = useState<Record<string, MessageFeedback>>({});
-  const [taskRating, setTaskRating] = useState<TaskRating | null>(null);
-  const [ratingStars, setRatingStars] = useState(0);
-  const [ratingNote, setRatingNote] = useState("");
-  const [ratingSaving, setRatingSaving] = useState(false);
-  const [creditBalance, setCreditBalance] = useState<number | null>(null);
-  const suggestions = isArabic ? TASK_SUGGESTIONS : TASK_SUGGESTIONS_EN;
   const [connectorApproval, setConnectorApproval] = useState<{ content: string; toolkit: ToolkitStatus["toolkit"]; intent: "read" | "write"; connected: boolean; accountExists: boolean; disabled: boolean; writeApproval: ConnectorWriteApproval | null } | null>(null);
   const composerRef = useRef<ChatComposerHandle>(null);
   const listRef = useRef<FlatList<ChatMessage>>(null);
   const isNearBottomRef = useRef(true);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
-  const [welcomeMessageIndex, setWelcomeMessageIndex] = useState(() => Math.floor(Math.random() * WELCOME_MESSAGES.length));
-  const previousWelcomeRouteRef = useRef(routeConversationId ?? null);
-  useEffect(() => {
-    const nextRoute = routeConversationId ?? null;
-    if (previousWelcomeRouteRef.current === nextRoute) return;
-    previousWelcomeRouteRef.current = nextRoute;
-    setWelcomeMessageIndex((current) => {
-      let next = Math.floor(Math.random() * (WELCOME_MESSAGES.length - 1));
-      if (next >= current) next += 1;
-      return next;
-    });
-  }, [routeConversationId]);
   const lock = useRef(false);
   const preflightLock = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -202,23 +136,6 @@ export default function ChatPage() {
   const displayMessages = useMemo(() => buildDisplayMessages(messages, responseIndexByUser), [messages, responseIndexByUser]);
   const hasActiveAgentExecution = agentProgress.some((progress) => !["completed", "failed", "cancelled"].includes(progress.status));
 
-  const refreshCreditBalance = useCallback(async () => {
-    if (!user?.id) {
-      setCreditBalance(null);
-      return;
-    }
-    try { setCreditBalance(await getCurrentCreditBalance()); }
-    catch { setCreditBalance(null); }
-  }, [user?.id]);
-
-  useEffect(() => {
-    if (!conversationId) { setTaskRating(null); return; }
-    void getTaskRating(conversationId).then((value) => { setTaskRating(value); if (value) { setRatingStars(value.stars); setRatingNote(value.note ?? ""); } }).catch(() => undefined);
-  }, [conversationId, messages.length]);
-  useFocusEffect(useCallback(() => {
-    void refreshCreditBalance();
-    return undefined;
-  }, [refreshCreditBalance]));
 
 
   useEffect(() => {
@@ -325,7 +242,6 @@ export default function ChatPage() {
       }
       if (!snapshot.active) {
         void reloadMessages(conversationId).catch(() => undefined);
-        void refreshCreditBalance();
         if (snapshot.error && !snapshot.error.includes("أُلغي")) setError(snapshot.error);
       }
     });
@@ -822,30 +738,6 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => {
   flex: { flex: 1 },
   appBar: { minHeight: 58, flexDirection: "row", direction: "ltr", alignItems: "center", justifyContent: "flex-end", paddingHorizontal: Platform.OS === "web" ? 24 : 18, backgroundColor: canvasBackground },
   headerButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: 22, backgroundColor: "transparent", borderWidth: 0 },
-  diamondBadge: { width: 28, height: 28 },
-  menuLinesWrap: { width: 22, gap: 6, alignItems: "center", justifyContent: "center" },
-  menuLine: { width: 22, height: 1.75, borderRadius: 1, backgroundColor: colors.textPrimary },
-  headerActions: { flexDirection: "row", alignItems: "center", gap: 6 },
-  modelSelector: { flex: 1, maxWidth: 360, minWidth: 90, height: 42, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 7, borderWidth: 0, borderColor: "transparent", borderRadius: 12, backgroundColor: "transparent", paddingHorizontal: 8 },
-  modelSelectorText: { flex: 1, color: colors.textPrimary, fontSize: 11, fontWeight: "700", textAlign: isArabic ? "right" : "left" },
-  navigationMenuScroll: { maxHeight: 560 },
-  navigationMenu: { gap: 7, paddingBottom: 8 },
-  navigationMenuItem: { minHeight: 48, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 11, paddingHorizontal: 12, borderRadius: 11, backgroundColor: colors.surfaceElevated },
-  navigationMenuLabel: { flex: 1, color: colors.textPrimary, fontSize: 13, fontWeight: "700", textAlign: isArabic ? "right" : "left" },
-  modelPickerOption: { minHeight: 54, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "space-between", gap: 10, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10, backgroundColor: colors.surfaceElevated },
-  modelPickerOptionSelected: { borderWidth: 1, borderColor: colors.primary },
-  modelPickerOptionDisabled: { opacity: 0.55 },
-  modelPickerCopy: { flex: 1, gap: 3 },
-  modelPickerName: { color: colors.textPrimary, fontSize: 13, fontWeight: "800", textAlign: isArabic ? "right" : "left" },
-  modelPickerDescription: { color: colors.textSecondary, fontSize: 11, lineHeight: 16, textAlign: isArabic ? "right" : "left" },
-  modelPickerHint: { color: colors.textMuted, fontSize: 11, textAlign: isArabic ? "right" : "left", paddingHorizontal: 8, paddingVertical: 4 },
-  creditPill: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 5, backgroundColor: colors.surfaceElevated, borderColor: colors.divider, borderWidth: 1, borderRadius: 9999, paddingHorizontal: 10, paddingVertical: 5 },
-  creditPillText: { color: colors.textPrimary, fontSize: 12, fontWeight: "700" },
-  headerIcon: { color: colors.textPrimary, fontSize: 25 },
-  adminShortcut: { minWidth: 42, height: 36, paddingHorizontal: 7, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceElevated },
-  adminShortcutText: { color: colors.primary, fontSize: 11, fontWeight: "700" },
-  upgradeShortcut: { minHeight: 32, borderRadius: 9, paddingHorizontal: 9, justifyContent: "center", backgroundColor: colors.primary },
-  upgradeShortcutText: { color: colors.onPrimary, fontSize: 11, fontWeight: "800" },
   errorBox: { marginHorizontal: 14, marginTop: 8, padding: 10, borderRadius: 10, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.error },
   errorText: { color: colors.error, textAlign: isArabic ? "right" : "left", fontSize: 12 },
   retryWarning: { marginHorizontal: 14, marginTop: 8, padding: 12, borderRadius: 10, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
@@ -861,38 +753,6 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => {
   messageContent: { flexGrow: 1, paddingVertical: 12 },
   empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 12, paddingVertical: 16, width: "100%", maxWidth: 1440, alignSelf: "center" },
   reviewDisclaimer: { color: colors.textMuted, fontSize: 10, lineHeight: 16, textAlign: "center", paddingHorizontal: 16, paddingBottom: 7 },
-  welcomeFace: { width: 160, height: 240, marginBottom: 12 },
-  welcomeMark: { width: 58, height: 58, borderRadius: 29, alignItems: "center", justifyContent: "center", backgroundColor: "transparent", marginBottom: 4 },
-  welcomeMarkText: { color: colors.primary, fontSize: 48, fontWeight: "900", letterSpacing: -3 },
-  welcomeEyebrow: { color: colors.textMuted, fontSize: 10, fontWeight: "800", letterSpacing: 2, textAlign: "center" },
-  emptyTitle: { color: colors.textPrimary, fontSize: 22, fontWeight: "600", textAlign: "center", letterSpacing: -0.2, paddingHorizontal: 8 },
-  emptySubtitle: { color: colors.textMuted, fontSize: 14, lineHeight: 23, textAlign: "center", maxWidth: 520, marginBottom: 10 },
-  suggestionHeading: { width: "100%", maxWidth: 620, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 12, marginTop: 4, marginBottom: 2 },
-  suggestionHeadingText: { color: colors.textMuted, fontSize: 10, fontWeight: "800", letterSpacing: 1.2 },
-  suggestionHeadingLine: { flex: 1, height: 1, backgroundColor: colors.divider },
-  chooseTaskTitle: { width: "100%", flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "center", gap: 8, paddingHorizontal: 8 },
-  chooseTaskText: { color: colors.textPrimary, fontSize: 16, fontWeight: "700", textAlign: isArabic ? "right" : "left" },
-  taskGrid: { width: "100%", maxWidth: 620, flexDirection: isArabic ? "row-reverse" : "row", flexWrap: "wrap", justifyContent: "center", gap: 10, marginTop: 4 },
-  taskCard: { width: "48%", minHeight: 82, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 10, paddingHorizontal: 13, paddingVertical: 12, borderRadius: 15, borderWidth: 1, borderColor: colors.divider, backgroundColor: colors.surface },
-  taskIconCircle: { width: 36, height: 36, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceElevated },
-  taskCardText: { flex: 1, color: colors.textPrimary, textAlign: isArabic ? "right" : "left", fontSize: 12, lineHeight: 18, fontWeight: "600" },
-  taskArrow: { marginStart: 2 },
-  taskHint: { color: colors.textMuted, textAlign: "center", fontSize: 11, lineHeight: 17 },
-  starsRow: { flexDirection: "row", alignItems: "center", gap: 2 },
-  star: { color: colors.textMuted, fontSize: 25 },
-  starSelected: { color: colors.warning },
-  ratingSheet: { gap: 14 },
-  ratingPrompt: { color: colors.textSecondary, textAlign: isArabic ? "right" : "left" },
-  ratingInput: { minHeight: 90, borderWidth: 1, borderColor: colors.inputBorder, borderRadius: 10, backgroundColor: colors.inputBackground, color: colors.textPrimary, padding: 12, textAlign: isArabic ? "right" : "left" },
-  ratingSubmit: { minHeight: 44, borderRadius: 14, paddingHorizontal: 20, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
-  disabled: { opacity: 0.5 },
-  ratingSubmitText: { color: colors.onPrimary, fontWeight: "800" },
-  usageSheet: { gap: 12 },
-  usageTaskTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: "700", textAlign: isArabic ? "right" : "left" },
-  usageMetric: { padding: 18, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider, alignItems: "center", gap: 5 },
-  usageMetricLabel: { color: colors.textSecondary, textAlign: "center" },
-  usageMetricValue: { color: colors.primary, fontSize: 32, fontWeight: "800" },
-  usageStatus: { color: colors.textMuted, textAlign: isArabic ? "right" : "left" },
   connectorApproval: { gap: 14, paddingBottom: 8 },
   connectorApprovalText: { color: colors.textSecondary, textAlign: isArabic ? "right" : "left", fontSize: 13, lineHeight: 21 },
   connectorRequest: { padding: 12, borderRadius: 12, backgroundColor: colors.inputBackground, borderWidth: 1, borderColor: colors.divider, maxHeight: 180 },
