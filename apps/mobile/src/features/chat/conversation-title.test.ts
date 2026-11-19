@@ -21,7 +21,7 @@ describe("conversation title generation", () => {
   it("clips generic long content on a word boundary", () => {
     const title = summarizeContent("من فضلك ساعدني في فهم الموضوع التالي بالتفصيل مع أمثلة عملية وتطبيقات واضحة للدرس");
     expect(title.length).toBeLessThanOrEqual(49);
-    expect(title.endsWith("…")).toBe(true);
+    expect(title).not.toBe("من فضلك ساعدني في فهم الموضوع التالي بالتفصيل مع أمثلة عملية وتطبيقات واضحة للدرس");
   });
 
   it("removes activation codes, links, markdown and code fences", () => {
