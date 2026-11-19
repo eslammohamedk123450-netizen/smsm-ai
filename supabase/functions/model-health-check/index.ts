@@ -6,7 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-suly-health-check-secret",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-const MAX_OUTPUT_TOKENS = 8;
+const MAX_OUTPUT_TOKENS = 64;
 const MAX_PROBE_TIMEOUT_MS = 10_000;
 const MANUAL_PROBE_TIMEOUT_MS = 20_000;
 const SCHEDULED_CONCURRENCY = 5;
@@ -69,10 +69,46 @@ function contentText(value: unknown): string {
     return value.map((part) => {
       if (typeof part === "string") return part;
       const item = asRecord(part);
-      return typeof item.text === "string" ? item.text : "";
+      return contentText(item.text ?? item.content ?? item.output_text);
     }).join("");
   }
+  if (value && typeof value === "object") {
+    const item = asRecord(value);
+    return contentText(item.text ?? item.content ?? item.output_text);
+  }
   return "";
+}
+
+function inspectCompletion(payload: unknown): { hasText: boolean; errorCode: string } {
+  const root = asRecord(payload);
+  const choices = Array.isArray(root.choices) ? root.choices : [];
+  const firstChoice = asRecord(choices[0]);
+  const message = asRecord(firstChoice.message);
+  const response = asRecord(root.response);
+  const outputRows = Array.isArray(root.output) ? root.output : [];
+  const outputText = outputRows.map((row) => {
+    const item = asRecord(row);
+    return contentText(item.content ?? item.text ?? item.output_text ?? item.summary);
+  }).join("");
+  const candidates = [
+    message.content, message.reasoning_content, message.reasoning, message.analysis,
+    message.refusal, firstChoice.text, firstChoice.reasoning, root.output_text,
+    response.output_text, outputText,
+  ];
+  if (candidates.some((value) => contentText(value).trim().length > 0)) {
+    return { hasText: true, errorCode: "" };
+  }
+  const finishReason = String(firstChoice.finish_reason ?? firstChoice.stop_reason ?? "").toLowerCase();
+  if (finishReason === "length" || finishReason === "max_tokens") {
+    return { hasText: false, errorCode: "response_truncated" };
+  }
+  if (Array.isArray(message.tool_calls) && message.tool_calls.length > 0) {
+    return { hasText: false, errorCode: "tool_call_only" };
+  }
+  if (choices.length === 0 && outputRows.length === 0 && !root.output_text && !response.output_text) {
+    return { hasText: false, errorCode: root.error ? "provider_returned_error" : "empty_response_no_choices" };
+  }
+  return { hasText: false, errorCode: "empty_response" };
 }
 
 function isSafeKeyEqual(left: string, right: string): boolean {
@@ -160,70 +196,45 @@ async function probeModel(
       return { status: "error", duration_ms: Date.now() - startedAt, error_code: "empty_response" };
     }
 
-    const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
-    if (contentType.includes("application/json")) {
-      const payload = asRecord(await response.json().catch(() => null));
-      const choices = Array.isArray(payload.choices) ? payload.choices : [];
-      const firstChoice = asRecord(choices[0]);
-      const message = asRecord(firstChoice.message);
-      const text = [
-        message.content,
-        message.reasoning_content,
-        firstChoice.text,
-        payload.output_text,
-      ].map(contentText).find((value) => value.trim().length > 0) ?? "";
-      return text.trim()
+    // Parse normal JSON even when a gateway labels it text/plain; retain SSE
+    // fallback for OpenAI-compatible gateways that ignore stream:false.
+    const rawBody = await response.text();
+    if (!rawBody.trim()) {
+      return { status: "error", duration_ms: Date.now() - startedAt, error_code: "empty_response" };
+    }
+    try {
+      const inspected = inspectCompletion(JSON.parse(rawBody));
+      return inspected.hasText
         ? { status: "success", duration_ms: Date.now() - startedAt, error_code: null }
-        : { status: "error", duration_ms: Date.now() - startedAt, error_code: "empty_response" };
+        : { status: "error", duration_ms: Date.now() - startedAt, error_code: inspected.errorCode };
+    } catch {
+      // Continue to the SSE parser below.
     }
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    try {
-      while (true) {
-        const { value, done } = await reader.read();
-        buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
-        let newline = buffer.indexOf("\n");
-        while (newline >= 0) {
-          const line = buffer.slice(0, newline).trimEnd();
-          buffer = buffer.slice(newline + 1);
-          if (line.startsWith("data:")) {
-            const data = line.slice(5).trim();
-            if (data && data !== "[DONE]") {
-              try {
-                const payload = asRecord(JSON.parse(data));
-                const choices = Array.isArray(payload.choices) ? payload.choices : [];
-                const firstChoice = asRecord(choices[0]);
-                const delta = asRecord(firstChoice.delta);
-                const message = asRecord(firstChoice.message);
-                const text = [
-                  delta.content,
-                  message.content,
-                  message.reasoning_content,
-                  delta.text,
-                  message.text,
-                  firstChoice.text,
-                  payload.output_text,
-                ].map(contentText).find((value) => value.trim().length > 0) ?? "";
-                if (text.trim()) {
-                  await reader.cancel().catch(() => undefined);
-                  return { status: "success", duration_ms: Date.now() - startedAt, error_code: null };
-                }
-              } catch {
-                // Ignore SSE metadata and partial provider frames.
-              }
-            }
-          }
-          newline = buffer.indexOf("\n");
+    let sawSseFrame = false;
+    let lastSseError = "empty_response";
+    for (const line of rawBody.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("data:")) continue;
+      const data = trimmed.slice(5).trim();
+      if (!data || data === "[DONE]") continue;
+      sawSseFrame = true;
+      try {
+        const inspected = inspectCompletion(JSON.parse(data));
+        if (inspected.hasText) {
+          return { status: "success", duration_ms: Date.now() - startedAt, error_code: null };
         }
-        if (done) break;
+        if (inspected.errorCode !== "empty_response") lastSseError = inspected.errorCode;
+      } catch {
+        // Ignore non-JSON SSE metadata frames.
       }
-    } finally {
-      try { reader.releaseLock(); } catch { /* already released */ }
     }
-    return { status: "error", duration_ms: Date.now() - startedAt, error_code: "empty_response" };
-  } catch (error) {
+    return {
+      status: "error",
+      duration_ms: Date.now() - startedAt,
+      error_code: sawSseFrame ? lastSseError : "unexpected_response_format",
+    };
+    } catch (error) {
     const timedOut = controller.signal.aborted || (error instanceof Error && error.name === "AbortError");
     return {
       status: "error",
