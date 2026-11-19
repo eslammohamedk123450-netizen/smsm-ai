@@ -3098,38 +3098,203 @@ async function handleRequest(req: Request): Promise<Response> {
     const encoder = new TextEncoder();
     let clientCancelled = false;
     let attemptRecorded = false;
+    let activeCandidate = winner!;
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
         const outputGuard = new OutputGuard({ maxChars: Math.max(512, maxOutputChars - OUTPUT_GUARD_NOTICE_RESERVE) });
         const outputSanitizer = new InternalMarkerSanitizer();
-        const firstOutput = outputGuard.push(outputSanitizer.push(winner!.firstChunk));
-        let fullContent = firstOutput.text;
+        let fullContent = "";
         let firstClientChunkAt: number | null = null;
+        let continuationCount = 0;
+        let streamComplete = false;
+        let failureSummary: string | null = null;
+        const attemptedModelIds = new Set<number>([activeCandidate.model.id]);
+        const usedCandidates: Candidate[] = [];
+        let totalInputTokens = 0;
+        let totalOutputTokens = 0;
+        let allUsageReported = true;
+        let singleProviderCostEgp: number | null = activeCandidate.providerCostEgp;
         const emit = (value: Record<string, unknown>) => {
+          if (clientCancelled) return;
           if (typeof value.chunk === "string" && value.chunk.length > 0 && firstClientChunkAt === null) firstClientChunkAt = Date.now();
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(value)}\n\n`));
+          try { controller.enqueue(encoder.encode(`data: ${JSON.stringify(value)}\\n\\n`)); } catch { /* disconnected client */ }
+        };
+        const appendRaw = (raw: string) => {
+          if (!raw || outputGuard.reason) return;
+          const clean = outputSanitizer.push(raw);
+          if (!clean) return;
+          const guarded = outputGuard.push(clean);
+          fullContent += guarded.text;
+          if (guarded.text) emit({ chunk: guarded.text, done: false });
+          if (guarded.stopped) activeCandidate.controller.abort();
+        };
+        const consumeCandidate = async (candidate: ReadyCandidate) => {
+          appendRaw(candidate.firstChunk);
+          if (outputGuard.reason) return;
+          for await (const chunk of candidate.iterator) {
+            if (clientCancelled) throw new DOMException("Request aborted", "AbortError");
+            appendRaw(chunk);
+            if (outputGuard.reason) {
+              candidate.controller.abort();
+              break;
+            }
+          }
+        };
+        const accountAttempt = (candidate: Candidate, textStart: number) => {
+          const promptText = candidate.requestMessages.map((message) =>
+            typeof message.content === "string" ? message.content : JSON.stringify(message.content)
+          ).join("\\n");
+          totalInputTokens += candidate.inputTokens > 0 ? candidate.inputTokens : estimateTokens(promptText);
+          totalOutputTokens += candidate.outputTokens > 0 ? candidate.outputTokens : estimateTokens(fullContent.slice(textStart));
+          allUsageReported = allUsageReported && candidate.usageReported === true;
+          if (usedCandidates.length > 0) singleProviderCostEgp = null;
+          usedCandidates.push(candidate);
+        };
+        const getContinuationPool = async (): Promise<Candidate[]> => {
+          const pool = [...raceCandidates];
+          if (routingMode === "auto" && settings.paidFallbackEnabled) {
+            const paidModels: ModelRow[] = healthyModels
+              .filter((model: ModelRow) => isEligibleModel(model, "chat", ["paid_fallback"]));
+            const orderedPaidModels = orderModelsByRoute(paidModels, orderedRouteAssignments, "chat");
+            const paidProviderIds = [...new Set<number>(orderedPaidModels.map((model) => model.provider_id))];
+            await Promise.all(paidProviderIds.map(async (providerId) => {
+              if (providerKeys.has(providerId)) return;
+              const provider = providerById.get(providerId);
+              if (!provider || !provider.enabled || !safeChatEndpoint(provider.base_url)) return;
+              const { data, error } = await supabase.rpc("suly_service_get_provider_api_key", { p_provider_id: providerId });
+              if (!error && typeof data === "string" && data.length > 0) providerKeys.set(providerId, data);
+            }));
+            pool.push(...makeCandidates(orderedPaidModels));
+          }
+          const unique = new Map<number, Candidate>();
+          for (const candidate of pool) {
+            if (!attemptedModelIds.has(candidate.model.id) && !unique.has(candidate.model.id)) unique.set(candidate.model.id, candidate);
+          }
+          return [...unique.values()].slice(0, 8);
         };
         try {
-          if (firstOutput.text) emit({ chunk: firstOutput.text, done: false, ...responseInfo });
-          if (firstOutput.stopped) winner!.controller.abort();
-          if (!firstOutput.stopped) {
-            for await (const chunk of winner!.iterator) {
-              const cleanChunk = outputSanitizer.push(chunk);
-              if (!cleanChunk) continue;
-              const guarded = outputGuard.push(cleanChunk);
-              fullContent += guarded.text;
-              if (guarded.text) emit({ chunk: guarded.text, done: false });
-              if (guarded.stopped) {
-                winner!.controller.abort();
+          while (!clientCancelled) {
+            const current = activeCandidate;
+            const textStart = fullContent.length;
+            let streamError: unknown = null;
+            try {
+              await consumeCandidate(current);
+            } catch (error) {
+              streamError = error;
+            } finally {
+              current.cleanup();
+            }
+
+            if (clientCancelled) break;
+            const summary = streamError instanceof Error ? streamError.message : streamError ? String(streamError) : "";
+            const wasOutputLimited = Boolean(outputGuard.reason);
+            const reachedProviderLimit = /^(length|max_tokens|token_limit)$/i.test(current.finishReason ?? "");
+            if (streamError) {
+              const status: AttemptStatus = current.controller.signal.aborted ? "timeout" : "error";
+              if (!attemptRecorded) {
+                await recordAttempt(current, status, Date.now() - current.startedAtMs, status === "timeout" ? "model_timeout" : "stream_error", summary);
+                attemptRecorded = true;
+              }
+              await recordEvent(current.model, "error", summary);
+            } else {
+              if (!attemptRecorded) {
+                await recordAttempt(current, "success", Date.now() - current.startedAtMs);
+                attemptRecorded = true;
+              }
+            }
+            accountAttempt(current, textStart);
+
+            if (wasOutputLimited) {
+              failureSummary = "output_limit";
+              break;
+            }
+            if (!streamError && !reachedProviderLimit) {
+              streamComplete = true;
+              break;
+            }
+            if (!codeGenerationRequest || continuationCount >= 3 || req.signal.aborted) {
+              failureSummary = streamError ? summary || "provider_stream_interrupted" : "provider_output_limit";
+              break;
+            }
+
+            const continuationPool = await getContinuationPool();
+            let nextCandidate: ReadyCandidate | null = null;
+            for (const baseCandidate of continuationPool) {
+              if (req.signal.aborted || clientCancelled) break;
+              const continuationContext = fullContent.slice(-16000);
+              const continuationMessages: ProviderChatMessage[] = [
+                ...baseCandidate.requestMessages,
+                { role: "assistant", content: continuationContext },
+                {
+                  role: "user",
+                  content: [
+                    "Continue the same response from the exact point where the previous model stopped.",
+                    "Do not restart the task, repeat completed sections, add an introduction, or summarize what was already written.",
+                    "For code, continue the existing code exactly where it ended, preserve the same language and conventions, close every open block/tag/function, and provide the complete runnable result.",
+                    "If the previous output ended inside a code block, continue inside that same code block without opening a duplicate fence.",
+                    "Return only the continuation text.",
+                  ].join("\\n"),
+                },
+              ];
+              const continuationCandidate: Candidate = {
+                ...baseCandidate,
+                requestMessages: continuationMessages,
+                temperature: Math.min(0.3, baseCandidate.temperature),
+                maxTokens: Math.min(8192, Math.max(2048, maxTokens)),
+                inputTokens: 0,
+                outputTokens: 0,
+                providerCostEgp: null,
+                usageReported: false,
+                usageStepKey: "chat-continuation",
+                usageAttemptNo: continuationCount + 2,
+              };
+              const providerTimeout = Math.max(1000, Math.min(120000, (Number(baseCandidate.provider.timeout_seconds) || 30) * 1000));
+              const modelTimeout = Math.max(1000, Math.min(120000, Number(baseCandidate.model.response_timeout_ms) || 15000));
+              const budget = Math.max(1000, Math.min(settings.freeRaceTimeoutMs, providerTimeout, modelTimeout));
+              nextCandidate = await firstReady([continuationCandidate], budget, recordAttempt, countModelStarts, req.signal);
+              if (nextCandidate) {
+                attemptedModelIds.add(nextCandidate.model.id);
                 break;
               }
             }
+            if (!nextCandidate) {
+              failureSummary = req.signal.aborted ? "client_cancelled" : "no_healthy_continuation_model";
+              break;
+            }
+            continuationCount += 1;
+            activeCandidate = nextCandidate;
+            attemptRecorded = false;
+            emit({
+              continuation: {
+                status: "started",
+                attempt: continuationCount,
+                model: nextCandidate.model.model_identifier,
+                reason: streamError ? "stream_interrupted" : "output_limit",
+              },
+            });
           }
-          if (/^(length|max_tokens|token_limit)$/i.test(winner!.finishReason ?? "")) {
-            const notice = "\n\n[توقف النموذج بسبب بلوغ حد الإخراج؛ قد يكون الرد أو الكود غير مكتمل. اطلب المتابعة من آخر سطر.]";
-            fullContent += notice;
-            emit({ chunk: notice, done: false });
+
+          if (clientCancelled || req.signal.aborted) {
+            if (!attemptRecorded) {
+              await recordAttempt(activeCandidate, "cancelled", Date.now() - activeCandidate.startedAtMs, "client_cancelled", "The client cancelled the response.");
+              attemptRecorded = true;
+            }
+            const messageId = fullContent.trim()
+              ? await persistAssistant(supabase, conversationId, user.id, billingTaskId, activeCandidate, fullContent)
+              : null;
+            const billingCandidate = {
+              ...activeCandidate,
+              inputTokens: totalInputTokens,
+              outputTokens: totalOutputTokens,
+              usageReported: allUsageReported,
+              providerCostEgp: singleProviderCostEgp,
+            };
+            const billing = await finalizeBilling(billingCandidate, fullContent, "client_cancelled", true);
+            await finishAiRequest("cancelled", messageId, messageId ? null : fullContent || null, { ...responseInfo, billing, partial: true }, "client_cancelled");
+            try { controller.close(); } catch { /* disconnected client */ }
+            return;
           }
+
           if (!outputGuard.reason) {
             const cleanTail = outputSanitizer.finish();
             const sanitizedTail = outputGuard.push(cleanTail);
@@ -3143,84 +3308,101 @@ async function handleRequest(req: Request): Promise<Response> {
             const notice = outputGuardNotice(outputGuard.reason);
             fullContent += notice;
             emit({ chunk: notice, done: false });
+          } else if (!streamComplete) {
+            const notice = failureSummary === "no_healthy_continuation_model"
+              ? "\\n\\n[سولي: تعذّر إكمال الرد تلقائيًا بعد تجربة النماذج الاحتياطية. احتفظت بالجزء الذي تم إنشاؤه.]"
+              : failureSummary === "output_limit"
+                ? "\\n\\n[سولي: وصل الرد إلى الحد الآمن للطول؛ الجزء المعروض محفوظ لكنه قد يحتاج إلى متابعة.]"
+                : "\\n\\n[سولي: انقطع الاتصال أثناء إنشاء الرد، وتم حفظ الجزء المكتمل بعد محاولات الاستكمال المتاحة.]";
+            fullContent += notice;
+            emit({ chunk: notice, done: false });
           }
-          const messageId = await persistAssistant(supabase, conversationId, user.id, billingTaskId, winner!, fullContent);
+
+          const messageId = await persistAssistant(supabase, conversationId, user.id, billingTaskId, activeCandidate, fullContent);
           await logMessageModel({
             messageId,
-            modelId: winner!.model.id,
-            modelIdentifier: winner!.model.model_identifier,
-            providerType: winner!.provider.provider_type,
+            modelId: activeCandidate.model.id,
+            modelIdentifier: activeCandidate.model.model_identifier,
+            providerType: activeCandidate.provider.provider_type,
             route: modeUsed,
-            durationMs: Date.now() - winner!.startedAtMs,
+            durationMs: Date.now() - activeCandidate.startedAtMs,
           });
-          await persistLearning(winner, fullContent);
-          await recordAttempt(winner!, "success", Date.now() - winner!.startedAtMs);
-          attemptRecorded = true;
-          await recordEvent(winner!.model, "success");
-          const billing = await finalizeBilling(winner!, fullContent, "ai_request", true);
+          if (streamComplete) await persistLearning(activeCandidate, fullContent);
+          const billingCandidate = {
+            ...activeCandidate,
+            inputTokens: totalInputTokens,
+            outputTokens: totalOutputTokens,
+            usageReported: allUsageReported,
+            providerCostEgp: singleProviderCostEgp,
+          };
+          const billing = await finalizeBilling(billingCandidate, fullContent, "ai_request", true);
+          if (streamComplete) await recordEvent(activeCandidate.model, "success");
           const finalInfo = {
             ...responseInfo,
+            model_id: activeCandidate.model.id,
+            model: activeCandidate.model.model_identifier,
+            provider: activeCandidate.provider.provider_type,
+            route: routingMode === "manual" ? "manual" : activeCandidate.model.routing_group,
             billing,
             usage: {
-              input_tokens: winner!.inputTokens,
-              output_tokens: winner!.outputTokens,
-              reported_by_provider: winner!.usageReported === true,
-              billed_input_tokens: typeof billing?.input_tokens === "number" ? billing.input_tokens : winner!.inputTokens,
-              billed_output_tokens: typeof billing?.output_tokens === "number" ? billing.output_tokens : winner!.outputTokens,
-              billing_estimated: winner!.usageReported !== true,
+              input_tokens: totalInputTokens,
+              output_tokens: totalOutputTokens,
+              reported_by_provider: allUsageReported,
+              billed_input_tokens: typeof billing?.input_tokens === "number" ? billing.input_tokens : totalInputTokens,
+              billed_output_tokens: typeof billing?.output_tokens === "number" ? billing.output_tokens : totalOutputTokens,
+              billing_estimated: !allUsageReported,
             },
-            output_guard: outputGuard.reason,
-            provider_finish_reason: winner!.finishReason ?? null,
+            provider_finish_reason: activeCandidate.finishReason ?? null,
             model_calls: modelInvocationCount,
+            continuation: {
+              attempts: continuationCount,
+              models: usedCandidates.map((candidate) => candidate.model.model_identifier),
+              completed: streamComplete,
+            },
+            complete: streamComplete,
             first_chunk_ms: firstClientChunkAt === null ? Date.now() - startedAt : firstClientChunkAt - startedAt,
             total_ms: Date.now() - startedAt,
           };
-          await finishAiRequest("completed", messageId, messageId ? null : fullContent, finalInfo);
+          await finishAiRequest(streamComplete ? "completed" : "failed", messageId, messageId ? null : fullContent, finalInfo, streamComplete ? null : "stream_incomplete");
           emit({ done: true, ...finalInfo });
-          controller.close();
+          try { controller.close(); } catch { /* disconnected client */ }
         } catch (error) {
           const summary = error instanceof Error ? error.message : String(error);
-          const attemptStatus: AttemptStatus = clientCancelled ? "cancelled" : winner!.controller.signal.aborted ? "timeout" : "error";
-          let partialMessageId: string | null = null;
-          // A user-initiated stop is still useful work: persist the text that
-          // reached the client so stopping never erases a partial answer.
-          if (clientCancelled && fullContent.trim()) {
-            try {
-              partialMessageId = await persistAssistant(supabase, conversationId, user.id, billingTaskId, winner!, fullContent);
-            } catch {
-              // The client still keeps the partial text locally if persistence
-              // races with stream cancellation.
+          if (clientCancelled || req.signal.aborted) {
+            if (!attemptRecorded) {
+              await recordAttempt(activeCandidate, "cancelled", Date.now() - activeCandidate.startedAtMs, "client_cancelled", summary);
+              attemptRecorded = true;
             }
+            const partialMessageId = fullContent.trim()
+              ? await persistAssistant(supabase, conversationId, user.id, billingTaskId, activeCandidate, fullContent)
+              : null;
+            const billingCandidate = { ...activeCandidate, inputTokens: totalInputTokens, outputTokens: totalOutputTokens, usageReported: allUsageReported, providerCostEgp: singleProviderCostEgp };
+            const billing = await finalizeBilling(billingCandidate, fullContent, "client_cancelled", true);
+            await finishAiRequest("cancelled", partialMessageId, partialMessageId ? null : fullContent || null, { ...responseInfo, billing, partial: true }, "client_cancelled");
+          } else {
+            if (!attemptRecorded) {
+              await recordAttempt(activeCandidate, "error", Date.now() - activeCandidate.startedAtMs, "stream_finalize_error", summary);
+              attemptRecorded = true;
+            }
+            const billingCandidate = { ...activeCandidate, inputTokens: totalInputTokens, outputTokens: totalOutputTokens, usageReported: allUsageReported, providerCostEgp: singleProviderCostEgp };
+            const billing = await finalizeBilling(billingCandidate, fullContent, "stream_error", true);
+            await recordEvent(activeCandidate.model, "error", summary);
+            await finishAiRequest("failed", null, fullContent || null, { ...responseInfo, billing, partial: true, model_calls: modelInvocationCount }, "stream_finalize_error");
+            emit({ error: "The response could not be finalized; generated text was preserved.", billing, partial: true });
           }
-          if (!attemptRecorded) {
-            await recordAttempt(winner!, attemptStatus, Date.now() - winner!.startedAtMs, attemptStatus === "timeout" ? "model_timeout" : "stream_error", summary);
-            attemptRecorded = true;
-          }
-          const billing = await finalizeBilling(winner!, fullContent, attemptStatus, true);
-          if (!clientCancelled) await recordEvent(winner!.model, "error", summary);
-          await finishAiRequest(
-            clientCancelled ? "cancelled" : "failed",
-            partialMessageId,
-            !partialMessageId && clientCancelled ? fullContent || null : null,
-            { ...responseInfo, billing, partial: clientCancelled, model_calls: modelInvocationCount, total_ms: Date.now() - startedAt },
-            clientCancelled ? "client_cancelled" : attemptStatus === "timeout" ? "model_timeout" : "stream_error",
-          );
-          if (!clientCancelled) {
-            emit({ error: "The selected model stream was interrupted.", billing });
-            controller.close();
-          }
+          try { controller.close(); } catch { /* disconnected client */ }
         } finally {
-          winner!.cleanup();
+          activeCandidate.cleanup();
         }
       },
       cancel() {
         clientCancelled = true;
-        winner!.controller.abort();
+        activeCandidate.controller.abort();
         if (!attemptRecorded) {
           attemptRecorded = true;
-          void recordAttempt(winner!, "cancelled", Date.now() - winner!.startedAtMs, "client_cancelled", "The client cancelled the model response stream.");
+          void recordAttempt(activeCandidate, "cancelled", Date.now() - activeCandidate.startedAtMs, "client_cancelled", "The client cancelled the model response stream.");
         }
-        winner!.cleanup();
+        activeCandidate.cleanup();
       },
     });
     return new Response(stream, {
@@ -3228,7 +3410,6 @@ async function handleRequest(req: Request): Promise<Response> {
       headers: { ...corsHeadersFor(req), "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", "Connection": "keep-alive" },
     });
   }
-
   try {
     const collected = await collectCandidate(winner, maxOutputChars, req.signal);
     const content = collected.content + (collected.reason ? outputGuardNotice(collected.reason) : "");
