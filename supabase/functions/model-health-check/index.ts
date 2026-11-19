@@ -144,7 +144,10 @@ async function probeModel(
         messages: [{ role: "user", content: prompt }],
         temperature: 0,
         max_tokens: MAX_OUTPUT_TOKENS,
-        stream: true,
+        // Manual health checks use a normal JSON completion. Some OpenAI-compatible
+        // gateways accept streaming chat calls but emit frames the probe cannot
+        // parse reliably, which used to be reported as empty_response.
+        stream: false,
       }),
       signal: controller.signal,
       redirect: "error",
@@ -163,9 +166,12 @@ async function probeModel(
       const choices = Array.isArray(payload.choices) ? payload.choices : [];
       const firstChoice = asRecord(choices[0]);
       const message = asRecord(firstChoice.message);
-      const text = [message.content, firstChoice.text, payload.output_text]
-        .map(contentText)
-        .find((value) => value.trim().length > 0) ?? "";
+      const text = [
+        message.content,
+        message.reasoning_content,
+        firstChoice.text,
+        payload.output_text,
+      ].map(contentText).find((value) => value.trim().length > 0) ?? "";
       return text.trim()
         ? { status: "success", duration_ms: Date.now() - startedAt, error_code: null }
         : { status: "error", duration_ms: Date.now() - startedAt, error_code: "empty_response" };
@@ -194,6 +200,7 @@ async function probeModel(
                 const text = [
                   delta.content,
                   message.content,
+                  message.reasoning_content,
                   delta.text,
                   message.text,
                   firstChoice.text,
