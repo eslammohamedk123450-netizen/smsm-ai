@@ -292,6 +292,9 @@ async function handleSyncModelsRequest(request: Request): Promise<Response> {
     success: true,
     provider_id: providerId,
     discovered: discovery.identifiers.length,
+    provider_total: discovery.identifiers.length,
+    chat_eligible: discovery.identifiers.filter((identifier) => !NON_CHAT_PATTERN.test(identifier)).length,
+    non_chat: discovery.identifiers.filter((identifier) => NON_CHAT_PATTERN.test(identifier)).length,
     created: insertion.created,
     warning: insertion.failed ?? discovery.warning,
   });
