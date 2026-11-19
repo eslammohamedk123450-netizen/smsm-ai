@@ -352,7 +352,7 @@ export function ModelRegistryCatalogScreen() {
           <View style={styles.modelIcon}><Ionicons name={model.service_type === "image" ? "image-outline" : model.service_type === "video" ? "videocam-outline" : model.service_type === "audio" ? "volume-high-outline" : "hardware-chip-outline"} size={25} color={colors.primary}/></View>
           <View style={styles.modelTileStatusActions}>
             <View style={[styles.status, (model.operational_state === "active" || model.operational_state === "available") ? styles.statusActive : model.operational_state === "restricted" ? styles.statusRestricted : styles.statusDisabled]}><Text style={styles.statusText}>{STATUS_LABEL[model.operational_state]}</Text></View>
-            {model.legacy_chat_model_id !== null && model.operational_state === "restricted" ? <Pressable
+            {model.operational_state === "restricted" && model.legacy_chat_model_id !== null ? <Pressable
               accessibilityRole="button"
               accessibilityLabel="فك قيد النموذج وتفعيله في مسار الشات"
               disabled={updatingModelId !== null}

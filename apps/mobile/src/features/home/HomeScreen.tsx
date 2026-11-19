@@ -200,7 +200,7 @@ export function HomeScreen() {
           </View>
         ) : (
           <View style={styles.taskList}>
-            {items.slice(0, 6).map((item) => {
+            {items.map((item) => {
               const isTask = item.kind === "task";
               return (
                 <Pressable

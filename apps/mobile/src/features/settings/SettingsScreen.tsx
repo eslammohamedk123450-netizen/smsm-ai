@@ -152,108 +152,170 @@ export default function SettingsScreen() {
           <TouchableOpacity activeOpacity={0.7} onPress={back} style={styles.backButton} accessibilityRole="button" accessibilityLabel={isArabic ? "رجوع" : "Back"}><Text style={styles.backIcon}>↩</Text></TouchableOpacity>
         </View>
 
-        <Text style={styles.sectionTitle}>{isArabic ? "الحساب" : "Account"}</Text>
-        <TouchableOpacity activeOpacity={0.7} onPress={() => router.push("/(protected)/profile")} style={styles.card} accessibilityRole="button">
+        <TouchableOpacity activeOpacity={0.7} onPress={() => router.push("/(protected)/profile")} style={styles.profileCard} accessibilityRole="button">
           <View style={styles.avatar}>{avatarUrl ? <Image source={{ uri: avatarUrl }} style={styles.avatarImage} /> : <Text style={styles.avatarText}>{name.slice(0, 1).toUpperCase()}</Text>}</View>
           <View style={styles.accountCopy}>
             <Text style={styles.userName}>{name}</Text>
+            <Text style={styles.accountType}>{isArabic ? "حساب شخصي" : "Personal account"}</Text>
+          </View>
+          <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={19} color={colors.textSecondary} />
+        </TouchableOpacity>
+
+        <View style={styles.planCard}>
+          <TouchableOpacity activeOpacity={0.7} style={[styles.planRow, { flexDirection: isArabic ? "row-reverse" : "row" }]} onPress={() => router.push("/(protected)/upgrade")} accessibilityRole="button">
+            <View style={[styles.planSummaryCopy, { alignItems: isArabic ? "flex-end" : "flex-start" }]}>
+              <Text style={styles.planNameText}>{currentTier === "ultra_team" ? "Ultra Team" : currentTier.toUpperCase()}</Text>
+              <Text style={styles.planHint}>{isArabic ? "الخطة الحالية" : "Current plan"}</Text>
             </View>
-          <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={18} color={colors.textMuted} />
-        </TouchableOpacity>
-        <Text style={styles.sectionTitle}>{isArabic ? "الباقة والرصيد" : "Plan & credits"}</Text>
-        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/upgrade")} accessibilityRole="button">
-          <View style={styles.planSummaryCopy}>
-            <Text style={styles.planNameText}>{currentTier === "ultra_team" ? "Ultra Team" : currentTier.toUpperCase()}</Text>
-            <Text style={styles.email}>{isArabic ? "باقتك الحالية" : "Current plan"}</Text>
-          </View>
-          <View style={styles.upgradePill}><Text style={styles.upgradePillText}>{isArabic ? "ترقية" : "Upgrade"}</Text></View>
-        </TouchableOpacity>
-        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/balance")} accessibilityRole="button">
-          <View style={styles.creditSummaryLabel}>
-            <Ionicons name="cash-outline" size={19} color={colors.textPrimary} />
-            <Text style={styles.creditLabelText}>Credit</Text>
-          </View>
-          <Text style={styles.creditSummaryValue}>{loadingCredits ? "…" : balance === null ? "—" : balance.toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text>
-        </TouchableOpacity>
-        {creditLoadError ? <TouchableOpacity activeOpacity={0.7} onPress={() => void loadCredits()} accessibilityRole="button"><Text style={styles.linkText}>{isArabic ? "تعذر تحميل الرصيد — إعادة المحاولة" : "Could not load credits — retry"}</Text></TouchableOpacity> : null}
+            <View style={styles.upgradePill}><Text style={styles.upgradePillText}>{isArabic ? "ترقية" : "Upgrade"}</Text></View>
+          </TouchableOpacity>
+          <View style={styles.planDivider} />
+          <TouchableOpacity activeOpacity={0.7} style={[styles.creditRow, { flexDirection: isArabic ? "row-reverse" : "row" }]} onPress={() => router.push("/(protected)/balance")} accessibilityRole="button">
+            <View style={[styles.creditSummaryLabel, { flexDirection: isArabic ? "row-reverse" : "row" }]}>
+              <Ionicons name="wallet-outline" size={19} color={colors.textPrimary} />
+              <Text style={styles.creditLabelText}>{isArabic ? "الرصيد" : "Credits"}</Text>
+            </View>
+            <View style={[styles.creditValueWrap, { flexDirection: isArabic ? "row-reverse" : "row" }]}>
+              <Text style={styles.creditSummaryValue}>{loadingCredits ? "…" : balance === null ? "—" : balance.toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text>
+              <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={18} color={colors.textSecondary} />
+            </View>
+          </TouchableOpacity>
+        </View>
+        {creditLoadError ? <TouchableOpacity activeOpacity={0.7} onPress={() => void loadCredits()} accessibilityRole="button" style={styles.inlineRetry}><Text style={styles.linkText}>{isArabic ? "تعذر تحميل الرصيد — إعادة المحاولة" : "Could not load credits — retry"}</Text></TouchableOpacity> : null}
         <TouchableOpacity activeOpacity={0.7} onPress={() => { setCreditModal(true); void loadCredits(); }} style={styles.historyButton} accessibilityRole="button"><Text style={styles.linkText}>{isArabic ? "عرض سجل الرصيد" : "View credit history"}</Text></TouchableOpacity>
 
-        <Text style={styles.sectionTitle}>{isArabic ? "المهارات" : "Skills"}</Text>
-        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/skills")} accessibilityRole="button">
-          <Ionicons name="sparkles-outline" size={17} color={colors.textPrimary} style={styles.rowIcon} /><Text style={styles.rowText}>{isArabic ? "مهارات SULY" : "SULY skills"}</Text>
-          <Text style={styles.email}>{isArabic ? "مراجعة المهارات وتفعيلها" : "Review and activate learned skills"}</Text>
-          <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={18} color={colors.textMuted} />
-        </TouchableOpacity>
-
-        <Text style={styles.sectionTitle}>{isArabic ? "الموصلات" : "Connectors"}</Text>
-        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/integrations")} accessibilityRole="button"><Ionicons name="apps-outline" size={17} color={colors.textPrimary} style={styles.rowIcon} /><Text style={styles.rowText}>{isArabic ? "إدارة الموصلات والتطبيقات المرتبطة" : "Manage connected apps"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
-
-        <Text style={styles.sectionTitle}>{isArabic ? "اللغة" : "Language"}</Text>
-        <View style={styles.languageControl}>
-          <TouchableOpacity activeOpacity={0.7} onPress={() => void changeLanguage("en")} style={[styles.languageOption, language === "en" && styles.languageSelected]}><Text style={[styles.rowText, language === "en" && styles.languageSelectedText]}>English</Text></TouchableOpacity>
-          <TouchableOpacity activeOpacity={0.7} onPress={() => void changeLanguage("ar")} style={[styles.languageOption, language === "ar" && styles.languageSelected]}><Text style={[styles.rowText, language === "ar" && styles.languageSelectedText]}>العربية</Text></TouchableOpacity>
-        </View>
-
-        <Text style={styles.sectionTitle}>{isArabic ? "المظهر" : "Appearance"}</Text>
-        <View style={styles.languageControl}>
-          {(["system", "light", "dark"] as const).map((value) => (
-            <TouchableOpacity key={value} activeOpacity={0.7} onPress={() => void changeAppearance(value)} style={[styles.languageOption, mode === value && styles.languageSelected]}>
-              <Text style={[styles.rowText, mode === value && styles.languageSelectedText]}>{value === "system" ? (isArabic ? "تلقائي" : "System") : value === "light" ? (isArabic ? "فاتح" : "Light") : (isArabic ? "داكن" : "Dark")}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-        <Text style={styles.email}>{isArabic ? `المظهر الحالي: ${effectiveMode === "dark" ? "داكن" : "فاتح"}` : `Current appearance: ${effectiveMode}`}</Text>
-
-        <Text style={styles.sectionTitle}>{isArabic ? "ذاكرة التخزين" : "Memory storage"}</Text>
-        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/memory")} accessibilityRole="button">
-          <Ionicons name="hardware-chip-outline" size={17} color={colors.textPrimary} style={styles.rowIcon} /><Text style={styles.rowText}>{isArabic ? "عرض ذاكرة SULY" : "View SULY memory"}</Text>
-          <Text style={styles.chevron}>‹</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.sectionTitle}>{isArabic ? "التخزين والمكتبة" : "Storage & Library"}</Text>
-        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/media")} accessibilityRole="button">
-          <Ionicons name="folder-open-outline" size={17} color={colors.textPrimary} style={styles.rowIcon} /><Text style={styles.rowText}>{isArabic ? "فتح مكتبتي وإدارة ملفاتي" : "Open my Library and manage files"}</Text><Text style={styles.chevron}>‹</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.sectionTitle}>{isArabic ? "تقييم التطبيق" : "Rate the app"}</Text>
-        <View style={styles.cardRow}>
-          <Text style={styles.rowText}>{isArabic ? "تقييم SULY" : "Rate SULY"}</Text>
-          <Text style={styles.email}>{isArabic ? "رابط المتجر غير مُعتمد بعد" : "Store listing is not configured yet"}</Text>
-        </View>
-
-        <Text style={styles.sectionTitle}>{isArabic ? "الدعم" : "Support"}</Text>
-        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/support")} accessibilityRole="button"><Ionicons name="help-circle-outline" size={17} color={colors.textPrimary} style={styles.rowIcon} /><Text style={styles.rowText}>{isArabic ? "الشكاوى والدعم" : "Support & complaints"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
-
-        <Text style={styles.sectionTitle}>{isArabic ? "التطبيق" : "Application"}</Text>
-        <View style={styles.cardRow}>
-          <Text style={styles.rowText}>{isArabic ? "إصدار التطبيق" : "App version"}</Text>
-          <Text style={styles.email}>{Constants.expoConfig?.version ?? "1.0.0"}</Text>
-        </View>
-
-        <Text style={styles.sectionTitle}>{isArabic ? "المحادثات" : "Conversations"}</Text>
-        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => void openArchive()} accessibilityRole="button"><Ionicons name="archive-outline" size={17} color={colors.textPrimary} style={styles.rowIcon} /><Text style={styles.rowText}>{isArabic ? "الأرشيف" : "Archive"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
-
-        {adminAccessState === "allowed" ? <>
-          <Text style={styles.sectionTitle}>{isArabic ? "إدارة النظام" : "Administration"}</Text>
-          <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/admin")} accessibilityRole="button">
-            <Ionicons name="shield-checkmark-outline" size={17} color={colors.textPrimary} style={styles.rowIcon} /><Text style={styles.rowText}>{isArabic ? "لوحة التحكم الإدارية" : "Admin dashboard"}</Text><Text style={styles.chevron}>‹</Text>
+        <Text style={styles.sectionTitle}>{isArabic ? "التفضيلات" : "Preferences"}</Text>
+        <View style={styles.settingsGroup}>
+          <TouchableOpacity activeOpacity={0.7} style={[styles.settingRow, { flexDirection: isArabic ? "row-reverse" : "row" }]} onPress={() => router.push("/(protected)/skills")} accessibilityRole="button">
+            <View style={[styles.settingLabelWrap, { flexDirection: isArabic ? "row-reverse" : "row" }]}>
+              <Ionicons name="sparkles-outline" size={19} color={colors.textPrimary} />
+              <Text style={styles.settingLabel}>{isArabic ? "مهارات SULY" : "SULY skills"}</Text>
+            </View>
+            <View style={styles.settingValueWrap}><Text style={styles.settingHint}>{isArabic ? "مراجعة المهارات وتفعيلها" : "Review and activate skills"}</Text><Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={18} color={colors.textSecondary} /></View>
           </TouchableOpacity>
-        </> : adminAccessState === "checking" ? <>
-          <Text style={styles.sectionTitle}>{isArabic ? "إدارة النظام" : "Administration"}</Text>
-          <View style={styles.cardRow}><ActivityIndicator color={colors.primary} /><Text style={styles.rowText}>{isArabic ? "جارٍ التحقق من صلاحية الأدمن…" : "Checking administrator access…"}</Text></View>
-        </> : adminAccessState === "error" ? <>
-          <Text style={styles.sectionTitle}>{isArabic ? "إدارة النظام" : "Administration"}</Text>
-          <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => void checkAdminAccess()} accessibilityRole="button">
-            <Ionicons name="refresh-outline" size={17} color={colors.textPrimary} style={styles.rowIcon} /><Text style={styles.rowText}>{isArabic ? "تعذر التحقق من صلاحية الأدمن — اضغط لإعادة المحاولة" : "Could not verify admin access — tap to retry"}</Text><Ionicons name="refresh-outline" size={17} color={colors.textMuted} />
+          <View style={styles.groupDivider} />
+          <TouchableOpacity activeOpacity={0.7} style={[styles.settingRow, { flexDirection: isArabic ? "row-reverse" : "row" }]} onPress={() => router.push("/(protected)/integrations")} accessibilityRole="button">
+            <View style={[styles.settingLabelWrap, { flexDirection: isArabic ? "row-reverse" : "row" }]}>
+              <Ionicons name="apps-outline" size={19} color={colors.textPrimary} />
+              <Text style={styles.settingLabel}>{isArabic ? "الموصلات والتطبيقات المرتبطة" : "Connected apps"}</Text>
+            </View>
+            <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={18} color={colors.textSecondary} />
           </TouchableOpacity>
+          <View style={styles.groupDivider} />
+          <View style={[styles.settingRow, { flexDirection: isArabic ? "row-reverse" : "row" }]}>
+            <View style={[styles.settingLabelWrap, { flexDirection: isArabic ? "row-reverse" : "row" }]}>
+              <Ionicons name="globe-outline" size={19} color={colors.textPrimary} />
+              <Text style={styles.settingLabel}>{isArabic ? "اللغة" : "Language"}</Text>
+            </View>
+            <View style={[styles.compactOptions, { flexDirection: isArabic ? "row-reverse" : "row" }]}>
+              <TouchableOpacity activeOpacity={0.7} onPress={() => void changeLanguage("en")} style={[styles.compactOption, language === "en" && styles.compactOptionSelected]}><Text style={[styles.compactOptionText, language === "en" && styles.compactOptionTextSelected]}>EN</Text></TouchableOpacity>
+              <TouchableOpacity activeOpacity={0.7} onPress={() => void changeLanguage("ar")} style={[styles.compactOption, language === "ar" && styles.compactOptionSelected]}><Text style={[styles.compactOptionText, language === "ar" && styles.compactOptionTextSelected]}>ع</Text></TouchableOpacity>
+            </View>
+          </View>
+          <View style={styles.groupDivider} />
+          <View style={[styles.settingRow, { flexDirection: isArabic ? "row-reverse" : "row" }]}>
+            <View style={[styles.settingLabelWrap, { flexDirection: isArabic ? "row-reverse" : "row" }]}>
+              <Ionicons name={effectiveMode === "dark" ? "moon-outline" : "sunny-outline"} size={19} color={colors.textPrimary} />
+              <Text style={styles.settingLabel}>{isArabic ? "المظهر" : "Appearance"}</Text>
+            </View>
+            <View style={[styles.compactOptions, { flexDirection: isArabic ? "row-reverse" : "row" }]}>
+              {(["system", "light", "dark"] as const).map((value) => (
+                <TouchableOpacity key={value} activeOpacity={0.7} onPress={() => void changeAppearance(value)} style={[styles.compactOption, mode === value && styles.compactOptionSelected]}>
+                  <Text style={[styles.compactOptionText, mode === value && styles.compactOptionTextSelected]}>{value === "system" ? (isArabic ? "تلقائي" : "Auto") : value === "light" ? (isArabic ? "فاتح" : "Light") : (isArabic ? "داكن" : "Dark")}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+
+        <Text style={styles.sectionTitle}>{isArabic ? "المحتوى والبيانات" : "Content & data"}</Text>
+        <View style={styles.settingsGroup}>
+          <TouchableOpacity activeOpacity={0.7} style={[styles.settingRow, { flexDirection: isArabic ? "row-reverse" : "row" }]} onPress={() => router.push("/(protected)/memory")} accessibilityRole="button">
+            <View style={[styles.settingLabelWrap, { flexDirection: isArabic ? "row-reverse" : "row" }]}>
+              <Ionicons name="hardware-chip-outline" size={19} color={colors.textPrimary} />
+              <Text style={styles.settingLabel}>{isArabic ? "ذاكرة SULY" : "SULY memory"}</Text>
+            </View>
+            <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={18} color={colors.textSecondary} />
+          </TouchableOpacity>
+          <View style={styles.groupDivider} />
+          <TouchableOpacity activeOpacity={0.7} style={[styles.settingRow, { flexDirection: isArabic ? "row-reverse" : "row" }]} onPress={() => router.push("/(protected)/media")} accessibilityRole="button">
+            <View style={[styles.settingLabelWrap, { flexDirection: isArabic ? "row-reverse" : "row" }]}>
+              <Ionicons name="folder-open-outline" size={19} color={colors.textPrimary} />
+              <Text style={styles.settingLabel}>{isArabic ? "التخزين والمكتبة" : "Storage & library"}</Text>
+            </View>
+            <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={18} color={colors.textSecondary} />
+          </TouchableOpacity>
+          <View style={styles.groupDivider} />
+          <TouchableOpacity activeOpacity={0.7} style={[styles.settingRow, { flexDirection: isArabic ? "row-reverse" : "row" }]} onPress={() => void openArchive()} accessibilityRole="button">
+            <View style={[styles.settingLabelWrap, { flexDirection: isArabic ? "row-reverse" : "row" }]}>
+              <Ionicons name="archive-outline" size={19} color={colors.textPrimary} />
+              <Text style={styles.settingLabel}>{isArabic ? "أرشيف المحادثات" : "Conversation archive"}</Text>
+            </View>
+            <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={18} color={colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.sectionTitle}>{isArabic ? "الدعم والمعلومات" : "Support & information"}</Text>
+        <View style={styles.settingsGroup}>
+          <View style={[styles.settingRow, { flexDirection: isArabic ? "row-reverse" : "row" }]}>
+            <View style={[styles.settingLabelWrap, { flexDirection: isArabic ? "row-reverse" : "row" }]}>
+              <Ionicons name="star-outline" size={19} color={colors.textPrimary} />
+              <Text style={styles.settingLabel}>{isArabic ? "تقييم التطبيق" : "Rate the app"}</Text>
+            </View>
+            <Text style={styles.settingHint}>{isArabic ? "قريبًا" : "Coming soon"}</Text>
+          </View>
+          <View style={styles.groupDivider} />
+          <TouchableOpacity activeOpacity={0.7} style={[styles.settingRow, { flexDirection: isArabic ? "row-reverse" : "row" }]} onPress={() => router.push("/(protected)/support")} accessibilityRole="button">
+            <View style={[styles.settingLabelWrap, { flexDirection: isArabic ? "row-reverse" : "row" }]}>
+              <Ionicons name="help-circle-outline" size={19} color={colors.textPrimary} />
+              <Text style={styles.settingLabel}>{isArabic ? "الشكاوى والدعم" : "Support & complaints"}</Text>
+            </View>
+            <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={18} color={colors.textSecondary} />
+          </TouchableOpacity>
+          <View style={styles.groupDivider} />
+          <View style={[styles.settingRow, { flexDirection: isArabic ? "row-reverse" : "row" }]}>
+            <View style={[styles.settingLabelWrap, { flexDirection: isArabic ? "row-reverse" : "row" }]}>
+              <Ionicons name="information-circle-outline" size={19} color={colors.textPrimary} />
+              <Text style={styles.settingLabel}>{isArabic ? "إصدار التطبيق" : "App version"}</Text>
+            </View>
+            <Text style={styles.settingHint}>{Constants.expoConfig?.version ?? "1.0.0"}</Text>
+          </View>
+          <View style={styles.groupDivider} />
+          <TouchableOpacity activeOpacity={0.7} onPress={() => setPolicyModal("privacy")} style={[styles.settingRow, { flexDirection: isArabic ? "row-reverse" : "row" }]} accessibilityRole="button">
+            <View style={[styles.settingLabelWrap, { flexDirection: isArabic ? "row-reverse" : "row" }]}>
+              <Ionicons name="shield-checkmark-outline" size={19} color={colors.textPrimary} />
+              <Text style={styles.settingLabel}>{isArabic ? "سياسة الخصوصية" : "Privacy policy"}</Text>
+            </View>
+            <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={18} color={colors.textSecondary} />
+          </TouchableOpacity>
+          <View style={styles.groupDivider} />
+          <TouchableOpacity activeOpacity={0.7} onPress={() => setPolicyModal("terms")} style={[styles.settingRow, { flexDirection: isArabic ? "row-reverse" : "row" }]} accessibilityRole="button">
+            <View style={[styles.settingLabelWrap, { flexDirection: isArabic ? "row-reverse" : "row" }]}>
+              <Ionicons name="document-text-outline" size={19} color={colors.textPrimary} />
+              <Text style={styles.settingLabel}>{isArabic ? "شروط الاستخدام والحماية" : "Terms & safety"}</Text>
+            </View>
+            <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={18} color={colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+
+        {adminAccessState !== "denied" ? <>
+          <Text style={styles.sectionTitle}>{isArabic ? "إدارة النظام" : "Administration"}</Text>
+          <View style={styles.settingsGroup}>
+            {adminAccessState === "allowed" ? <TouchableOpacity activeOpacity={0.7} style={[styles.settingRow, { flexDirection: isArabic ? "row-reverse" : "row" }]} onPress={() => router.push("/admin")} accessibilityRole="button">
+              <View style={[styles.settingLabelWrap, { flexDirection: isArabic ? "row-reverse" : "row" }]}>
+                <Ionicons name="shield-checkmark-outline" size={19} color={colors.textPrimary} />
+                <Text style={styles.settingLabel}>{isArabic ? "لوحة التحكم الإدارية" : "Admin dashboard"}</Text>
+              </View>
+              <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={18} color={colors.textSecondary} />
+            </TouchableOpacity> : adminAccessState === "checking" ? <View style={[styles.settingRow, { flexDirection: isArabic ? "row-reverse" : "row" }]}><ActivityIndicator color={colors.primary} /><Text style={styles.settingLabel}>{isArabic ? "جارٍ التحقق من صلاحية الأدمن…" : "Checking administrator access…"}</Text></View> : <TouchableOpacity activeOpacity={0.7} style={[styles.settingRow, { flexDirection: isArabic ? "row-reverse" : "row" }]} onPress={() => void checkAdminAccess()} accessibilityRole="button">
+              <View style={[styles.settingLabelWrap, { flexDirection: isArabic ? "row-reverse" : "row" }]}>
+                <Ionicons name="refresh-outline" size={19} color={colors.textPrimary} />
+                <Text style={styles.settingLabel}>{isArabic ? "تعذر التحقق — إعادة المحاولة" : "Could not verify — retry"}</Text>
+              </View>
+              <Ionicons name="refresh-outline" size={18} color={colors.textSecondary} />
+            </TouchableOpacity>}
+          </View>
         </> : null}
-        <Text style={styles.sectionTitle}>{isArabic ? "المعلومات والسياسات" : "Information & policies"}</Text>
-        <View style={styles.policyCard}>
-          <TouchableOpacity activeOpacity={0.7} onPress={() => setPolicyModal("privacy")} style={styles.policyRow}><Ionicons name="shield-checkmark-outline" size={17} color={colors.textPrimary} /><Text style={styles.rowText}>{isArabic ? "سياسة الخصوصية" : "Privacy policy"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
-          <View style={styles.separator} />
-          <TouchableOpacity activeOpacity={0.7} onPress={() => setPolicyModal("terms")} style={styles.policyRow}><Ionicons name="document-text-outline" size={17} color={colors.textPrimary} /><Text style={styles.rowText}>{isArabic ? "شروط الاستخدام والحماية" : "Terms & safety"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
-        </View>
-
       </ScrollView>
 
 
@@ -349,6 +411,27 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   separator: { height: 1, backgroundColor: colors.surfaceElevated },
   logoutButton: { paddingVertical: 15, paddingHorizontal: 20, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 0, marginTop: 30, alignItems: "center", minHeight: 50, justifyContent: "center" },
   logoutText: { color: colors.textPrimary, fontWeight: "700", fontSize: 15 },
+  profileCard: { minHeight: 82, padding: 16, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 0, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 13 },
+  accountType: { color: colors.textSecondary, marginTop: 3, fontSize: 12, fontWeight: "400", textAlign: isArabic ? "right" : "left" },
+  planCard: { marginTop: 16, padding: 16, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 0 },
+  planRow: { minHeight: 46, alignItems: "center", justifyContent: "space-between", gap: 12 },
+  planHint: { color: colors.textSecondary, fontSize: 11, fontWeight: "400", marginTop: 2, textAlign: isArabic ? "right" : "left" },
+  planDivider: { height: 1, backgroundColor: colors.divider },
+  creditRow: { minHeight: 46, alignItems: "center", justifyContent: "space-between", gap: 12 },
+  creditValueWrap: { alignItems: "center", gap: 7 },
+  inlineRetry: { paddingVertical: 6, alignItems: isArabic ? "flex-end" : "flex-start" },
+  settingsGroup: { paddingHorizontal: 15, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 0 },
+  settingRow: { minHeight: 54, alignItems: "center", justifyContent: "space-between", gap: 12, paddingVertical: 9 },
+  settingLabelWrap: { flex: 1, alignItems: "center", gap: 10 },
+  settingLabel: { color: colors.textPrimary, fontSize: 13, fontWeight: "600", flexShrink: 1, textAlign: isArabic ? "right" : "left" },
+  settingValueWrap: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 7, maxWidth: "48%" },
+  settingHint: { color: colors.textSecondary, fontSize: 11, textAlign: isArabic ? "left" : "right", flexShrink: 1 },
+  groupDivider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.divider },
+  compactOptions: { alignItems: "center", gap: 5, maxWidth: "58%" },
+  compactOption: { minHeight: 30, minWidth: 32, paddingHorizontal: 9, borderRadius: 9, backgroundColor: colors.surfaceElevated, alignItems: "center", justifyContent: "center" },
+  compactOptionSelected: { backgroundColor: colors.primarySoft },
+  compactOptionText: { color: colors.textSecondary, fontSize: 10, fontWeight: "600" },
+  compactOptionTextSelected: { color: colors.textPrimary, fontWeight: "800" },
   sheetContent: { maxHeight: 520 },
   archiveContent: { maxHeight: 520, gap: 8 },
   archiveRow: { minHeight: 56, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 9, paddingHorizontal: 10, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.divider },
