@@ -11,12 +11,31 @@ export type MarkdownBlock =
   | { type: "agent"; title: string; message: string };
 
 function splitTableRow(line: string): string[] {
-  return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim());
+  const source = line.trim().replace(/^\|/, "").replace(/\|$/, "");
+  const cells: string[] = [];
+  let cell = "";
+  let escaped = false;
+  for (const character of source) {
+    if (character === "|" && !escaped) {
+      cells.push(cell.trim().replace(/\\\|/g, "|"));
+      cell = "";
+      continue;
+    }
+    if (character === "\\" && !escaped) {
+      escaped = true;
+      cell += character;
+      continue;
+    }
+    escaped = false;
+    cell += character;
+  }
+  cells.push(cell.trim().replace(/\\\|/g, "|"));
+  return cells;
 }
 
 function isTableDivider(line: string): boolean {
   const cells = splitTableRow(line);
-  return cells.length > 0 && cells.every((cell) => /^:?-{3,}:?$/.test(cell.replace(/\s/g, "")));
+  return cells.length > 0 && cells.every((cell) => /^:?-{1,}:?$/.test(cell.replace(/\s/g, "")));
 }
 
 function isBlockStart(lines: string[], index: number): boolean {
@@ -141,8 +160,13 @@ export function parseMarkdownBlocks(markdown: string): MarkdownBlock[] {
       index += 2;
       const rows: string[][] = [];
       while (index < lines.length && lines[index].trim() && lines[index].includes("|")) {
+        if (isTableDivider(lines[index])) {
+          index += 1;
+          continue;
+        }
         const cells = splitTableRow(lines[index]);
-        rows.push(headers.map((_, cellIndex) => cells[cellIndex] || ""));
+        const row = headers.map((_, cellIndex) => cells[cellIndex] ?? "");
+        if (row.some((cell) => cell.length > 0)) rows.push(row);
         index += 1;
       }
       blocks.push({ type: "table", headers, rows });
