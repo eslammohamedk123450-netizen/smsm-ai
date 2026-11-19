@@ -260,7 +260,7 @@ export function MediaScreen() {
     <TextInput value={search} onChangeText={setSearch} placeholder={isArabic ? "ابحث باسم الملف أو وصفه" : "Search by file name or description"} placeholderTextColor={colors.textMuted} style={styles.search} />
     {false ? <View style={styles.actions}>
       <Pressable disabled={folderMutationBusy} accessibilityRole="button" onPress={() => { setFolderEditor("create"); setFolderName(""); }}><Text style={[styles.link, folderMutationBusy && styles.disabledText]}>{isArabic ? "＋ مجلد جديد" : "＋ New folder"}</Text></Pressable>
-      {selectedFolder ? <Pressable disabled={folderMutationBusy} accessibilityRole="button" onPress={() => { setFolderEditor("rename"); setFolderName(selectedFolder.name); }}><Text style={[styles.link, folderMutationBusy && styles.disabledText]}>{isArabic ? "إعادة تسمية" : "Rename"}</Text></Pressable> : null}
+      {selectedFolder ? <Pressable disabled={folderMutationBusy} accessibilityRole="button" onPress={() => { setFolderEditor("rename"); setFolderName(selectedFolder?.name ?? ""); }}><Text style={[styles.link, folderMutationBusy && styles.disabledText]}>{isArabic ? "إعادة تسمية" : "Rename"}</Text></Pressable> : null}
       {selectedFolder ? <Pressable disabled={folderMutationBusy} accessibilityRole="button" onPress={confirmDeleteFolder}><Text style={[styles.link, folderMutationBusy && styles.disabledText]}>{isArabic ? "حذف المجلد" : "Delete folder"}</Text></Pressable> : null}
     </View> : null}
     {null}
