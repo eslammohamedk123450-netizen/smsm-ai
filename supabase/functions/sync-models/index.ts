@@ -154,11 +154,14 @@ async function insertMissingModels(
         if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) capabilities = parsed as Record<string, unknown>;
       } catch { /* leave unrecognized capability data untouched */ }
     }
+    const isNonChat = NON_CHAT_PATTERN.test(item.model_identifier);
     const isUntouchedPlaceholder = capabilities.chat === false
       && Object.keys(capabilities).every((key) => key === "chat");
-    if (!isUntouchedPlaceholder) continue;
+    const needsPromotion = isUntouchedPlaceholder && !isNonChat;
+    const needsDemotion = isNonChat && capabilities.chat === true;
+    if (!needsPromotion && !needsDemotion) continue;
     const { error: updateError } = await supabase.from("ai_models")
-      .update({ capabilities_json: JSON.stringify({ chat: !NON_CHAT_PATTERN.test(item.model_identifier), catalog_discovered: true }) })
+      .update({ capabilities_json: JSON.stringify({ ...capabilities, chat: !isNonChat, catalog_discovered: true }) })
       .eq("id", item.id);
     if (updateError) return { created: 0, capabilitiesUpdated, failed: updateError.message };
     capabilitiesUpdated += 1;
