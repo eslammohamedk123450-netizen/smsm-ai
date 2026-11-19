@@ -3,6 +3,8 @@ import {
   classifyProviderAttemptFailure,
   extractOpenAiText,
   formatSseDataEvent,
+  formatSseKeepAlive,
+  providerStreamTimeoutMs,
   readOpenAiResponse,
 } from "./openai_compat_stream.ts";
 
@@ -220,6 +222,16 @@ Deno.test("recognizes Gemini MAX_TOKENS and preserves its final text", async () 
 });
 
 
+
+Deno.test("uses a bounded long timeout for code generation while preserving short chat limits", () => {
+  assertEquals(providerStreamTimeoutMs(30000, 15000, false), 15000);
+  assertEquals(providerStreamTimeoutMs(30000, 15000, true), 120000);
+  assertEquals(providerStreamTimeoutMs(180000, 180000, true), 120000);
+});
+
+Deno.test("formats SSE keepalive comments without creating data events", () => {
+  assertEquals(formatSseKeepAlive(), ": suly-keepalive\\n\\n");
+});
 
 Deno.test("serializes router events with real SSE frame delimiters", () => {
   const frame = formatSseDataEvent({ chunk: "hello", done: false });
