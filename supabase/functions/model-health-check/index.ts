@@ -21,6 +21,7 @@ type ModelRow = {
   enabled: boolean;
   routing_group: string;
   response_timeout_ms: number | null;
+  capabilities_json?: string | Record<string, unknown> | null;
 };
 type ProviderRow = {
   id: number;
@@ -61,6 +62,14 @@ function safeChatEndpoint(value: unknown, providerType?: string): string | null 
   } catch {
     return null;
   }
+}
+
+function isChatCapable(raw: unknown): boolean {
+  let capabilities = asRecord(raw);
+  if (typeof raw === "string") {
+    try { capabilities = asRecord(JSON.parse(raw)); } catch { return true; }
+  }
+  return capabilities.chat !== false;
 }
 
 function contentText(value: unknown): string {
@@ -363,11 +372,14 @@ async function syncTextCapabilityEvidence(
 async function runManualTest(serviceClient: SupabaseClient, modelId: number): Promise<Response> {
   const { data: modelData, error: modelError } = await serviceClient
     .from("ai_models")
-    .select("id,name,provider_id,model_identifier,enabled,routing_group,response_timeout_ms")
+    .select("id,name,provider_id,model_identifier,enabled,routing_group,response_timeout_ms,capabilities_json")
     .eq("id", modelId)
     .maybeSingle();
   if (modelError || !modelData) return jsonResponse({ error: "Model not found." }, 404);
   const model = modelData as ModelRow;
+  if (!isChatCapable(model.capabilities_json)) {
+    return jsonResponse({ model_id: model.id, status: "error", duration_ms: 0, error_code: "model_not_chat_capable" }, 200);
+  }
 
   const { data: providerData, error: providerError } = await serviceClient
     .from("ai_providers")
@@ -428,12 +440,12 @@ async function mapLimit<T, R>(items: T[], limit: number, worker: (item: T) => Pr
 async function runScheduledChecks(serviceClient: SupabaseClient): Promise<Response> {
   const { data: modelData, error: modelError } = await serviceClient
     .from("ai_models")
-    .select("id,name,provider_id,model_identifier,enabled,routing_group,response_timeout_ms")
+    .select("id,name,provider_id,model_identifier,enabled,routing_group,response_timeout_ms,capabilities_json")
     .order("id", { ascending: true })
     .limit(500);
   if (modelError) return jsonResponse({ error: "Could not load models." }, 500);
 
-  const models = (modelData ?? []) as ModelRow[];
+  const models = ((modelData ?? []) as ModelRow[]).filter((model) => isChatCapable(model.capabilities_json));
   if (models.length === 0) return jsonResponse({ checked: 0, succeeded: 0, failed: 0, skipped: 0 });
   const providerIds = [...new Set(models.map((model) => model.provider_id))];
   const { data: providerData, error: providerError } = await serviceClient
