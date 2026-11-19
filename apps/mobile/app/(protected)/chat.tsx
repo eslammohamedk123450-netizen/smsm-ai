@@ -383,6 +383,20 @@ export default function ChatPage() {
             await reloadMessages(id);
             return;
           } catch (retryCause) {
+            const partialAfterRetry = streamedTextRef.current.trim();
+            if (partialAfterRetry) {
+              setMessages((current) => [...current.filter((item) => item.id !== STREAMING_ID), {
+                id: `partial-${savedUserMessageId}`,
+                conversationId: id!,
+                role: "assistant",
+                content: partialAfterRetry,
+                createdAt: new Date().toISOString(),
+                modelId: null,
+                status: "sent",
+              }]);
+            } else {
+              setMessages((current) => current.filter((item) => item.id !== STREAMING_ID));
+            }
             const retryReason = retryCause instanceof Error ? retryCause.message.trim().slice(0, 240) : "";
             setError(retryReason
               ? (isArabic ? `تعذر إكمال الرد بعد إعادة المحاولة: ${retryReason}` : `The response still failed after retry: ${retryReason}`)
