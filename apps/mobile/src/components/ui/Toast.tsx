@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { Animated, StyleSheet, View } from "react-native";
 import { PremiumText as Text } from "./PremiumText";
 import { useSulyTheme } from "../../theme/ThemeProvider";
+import { useAppLocale } from "../../theme/LocaleProvider";
 
 type ToastKind = "success" | "error" | "info";
 type ToastValue = { show(message: string, kind?: ToastKind): void };
@@ -12,6 +13,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const opacity = useRef(new Animated.Value(0)).current;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { colors: palette } = useSulyTheme();
+  const { isArabic, direction } = useAppLocale();
   const show = useCallback((message: string, kind: ToastKind = "info") => {
     if (timer.current) clearTimeout(timer.current);
     setItem({ message, kind, key: Date.now() });
@@ -31,9 +33,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      {item ? <Animated.View pointerEvents="none" style={[styles.toast, { opacity, backgroundColor: palette.surface, borderColor: palette.divider, shadowColor: palette.background }]}>
+      {item ? <Animated.View pointerEvents="none" style={[styles.toast, { opacity, backgroundColor: palette.surface, borderColor: palette.divider, shadowColor: palette.background, flexDirection: isArabic ? "row-reverse" : "row", direction }]}>
         <View style={[styles.badge, { borderColor: glyphColor }]}><Text style={[styles.glyph, { color: glyphColor }]}>{glyph}</Text></View>
-        <Text style={[styles.message, { color: palette.textPrimary }]}>{item.message}</Text>
+        <Text style={[styles.message, { color: palette.textPrimary, textAlign: isArabic ? "right" : "left", writingDirection: direction }]}>{item.message}</Text>
       </Animated.View> : null}
     </ToastContext.Provider>
   );
