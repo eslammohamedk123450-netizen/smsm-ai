@@ -1,3 +1,8 @@
+/** Serialize one router event using real SSE frame delimiters. */
+export function formatSseDataEvent(payload: unknown): string {
+  return `data: ${JSON.stringify(payload)}\n\n`;
+}
+
 export type ProviderUsage = {
   inputTokens: number | null;
   outputTokens: number | null;
