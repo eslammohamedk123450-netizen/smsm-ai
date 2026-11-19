@@ -77,14 +77,11 @@ export function ConversationsScreen() {
     return matching.sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
   }, [items, tasks, query, isArabic, filter]);
 
-  const create = async () => {
+  const create = () => {
     if (creating) return;
-    setCreating(true); setError(null);
-    try {
-      const conversation = await chatService.createConversation(isArabic ? "محادثة جديدة" : "New conversation");
-      router.push({ pathname: "/chat", params: { conversationId: conversation.id } });
-    } catch (cause) { setError(cause instanceof Error ? cause.message : (isArabic ? "تعذر إنشاء محادثة." : "Could not create a chat.")); }
-    finally { setCreating(false); }
+    // Keep this as a local draft until the user sends a message or runs a task.
+    setCreating(true);
+    router.push("/chat");
   };
 
   const togglePin = async () => {
