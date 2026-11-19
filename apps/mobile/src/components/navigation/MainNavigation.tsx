@@ -24,7 +24,7 @@ export function usePlusMenu() {
   return useContext(PlusMenuContext) ?? (() => undefined);
 }
 
-const BASIC_CHAT_ONLY = true;
+const BASIC_CHAT_ONLY = false;
 
 const ITEMS = [
   { key: "studio", labelAr: "الاستوديو", labelEn: "Studio", href: "/studio", icon: "color-wand-outline" as const },
