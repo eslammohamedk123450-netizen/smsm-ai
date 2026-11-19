@@ -260,7 +260,7 @@ async function handleSyncModelsRequest(request: Request): Promise<Response> {
     const discovery = await discoverModels(String(provider.provider_type), baseUrl, key);
     const insertion = await insertMissingModels(supabase, providerId, discovery.identifiers);
     await supabase.from("ai_providers").update({
-      last_test_status: insertion.failed ? "error" : "success",
+      last_test_status: insertion.failed || discovery.warning ? "error" : "success",
       last_tested_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }).eq("id", providerId);
@@ -311,7 +311,7 @@ async function handleSyncModelsRequest(request: Request): Promise<Response> {
   const insertion = await insertMissingModels(supabase, providerId, discovery.identifiers);
 
   await supabase.from("ai_providers").update({
-    last_test_status: insertion.failed ? "error" : "success",
+    last_test_status: insertion.failed || discovery.warning ? "error" : "success",
     last_tested_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }).eq("id", providerId);
