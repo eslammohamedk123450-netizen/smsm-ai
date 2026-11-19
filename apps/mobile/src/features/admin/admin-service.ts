@@ -364,9 +364,15 @@ export const adminService = {
 
   async getModelsOverview() {
     await requireAdmin();
-    const [modelsResult, healthResult, probeResult, settingsResult, providers] = await Promise.all([
+    // Resolve active providers first, then constrain the database query itself.
+    // Disabled/archived provider models must never enter any catalog filter,
+    // including "all" and "disabled".
+    const providers = await this.getProviders();
+    const activeProviderIds = providers.map((item: { id: number }) => Number(item.id));
+    const [modelsResult, healthResult, probeResult, settingsResult] = await Promise.all([
       supabase.from("ai_models")
         .select("id,name,provider_id,model_identifier,enabled,priority,context_window,routing_group,allowed_tiers,capabilities_json,task_roles,response_timeout_ms,restriction_failure_threshold,restriction_window_minutes")
+        .in("provider_id", activeProviderIds)
         .order("priority", { ascending: false }).order("name").limit(500),
       supabase.from("ai_model_health")
         .select("model_id,total_attempts,successful_attempts,failed_attempts,consecutive_failures,last_attempt_at,last_success_at,last_failure_at,last_status,last_error_code,last_error_reason,average_latency_ms,auto_restricted,restriction_reason,restricted_at")
@@ -377,7 +383,6 @@ export const adminService = {
       supabase.from("ai_router_settings")
         .select("id,free_race_timeout_ms,paid_fallback_enabled,paid_fallback_timeout_ms,max_parallel_free_models,health_auto_restrict_enabled,gmail_task_model_id,agent_planner_model_id,agent_summarizer_model_id")
         .eq("id", 1).maybeSingle(),
-      this.getProviders(),
     ]);
     if (modelsResult.error) throw modelsResult.error;
     if (healthResult.error) throw healthResult.error;
@@ -385,12 +390,10 @@ export const adminService = {
     if (settingsResult.error) throw settingsResult.error;
     const providerNames = new Map<number, string>(providers.map((item: { id: number; name?: string | null; provider_type?: string | null }) => [Number(item.id), String(item.name ?? "—")]));
     const providerTypes = new Map<number, string>(providers.map((item: { id: number; provider_type?: string | null }) => [Number(item.id), String(item.provider_type ?? "—")]));
-    const providerEnabled = new Map<number, boolean>(providers.map((item: { id: number; enabled?: boolean }) => [Number(item.id), item.enabled === true]));
     const health = new Map<number, Record<string, unknown>>((healthResult.data ?? []).map((row) => [Number(row.model_id), row]));
     const probe = new Map<number, Record<string, unknown>>((probeResult.data ?? []).map((row) => [Number(row.model_id), row]));
     return {
       models: (modelsResult.data ?? [])
-        .filter((row) => providerEnabled.get(Number(row.provider_id)) === true)
         .map((row) => ({ ...row, provider_name: providerNames.get(Number(row.provider_id)) ?? "—", provider_type: providerTypes.get(Number(row.provider_id)) ?? "—", provider_enabled: true, health: health.get(Number(row.id)) ?? null, probe: probe.get(Number(row.id)) ?? null })),
       settings: settingsResult.data,
     };
