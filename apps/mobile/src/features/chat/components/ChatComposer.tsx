@@ -34,7 +34,7 @@ export interface ChatComposerProps {
   basicMode?: boolean;
 }
 
-const MIN_INPUT_HEIGHT = 56;
+const MIN_INPUT_HEIGHT = 64;
 const MAX_INPUT_HEIGHT = 160;
 
 export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(function ChatComposer(
@@ -142,6 +142,21 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
 
   const canSend = Boolean(text.trim() || attachment) && !disabled && !isStreaming;
 
+  const insertCodeBlock = () => {
+    if (disabled || isStreaming || isListening) return;
+    const start = selection?.start ?? text.length;
+    const end = selection?.end ?? start;
+    const before = text.slice(0, start);
+    const selected = text.slice(start, end);
+    const after = text.slice(end);
+    const codeBlock = "```\n" + selected + "\n```";
+    const nextText = before + codeBlock + after;
+    const cursor = before.length + (selected ? codeBlock.length : 4);
+    setText(nextText);
+    setSelection({ start: cursor, end: cursor });
+    requestAnimationFrame(() => inputRef.current?.focus());
+  };
+
   const submit = () => {
     const content = text.trim();
     if ((!content && !attachment) || disabled) return;
@@ -183,105 +198,98 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
 
         <View style={styles.composerRow}>
           <TextInput
-          ref={inputRef}
-          value={text}
-          onChangeText={(value) => { setText(value); if (voiceError) setVoiceError(null); }}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
-          onContentSizeChange={(event) => {
-            const measuredHeight = Math.ceil(event.nativeEvent.contentSize.height) + 32;
-            setInputHeight(Math.max(MIN_INPUT_HEIGHT, Math.min(MAX_INPUT_HEIGHT, measuredHeight)));
-          }}
-          selection={selection}
-          onSelectionChange={(event) => setSelection(event.nativeEvent.selection)}
-          editable={!disabled && !isStreaming && !isListening}
-          placeholder={isArabic ? "اسأل أي حاجة..." : "Ask anything..."}
-          placeholderTextColor={colors.textMuted}
-          selectionColor={colors.primary}
-          underlineColorAndroid="transparent"
-          keyboardAppearance="dark"
-          style={[
-            styles.input,
-            Platform.OS === "web" ? ({
-              outlineStyle: "none",
-              outlineWidth: 0,
-              boxShadow: "none",
-              appearance: "none",
-            } as any) : null,
-            { height: inputHeight },
-          ]}
-          multiline
-          scrollEnabled={inputHeight >= MAX_INPUT_HEIGHT}
-          maxLength={16000}
-          textAlign={isArabic ? "right" : "left"}
-          accessibilityLabel={isArabic ? "اسأل Suly" : "Ask SULY"}
-        />
+            ref={inputRef}
+            value={text}
+            onChangeText={(value) => { setText(value); if (voiceError) setVoiceError(null); }}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
+            onContentSizeChange={(event) => {
+              const measuredHeight = Math.ceil(event.nativeEvent.contentSize.height) + 32;
+              setInputHeight(Math.max(MIN_INPUT_HEIGHT, Math.min(MAX_INPUT_HEIGHT, measuredHeight)));
+            }}
+            selection={selection}
+            onSelectionChange={(event) => setSelection(event.nativeEvent.selection)}
+            editable={!disabled && !isStreaming && !isListening}
+            placeholder={isArabic ? "اسأل أي حاجة..." : "Ask anything..."}
+            placeholderTextColor={colors.textMuted}
+            selectionColor={colors.primary}
+            underlineColorAndroid="transparent"
+            keyboardAppearance="dark"
+            style={[
+              styles.input,
+              Platform.OS === "web" ? ({
+                outlineStyle: "none",
+                outlineWidth: 0,
+                boxShadow: "none",
+                appearance: "none",
+              } as any) : null,
+              { height: inputHeight },
+            ]}
+            multiline
+            scrollEnabled={inputHeight >= MAX_INPUT_HEIGHT}
+            maxLength={16000}
+            textAlign={isArabic ? "right" : "left"}
+            accessibilityLabel={isArabic ? "اسأل Suly" : "Ask SULY"}
+          />
 
-        {/* Keep the attachment action on the physical right and send/mic on the left. */}
-        <View style={styles.actionsRow}>
-          <TouchableOpacity
-            onPress={() => setAttachVisible(true)}
-            disabled={disabled || isStreaming || isListening}
-            activeOpacity={0.8}
-            style={[styles.plusCircleButton, (disabled || isStreaming || isListening) && styles.controlDisabled]}
-            accessibilityRole="button"
-            accessibilityLabel={isArabic ? "إضافة مرفق" : "Add attachment"}
-          >
-            <Ionicons name="add" size={24} color={colors.onPrimary} />
-          </TouchableOpacity>
-          <View style={styles.leftControls}>
-            {isStreaming ? (
-              <Pressable
-                style={[styles.circleButton, styles.circleButtonFilled]}
-                onPress={onCancel}
-                disabled={!onCancel}
+          <View style={styles.actionsRow}>
+            <View style={styles.leftActions}>
+              <TouchableOpacity
+                onPress={() => setAttachVisible(true)}
+                disabled={disabled || isStreaming || isListening}
+                activeOpacity={0.8}
+                style={[styles.iconButton, (disabled || isStreaming || isListening) && styles.controlDisabled]}
                 accessibilityRole="button"
-                accessibilityLabel={isArabic ? "إيقاف الرد" : "Stop response"}
+                accessibilityLabel={isArabic ? "إضافة صورة أو ملف" : "Add media or file"}
               >
-                <Ionicons name="stop" size={16} color="#F5F5F5" />
-              </Pressable>
-            ) : (
-              <Pressable
-                style={[
-                  styles.circleButton,
-                  canSend ? styles.circleButtonFilled : styles.circleButtonOutlined,
-                ]}
-                onPress={submit}
-                disabled={!canSend}
+                <Ionicons name="attach-outline" size={22} color={colors.textSecondary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={insertCodeBlock}
+                disabled={disabled || isStreaming || isListening}
+                activeOpacity={0.8}
+                style={[styles.iconButton, (disabled || isStreaming || isListening) && styles.controlDisabled]}
                 accessibilityRole="button"
-                accessibilityLabel={isArabic ? "إرسال" : "Send"}
+                accessibilityLabel={isArabic ? "إدراج كتلة كود" : "Insert code block"}
               >
-                <Ionicons
-                  name="paper-plane-outline"
-                  size={17}
-                  color="#F5F5F5"
-                />
-              </Pressable>
-            )}
+                <Ionicons name="code-slash-outline" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
 
-            <Pressable
-              style={[
-                styles.circleButton,
-                isListening ? styles.circleButtonFilled : styles.circleButtonOutlined,
-                disabled && styles.controlDisabled,
-              ]}
-              onPress={() => void handleVoicePress()}
-              disabled={disabled}
-              accessibilityRole="button"
-              accessibilityLabel={
-                isListening
-                  ? (isArabic ? "إيقاف الإملاء الصوتي" : "Stop voice dictation")
-                  : (isArabic ? "إملاء رسالة صوتيًا" : "Dictate a message")
-              }
-            >
-              <Ionicons
-                name={isListening ? "stop" : "mic-outline"}
-                size={18}
-                color="#F5F5F5"
-              />
-            </Pressable>
+            <View style={styles.rightActions}>
+              <Pressable
+                style={[styles.circleButton, isListening ? styles.circleButtonFilled : styles.circleButtonOutlined, disabled && styles.controlDisabled]}
+                onPress={() => void handleVoicePress()}
+                disabled={disabled}
+                accessibilityRole="button"
+                accessibilityLabel={isListening ? (isArabic ? "إيقاف الإملاء الصوتي" : "Stop voice dictation") : (isArabic ? "إملاء رسالة صوتيًا" : "Dictate a message")}
+              >
+                <Ionicons name={isListening ? "stop" : "mic-outline"} size={18} color="#F5F5F5" />
+              </Pressable>
+
+              {isStreaming ? (
+                <Pressable
+                  style={[styles.sendButton, styles.sendButtonActive]}
+                  onPress={onCancel}
+                  disabled={!onCancel}
+                  accessibilityRole="button"
+                  accessibilityLabel={isArabic ? "إيقاف الرد" : "Stop response"}
+                >
+                  <Ionicons name="stop" size={16} color="#FFFFFF" />
+                </Pressable>
+              ) : (
+                <Pressable
+                  style={[styles.sendButton, canSend ? styles.sendButtonActive : styles.sendButtonInactive]}
+                  onPress={submit}
+                  disabled={!canSend}
+                  accessibilityRole="button"
+                  accessibilityLabel={isArabic ? "إرسال" : "Send"}
+                >
+                  <Ionicons name="arrow-up" size={20} color={canSend ? colors.onPrimary : colors.textMuted} />
+                </Pressable>
+              )}
+            </View>
           </View>
-        </View>
         </View>
       </View>
 
@@ -302,11 +310,11 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
 const createStyles = (colors: ThemePalette, isArabic: boolean, canvasBackground: string) => StyleSheet.create({
   wrapper: {
     width: "100%",
-    maxWidth: 860,
+    maxWidth: 1200,
     alignSelf: "center",
-    paddingHorizontal: Platform.OS === "web" ? 24 : 16,
+    paddingHorizontal: Platform.OS === "web" ? 20 : 10,
     paddingTop: 6,
-    paddingBottom: 16,
+    paddingBottom: 12,
     backgroundColor: canvasBackground,
   },
   voiceError: { color: colors.error, fontSize: 10, lineHeight: 15, textAlign: isArabic ? "right" : "left", paddingHorizontal: 4, marginBottom: 5 },
@@ -314,14 +322,14 @@ const createStyles = (colors: ThemePalette, isArabic: boolean, canvasBackground:
   controlDisabled: { opacity: 0.45 },
   container: {
     width: "100%",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderRadius: 28,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderRadius: 30,
     borderWidth: 1,
-    borderColor: "#2A2A2A",
-    backgroundColor: "#1A1A1A",
+    borderColor: "#30333B",
+    backgroundColor: "#171A22",
     justifyContent: "center",
-    gap: 12,
+    gap: 10,
   },
   composerRow: {
     flexDirection: "column",
@@ -350,43 +358,21 @@ const createStyles = (colors: ThemePalette, isArabic: boolean, canvasBackground:
   actionsRow: {
     width: "100%",
     flexShrink: 0,
-    flexDirection: "row-reverse",
+    flexDirection: "row",
     direction: "ltr",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingTop: 0,
+    paddingTop: 2,
   },
-  leftControls: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  circleButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  circleButtonOutlined: {
-    backgroundColor: "transparent",
-    borderWidth: 1,
-    borderColor: "#777777",
-  },
-  circleButtonFilled: {
-    backgroundColor: "transparent",
-    borderWidth: 1,
-    borderColor: "#777777",
-  },
-  plusCircleButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "transparent",
-    borderWidth: 0,
-  },
+  leftActions: { flexDirection: "row", alignItems: "center", gap: 12 },
+  rightActions: { flexDirection: "row", alignItems: "center", gap: 9 },
+  iconButton: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
+  circleButton: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
+  circleButtonOutlined: { backgroundColor: "transparent", borderWidth: 1, borderColor: "#626873" },
+  circleButtonFilled: { backgroundColor: colors.primary, borderWidth: 0 },
+  sendButton: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center" },
+  sendButtonActive: { backgroundColor: colors.primary },
+  sendButtonInactive: { backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.divider },
   attachmentChip: {
     alignSelf: "flex-start",
     flexDirection: "row",
