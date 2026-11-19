@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { usePathname, useRouter } from "expo-router";
 import { createContext, useContext, useMemo } from "react";
-import { Platform, Pressable, StyleSheet, View, useWindowDimensions } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { PremiumText as Text } from "../ui/PremiumText";
 import { AppLogo } from "../ui/AppLogo";
@@ -31,8 +31,6 @@ export function MainNavigation({ children }: Props) {
   const router = useRouter();
   const { colors } = useSulyTheme();
   const { isArabic } = useAppLocale();
-  const { width } = useWindowDimensions();
-  const isDesktop = Platform.OS === "web" && width >= 1024;
   const styles = useMemo(() => createStyles(colors), [colors]);
   const isChat = pathname.startsWith("/chat");
   const isHome = pathname === "/home" || pathname === "/";
