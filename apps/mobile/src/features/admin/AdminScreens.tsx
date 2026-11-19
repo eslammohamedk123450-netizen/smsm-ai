@@ -364,7 +364,7 @@ export function ProvidersAdminScreen() {
                       <Text style={styles.providerModelName}>{model.name}</Text>
                       <Text selectable style={styles.providerModelIdentifier}>{model.model_identifier}</Text>
                     </View>
-                    {model.capabilities_json?.chat === false ? (
+                    {(typeof model.capabilities_json === "string" ? model.capabilities_json.replace(/\s/g, "").includes('"chat":false') : model.capabilities_json?.chat === false) ? (
                       <Text style={styles.detail}>غير دردشة</Text>
                     ) : (
                       <Pressable accessibilityRole="button" accessibilityLabel={`اختبار ${model.name}`} disabled={testingProviderModelId !== null || !provider.enabled} onPress={() => void testProviderModel(model)} style={styles.providerTileAction}>
