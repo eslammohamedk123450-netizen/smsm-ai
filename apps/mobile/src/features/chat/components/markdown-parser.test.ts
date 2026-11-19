@@ -30,8 +30,7 @@ const answer = 42;
   });
 
   it("marks an unfinished fenced code block so it cannot be previewed as complete", () => {
-    expect(parseMarkdownBlocks(````html
-<!doctype html><html><body><h1>Incomplete</h1>`)).toEqual([
+    expect(parseMarkdownBlocks(["```html", "<!doctype html><html><body><h1>Incomplete</h1>"].join("\n"))).toEqual([
       { type: "code", language: "html", code: "<!doctype html><html><body><h1>Incomplete</h1>", incomplete: true },
     ]);
   });
