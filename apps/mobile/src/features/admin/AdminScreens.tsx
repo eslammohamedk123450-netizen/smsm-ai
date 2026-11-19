@@ -390,6 +390,7 @@ export function ProvidersAdminScreen() {
               <View style={styles.providerTileInfo}>
                 <Text style={styles.cardTitle}>{provider.name}</Text>
                 <Text numberOfLines={1} style={styles.detail}>{provider.provider_type} · مؤرشف</Text>
+                <Text selectable style={styles.detail}>URL: {provider.base_url ?? "غير محدد"}</Text>
                 <Text style={styles.detail}>الإعدادات محفوظة.</Text>
               </View>
               <PrimaryButton
@@ -407,6 +408,10 @@ export function ProvidersAdminScreen() {
                 })()}
                 disabled={busyId !== null}
               />
+              <Pressable accessibilityRole="button" disabled={busyId !== null} onPress={() => void deleteProvider(provider)} style={styles.providerExpandAction}>
+                <Text style={{ color: colors.error, fontWeight: "700" }}>حذف المفتاح نهائيًا</Text>
+                <Ionicons name="trash-outline" size={16} color={colors.error}/>
+              </Pressable>
             </View>)}</View>
       ) : null}
     </Card>
