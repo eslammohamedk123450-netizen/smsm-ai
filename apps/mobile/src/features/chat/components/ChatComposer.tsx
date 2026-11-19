@@ -34,8 +34,8 @@ export interface ChatComposerProps {
   basicMode?: boolean;
 }
 
-const MIN_INPUT_HEIGHT = 38;
-const MAX_INPUT_HEIGHT = 136;
+const MIN_INPUT_HEIGHT = 56;
+const MAX_INPUT_HEIGHT = 160;
 
 export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(function ChatComposer(
   {
@@ -189,13 +189,13 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
           onContentSizeChange={(event) => {
-            const measuredHeight = Math.ceil(event.nativeEvent.contentSize.height) + 12;
+            const measuredHeight = Math.ceil(event.nativeEvent.contentSize.height) + 32;
             setInputHeight(Math.max(MIN_INPUT_HEIGHT, Math.min(MAX_INPUT_HEIGHT, measuredHeight)));
           }}
           selection={selection}
           onSelectionChange={(event) => setSelection(event.nativeEvent.selection)}
           editable={!disabled && !isStreaming && !isListening}
-          placeholder={isFocused ? (isArabic ? "اسأل SULY..." : "Ask SULY...") : ""}
+          placeholder={isArabic ? "اسأل أي حاجة..." : "Ask anything..."}
           placeholderTextColor={colors.textMuted}
           selectionColor={colors.primary}
           underlineColorAndroid="transparent"
@@ -313,21 +313,20 @@ const createStyles = (colors: ThemePalette, isArabic: boolean, canvasBackground:
   voiceListening: { color: colors.textSecondary, fontSize: 10, lineHeight: 15, textAlign: isArabic ? "right" : "left", paddingHorizontal: 4, marginBottom: 5 },
   controlDisabled: { opacity: 0.45 },
   container: {
-    minHeight: 56,
-    paddingHorizontal: 10,
-    paddingTop: 7,
-    paddingBottom: 7,
-    borderRadius: 22,
+    width: "100%",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderRadius: 28,
     borderWidth: 1,
-    borderColor: colors.background === "#0A0A0A" ? "#262626" : colors.inputBorder,
-    backgroundColor: colors.surface,
+    borderColor: "#2A2A2A",
+    backgroundColor: "#1A1A1A",
     justifyContent: "center",
-    gap: 4,
+    gap: 12,
   },
   composerRow: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 8,
+    flexDirection: "column",
+    alignItems: "stretch",
+    gap: 12,
     width: "100%",
   },
   input: {
@@ -336,20 +335,20 @@ const createStyles = (colors: ThemePalette, isArabic: boolean, canvasBackground:
     width: "100%",
     minHeight: MIN_INPUT_HEIGHT,
     maxHeight: MAX_INPUT_HEIGHT,
-    color: colors.textPrimary,
+    color: "#F5F5F5",
     backgroundColor: "transparent",
     borderWidth: 0,
     fontSize: 15,
     lineHeight: 22,
-    paddingHorizontal: 4,
-    paddingTop: 2,
-    paddingBottom: 4,
+    paddingHorizontal: 0,
+    paddingTop: 0,
+    paddingBottom: 0,
     textAlign: isArabic ? "right" : "left",
     textAlignVertical: "top",
     writingDirection: isArabic ? "rtl" : "ltr",
   },
   actionsRow: {
-    width: 122,
+    width: "100%",
     flexShrink: 0,
     flexDirection: "row-reverse",
     direction: "ltr",
@@ -360,7 +359,7 @@ const createStyles = (colors: ThemePalette, isArabic: boolean, canvasBackground:
   leftControls: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
   },
   circleButton: {
     width: 36,
@@ -371,21 +370,22 @@ const createStyles = (colors: ThemePalette, isArabic: boolean, canvasBackground:
   },
   circleButtonOutlined: {
     backgroundColor: "transparent",
-    borderWidth: 1.5,
-    borderColor: colors.textPrimary,
+    borderWidth: 1,
+    borderColor: "#777777",
   },
   circleButtonFilled: {
-    backgroundColor: colors.primary,
-    borderWidth: 1.5,
-    borderColor: colors.primary,
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: "#777777",
   },
   plusCircleButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.primary,
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
   attachmentChip: {
     alignSelf: "flex-start",
