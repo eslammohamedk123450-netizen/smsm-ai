@@ -3,7 +3,7 @@
  * Stateful so markers and hidden blocks split across provider chunks never leak.
  * Fail closed: if a hidden block is left unclosed, its remaining text is dropped.
  */
-const HIDDEN_TAGS = ["thought", "analysis", "reasoning", "scratchpad", "reflection", "chain_of_thought"] as const;
+const HIDDEN_TAGS = ["thought", "think", "analysis", "reasoning", "scratchpad", "reflection", "chain_of_thought"] as const;
 type HiddenTag = typeof HIDDEN_TAGS[number];
 
 export class InternalMarkerSanitizer {
