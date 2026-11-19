@@ -7,8 +7,13 @@ export function AppLogo({ size = 76, accessibilityLabel = "شعار SULY", isAni
   useEffect(() => {
     rotation.stopAnimation(); rotation.setValue(0);
     if (!isAnimating) return;
-    const spin = Animated.loop(Animated.timing(rotation, { toValue: 1, duration: 1800, easing: Easing.linear, useNativeDriver: true }));
-    spin.start(); return () => spin.stop();
+    const accelerate = Animated.sequence([
+      Animated.timing(rotation, { toValue: 1, duration: 2000, easing: Easing.linear, useNativeDriver: true }),
+      Animated.timing(rotation, { toValue: 1, duration: 1400, easing: Easing.linear, useNativeDriver: true }),
+      Animated.timing(rotation, { toValue: 1, duration: 900, easing: Easing.linear, useNativeDriver: true }),
+      Animated.loop(Animated.timing(rotation, { toValue: 1, duration: 520, easing: Easing.linear, useNativeDriver: true })),
+    ]);
+    accelerate.start(); return () => accelerate.stop();
   }, [isAnimating, rotation]);
   const rotate = rotation.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] });
   return <View accessible accessibilityRole="image" accessibilityLabel={accessibilityLabel} style={[styles.clip, { width: size, height: size, borderRadius: Math.round(size * 0.22) }]}>
