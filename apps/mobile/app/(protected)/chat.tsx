@@ -771,16 +771,12 @@ export default function ChatPage() {
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : Platform.OS === "android" ? "height" : undefined} keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}>
         <View style={styles.appBar}>
           {messages.length === 0 ? (
-            <>
-              <Pressable onPress={openNavigationDrawer} style={styles.headerButton} accessibilityRole="button" accessibilityLabel={isArabic ? "فتح قائمة التنقل" : "Open navigation menu"}>
-                <View style={styles.menuLinesWrap}>
-                  <View style={styles.menuLine} />
-                  <View style={styles.menuLine} />
-                </View>
-              </Pressable>
-              <View style={styles.headerSpacer} />
-              <AppLogo size={32} accessibilityLabel="شعار SULY" />
-            </>
+            <Pressable onPress={openNavigationDrawer} style={styles.headerButton} accessibilityRole="button" accessibilityLabel={isArabic ? "فتح قائمة التنقل" : "Open navigation menu"}>
+              <View style={styles.menuLinesWrap}>
+                <View style={styles.menuLine} />
+                <View style={styles.menuLine} />
+              </View>
+            </Pressable>
           ) : (
             <>
               <Pressable
@@ -826,7 +822,7 @@ export default function ChatPage() {
         {retryFailure ? <View style={styles.retryWarning} accessibilityRole="alert"><Text style={styles.retryWarningText}>{isArabic ? "حُفظت رسالتك، لكن تعذّر إكمال الرد." : "Your message was saved, but the response could not be completed."}</Text><Pressable onPress={() => void retryResponse()} disabled={isSending} accessibilityRole="button" accessibilityLabel={isArabic ? "إعادة محاولة الرد" : "Retry response"} style={styles.retryButton}><Text style={styles.retryButtonText}>{isSending ? (isArabic ? "جارٍ إعادة المحاولة…" : "Retrying…") : (isArabic ? "إعادة المحاولة" : "Retry")}</Text></Pressable></View> : null}
         {isLoading ? <View style={styles.loading}><ActivityIndicator color={colors.primary} /><Text style={styles.loadingText}>{isArabic ? "جارٍ تحميل المحادثة…" : "Loading conversation…"}</Text></View> : messages.length === 0 ? (
           <View style={styles.empty}>
-            <AppLogo size={176} accessibilityLabel="شعار SULY" />
+            <AppLogo size={132} accessibilityLabel="شعار SULY" />
           </View>
         ) : (
           <View style={styles.messageListContainer}>
@@ -914,7 +910,6 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => {
   diamondBadge: { width: 28, height: 28 },
   menuLinesWrap: { width: 22, gap: 6, alignItems: "center", justifyContent: "center" },
   menuLine: { width: 22, height: 1.75, borderRadius: 1, backgroundColor: colors.textPrimary },
-  headerSpacer: { width: 42, height: 42 },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 6 },
   modelSelector: { flex: 1, maxWidth: 360, minWidth: 90, height: 42, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 7, borderWidth: 0, borderColor: "transparent", borderRadius: 12, backgroundColor: "transparent", paddingHorizontal: 8 },
   modelSelectorText: { flex: 1, color: colors.textPrimary, fontSize: 11, fontWeight: "700", textAlign: isArabic ? "right" : "left" },
@@ -949,7 +944,7 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => {
   messageListContainer: { flex: 1, position: "relative" },
   scrollToBottomButton: { position: "absolute", right: 24, bottom: 12, width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.divider, elevation: 5, zIndex: 2 },
   messageContent: { flexGrow: 1, paddingVertical: 12 },
-  empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 22, paddingVertical: 24, width: "100%", maxWidth: 1280, alignSelf: "center" },
+  empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 12, paddingVertical: 16, width: "100%", maxWidth: 1440, alignSelf: "center" },
   reviewDisclaimer: { color: colors.textMuted, fontSize: 10, lineHeight: 16, textAlign: "center", paddingHorizontal: 16, paddingBottom: 7 },
   welcomeFace: { width: 160, height: 240, marginBottom: 12 },
   welcomeMark: { width: 58, height: 58, borderRadius: 29, alignItems: "center", justifyContent: "center", backgroundColor: "transparent", marginBottom: 4 },
