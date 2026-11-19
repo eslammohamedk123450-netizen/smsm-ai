@@ -3118,6 +3118,7 @@ async function handleRequest(req: Request): Promise<Response> {
         let failureSummary: string | null = null;
         const attemptedModelIds = new Set<number>([activeCandidate.model.id]);
         const continuationBaseCandidates = new Map<number, Candidate>();
+        const continuationModelRetries = new Set<number>();
         for (const candidate of [activeCandidate, ...raceCandidates]) {
           if (!continuationBaseCandidates.has(candidate.model.id)) continuationBaseCandidates.set(candidate.model.id, candidate);
         }
@@ -3163,7 +3164,8 @@ async function handleRequest(req: Request): Promise<Response> {
           usedCandidates.push(candidate);
         };
         const getContinuationPool = async (): Promise<Candidate[]> => {
-          const pool = [activeCandidate, ...raceCandidates];
+          const pool = [...raceCandidates];
+          if (!continuationModelRetries.has(activeCandidate.model.id)) pool.unshift(activeCandidate);
           if (routingMode === "auto" && settings.paidFallbackEnabled) {
             const paidModels: ModelRow[] = healthyModels
               .filter((model: ModelRow) => isEligibleModel(model, "chat", ["paid_fallback"]));
@@ -3180,8 +3182,8 @@ async function handleRequest(req: Request): Promise<Response> {
           }
           const unique = new Map<number, Candidate>();
           for (const candidate of pool) {
-            const isCurrentModel = candidate.model.id === activeCandidate.model.id;
-            if ((!attemptedModelIds.has(candidate.model.id) || isCurrentModel) && !unique.has(candidate.model.id)) {
+            if (!continuationBaseCandidates.has(candidate.model.id)) continuationBaseCandidates.set(candidate.model.id, candidate);
+            if (!attemptedModelIds.has(candidate.model.id) && !unique.has(candidate.model.id)) {
               unique.set(candidate.model.id, continuationBaseCandidates.get(candidate.model.id) ?? candidate);
             }
           }
@@ -3236,6 +3238,7 @@ async function handleRequest(req: Request): Promise<Response> {
             let nextCandidate: ReadyCandidate | null = null;
             for (const baseCandidate of continuationPool) {
               if (req.signal.aborted || clientCancelled) break;
+              if (baseCandidate.model.id === activeCandidate.model.id) continuationModelRetries.add(baseCandidate.model.id);
               const continuationContext = fullContent.slice(-16000);
               const continuationMessages: ProviderChatMessage[] = [
                 ...baseCandidate.requestMessages,
