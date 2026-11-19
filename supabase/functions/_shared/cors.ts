@@ -14,7 +14,22 @@ function normalizeOrigin(value: string): string | null {
   }
 }
 
-/** Exact-origin CORS for the published web app and explicitly configured preview domains. */
+function isSulyProductionOrigin(origin: string): boolean {
+  if (DEFAULT_PRODUCTION_ORIGINS.includes(origin)) return true;
+  try {
+    const parsed = new URL(origin);
+    return parsed.protocol === "https:"
+      && parsed.port === ""
+      && parsed.username === ""
+      && parsed.password === ""
+      && parsed.hostname !== "suly.cloud"
+      && parsed.hostname.endsWith(".suly.cloud");
+  } catch {
+    return false;
+  }
+}
+
+/** Exact-origin CORS for SULY's apex domain, its HTTPS subdomains, GitHub Pages, and configured previews. */
 export function corsHeadersForRequest(
   req: Request,
   configuredOriginsRaw = "",
@@ -25,7 +40,7 @@ export function corsHeadersForRequest(
     .map((value) => normalizeOrigin(value))
     .filter((value): value is string => Boolean(value));
   const allowed = requestOrigin === DEFAULT_WEB_ORIGIN
-    || DEFAULT_PRODUCTION_ORIGINS.includes(requestOrigin)
+    || isSulyProductionOrigin(requestOrigin)
     || configuredOrigins.includes(requestOrigin)
     || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(requestOrigin);
 
