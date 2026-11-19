@@ -4,6 +4,7 @@ import {
   buildIndependentTaskPlan,
   buildTaskPlan,
   parseModelGeneratedTaskPlan,
+  providerOutputWasTruncated,
   hasExplicitDependencyLanguage,
   executeTaskPlan,
   mapWithConcurrency,
@@ -192,4 +193,12 @@ Deno.test("central Agent loads only active bounded assistant profiles and keeps 
   const eligible = [{ model: { id: 1 } }, { model: { id: 2 } }, { model: { id: 3 } }];
   assertEquals(prioritizeAgentProfileCandidates(eligible, selected).map((candidate) => candidate.model.id), [3, 1, 2]);
   assertEquals(prioritizeAgentProfileCandidates(eligible.filter((candidate) => candidate.model.id !== 3), selected).map((candidate) => candidate.model.id), [1, 2]);
+});
+
+Deno.test("worker output truncation is determined from that worker candidate finish reason", () => {
+  assertEquals(providerOutputWasTruncated("length"), true);
+  assertEquals(providerOutputWasTruncated("max_tokens"), true);
+  assertEquals(providerOutputWasTruncated("token_limit"), true);
+  assertEquals(providerOutputWasTruncated("stop"), false);
+  assertEquals(providerOutputWasTruncated(null), false);
 });
