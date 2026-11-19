@@ -256,20 +256,17 @@ export function MediaScreen() {
         <Text style={styles.refreshText}>{loading ? (isArabic ? "جارٍ التحديث" : "Refreshing") : (isArabic ? "تحديث" : "Refresh")}</Text>
       </Pressable>
     </View>
-    <Text style={styles.explainer}>{isArabic ? "كل ملفاتك ومرفقات محادثاتك ومخرجات الاستوديو في مكان واحد. الملفات الخاصة لا تظهر إلا لصاحبها أو لمن يملك صلاحية الوصول." : "Your files, chat attachments, and Studio outputs in one place. Private files are visible only to their owner or an authorized user."}</Text>
+    <Text style={styles.explainer}>{isArabic ? "كل ملفاتك ومرفقات محادثاتك ومخرجات الاستوديو في مكان واحد. الملفات الخاصة لا تظهر إلا لصاحبها أو لمن يملك صلاحية الوصول. اضغط مطولًا على أي صورة أو ملف لإضافته إلى المفضلة أو إزالته منها." : "Your files, chat attachments, and Studio outputs in one place. Private files are visible only to their owner or an authorized user. Long-press an item to add it to or remove it from favorites."}</Text>
     <TextInput value={search} onChangeText={setSearch} placeholder={isArabic ? "ابحث باسم الملف أو وصفه" : "Search by file name or description"} placeholderTextColor={colors.textMuted} style={styles.search} />
-    <View style={styles.actions}>
+    {false ? <View style={styles.actions}>
       <Pressable disabled={folderMutationBusy} accessibilityRole="button" onPress={() => { setFolderEditor("create"); setFolderName(""); }}><Text style={[styles.link, folderMutationBusy && styles.disabledText]}>{isArabic ? "＋ مجلد جديد" : "＋ New folder"}</Text></Pressable>
-      {selectedFolder ? <Pressable disabled={folderMutationBusy} accessibilityRole="button" onPress={() => { setFolderEditor("rename"); setFolderName(selectedFolder.name); }}><Text style={[styles.link, folderMutationBusy && styles.disabledText]}>{isArabic ? "إعادة تسمية" : "Rename"}</Text></Pressable> : null}
+      {selectedFolder ? <Pressable disabled={folderMutationBusy} accessibilityRole="button" onPress={() => { setFolderEditor("rename"); setFolderName(selectedFolder?.name ?? ""); }}><Text style={[styles.link, folderMutationBusy && styles.disabledText]}>{isArabic ? "إعادة تسمية" : "Rename"}</Text></Pressable> : null}
       {selectedFolder ? <Pressable disabled={folderMutationBusy} accessibilityRole="button" onPress={confirmDeleteFolder}><Text style={[styles.link, folderMutationBusy && styles.disabledText]}>{isArabic ? "حذف المجلد" : "Delete folder"}</Text></Pressable> : null}
-    </View>
-    {folderEditor ? <View style={styles.actions}>
-      <TextInput value={folderName} onChangeText={setFolderName} editable={!folderMutationBusy} maxLength={80} placeholder={isArabic ? "اسم المجلد" : "Folder name"} placeholderTextColor={colors.textMuted} style={[styles.search, { flex: 1, minWidth: 160 }]} />
-      <Pressable disabled={folderMutationBusy} accessibilityRole="button" onPress={() => void saveFolder()}><Text style={[styles.link, folderMutationBusy && styles.disabledText]}>{folderMutationBusy ? (isArabic ? "جارٍ الحفظ…" : "Saving…") : (isArabic ? "حفظ" : "Save")}</Text></Pressable>
-      <Pressable disabled={folderMutationBusy} onPress={() => { setFolderEditor(null); setFolderName(""); }}><Text style={[styles.link, folderMutationBusy && styles.disabledText]}>{isArabic ? "إلغاء" : "Cancel"}</Text></Pressable>
     </View> : null}
+    {null}
     {isAdmin && (
       <View style={styles.actions}>
+        <Text style={styles.meta}>{isArabic ? "أدوات المشرف لنشر صور وفيديوهات وملفات عامة في المكتبة، وليست لرفع ملفاتك الشخصية." : "Admin-only tools to publish shared Library images, videos, and files—not to upload personal files."}</Text>
         <Pressable accessibilityRole="button" disabled={busy !== null} onPress={() => void pickAndUpload("image")} style={[styles.actionButton, busy !== null && styles.disabled]}>
           <Text style={styles.actionText}>{busy === "image" ? (isArabic ? "جارٍ رفع الصورة…" : "Uploading image…") : (isArabic ? "رفع صورة (مشرف)" : "Upload image (admin)")}</Text>
         </Pressable>
@@ -311,14 +308,7 @@ export function MediaScreen() {
         <Text style={[styles.filterText, filter === key && styles.filterTextSelected]}>{label}</Text>
       </Pressable>)}
     </View>
-    {folders.length ? <View style={styles.filters}>
-      <Pressable onPress={() => { setSelectedFolderId(null); setFilter("all"); }} style={[styles.filterChip, !selectedFolderId && styles.filterChipSelected]}>
-        <Text style={[styles.filterText, !selectedFolderId && styles.filterTextSelected]}>{isArabic ? "كل المجلدات" : "All folders"}</Text>
-      </Pressable>
-      {folders.map((folder) => <Pressable key={folder.id} onPress={() => { setSelectedFolderId(folder.id); setFilter("all"); }} style={[styles.filterChip, selectedFolderId === folder.id && styles.filterChipSelected]}>
-        <Text style={[styles.filterText, selectedFolderId === folder.id && styles.filterTextSelected]}>{folder.name}</Text>
-      </Pressable>)}
-    </View> : null}
+    {false && folders.length ? <View style={styles.filters}></View> : null}
     {!error && filter === "in_progress" ? (jobs.length ? <View style={styles.jobsList}>
       {jobs.map((job) => <View key={job.id} style={styles.jobCard}>
         <View style={styles.jobHeader}>
@@ -331,7 +321,7 @@ export function MediaScreen() {
     </View> : <Text style={styles.empty}>{isArabic ? "لا توجد مهام وسائط قيد التنفيذ مسجلة حاليًا." : "No media jobs are currently in progress."}</Text>) : null}
     {!loading && !error && filter !== "in_progress" && visibleAssets.length === 0 ? <Text style={styles.empty}>{assets.length === 0 ? (isArabic ? "لا يوجد ملف بعد. ابدأ برفع صورة." : "No files yet. Start by uploading an image.") : (isArabic ? "لا توجد عناصر في هذا التصنيف." : "No items in this category.")}</Text> : null}
     <View style={styles.grid}>
-      {filter !== "in_progress" ? visibleAssets.map((asset) => <View key={asset.id || asset.url} style={styles.card}>
+      {filter !== "in_progress" ? visibleAssets.map((asset) => <Pressable key={asset.id || asset.url} accessibilityRole="button" accessibilityLabel={isArabic ? "إضافة أو إزالة من المفضلة بالضغط المطول" : "Long press to favorite"} onLongPress={() => void toggleFavorite(asset)} delayLongPress={400} style={styles.card}>
         {asset.kind === "raw" || asset.kind === "video"
           ? <View style={[styles.thumb, styles.fileThumb]}><Text style={styles.fileIcon}>{asset.kind === "video" ? "VIDEO" : asset.mimeType?.toLowerCase().startsWith("audio/") ? "AUDIO" : "FILE"}</Text></View>
           : <Image source={{ uri: asset.url }} style={styles.thumb} resizeMode="cover" accessibilityLabel={asset.filename ?? (isArabic ? "صورة" : "Image")}/>}
@@ -347,11 +337,11 @@ export function MediaScreen() {
           <Pressable onPress={() => void Linking.openURL(asset.url)}><Text style={styles.link}>{isArabic ? "فتح / تنزيل" : "Open / Download"}</Text></Pressable>
           <Pressable onPress={() => void copy(asset.url)}><Text style={styles.link}>{isArabic ? "نسخ الرابط" : "Copy link"}</Text></Pressable>
           <Pressable disabled={organizationBusyId === asset.id} onPress={() => void toggleFavorite(asset)}><Text style={styles.link}><Ionicons name={favoriteIds.includes(asset.id) ? "star" : "star-outline"} size={14} color={colors.primary} /> {favoriteIds.includes(asset.id) ? (isArabic ? "إزالة من المفضلة" : "Unfavorite") : (isArabic ? "إضافة للمفضلة" : "Favorite")}</Text></Pressable>
-          {selectedFolderId ? <Pressable disabled={organizationBusyId === asset.id} onPress={() => void toggleAssetFolder(asset)}><Text style={styles.link}>{assetFolderIds[asset.id] === selectedFolderId ? (isArabic ? "إزالة من المجلد" : "Remove from folder") : (isArabic ? "نقل إلى هذا المجلد" : "Move to this folder")}</Text></Pressable> : null}
+          {null}
           {asset.kind === "image" ? <Pressable disabled={reuseBusyId !== null} onPress={() => void reuseImageInChat(asset)}><Text style={[styles.link, reuseBusyId === asset.id && styles.disabledText]}>{reuseBusyId === asset.id ? (isArabic ? "جارٍ فتح المحادثة…" : "Opening chat…") : (isArabic ? "استخدم في محادثة" : "Use in chat")}</Text></Pressable> : null}
           <Pressable disabled={deletingId !== null} onPress={() => confirmDeleteAsset(asset)}><Text style={[styles.link, deletingId === asset.id && styles.disabledText]}>{deletingId === asset.id ? (isArabic ? "جارٍ الحذف…" : "Deleting…") : (isArabic ? "حذف" : "Delete")}</Text></Pressable>
         </View>
-      </View>) : null}
+      </Pressable>) : null}
     </View>
   </ScrollView>;
 }
