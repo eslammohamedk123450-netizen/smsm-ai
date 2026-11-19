@@ -18,7 +18,7 @@ const SHORTCUTS = [
   { key: "projects", icon: "folder-outline" as const, ar: "المشاريع", en: "Projects", route: "/projects" },
   { key: "library", icon: "library-outline" as const, ar: "المكتبة", en: "Library", route: "/media" },
   { key: "studio", icon: "sparkles-outline" as const, ar: "الاستوديو", en: "Studio", route: "/studio" },
-  { key: "skills", icon: "extension-puzzle-outline" as const, ar: "المهارات", en: "Skills", route: "/skills" },
+  { key: "skills", icon: "bulb-outline" as const, ar: "المهارات", en: "Skills", route: "/skills" },
   { key: "favorites", icon: "heart-outline" as const, ar: "المفضلة", en: "Favorites", route: "/conversations?filter=favorites" },
   { key: "archive", icon: "archive-outline" as const, ar: "الأرشيف", en: "Archive", route: "/conversations?filter=archived" },
 ];
@@ -95,7 +95,7 @@ export function HomeScreen() {
     if (item.kind === "conversation") {
       router.push({ pathname: "/chat", params: { conversationId: item.conversation.id } });
     } else {
-      router.push({ pathname: "/tasks", params: { jobId: item.task.jobId, taskId: item.task.taskId ?? "" } });
+      router.push({ pathname: "/conversations", params: { taskId: item.task.jobId } });
     }
   };
 
