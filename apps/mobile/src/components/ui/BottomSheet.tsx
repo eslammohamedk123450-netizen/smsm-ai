@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Animated, Modal, PanResponder, Pressable, StyleSheet, View } from "react-native";
 import { useSulyTheme } from "../../theme/ThemeProvider";
+import { useAppLocale } from "../../theme/LocaleProvider";
 import { PremiumText as Text } from "./PremiumText";
 import { theme } from "../../theme/theme";
 
@@ -13,6 +14,7 @@ type Props = {
 
 export function BottomSheet({ visible, title, onClose, children }: Props) {
   const { colors: palette } = useSulyTheme();
+  const { isArabic, direction } = useAppLocale();
   const translateY = useRef(new Animated.Value(420)).current;
   const backdrop = useRef(new Animated.Value(0)).current;
   const panResponder = useMemo(() => PanResponder.create({
@@ -43,16 +45,16 @@ export function BottomSheet({ visible, title, onClose, children }: Props) {
 
   return (
     <Modal visible={visible} transparent statusBarTranslucent animationType="none" onRequestClose={close}>
-      <View style={styles.root}>
+      <View style={[styles.root, { direction }]}>
         <Animated.View style={[styles.overlay, { opacity: backdrop, backgroundColor: palette.background }]} />
-        <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityRole="button" accessibilityLabel="إغلاق النافذة" />
+        <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityRole="button" accessibilityLabel={isArabic ? "إغلاق النافذة" : "Close dialog"} />
         <Animated.View
           {...panResponder.panHandlers}
           accessibilityViewIsModal
           style={[styles.sheet, { backgroundColor: palette.surface, borderColor: palette.divider, shadowColor: palette.background, transform: [{ translateY }] }]}
         >
           <View style={styles.grabArea}><View style={[styles.grabber, { backgroundColor: palette.textMuted }]} /></View>
-          {title ? <Text style={[styles.title, { color: palette.textPrimary }]}>{title}</Text> : null}
+          {title ? <Text style={[styles.title, { color: palette.textPrimary, textAlign: isArabic ? "right" : "left", writingDirection: direction }]}>{title}</Text> : null}
           {children}
         </Animated.View>
       </View>
