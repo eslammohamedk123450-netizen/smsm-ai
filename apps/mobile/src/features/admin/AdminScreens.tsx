@@ -238,6 +238,31 @@ export function ProvidersAdminScreen() {
     } finally { setTestingProviderModelId(null); }
   };
 
+  const setProviderModelRoute = async (provider: ProviderRow, model: ModelRow, route: "free_race" | "paid_fallback") => {
+    if (!provider.enabled) { setError("فعّل مفتاح المزود أولًا، ثم أعد تفعيل النموذج."); return; }
+    const routeLabel = route === "free_race" ? "سباق النماذج المجانية" : "البديل المدفوع";
+    if (!await confirmAdminAction("تفعيل النموذج؟", `سيتم تفعيل ${model.name} ضمن مسار ${routeLabel}.`, "تفعيل النموذج")) return;
+    setBusyId(provider.id); setError(null); setNotice(null);
+    try {
+      await adminService.updateModel(model.id, { enabled: true, routing_group: route });
+      setNotice(`تم تفعيل ${model.name} ضمن ${routeLabel}.`);
+      await load();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : `تعذر تفعيل ${model.name}.`); }
+    finally { setBusyId(null); }
+  };
+
+  const restoreProviderModel = async (provider: ProviderRow, model: ModelRow) => {
+    if (!provider.enabled) { setError("فعّل مفتاح المزود أولًا، ثم أعد تفعيل النموذج."); return; }
+    if (!await confirmAdminAction("إعادة تفعيل النموذج المقيّد؟", `سيُعاد ضبط عداد الإخفاقات وإعادة تفعيل ${model.name}.`, "مراجعة وإعادة تفعيل")) return;
+    setBusyId(provider.id); setError(null); setNotice(null);
+    try {
+      await adminService.resetModelHealth(model.id);
+      setNotice(`تمت إعادة تفعيل ${model.name}. اختبره قبل الاعتماد عليه.`);
+      await load();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : `تعذرت إعادة تفعيل ${model.name}.`); }
+    finally { setBusyId(null); }
+  };
+
   const selectPreset = (preset: ProviderPreset) => {
     const existingCount = providers.filter((provider) => provider.provider_type === preset.type).length;
     let suffix = existingCount + 1;
@@ -388,6 +413,20 @@ export function ProvidersAdminScreen() {
                   </View>
                   <Text style={styles.detail}>{model.enabled ? "النموذج مفعّل" : "النموذج معطّل"} · {model.health?.auto_restricted ? "مقيّد صحيًا" : model.routing_group === "disabled" ? "غير مضاف لمسار" : model.routing_group}</Text>
                   {providerModelTestResults[model.id] ? <Text accessibilityLiveRegion="polite" style={styles.probeFeedback}>{providerModelTestResults[model.id]}</Text> : null}
+                  <View style={styles.rowWrap}>
+                    {!provider.enabled ? <Text style={styles.detail}>فعّل مفتاح المزود أولًا من زر الطاقة أعلى البطاقة.</Text>
+                      : model.health?.auto_restricted ? <PrimaryButton label="مراجعة وإعادة تفعيل" onPress={() => void restoreProviderModel(provider, model)} disabled={busyId !== null || testingProviderModelId !== null} />
+                      : !model.enabled || model.routing_group === "disabled" ? <>
+                        <PrimaryButton label="فك التعطيل · سباق مجاني" onPress={() => void setProviderModelRoute(provider, model, "free_race")} disabled={busyId !== null || testingProviderModelId !== null} />
+                        <PrimaryButton label="فك التعطيل · بديل مدفوع" onPress={() => void setProviderModelRoute(provider, model, "paid_fallback")} disabled={busyId !== null || testingProviderModelId !== null} />
+                      </> : <PrimaryButton label="تعطيل النموذج" onPress={async () => {
+                        if (!await confirmAdminAction("تعطيل النموذج؟", `سيُزال ${model.name} من التوجيه.`, "تعطيل النموذج")) return;
+                        setBusyId(provider.id); setError(null);
+                        try { await adminService.updateModel(model.id, { enabled: false, routing_group: "disabled" }); await load(); setNotice(`تم تعطيل ${model.name}.`); }
+                        catch (cause) { setError(cause instanceof Error ? cause.message : "تعذر تعطيل النموذج."); }
+                        finally { setBusyId(null); }
+                      }} disabled={busyId !== null || testingProviderModelId !== null} />}
+                  </View>
                 </View>
               ))}
               <Link href="/admin/models" asChild><Pressable><Text style={styles.link}>فتح كتالوج النماذج وإدارة الأولوية</Text></Pressable></Link>
