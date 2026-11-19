@@ -4,7 +4,6 @@ import { createContext, useContext, useMemo } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { PremiumText as Text } from "../ui/PremiumText";
-import { AppLogo } from "../ui/AppLogo";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import { useAppLocale } from "../../theme/LocaleProvider";
 import type { ThemePalette } from "../../theme/colors";
@@ -54,12 +53,12 @@ export function MainNavigation({ children }: Props) {
                     <Text style={[styles.brandName, { color: colors.textPrimary }]}>SULY</Text>
                   </View>
                   <Pressable
-                    onPress={isHome ? () => router.push("/settings" as never) : () => router.replace("/home" as never)}
+                    onPress={isHome ? () => router.push("/settings" as never) : () => { if (router.canGoBack()) router.back(); else router.replace("/home" as never); }}
                     style={styles.homeButton}
                     accessibilityRole="button"
                     accessibilityLabel={isHome ? (isArabic ? "الحساب الشخصي" : "Profile") : (isArabic ? "العودة إلى الصفحة الرئيسية" : "Return to home")}
                   >
-                    {isHome ? <Ionicons name="person-circle-outline" size={29} color={colors.textPrimary} /> : <AppLogo size={34} />}
+                    {isHome ? <Ionicons name="person-circle-outline" size={29} color={colors.textPrimary} /> : <Ionicons name={isArabic ? "arrow-forward" : "arrow-back"} size={24} color={colors.textPrimary} />}
                   </Pressable>
                 </View>
               </SafeAreaView>
