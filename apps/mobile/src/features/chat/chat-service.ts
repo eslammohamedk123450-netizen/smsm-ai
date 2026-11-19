@@ -209,6 +209,23 @@ export const chatService = {
     }));
   },
 
+  async listFavoriteConversations(limit = 100): Promise<Conversation[]> {
+    const { data, error } = await supabase.from("suly_conversations")
+      .select("id,title,model_id,project_id,created_at,updated_at,is_pinned,is_favorite,archived_at")
+      .eq("is_favorite", true)
+      .order("updated_at", { ascending: false })
+      .limit(limit);
+    if (error) throw new Error("تعذر تحميل المفضلة.");
+    return (data ?? []).map((row) => ({
+      id: String(row.id), title: String(row.title ?? "محادثة جديدة"),
+      modelId: row.model_id == null ? null : String(row.model_id),
+      createdAt: String(row.created_at), updatedAt: String(row.updated_at),
+      isPinned: row.is_pinned === true, isFavorite: row.is_favorite === true,
+      archivedAt: row.archived_at == null ? null : String(row.archived_at),
+      projectId: row.project_id == null ? null : String(row.project_id),
+    }));
+  },
+
   async listArchivedConversations(limit = 100): Promise<Conversation[]> {
     const { data, error } = await supabase.from("suly_conversations")
       .select("id,title,model_id,project_id,created_at,updated_at,is_pinned,is_favorite,archived_at")
