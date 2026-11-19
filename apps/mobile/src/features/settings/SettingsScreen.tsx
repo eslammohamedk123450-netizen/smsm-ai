@@ -180,13 +180,13 @@ export default function SettingsScreen() {
 
         <Text style={styles.sectionTitle}>{isArabic ? "المهارات" : "Skills"}</Text>
         <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/skills")} accessibilityRole="button">
-          <Ionicons name="sparkles-outline" size={17} color="#FFFFFF" style={styles.rowIcon} /><Text style={styles.rowText}>{isArabic ? "مهارات SULY" : "SULY skills"}</Text>
+          <Ionicons name="sparkles-outline" size={17} color={colors.textPrimary} style={styles.rowIcon} /><Text style={styles.rowText}>{isArabic ? "مهارات SULY" : "SULY skills"}</Text>
           <Text style={styles.email}>{isArabic ? "مراجعة المهارات وتفعيلها" : "Review and activate learned skills"}</Text>
           <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={18} color={colors.textMuted} />
         </TouchableOpacity>
 
         <Text style={styles.sectionTitle}>{isArabic ? "الموصلات" : "Connectors"}</Text>
-        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/integrations")} accessibilityRole="button"><Ionicons name="apps-outline" size={17} color="#FFFFFF" style={styles.rowIcon} /><Text style={styles.rowText}>{isArabic ? "إدارة الموصلات والتطبيقات المرتبطة" : "Manage connected apps"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
+        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/integrations")} accessibilityRole="button"><Ionicons name="apps-outline" size={17} color={colors.textPrimary} style={styles.rowIcon} /><Text style={styles.rowText}>{isArabic ? "إدارة الموصلات والتطبيقات المرتبطة" : "Manage connected apps"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
 
         <Text style={styles.sectionTitle}>{isArabic ? "اللغة" : "Language"}</Text>
         <View style={styles.languageControl}>
@@ -206,13 +206,13 @@ export default function SettingsScreen() {
 
         <Text style={styles.sectionTitle}>{isArabic ? "ذاكرة التخزين" : "Memory storage"}</Text>
         <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/memory")} accessibilityRole="button">
-          <Ionicons name="hardware-chip-outline" size={17} color="#FFFFFF" style={styles.rowIcon} /><Text style={styles.rowText}>{isArabic ? "عرض ذاكرة SULY" : "View SULY memory"}</Text>
+          <Ionicons name="hardware-chip-outline" size={17} color={colors.textPrimary} style={styles.rowIcon} /><Text style={styles.rowText}>{isArabic ? "عرض ذاكرة SULY" : "View SULY memory"}</Text>
           <Text style={styles.chevron}>‹</Text>
         </TouchableOpacity>
 
         <Text style={styles.sectionTitle}>{isArabic ? "التخزين والمكتبة" : "Storage & Library"}</Text>
         <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/media")} accessibilityRole="button">
-          <Ionicons name="folder-open-outline" size={17} color="#FFFFFF" style={styles.rowIcon} /><Text style={styles.rowText}>{isArabic ? "فتح مكتبتي وإدارة ملفاتي" : "Open my Library and manage files"}</Text><Text style={styles.chevron}>‹</Text>
+          <Ionicons name="folder-open-outline" size={17} color={colors.textPrimary} style={styles.rowIcon} /><Text style={styles.rowText}>{isArabic ? "فتح مكتبتي وإدارة ملفاتي" : "Open my Library and manage files"}</Text><Text style={styles.chevron}>‹</Text>
         </TouchableOpacity>
 
         <Text style={styles.sectionTitle}>{isArabic ? "تقييم التطبيق" : "Rate the app"}</Text>
@@ -222,7 +222,7 @@ export default function SettingsScreen() {
         </View>
 
         <Text style={styles.sectionTitle}>{isArabic ? "الدعم" : "Support"}</Text>
-        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/support")} accessibilityRole="button"><Ionicons name="help-circle-outline" size={17} color="#FFFFFF" style={styles.rowIcon} /><Text style={styles.rowText}>{isArabic ? "الشكاوى والدعم" : "Support & complaints"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
+        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/support")} accessibilityRole="button"><Ionicons name="help-circle-outline" size={17} color={colors.textPrimary} style={styles.rowIcon} /><Text style={styles.rowText}>{isArabic ? "الشكاوى والدعم" : "Support & complaints"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
 
         <Text style={styles.sectionTitle}>{isArabic ? "التطبيق" : "Application"}</Text>
         <View style={styles.cardRow}>
@@ -231,12 +231,12 @@ export default function SettingsScreen() {
         </View>
 
         <Text style={styles.sectionTitle}>{isArabic ? "المحادثات" : "Conversations"}</Text>
-        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => void openArchive()} accessibilityRole="button"><Ionicons name="archive-outline" size={17} color="#FFFFFF" style={styles.rowIcon} /><Text style={styles.rowText}>{isArabic ? "الأرشيف" : "Archive"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
+        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => void openArchive()} accessibilityRole="button"><Ionicons name="archive-outline" size={17} color={colors.textPrimary} style={styles.rowIcon} /><Text style={styles.rowText}>{isArabic ? "الأرشيف" : "Archive"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
 
         {adminAccessState === "allowed" ? <>
           <Text style={styles.sectionTitle}>{isArabic ? "إدارة النظام" : "Administration"}</Text>
           <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/admin")} accessibilityRole="button">
-            <Ionicons name="shield-checkmark-outline" size={17} color="#FFFFFF" style={styles.rowIcon} /><Text style={styles.rowText}>{isArabic ? "لوحة التحكم الإدارية" : "Admin dashboard"}</Text><Text style={styles.chevron}>‹</Text>
+            <Ionicons name="shield-checkmark-outline" size={17} color={colors.textPrimary} style={styles.rowIcon} /><Text style={styles.rowText}>{isArabic ? "لوحة التحكم الإدارية" : "Admin dashboard"}</Text><Text style={styles.chevron}>‹</Text>
           </TouchableOpacity>
         </> : adminAccessState === "checking" ? <>
           <Text style={styles.sectionTitle}>{isArabic ? "إدارة النظام" : "Administration"}</Text>
@@ -244,14 +244,14 @@ export default function SettingsScreen() {
         </> : adminAccessState === "error" ? <>
           <Text style={styles.sectionTitle}>{isArabic ? "إدارة النظام" : "Administration"}</Text>
           <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => void checkAdminAccess()} accessibilityRole="button">
-            <Ionicons name="refresh-outline" size={17} color="#FFFFFF" style={styles.rowIcon} /><Text style={styles.rowText}>{isArabic ? "تعذر التحقق من صلاحية الأدمن — اضغط لإعادة المحاولة" : "Could not verify admin access — tap to retry"}</Text><Ionicons name="refresh-outline" size={17} color={colors.textMuted} />
+            <Ionicons name="refresh-outline" size={17} color={colors.textPrimary} style={styles.rowIcon} /><Text style={styles.rowText}>{isArabic ? "تعذر التحقق من صلاحية الأدمن — اضغط لإعادة المحاولة" : "Could not verify admin access — tap to retry"}</Text><Ionicons name="refresh-outline" size={17} color={colors.textMuted} />
           </TouchableOpacity>
         </> : null}
         <Text style={styles.sectionTitle}>{isArabic ? "المعلومات والسياسات" : "Information & policies"}</Text>
         <View style={styles.policyCard}>
-          <TouchableOpacity activeOpacity={0.7} onPress={() => setPolicyModal("privacy")} style={styles.policyRow}><Ionicons name="shield-checkmark-outline" size={17} color="#FFFFFF" /><Text style={styles.rowText}>{isArabic ? "سياسة الخصوصية" : "Privacy policy"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => setPolicyModal("privacy")} style={styles.policyRow}><Ionicons name="shield-checkmark-outline" size={17} color={colors.textPrimary} /><Text style={styles.rowText}>{isArabic ? "سياسة الخصوصية" : "Privacy policy"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
           <View style={styles.separator} />
-          <TouchableOpacity activeOpacity={0.7} onPress={() => setPolicyModal("terms")} style={styles.policyRow}><Ionicons name="document-text-outline" size={17} color="#FFFFFF" /><Text style={styles.rowText}>{isArabic ? "شروط الاستخدام والحماية" : "Terms & safety"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => setPolicyModal("terms")} style={styles.policyRow}><Ionicons name="document-text-outline" size={17} color={colors.textPrimary} /><Text style={styles.rowText}>{isArabic ? "شروط الاستخدام والحماية" : "Terms & safety"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
         </View>
 
       </ScrollView>
@@ -311,43 +311,43 @@ export default function SettingsScreen() {
 }
 
 const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.create({
-  screen: { flex: 1, backgroundColor: "#111111" },
+  screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: 20, paddingBottom: 36 },
   header: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
   heading: { fontSize: 22, fontWeight: "700", color: colors.textPrimary },
-  backButton: { width: 42, height: 42, borderRadius: 21, backgroundColor: "#1E1E1E", alignItems: "center", justifyContent: "center" },
+  backButton: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.surfaceElevated, alignItems: "center", justifyContent: "center" },
   backIcon: { color: colors.textPrimary, fontSize: 25 },
   sectionTitle: { color: colors.textSecondary, marginTop: 23, marginBottom: 10, textAlign: isArabic ? "right" : "left", fontSize: 14, fontWeight: "600" },
-  card: { padding: 16, borderRadius: 16, backgroundColor: "#1E1E1E", borderWidth: 0, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 12 },
+  card: { padding: 16, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 0, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 12 },
   avatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.surfaceElevated, alignItems: "center", justifyContent: "center" },
   avatarImage: { width: 48, height: 48, borderRadius: 24 },
   avatarText: { color: colors.primary, fontSize: 20, fontWeight: "800" },
   accountCopy: { flex: 1, alignItems: isArabic ? "flex-end" : "flex-start" },
   userName: { color: colors.textPrimary, fontSize: 15, fontWeight: "700" },
   email: { color: colors.textSecondary, marginTop: 4, fontSize: 13 },
-  cardRow: { minHeight: 58, paddingHorizontal: 15, paddingVertical: 10, borderRadius: 16, backgroundColor: "#1E1E1E", borderWidth: 0, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  cardRow: { minHeight: 58, paddingHorizontal: 15, paddingVertical: 10, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 0, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
   planSummaryCopy: { flex: 1, alignItems: isArabic ? "flex-end" : "flex-start", gap: 3 },
-  planNameText: { color: "#FFFFFF", fontSize: 14, fontWeight: "800", textAlign: isArabic ? "right" : "left" },
-  creditLabelText: { color: "#FFFFFF", fontSize: 14, fontWeight: "700" },
+  planNameText: { color: colors.textPrimary, fontSize: 14, fontWeight: "800", textAlign: isArabic ? "right" : "left" },
+  creditLabelText: { color: colors.textPrimary, fontSize: 14, fontWeight: "700" },
   upgradePill: { minHeight: 34, paddingHorizontal: 17, borderRadius: 11, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
   upgradePillText: { color: colors.onPrimary, fontSize: 12, fontWeight: "800" },
   creditSummaryLabel: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 9 },
   creditSummaryValue: { color: colors.textPrimary, fontSize: 17, fontWeight: "800" },
-  rowText: { color: "#FFFFFF", fontSize: 14, flex: 1, textAlign: "center" },
-  rowIcon: { color: "#FFFFFF" },
-  languageControl: { minHeight: 50, flexDirection: isArabic ? "row-reverse" : "row", gap: 6, padding: 5, borderWidth: 0, borderRadius: 16, backgroundColor: "#1E1E1E" },
+  rowText: { color: colors.textPrimary, fontSize: 14, flex: 1, textAlign: "center" },
+  rowIcon: { color: colors.textPrimary },
+  languageControl: { minHeight: 50, flexDirection: isArabic ? "row-reverse" : "row", gap: 6, padding: 5, borderWidth: 0, borderRadius: 16, backgroundColor: colors.surface },
   languageOption: { flex: 1, alignItems: "center", justifyContent: "center", borderRadius: 11, paddingVertical: 9, paddingHorizontal: 13 },
-  languageSelected: { backgroundColor: "#2A2A2A", borderWidth: 0 },
-  languageSelectedText: { color: "#FFFFFF", fontWeight: "700" },
+  languageSelected: { backgroundColor: colors.primarySoft, borderWidth: 0 },
+  languageSelectedText: { color: colors.textPrimary, fontWeight: "700" },
   linkText: { color: colors.primary, fontSize: 13, fontWeight: "700" },
   balanceValue: { color: colors.textPrimary, fontWeight: "800", fontSize: 28 },
-  creditCard: { minHeight: 142, alignItems: "center", justifyContent: "center", gap: 6, padding: 16, borderRadius: 16, backgroundColor: "#1E1E1E", borderWidth: 0 },
-  historyButton: { minHeight: 32, justifyContent: "center", alignItems: "center", paddingHorizontal: 12, borderRadius: 10, backgroundColor: "#2A2A2A" },
-  policyCard: { borderRadius: 16, backgroundColor: "#1E1E1E", borderWidth: 0, paddingHorizontal: 15 },
+  creditCard: { minHeight: 142, alignItems: "center", justifyContent: "center", gap: 6, padding: 16, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 0 },
+  historyButton: { minHeight: 32, justifyContent: "center", alignItems: "center", paddingHorizontal: 12, borderRadius: 10, backgroundColor: colors.surfaceElevated },
+  policyCard: { borderRadius: 16, backgroundColor: colors.surface, borderWidth: 0, paddingHorizontal: 15 },
   policyRow: { minHeight: 50, flexDirection: "row-reverse", alignItems: "center", justifyContent: "space-between", gap: 10 },
-  chevron: { color: "#FFFFFF", fontSize: 22 },
-  separator: { height: 1, backgroundColor: "#2A2A2A" },
-  logoutButton: { paddingVertical: 15, paddingHorizontal: 20, borderRadius: 16, backgroundColor: "#1E1E1E", borderWidth: 0, marginTop: 30, alignItems: "center", minHeight: 50, justifyContent: "center" },
+  chevron: { color: colors.textPrimary, fontSize: 22 },
+  separator: { height: 1, backgroundColor: colors.surfaceElevated },
+  logoutButton: { paddingVertical: 15, paddingHorizontal: 20, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 0, marginTop: 30, alignItems: "center", minHeight: 50, justifyContent: "center" },
   logoutText: { color: colors.textPrimary, fontWeight: "700", fontSize: 15 },
   sheetContent: { maxHeight: 520 },
   archiveContent: { maxHeight: 520, gap: 8 },
