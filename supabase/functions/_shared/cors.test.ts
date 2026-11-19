@@ -14,8 +14,8 @@ Deno.test("allows only the exact configured GitHub Pages origin", () => {
   assertEquals(denied["Access-Control-Allow-Origin"], undefined);
 });
 
-Deno.test("allows the SULY apex domain and HTTPS subdomains but rejects lookalike origins", () => {
-  for (const origin of ["https://suly.cloud", "https://www.suly.cloud", "https://app.suly.cloud", "https://admin.app.suly.cloud"]) {
+Deno.test("allows only the exact SULY production origins", () => {
+  for (const origin of ["https://suly.cloud", "https://ai.suly.cloud"]) {
     const response = corsHeadersForRequest(new Request("https://api.example.test", {
       method: "OPTIONS",
       headers: { origin },
@@ -23,7 +23,7 @@ Deno.test("allows the SULY apex domain and HTTPS subdomains but rejects lookalik
     assertEquals(response["Access-Control-Allow-Origin"], origin);
   }
 
-  for (const origin of ["http://www.suly.cloud", "https://evil-suly.cloud", "https://suly.cloud.evil.example", "https://suly.cloud:8443"]) {
+  for (const origin of ["http://ai.suly.cloud", "https://www.suly.cloud", "https://admin.ai.suly.cloud", "https://evil-suly.cloud", "https://ai.suly.cloud.evil.example", "https://ai.suly.cloud:8443"]) {
     const response = corsHeadersForRequest(new Request("https://api.example.test", {
       method: "OPTIONS",
       headers: { origin },
