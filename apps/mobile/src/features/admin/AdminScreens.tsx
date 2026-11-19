@@ -109,6 +109,8 @@ function probeErrorLabel(code: string | null) {
   if (!code) return "تعذر الحصول على رد صالح.";
   if (code === "provider_http_401" || code === "provider_http_403" || code === "credential_unavailable") return "تحقق من المفتاح أو صلاحياته.";
   if (code === "provider_http_429") return "تجاوز المزود حد الطلبات أو الحصة.";
+  if (code === "provider_http_404") return "المزود لم يجد النموذج أو مسار الدردشة؛ قد يكون النموذج من نوع غير نصي مثل التفريغ الصوتي.";
+  if (code === "provider_http_400") return "المزود رفض صيغة الطلب أو النموذج غير متوافق مع واجهة الدردشة.";
   if (code === "model_timeout") return "انتهت مهلة استجابة النموذج.";
   if (code === "empty_response") return "المزود ردّ بدون محتوى نصي قابل للقراءة.";
   if (code === "empty_response_no_choices") return "المزود أعاد استجابة بلا اختيارات أو محتوى.";
@@ -216,7 +218,7 @@ export function ProvidersAdminScreen() {
       const result = await adminService.testModel(model.id);
       const resultLabel = result.status === "success"
         ? `نجح اختبار ${model.name} · ${Number(result.duration_ms ?? 0)}ms`
-        : `فشل اختبار ${model.name}: ${result.error_code ?? "سبب غير محدد"}`;
+        : `فشل اختبار ${model.name}: ${probeErrorLabel(result.error_code)}`;
       setProviderModelTestResults((current) => ({ ...current, [model.id]: resultLabel }));
       // load() clears the page-level error state, so refresh first and publish
       // the result afterwards; otherwise a failed probe disappears immediately.
