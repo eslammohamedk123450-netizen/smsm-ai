@@ -167,7 +167,7 @@ jobs:
         run: npm ci
       - name: Test theme contrast, grayscale tokens, and project defaults
         working-directory: apps/mobile
-        run: npm test -- --runInBand src/theme/colors.test.ts src/features/projects/project-service.test.ts src/features/brain/task-service.test.ts src/features/chat/components/markdown-parser.test.ts src/features/chat/image-generation.test.ts
+        run: npm test -- --runInBand src/theme/colors.test.ts src/features/projects/project-service.test.ts src/features/brain/task-service.test.ts src/features/chat/components/markdown-parser.test.ts src/features/chat/components/playground-validation.test.ts src/features/chat/image-generation.test.ts
       - name: Test SULY identity and Agent mode guidance
         run: node --experimental-strip-types --test supabase/functions/_shared/identity_context.test.mjs
       - name: Type-check the shared Expo application
