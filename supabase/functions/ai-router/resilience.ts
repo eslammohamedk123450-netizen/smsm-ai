@@ -18,6 +18,11 @@ export interface ProbeOutcome {
 }
 
 const PROBE_PROMPT = "ping";
+/** True when a provider stopped generation because its output-token limit was reached. */
+export function providerOutputWasTruncated(finishReason: string | null | undefined): boolean {
+  return /^(length|max_tokens|token_limit)$/i.test((finishReason ?? "").trim());
+}
+
 
 /**
  * Sends a minimal non-streaming request. A provider that answers within the
