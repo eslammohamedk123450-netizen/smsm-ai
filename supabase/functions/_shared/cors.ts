@@ -1,6 +1,6 @@
 const DEFAULT_WEB_ORIGIN = "https://eslammohamedk123450-netizen.github.io";
 const DEFAULT_PRODUCTION_ORIGINS = ["https://suly.cloud"];
-const DEFAULT_ALLOWED_HEADERS = "authorization, x-client-info, apikey, content-type, cache-control, x-suly-health-check-secret";
+const DEFAULT_ALLOWED_HEADERS = "authorization, x-client-info, apikey, content-type, cache-control, x-supabase-api-version, x-requested-with, x-suly-health-check-secret";
 const DEFAULT_ALLOWED_METHODS = "POST, OPTIONS";
 
 function normalizeOrigin(value: string): string | null {

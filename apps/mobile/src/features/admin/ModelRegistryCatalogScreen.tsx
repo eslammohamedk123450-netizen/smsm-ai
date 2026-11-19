@@ -369,11 +369,12 @@ export function ModelRegistryCatalogScreen() {
                   setTestResults((current) => ({ ...current, [modelId]: "تم فك القيد وتفعيل النموذج وإضافته إلى نهاية أولوية الشات. اختبره للتأكد من استجابته." }));
                   await load(true);
                 } catch (cause) {
-                  setTestResults((current) => ({ ...current, [modelId]: cause instanceof Error ? cause.message : "تعذر فك القيد." }));
+                  setTestResults((current) => ({ ...current, [modelId]: cause instanceof Error ? cause.message : "تعذر فك القيد وتفعيل النموذج." }));
+                  await load(true);
                 } finally { setUpdatingModelId(null); }
               })()}
               style={styles.modelStateAction}
-            ><Ionicons name="lock-open-outline" size={12} color={colors.primary}/><Text style={styles.modelStateActionText}>فك القيد</Text></Pressable> : null}
+            ><Ionicons name="lock-open-outline" size={12} color={colors.primary}/><Text style={styles.modelStateActionText}>فك القيد وتفعيل</Text></Pressable> : null}
             {model.legacy_chat_model_id !== null && !model.provider_enabled && model.lifecycle_state === "active" ? <Pressable
               accessibilityRole="button"
               accessibilityLabel="إدارة مزود النموذج"

@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
+import { BottomSheet } from "../../components/ui/BottomSheet";
 import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
 import { useAppLocale } from "../../theme/LocaleProvider";
@@ -32,6 +33,7 @@ const TASK_STATUS_EN: Record<TaskHistoryItem["status"], string> = {
 
 export function HomeScreen() {
   const router = useRouter();
+  const longPressHandled = useRef(false);
   const { isArabic } = useAppLocale();
   const { colors } = useSulyTheme();
   const styles = useMemo(() => createStyles(colors, isArabic), [colors, isArabic]);
@@ -40,6 +42,9 @@ export function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Conversation | null>(null);
+  useEffect(() => { if (!selectedConversation) longPressHandled.current = false; }, [selectedConversation]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -99,6 +104,38 @@ export function HomeScreen() {
     }
   };
 
+  const togglePin = async () => {
+    if (!selectedConversation) return;
+    try {
+      await chatService.setConversationPinned(selectedConversation.id, !selectedConversation.isPinned);
+      setSelectedConversation(null);
+      await load();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : (isArabic ? "تعذر تحديث التثبيت." : "Could not update pin.")); }
+  };
+  const toggleFavorite = async () => {
+    if (!selectedConversation) return;
+    try {
+      await chatService.setConversationFavorite(selectedConversation.id, !selectedConversation.isFavorite);
+      setSelectedConversation(null);
+      await load();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : (isArabic ? "تعذر تحديث المفضلة." : "Could not update favorites.")); }
+  };
+  const archiveConversation = async () => {
+    if (!selectedConversation) return;
+    try {
+      await chatService.setConversationArchived(selectedConversation.id, true);
+      setSelectedConversation(null);
+      await load();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : (isArabic ? "تعذرت أرشفة المحادثة." : "Could not archive conversation.")); }
+  };
+  const deleteConversation = async () => {
+    if (!deleteTarget) return;
+    try {
+      await chatService.deleteConversation(deleteTarget.id);
+      setDeleteTarget(null);
+      await load();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : (isArabic ? "تعذر حذف المحادثة." : "Could not delete conversation.")); }
+  };
   const formatDate = (value: string) => value
     ? new Date(value).toLocaleDateString(isArabic ? "ar-EG" : "en-US", { day: "numeric", month: "short" })
     : "";
@@ -170,7 +207,9 @@ export function HomeScreen() {
                   key={item.kind + "-" + item.id}
                   accessibilityRole="button"
                   accessibilityLabel={item.title}
-                  onPress={() => openItem(item)}
+                  onPress={() => { if (longPressHandled.current) { longPressHandled.current = false; return; } openItem(item); }}
+                  onLongPress={item.kind === "conversation" ? () => { longPressHandled.current = true; setSelectedConversation(item.conversation); } : undefined}
+                  delayLongPress={350}
                   style={({ pressed }) => [
                     styles.taskCard,
                     { backgroundColor: colors.surface, borderColor: colors.divider },
@@ -220,6 +259,21 @@ export function HomeScreen() {
           </>
         )}
       </Pressable>
+      <BottomSheet visible={Boolean(selectedConversation)} title={selectedConversation?.title ?? (isArabic ? "إجراءات المحادثة" : "Conversation actions")} onClose={() => setSelectedConversation(null)}>
+        <View style={styles.actionSheet}>
+          <Pressable accessibilityRole="button" onPress={() => void togglePin()} style={styles.sheetAction}><Text style={[styles.sheetActionText, { color: colors.textPrimary }]}>{selectedConversation?.isPinned ? (isArabic ? "إلغاء التثبيت" : "Unpin") : (isArabic ? "تثبيت" : "Pin")}</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => void toggleFavorite()} style={styles.sheetAction}><Text style={[styles.sheetActionText, { color: colors.textPrimary }]}>{selectedConversation?.isFavorite ? (isArabic ? "إزالة من المفضلة" : "Remove from favorites") : (isArabic ? "إضافة للمفضلة" : "Add to favorites")}</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => void archiveConversation()} style={styles.sheetAction}><Text style={[styles.sheetActionText, { color: colors.textPrimary }]}>{isArabic ? "أرشفة" : "Archive"}</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => { setDeleteTarget(selectedConversation); setSelectedConversation(null); }} style={styles.sheetAction}><Text style={[styles.sheetActionText, { color: colors.error }]}>{isArabic ? "حذف المحادثة" : "Delete conversation"}</Text></Pressable>
+        </View>
+      </BottomSheet>
+      <BottomSheet visible={Boolean(deleteTarget)} title={isArabic ? "تأكيد الحذف" : "Confirm deletion"} onClose={() => setDeleteTarget(null)}>
+        <Text style={{ color: colors.textSecondary, textAlign: isArabic ? "right" : "left" }}>{isArabic ? "هل تريد حذف هذه المحادثة نهائيًا؟" : "Delete this conversation permanently?"}</Text>
+        <View style={styles.actionSheet}>
+          <Pressable accessibilityRole="button" onPress={() => setDeleteTarget(null)} style={styles.sheetAction}><Text style={[styles.sheetActionText, { color: colors.textPrimary }]}>{isArabic ? "إلغاء" : "Cancel"}</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => void deleteConversation()} style={[styles.sheetAction, { borderColor: colors.error }]}><Text style={[styles.sheetActionText, { color: colors.error }]}>{isArabic ? "حذف نهائي" : "Delete permanently"}</Text></Pressable>
+        </View>
+      </BottomSheet>
     </View>
   );
 }
@@ -240,6 +294,9 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   viewAll: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 3, paddingVertical: 5 },
   viewAllText: { fontSize: 11, fontWeight: "700" },
   taskList: { gap: 9 },
+  actionSheet: { gap: 9 },
+  sheetAction: { minHeight: 46, borderWidth: 1, borderColor: colors.divider, borderRadius: 11, alignItems: "center", justifyContent: "center", paddingHorizontal: 14 },
+  sheetActionText: { fontWeight: "800" },
   taskCard: { minHeight: 72, borderWidth: 1, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 10 },
   itemIcon: { width: 38, height: 38, borderRadius: 11, alignItems: "center", justifyContent: "center" },
   itemCopy: { flex: 1, minWidth: 0, gap: 5 },
