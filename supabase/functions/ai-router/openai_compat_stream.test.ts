@@ -128,6 +128,8 @@ Deno.test("reads SSE content arrays and legacy choice text", async () => {
   const response = new Response([
     'data: {"choices":[{"delta":{"content":[{"type":"text","text":"Array chunk."}]}}]}',
     'data: {"choices":[{"text":"Legacy text chunk."}]}',
+    "data: [DONE]",
+    "",
   ].join("\n"), { headers: { "content-type": "text/event-stream" } });
   const chunks: string[] = [];
   for await (const chunk of readOpenAiResponse(response, () => undefined)) chunks.push(chunk);
