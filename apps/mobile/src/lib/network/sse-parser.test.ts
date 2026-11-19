@@ -43,7 +43,7 @@ describe("SseParser", () => {
   it("ignores SSE keepalive comments without creating chat events", () => {
     const parser = new SseParser();
     expect(parser.push(": suly-keepalive\n\n")).toEqual([]);
-    expect(parser.push("data: {\\"chunk\\":\\"still working\\"}\n\n")).toEqual([
+    expect(parser.push('data: {"chunk":"still working"}\n\n')).toEqual([
       { type: "chunk", text: "still working" },
     ]);
   });
