@@ -3125,6 +3125,11 @@ async function handleRequest(req: Request): Promise<Response> {
           const finalInfo = {
             ...responseInfo,
             billing,
+            usage: {
+              input_tokens: winner!.inputTokens,
+              output_tokens: winner!.outputTokens,
+              reported_by_provider: winner!.usageReported === true,
+            },
             output_guard: outputGuard.reason,
             model_calls: modelInvocationCount,
             first_chunk_ms: firstClientChunkAt === null ? Date.now() - startedAt : firstClientChunkAt - startedAt,
@@ -3196,11 +3201,15 @@ async function handleRequest(req: Request): Promise<Response> {
     const finalInfo = {
       ...responseInfo,
       billing,
+      usage: {
+        input_tokens: winner.inputTokens,
+        output_tokens: winner.outputTokens,
+        reported_by_provider: winner.usageReported === true,
+      },
       output_guard: collected.reason,
       model_calls: modelInvocationCount,
       first_chunk_ms: Date.now() - startedAt,
       total_ms: Date.now() - startedAt,
-      ...(internalBrainCall ? { usage: { input_tokens: winner.inputTokens, output_tokens: winner.outputTokens } } : {}),
     };
     await finishAiRequest("completed", messageId, messageId ? null : content, finalInfo);
     return jsonResponse({ ...finalInfo, response: { choices: [{ message: { role: "assistant", content } }] } }, 200, req);
