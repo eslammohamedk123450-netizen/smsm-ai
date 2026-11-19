@@ -17,7 +17,7 @@ import { supabase } from "../../lib/supabase/client";
 import { useAppLocale, type AppLanguage } from "../../theme/LocaleProvider";
 
 export default function SettingsScreen() {
-  const { user, profileFullName, logout } = useAuth();
+  const { user, profileFullName } = useAuth();
   const { show } = useToast();
   const router = useRouter();
   const { colors, mode, effectiveMode, setMode } = useSulyTheme();
@@ -25,19 +25,32 @@ export default function SettingsScreen() {
   const styles = useMemo(() => createStyles(colors, isArabic), [colors, isArabic]);
   const [adminAccess, setAdminAccess] = useState<{ userId: string | null; state: "checking" | "allowed" | "denied" | "error" }>({ userId: null, state: "checking" });
   const [balance, setBalance] = useState<number | null>(null);
+  const [currentTier, setCurrentTier] = useState("free");
   const [transactions, setTransactions] = useState<CreditEntry[]>([]);
   const [loadingCredits, setLoadingCredits] = useState(true);
   const [creditLoadError, setCreditLoadError] = useState(false);
   const [creditModal, setCreditModal] = useState(false);
   const [policyModal, setPolicyModal] = useState<"privacy" | "terms" | null>(null);
-  const [loggingOut, setLoggingOut] = useState(false);
-  const [confirmLogoutVisible, setConfirmLogoutVisible] = useState(false);
   const [archiveVisible, setArchiveVisible] = useState(false);
   const [archivedConversations, setArchivedConversations] = useState<Conversation[]>([]);
   const [archiveLoading, setArchiveLoading] = useState(false);
   const [archiveLoadError, setArchiveLoadError] = useState(false);
 
   const adminAccessState = adminAccess.userId === user?.id ? adminAccess.state : "checking";
+
+  useEffect(() => {
+    let active = true;
+    if (!user?.id) { setCurrentTier("free"); return () => { active = false; }; }
+    void (async () => {
+      try {
+        const { data, error } = await supabase.rpc("suly_effective_subscription_tier", { p_user_id: user.id });
+        if (active && !error && typeof data === "string") setCurrentTier(data.toLowerCase());
+      } catch {
+        // Keep the safe Free fallback when the subscription lookup is unavailable.
+      }
+    })();
+    return () => { active = false; };
+  }, [user?.id]);
 
   const checkAdminAccess = useCallback(async () => {
     const userId = user?.id ?? null;
@@ -97,21 +110,6 @@ export default function SettingsScreen() {
     await setLanguage(next);
   };
 
-  const doLogout = async () => {
-    setLoggingOut(true);
-    try {
-      await logout();
-      router.replace("/(auth)/login");
-    } catch {
-      show(isArabic ? "تعذّر تسجيل الخروج. تحقق من الاتصال وحاول مجددًا." : "Sign out failed. Check your connection and try again.", "error");
-    } finally {
-      setLoggingOut(false);
-    }
-  };
-
-
-  const confirmLogout = () => setConfirmLogoutVisible(true);
-
   const openArchive = async () => {
     setArchiveVisible(true);
     setArchiveLoading(true);
@@ -144,7 +142,7 @@ export default function SettingsScreen() {
 
   const name = profileFullName?.trim() || "Suly";
   const avatarUrl = typeof user?.user_metadata?.avatar_url === "string" ? user.user_metadata.avatar_url : null;
-  const back = () => { if (router.canGoBack()) router.back(); else router.replace("/chat"); };
+  const back = () => { if (router.canGoBack()) router.back(); else router.replace("/home"); };
 
   return (
     <>
@@ -159,23 +157,26 @@ export default function SettingsScreen() {
           <View style={styles.avatar}>{avatarUrl ? <Image source={{ uri: avatarUrl }} style={styles.avatarImage} /> : <Text style={styles.avatarText}>{name.slice(0, 1).toUpperCase()}</Text>}</View>
           <View style={styles.accountCopy}>
             <Text style={styles.userName}>{name}</Text>
-            <Text style={styles.email}>{user?.email ?? "—"}</Text>
-          </View>
+            </View>
           <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={18} color={colors.textMuted} />
         </TouchableOpacity>
-        <Text style={styles.sectionTitle}>{isArabic ? "الرصيد" : "Credits"}</Text>
-        <View style={styles.creditCard}>
-          <Text style={styles.balanceLabel}>{isArabic ? "الرصيد الحالي" : "Current balance"}</Text>
-          <Text style={styles.balanceValue}>{loadingCredits ? "…" : balance === null ? "—" : balance.toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text>
-          {creditLoadError ? <TouchableOpacity activeOpacity={0.7} onPress={() => void loadCredits()} accessibilityRole="button"><Text style={styles.linkText}>{isArabic ? "تعذر تحميل الرصيد — إعادة المحاولة" : "Could not load credits — retry"}</Text></TouchableOpacity> : null}
-          <TouchableOpacity activeOpacity={0.7} onPress={() => { setCreditModal(true); void loadCredits(); }} style={styles.historyButton} accessibilityRole="button"><Text style={styles.linkText}>{isArabic ? "عرض السجل" : "View history"}</Text></TouchableOpacity>
-          <TouchableOpacity activeOpacity={0.7} onPress={() => router.push("/(protected)/balance")} style={styles.historyButton} accessibilityRole="button"><Text style={styles.linkText}>{isArabic ? "تفاصيل الرصيد والاستهلاك" : "Balance details & usage"}</Text></TouchableOpacity>
-        </View>
-
-        <Text style={styles.sectionTitle}>{isArabic ? "الاشتراك والخطة" : "Plan & subscription"}</Text>
+        <Text style={styles.sectionTitle}>{isArabic ? "الباقة والرصيد" : "Plan & credits"}</Text>
         <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/upgrade")} accessibilityRole="button">
-          <Ionicons name="card-outline" size={17} color="#FFFFFF" style={styles.rowIcon} /><Text style={styles.rowText}>{isArabic ? "عرض الباقات والاشتراك الحالي" : "View plans and current subscription"}</Text><Text style={styles.chevron}>‹</Text>
+          <View style={styles.planSummaryCopy}>
+            <Text style={styles.planNameText}>{currentTier === "ultra_team" ? "Ultra Team" : currentTier.toUpperCase()}</Text>
+            <Text style={styles.email}>{isArabic ? "باقتك الحالية" : "Current plan"}</Text>
+          </View>
+          <View style={styles.upgradePill}><Text style={styles.upgradePillText}>{isArabic ? "ترقية" : "Upgrade"}</Text></View>
         </TouchableOpacity>
+        <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/balance")} accessibilityRole="button">
+          <View style={styles.creditSummaryLabel}>
+            <Ionicons name="cash-outline" size={19} color={colors.textPrimary} />
+            <Text style={styles.creditLabelText}>Credit</Text>
+          </View>
+          <Text style={styles.creditSummaryValue}>{loadingCredits ? "…" : balance === null ? "—" : balance.toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text>
+        </TouchableOpacity>
+        {creditLoadError ? <TouchableOpacity activeOpacity={0.7} onPress={() => void loadCredits()} accessibilityRole="button"><Text style={styles.linkText}>{isArabic ? "تعذر تحميل الرصيد — إعادة المحاولة" : "Could not load credits — retry"}</Text></TouchableOpacity> : null}
+        <TouchableOpacity activeOpacity={0.7} onPress={() => { setCreditModal(true); void loadCredits(); }} style={styles.historyButton} accessibilityRole="button"><Text style={styles.linkText}>{isArabic ? "عرض سجل الرصيد" : "View credit history"}</Text></TouchableOpacity>
 
         <Text style={styles.sectionTitle}>{isArabic ? "المهارات" : "Skills"}</Text>
         <TouchableOpacity activeOpacity={0.7} style={styles.cardRow} onPress={() => router.push("/(protected)/skills")} accessibilityRole="button">
@@ -253,9 +254,6 @@ export default function SettingsScreen() {
           <TouchableOpacity activeOpacity={0.7} onPress={() => setPolicyModal("terms")} style={styles.policyRow}><Ionicons name="document-text-outline" size={17} color="#FFFFFF" /><Text style={styles.rowText}>{isArabic ? "شروط الاستخدام والحماية" : "Terms & safety"}</Text><Text style={styles.chevron}>‹</Text></TouchableOpacity>
         </View>
 
-        <TouchableOpacity activeOpacity={0.7} style={styles.logoutButton} onPress={confirmLogout} disabled={loggingOut} accessibilityRole="button">
-          {loggingOut ? <ActivityIndicator color={colors.textPrimary} /> : <Text style={styles.logoutText}>{isArabic ? "تسجيل الخروج" : "Sign out"}</Text>}
-        </TouchableOpacity>
       </ScrollView>
 
 
@@ -307,13 +305,7 @@ export default function SettingsScreen() {
         <TouchableOpacity activeOpacity={0.7} onPress={() => setPolicyModal(null)} style={styles.modalClose}><Text style={styles.newChatText}>{isArabic ? "إغلاق" : "Close"}</Text></TouchableOpacity>
       </BottomSheet>
 
-      <BottomSheet visible={confirmLogoutVisible} title={isArabic ? "تسجيل الخروج؟" : "Sign out?"} onClose={() => setConfirmLogoutVisible(false)}>
-        <Text style={styles.policyNotice}>{isArabic ? "هل تريد تسجيل الخروج من حسابك؟" : "Do you want to sign out?"}</Text>
-        <View style={styles.confirmActions}>
-          <TouchableOpacity activeOpacity={0.7} onPress={() => setConfirmLogoutVisible(false)} style={styles.cancelAction}><Text style={styles.cancelActionText}>{isArabic ? "إلغاء" : "Cancel"}</Text></TouchableOpacity>
-          <TouchableOpacity activeOpacity={0.7} onPress={() => { setConfirmLogoutVisible(false); void doLogout(); }} style={styles.dangerAction} disabled={loggingOut}><Text style={styles.dangerActionText}>{isArabic ? "تسجيل الخروج" : "Sign out"}</Text></TouchableOpacity>
-        </View>
-      </BottomSheet>
+
     </>
   );
 }
@@ -334,6 +326,13 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   userName: { color: colors.textPrimary, fontSize: 15, fontWeight: "700" },
   email: { color: colors.textSecondary, marginTop: 4, fontSize: 13 },
   cardRow: { minHeight: 58, paddingHorizontal: 15, paddingVertical: 10, borderRadius: 16, backgroundColor: "#1E1E1E", borderWidth: 0, flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  planSummaryCopy: { flex: 1, alignItems: isArabic ? "flex-end" : "flex-start", gap: 3 },
+  planNameText: { color: "#FFFFFF", fontSize: 14, fontWeight: "800", textAlign: isArabic ? "right" : "left" },
+  creditLabelText: { color: "#FFFFFF", fontSize: 14, fontWeight: "700" },
+  upgradePill: { minHeight: 34, paddingHorizontal: 17, borderRadius: 11, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
+  upgradePillText: { color: colors.onPrimary, fontSize: 12, fontWeight: "800" },
+  creditSummaryLabel: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 9 },
+  creditSummaryValue: { color: colors.textPrimary, fontSize: 17, fontWeight: "800" },
   rowText: { color: "#FFFFFF", fontSize: 14, flex: 1, textAlign: "center" },
   rowIcon: { color: "#FFFFFF" },
   languageControl: { minHeight: 50, flexDirection: isArabic ? "row-reverse" : "row", gap: 6, padding: 5, borderWidth: 0, borderRadius: 16, backgroundColor: "#1E1E1E" },

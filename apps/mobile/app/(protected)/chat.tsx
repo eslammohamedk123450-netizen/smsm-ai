@@ -26,7 +26,6 @@ import { useToast } from "../../src/components/ui/Toast";
 import { supabase } from "../../src/lib/supabase/client";
 import { integrationService, type ToolkitStatus } from "../../src/features/integrations/integration-service";
 import { randomUUID } from "expo-crypto";
-import { useNavigationMenu } from "../../src/components/navigation/MainNavigation";
 import { AgentExecutionCard } from "../../src/features/chat/components/AgentExecutionCard";
 import { listConversationAgentProgress, type ChatAgentProgress } from "../../src/features/brain/task-service";
 
@@ -177,7 +176,6 @@ export default function ChatPage() {
   const [ratingNote, setRatingNote] = useState("");
   const [ratingSaving, setRatingSaving] = useState(false);
   const [creditBalance, setCreditBalance] = useState<number | null>(null);
-  const openNavigationDrawer = useNavigationMenu();
   const suggestions = isArabic ? TASK_SUGGESTIONS : TASK_SUGGESTIONS_EN;
   const [connectorApproval, setConnectorApproval] = useState<{ content: string; toolkit: ToolkitStatus["toolkit"]; intent: "read" | "write"; connected: boolean; accountExists: boolean; disabled: boolean; writeApproval: ConnectorWriteApproval | null } | null>(null);
   const closeShareSheet = useCallback(() => setShareVisible(false), []);
@@ -771,11 +769,8 @@ export default function ChatPage() {
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : Platform.OS === "android" ? "height" : undefined} keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}>
         <View style={styles.appBar}>
           {messages.length === 0 ? (
-            <Pressable onPress={openNavigationDrawer} style={styles.headerButton} accessibilityRole="button" accessibilityLabel={isArabic ? "فتح قائمة التنقل" : "Open navigation menu"}>
-              <View style={styles.menuLinesWrap}>
-                <View style={styles.menuLine} />
-                <View style={styles.menuLine} />
-              </View>
+            <Pressable onPress={() => router.replace("/home" as never)} style={styles.headerButton} accessibilityRole="button" accessibilityLabel={isArabic ? "العودة إلى مهامي" : "Return to My tasks"}>
+              <Ionicons name="home-outline" size={21} color={colors.textPrimary} />
             </Pressable>
           ) : (
             <>
@@ -808,11 +803,8 @@ export default function ChatPage() {
                 </TouchableOpacity>
               </View>
 
-              <Pressable onPress={openNavigationDrawer} style={styles.headerButton} accessibilityRole="button" accessibilityLabel={isArabic ? "فتح قائمة التنقل" : "Open navigation menu"}>
-                <View style={styles.menuLinesWrap}>
-                  <View style={styles.menuLine} />
-                  <View style={styles.menuLine} />
-                </View>
+              <Pressable onPress={() => router.replace("/home" as never)} style={styles.headerButton} accessibilityRole="button" accessibilityLabel={isArabic ? "العودة إلى مهامي" : "Return to My tasks"}>
+                <Ionicons name="home-outline" size={21} color={colors.textPrimary} />
               </Pressable>
             </>
           )}
