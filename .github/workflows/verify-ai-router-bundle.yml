@@ -87,7 +87,7 @@ jobs:
         run: npm run bundle:ai-router && npm run bundle:sync-models
 
       - name: Commit the regenerated bundle to the development branch
-        if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name == 'push' && (github.ref_name == 'develop' || github.ref_name == 'feat/agent-worker-brain-queue'))
+        if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name == 'push' && (github.ref_name == 'release/v1' || github.ref_name == 'develop' || github.ref_name == 'feat/agent-worker-brain-queue'))
         env:
           TARGET_REF: ${{ github.event.pull_request.head.ref || github.ref_name }}
           SOURCE_SHA: ${{ steps.source.outputs.sha }}
