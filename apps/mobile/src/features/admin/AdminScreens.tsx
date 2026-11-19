@@ -345,7 +345,7 @@ export function ProvidersAdminScreen() {
           </View>
           <View style={styles.providerTileInfo}>
             <Text numberOfLines={2} style={styles.cardTitle}>{provider.name}</Text>
-            <Text numberOfLines={1} style={styles.detail}>{provider.provider_type} · مزامنة النماذج: {provider.last_test_status === "success" ? "ناجحة" : provider.last_test_status === "error" ? "فشلت" : "لم تُختبر"}</Text>
+            <Text numberOfLines={1} style={styles.detail}>{provider.provider_type} · مزامنة النماذج: {provider.last_test_status === "success" ? "ناجحة" : provider.last_test_status === "error" ? "فشلت" : "لم تتم"}</Text>
             <Text selectable style={styles.detail}>URL: {provider.base_url ?? "غير محدد"}</Text>
             <Text style={styles.providerStat}>{modelsForProvider.length} نموذج · {routableCount} متاح</Text>
             {restrictedCount ? <Text style={styles.providerRestrictedStat}>{restrictedCount} مقيّد صحيًا</Text> : null}
