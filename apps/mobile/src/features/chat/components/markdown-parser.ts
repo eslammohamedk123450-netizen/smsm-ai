@@ -3,7 +3,7 @@ export type MarkdownBlock =
   | { type: "paragraph"; text: string }
   | { type: "list"; ordered: boolean; items: string[] }
   | { type: "quote"; text: string }
-  | { type: "code"; language: string; code: string }
+  | { type: "code"; language: string; code: string; incomplete?: boolean }
   | { type: "table"; headers: string[]; rows: string[][] }
   | { type: "chart"; title?: string; labels: string[]; values: number[] }
   | { type: "flow"; title?: string; steps: string[] }
@@ -61,7 +61,8 @@ export function parseMarkdownBlocks(markdown: string): MarkdownBlock[] {
         codeLines.push(lines[index]);
         index += 1;
       }
-      if (index < lines.length) index += 1;
+      const fenceClosed = index < lines.length;
+      if (fenceClosed) index += 1;
       const code = codeLines.join("\n");
       const language = (fence[1] || "").toLowerCase();
       if (language === "chart" || language === "flow" || language === "diagram" || language === "dashboard" || language === "agent" || language === "mermaid") {
@@ -134,7 +135,7 @@ export function parseMarkdownBlocks(markdown: string): MarkdownBlock[] {
         blocks.push({ type: "paragraph", text: "تعذر إنشاء العنصر المرئي بتنسيق صالح. أعد طلب الرسم أو المخطط وسأحاول إنشاءه من جديد." });
         continue;
       }
-      blocks.push({ type: "code", language: fence[1] || "", code });
+      blocks.push({ type: "code", language: fence[1] || "", code, ...(fenceClosed ? {} : { incomplete: true }) });
       continue;
     }
 
