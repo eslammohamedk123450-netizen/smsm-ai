@@ -16,12 +16,38 @@ import { LocaleProvider, useAppLocale } from "../src/theme/LocaleProvider";
 export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   const systemScheme = useColorScheme();
   const colors = getThemeColors(systemScheme === "dark" ? "dark" : "light");
+  const isStaleBundleError = /Loading module .* failed|ChunkLoadError|Failed to fetch dynamically imported module|Importing a module script failed/i.test(error.message || "");
+
+  const handleRecovery = async () => {
+    if (isStaleBundleError && typeof window !== "undefined") {
+      try {
+        const registrations = await navigator.serviceWorker?.getRegistrations();
+        await Promise.all((registrations ?? []).map((registration) => registration.unregister()));
+      } catch {
+        // Continue with the cache-busting reload even if service-worker cleanup is unavailable.
+      }
+      try {
+        if ("caches" in window) {
+          const cacheNames = await window.caches.keys();
+          await Promise.all(cacheNames.map((cacheName) => window.caches.delete(cacheName)));
+        }
+      } catch {
+        // The reload below remains the primary recovery path.
+      }
+      const freshUrl = new URL(window.location.href);
+      freshUrl.searchParams.set("_suly_reload", String(Date.now()));
+      window.location.replace(freshUrl.toString());
+      return;
+    }
+    await retry();
+  };
+
   return (
     <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: colors.background, gap: 14 }}>
       <Text style={{ color: colors.textPrimary, fontSize: 20, fontWeight: "700", textAlign: "center" }}>حدث خلل أثناء فتح الشاشة</Text>
       <Text selectable style={{ color: colors.textSecondary, textAlign: "center", lineHeight: 22 }}>{error.message || "خطأ غير معروف"}</Text>
-      <Pressable onPress={() => void retry()} style={{ paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, backgroundColor: colors.primary }}>
-        <Text style={{ color: colors.onPrimary, fontWeight: "700" }}>إعادة المحاولة</Text>
+      <Pressable onPress={() => void handleRecovery()} style={{ paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, backgroundColor: colors.primary }}>
+        <Text style={{ color: colors.onPrimary, fontWeight: "700" }}>{isStaleBundleError ? "تحديث التطبيق" : "إعادة المحاولة"}</Text>
       </Pressable>
     </View>
   );
