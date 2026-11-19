@@ -297,6 +297,7 @@ export const adminService = {
       chatEligible: Number(data.chat_eligible ?? data.discovered ?? 0),
       nonChat: Number(data.non_chat ?? 0),
       created: Number(data.created ?? 0),
+      capabilitiesUpdated: Number(data.capabilities_updated ?? 0),
       warning: typeof data.warning === "string" && data.warning.length > 0 ? data.warning : null,
     };
   },
@@ -315,6 +316,7 @@ export const adminService = {
       chatEligible: Number(data.chat_eligible ?? data.discovered ?? 0),
       nonChat: Number(data.non_chat ?? 0),
       created: Number(data.created ?? 0),
+      capabilitiesUpdated: Number(data.capabilities_updated ?? 0),
       warning: typeof data.warning === "string" && data.warning.length > 0 ? data.warning : null,
     };
   },
