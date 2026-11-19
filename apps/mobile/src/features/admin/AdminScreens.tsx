@@ -105,8 +105,15 @@ function PageHeader({ title }: { title: string }) {
   </View>;
 }
 function ErrorText({ children }: { children: string | null }) { const { colors } = useSulyTheme(); const styles = useMemo(() => createStyles(colors), [colors]); return children ? <Text accessibilityRole="alert" style={styles.error}>{children}</Text> : null; }
+function isModelChatCapable(model: ModelRow): boolean {
+  if (typeof model.capabilities_json === "string") {
+    try { return JSON.parse(model.capabilities_json)?.chat !== false; } catch { return true; }
+  }
+  return model.capabilities_json?.chat !== false;
+}
 function probeErrorLabel(code: string | null) {
   if (!code) return "تعذر الحصول على رد صالح.";
+  if (code === "model_not_chat_capable") return "هذا نموذج غير دردشة؛ لا يمكن اختباره عبر واجهة الدردشة النصية.";
   if (code === "provider_http_401" || code === "provider_http_403" || code === "credential_unavailable") return "تحقق من المفتاح أو صلاحياته.";
   if (code === "provider_http_429") return "تجاوز المزود حد الطلبات أو الحصة.";
   if (code === "provider_http_404") return "المزود لم يجد النموذج أو مسار الدردشة؛ قد يكون النموذج من نوع غير نصي مثل التفريغ الصوتي.";
@@ -652,7 +659,7 @@ export function ModelsAdminScreen({ showPricing = true }: { showPricing?: boolea
             <View style={styles.modelsTableMetric}><Text style={styles.modelMetricValue}>{model.health?.average_latency_ms == null ? "—" : `${Math.round(model.health.average_latency_ms)}ms`}</Text></View>
             <View style={styles.modelsTableActions}>
               <Pressable accessibilityRole="button" onPress={() => void openModelDetails(model)} style={styles.detailsAction}><Text style={styles.link}>⚙  القيود وسجل الفحوص</Text></Pressable>
-              <PrimaryButton label={testingModelId === model.id ? "جارٍ الفحص…" : "اختبار فوري"} onPress={() => void testModel(model)} disabled={busy || testingModelId !== null} />
+              {isModelChatCapable(model) ? <PrimaryButton label={testingModelId === model.id ? "جارٍ الفحص…" : "اختبار فوري"} onPress={() => void testModel(model)} disabled={busy || testingModelId !== null} /> : <Text style={styles.detail}>غير دردشة · لا يدعم اختبار الدردشة</Text>}
               {testResults[model.id] ? <Text accessibilityRole="text" style={testResults[model.id].startsWith("نجح الطلب") ? styles.success : styles.warning}>{testResults[model.id]}</Text> : null}
               {model.health?.auto_restricted ? <PrimaryButton label="مراجعة وإعادة تفعيل" onPress={() => void resetHealth(model)} disabled={busy || testingModelId !== null} /> : providerIsOff ? <Link href="/admin/api-keys" asChild><Pressable style={styles.detailsAction}><Text style={styles.link}>اذهب لتفعيل المفتاح</Text></Pressable></Link> : isManuallyOff ? <><PrimaryButton label="تفعيل ضمن سباق مجاني" onPress={() => void assignRoute(model, "free_race")} disabled={busy || testingModelId !== null} /><PrimaryButton label="تفعيل كبديل مدفوع" onPress={() => void assignRoute(model, "paid_fallback")} disabled={busy || testingModelId !== null} /></> : <PrimaryButton label="تعطيل" onPress={() => void disable(model)} disabled={busy || testingModelId !== null} />}
             </View>
