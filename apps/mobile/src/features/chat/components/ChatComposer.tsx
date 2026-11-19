@@ -238,7 +238,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
                 accessibilityRole="button"
                 accessibilityLabel={isArabic ? "إيقاف الرد" : "Stop response"}
               >
-                <Ionicons name="stop" size={16} color={colors.onPrimary} />
+                <Ionicons name="stop" size={16} color="#F5F5F5" />
               </Pressable>
             ) : (
               <Pressable
@@ -254,7 +254,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
                 <Ionicons
                   name="paper-plane-outline"
                   size={17}
-                  color={canSend ? colors.onPrimary : colors.textPrimary}
+                  color="#F5F5F5"
                 />
               </Pressable>
             )}
@@ -277,7 +277,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
               <Ionicons
                 name={isListening ? "stop" : "mic-outline"}
                 size={18}
-                color={isListening ? colors.onPrimary : colors.textPrimary}
+                color="#F5F5F5"
               />
             </Pressable>
           </View>
