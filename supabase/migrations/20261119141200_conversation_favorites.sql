@@ -26,5 +26,6 @@ begin
   return p_favorite;
 end;
 $$;
+revoke execute on function public.suly_set_conversation_favorite(uuid, boolean) from public, anon;
 grant execute on function public.suly_set_conversation_favorite(uuid, boolean) to authenticated;
 commit;
