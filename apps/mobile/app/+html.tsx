@@ -8,7 +8,8 @@ import type { ReactNode } from "react";
  * with no running application.
  */
 const webBaseUrl = (process.env.EXPO_PUBLIC_WEB_BASE_URL ?? "").replace(/\/+$/, "");
-const faviconHref = `${webBaseUrl}/favicon.svg` || "/favicon.svg";
+const faviconHref = `${webBaseUrl}/favicon.svg?v=3` || "/favicon.svg";
+const faviconJpgHref = `${webBaseUrl}/favicon.jpg?v=3` || "/favicon.jpg";
 
 export default function Root({ children }: { children: ReactNode }) {
   const { htmlAttributes, bodyAttributes, headNodes, bodyNodes } = useServerDocumentContext();
@@ -21,6 +22,8 @@ export default function Root({ children }: { children: ReactNode }) {
         <meta name="theme-color" content="#080B14" />
         <link rel="icon" type="image/svg+xml" href={faviconHref} />
         <link rel="shortcut icon" type="image/svg+xml" href={faviconHref} />
+        <link rel="icon" type="image/jpeg" sizes="128x128" href={faviconJpgHref} />
+        <link rel="apple-touch-icon" href={faviconJpgHref} />
         {headNodes}
         <style>{`
           html, body, #root { width: 100%; min-width: 320px; min-height: 100%; margin: 0; background: #080808; }
