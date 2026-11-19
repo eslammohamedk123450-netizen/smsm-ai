@@ -1,5 +1,5 @@
 const DEFAULT_WEB_ORIGIN = "https://eslammohamedk123450-netizen.github.io";
-const DEFAULT_PRODUCTION_ORIGINS = ["https://suly.cloud"];
+const DEFAULT_PRODUCTION_ORIGINS = ["https://suly.cloud", "https://ai.suly.cloud"];
 const DEFAULT_ALLOWED_HEADERS = "authorization, x-client-info, apikey, content-type, cache-control, x-supabase-api-version, x-requested-with, x-suly-health-check-secret";
 const DEFAULT_ALLOWED_METHODS = "POST, OPTIONS";
 
@@ -14,7 +14,7 @@ function normalizeOrigin(value: string): string | null {
   }
 }
 
-/** Exact-origin CORS for the published web app and explicitly configured preview domains. */
+/** Exact-origin CORS for SULY production domains, GitHub Pages, and configured previews. */
 export function corsHeadersForRequest(
   req: Request,
   configuredOriginsRaw = "",
@@ -69,8 +69,6 @@ export function withCors(
   });
 }
 
-// Backward-compatible non-origin-specific defaults; callers should use the
-// request-aware helpers above rather than a hard-coded placeholder origin.
 export const corsHeaders = {
   "Access-Control-Allow-Headers": DEFAULT_ALLOWED_HEADERS,
   "Access-Control-Allow-Methods": "POST, GET, OPTIONS, PUT, DELETE",

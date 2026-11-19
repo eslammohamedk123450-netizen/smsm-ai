@@ -14,18 +14,22 @@ Deno.test("allows only the exact configured GitHub Pages origin", () => {
   assertEquals(denied["Access-Control-Allow-Origin"], undefined);
 });
 
-Deno.test("allows the exact SULY production domain but rejects lookalike origins", () => {
-  const production = corsHeadersForRequest(new Request("https://api.example.test", {
-    method: "OPTIONS",
-    headers: { origin: "https://suly.cloud" },
-  }));
-  assertEquals(production["Access-Control-Allow-Origin"], "https://suly.cloud");
+Deno.test("allows only the exact SULY production origins", () => {
+  for (const origin of ["https://suly.cloud", "https://ai.suly.cloud"]) {
+    const response = corsHeadersForRequest(new Request("https://api.example.test", {
+      method: "OPTIONS",
+      headers: { origin },
+    }));
+    assertEquals(response["Access-Control-Allow-Origin"], origin);
+  }
 
-  const lookalike = corsHeadersForRequest(new Request("https://api.example.test", {
-    method: "OPTIONS",
-    headers: { origin: "https://www.suly.cloud" },
-  }));
-  assertEquals(lookalike["Access-Control-Allow-Origin"], undefined);
+  for (const origin of ["http://ai.suly.cloud", "https://www.suly.cloud", "https://admin.ai.suly.cloud", "https://evil-suly.cloud", "https://ai.suly.cloud.evil.example", "https://ai.suly.cloud:8443"]) {
+    const response = corsHeadersForRequest(new Request("https://api.example.test", {
+      method: "OPTIONS",
+      headers: { origin },
+    }));
+    assertEquals(response["Access-Control-Allow-Origin"], undefined);
+  }
 });
 
 Deno.test("supports explicitly configured exact origins and local development", () => {
