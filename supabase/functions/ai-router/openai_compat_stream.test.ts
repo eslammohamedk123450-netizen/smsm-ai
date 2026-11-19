@@ -81,6 +81,20 @@ Deno.test("reads SSE delta content and usage", async () => {
   assertEquals(usage, [[4, 3, null]]);
 });
 
+Deno.test("reports provider finish_reason when an output reaches its token limit", async () => {
+  const response = new Response([
+    'data: {"choices":[{"delta":{"content":"<html><body>partial"}}]}',
+    'data: {"choices":[{"delta":{},"finish_reason":"length"}]}',
+    "data: [DONE]",
+    "",
+  ].join("\n"), { headers: { "content-type": "text/event-stream" } });
+  const finishReasons: string[] = [];
+  const chunks: string[] = [];
+  for await (const chunk of readOpenAiResponse(response, () => undefined, (reason) => finishReasons.push(reason))) chunks.push(chunk);
+  assertEquals(chunks, ["<html><body>partial"]);
+  assertEquals(finishReasons, ["length"]);
+});
+
 Deno.test("reads Anthropic-compatible SSE text deltas", async () => {
   const response = new Response([
     'event: content_block_delta',
