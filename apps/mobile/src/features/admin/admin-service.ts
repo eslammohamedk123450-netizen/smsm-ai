@@ -112,12 +112,13 @@ function describeFunctionFailure(error: unknown, functionName: string): string {
   const failure = error as { context?: { status?: number }; message?: string; name?: string } | null;
   const status = failure?.context?.status;
   const detail = typeof failure?.message === "string" ? failure.message.trim().slice(0, 240) : "";
+  const usefulDetail = detail && !/^(failed to send a request|failed to fetch|network request failed)$/i.test(detail) ? detail : "";
   if (status === 404) return `وظيفة ${functionName} غير منشورة على مشروع Supabase بعد. لم يتم تأكيد حفظ العملية.`;
   if (status === 401 || status === 403) return `رفضت وظيفة ${functionName} الطلب (HTTP ${status}). تحقق من جلسة الدخول وصلاحية المشرف.`;
-  if (status === 400 || status === 422) return `رفضت وظيفة ${functionName} البيانات (HTTP ${status}). ${detail || "تحقق من صحة بيانات المزود."}`;
-  if (status) return `فشلت وظيفة ${functionName} (HTTP ${status}). ${detail}`.trim();
-  if (functionName === "model-health-check") return `تعذر الاتصال بخدمة فحص النماذج. ${detail || "لم يتم تغيير بيانات المزود أو مفتاحه."}`;
-  return `تعذر الوصول إلى وظيفة ${functionName} عبر الشبكة أو CORS. لم يتم تأكيد حفظ المزود أو المفتاح. ${detail}`.trim();
+  if (status === 400 || status === 422) return `رفضت وظيفة ${functionName} البيانات (HTTP ${status}). ${usefulDetail || "تحقق من صحة بيانات المزود."}`;
+  if (status) return `فشلت وظيفة ${functionName} (HTTP ${status}). ${usefulDetail}`.trim();
+  if (functionName === "model-health-check") return `تعذر الاتصال بخدمة فحص النماذج. ${usefulDetail || "لم يتم تغيير بيانات المزوّد أو مفتاحه؛ أعد المحاولة بعد تحديث الصفحة."}`;
+  return `تعذر الوصول إلى وظيفة ${functionName} عبر الشبكة أو CORS. لم يتم تأكيد حفظ المزود أو المفتاح. ${usefulDetail}`.trim();
 }
 
 export const adminService = {
