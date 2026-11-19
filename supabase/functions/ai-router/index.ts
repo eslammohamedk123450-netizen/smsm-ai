@@ -27,7 +27,7 @@ import {
   upsertSharedTaskMemory,
 } from "../_shared/shared_task_memory.ts";
 import { CircuitBreaker } from "./circuit_breaker.ts";
-import { buildIndependentTaskPlan, buildTaskPlan, executeTaskPlan, hasExplicitDependencyLanguage, mergePartAnswers, parseModelGeneratedTaskPlan, probeCandidates, splitTask, validateTaskPlan, type TaskPlanStep } from "./resilience.ts";
+import { buildIndependentTaskPlan, buildTaskPlan, executeTaskPlan, hasExplicitDependencyLanguage, mergePartAnswers, parseModelGeneratedTaskPlan, probeCandidates, providerOutputWasTruncated, splitTask, validateTaskPlan, type TaskPlanStep } from "./resilience.ts";
 import { parseAgentDecision, runAgentLoop, type AgentLoopResumeStep, type AgentLoopStep, type AgentTool, type AgentDecision } from "./agent/orchestrator.ts";
 import { hasCapabilityEvidenceConflict, prioritizeModelCandidate, restrictModelsToAssignedRoute, type ModelCapabilityEvidence } from "./agent/model_routing.ts";
 import { isModelEligibleForRequest, modelSupportsRole as supportsModelRole } from "./agent/model_eligibility.ts";
@@ -1980,7 +1980,7 @@ async function handleRequest(req: Request): Promise<Response> {
         if (!partWinner) break;
         try {
           const collected = await collectCandidate(partWinner, Math.max(1600, Math.floor(maxOutputChars / splitParts.length)), req.signal);
-          const providerTruncated = /^(length|max_tokens|token_limit)$/i.test(winner!.finishReason ?? "");
+          const providerTruncated = providerOutputWasTruncated(partWinner.finishReason);
     const content = collected.content
       + (collected.reason ? outputGuardNotice(collected.reason) : "")
       + (providerTruncated ? "\n\n[توقف النموذج بسبب بلوغ حد الإخراج؛ قد يكون الرد أو الكود غير مكتمل. اطلب المتابعة من آخر سطر.]" : "");
