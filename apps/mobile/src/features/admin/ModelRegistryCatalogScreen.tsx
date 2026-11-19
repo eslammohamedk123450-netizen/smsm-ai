@@ -381,7 +381,7 @@ export function ModelRegistryCatalogScreen() {
               onPress={() => router.push("/admin/api-keys")}
               style={styles.modelStateAction}
             ><Ionicons name="key-outline" size={12} color={colors.primary}/><Text style={styles.modelStateActionText}>إدارة المزود</Text></Pressable> : null}
-            {model.legacy_chat_model_id !== null && model.operational_state === "disabled" && model.provider_enabled && model.lifecycle_state === "active" ? <Pressable
+            {model.legacy_chat_model_id !== null && model.operational_state === "disabled" && model.provider_enabled ? <Pressable
               accessibilityRole="button"
               accessibilityLabel="تفعيل النموذج وإضافته إلى أولوية الشات"
               disabled={updatingModelId !== null}
