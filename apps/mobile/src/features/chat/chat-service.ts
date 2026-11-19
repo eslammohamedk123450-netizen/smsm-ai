@@ -343,8 +343,16 @@ export const chatService = {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) throw new Error("انتهت الجلسة. سجّل الدخول مجددًا.");
 
-    // Read prior history before inserting the new user row.
-    const priorMessages = await this.getMessages(options.conversationId);
+    // Fetch only the text history needed for the next model request.
+    // Avoid loading up to 500 messages plus media metadata and signed URLs
+    // before every send; the chat request uses at most the latest 19 turns.
+    const { data: priorRows, error: historyError } = await supabase.from("suly_messages")
+      .select("role,content")
+      .eq("conversation_id", options.conversationId)
+      .order("created_at", { ascending: false })
+      .limit(19);
+    if (historyError) throw new Error("تعذر تحميل سجل المحادثة.");
+    const priorMessages = (priorRows ?? []).slice().reverse();
     const { data: inserted, error: insertError } = await supabase.from("suly_messages").insert({
       conversation_id: options.conversationId,
       user_id: user.id,
@@ -381,9 +389,8 @@ export const chatService = {
     // Basic-chat mode uses the administrator-managed priority chain; Studio execution is dormant.
 
     const history: ChatRequestBody["messages"] = priorMessages
-      .filter((entry): entry is ChatMessage & { role: "user" | "assistant" } => entry.role === "user" || entry.role === "assistant")
-      .slice(-19)
-      .map(({ role, content: text }) => ({ role, content: text }));
+      .filter((entry) => entry.role === "user" || entry.role === "assistant")
+      .map(({ role, content: text }) => ({ role: role as "user" | "assistant", content: text }));
     history.push({ role: "user", content });
     const requestBody: ChatRequestBody = {
       conversation_id: options.conversationId,
