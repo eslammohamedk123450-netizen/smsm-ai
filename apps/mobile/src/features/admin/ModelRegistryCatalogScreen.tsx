@@ -177,8 +177,9 @@ export function ModelRegistryCatalogScreen() {
           operational_state,
         };
       });
-      // Retain all capability rows; the model cards deduplicate models separately.
-      setRows(normalizedRows.sort((a, b) => a.display_name.localeCompare(b.display_name)));
+      // Disabled provider keys are absent from every registry view and filter.
+      const visibleRows = normalizedRows.filter((model) => providerById.get(Number(model.provider_id))?.enabled === true);
+      setRows(visibleRows.sort((a, b) => a.display_name.localeCompare(b.display_name)));
       const priceMap = new Map<number, { input: number; output: number }>();
       for (const price of (priceRows ?? []) as Array<{ model_id: number; provider_input_cost_egp_per_million: number; provider_output_cost_egp_per_million: number }>) priceMap.set(Number(price.model_id), { input: Number(price.provider_input_cost_egp_per_million), output: Number(price.provider_output_cost_egp_per_million) });
       setPricesByModel(priceMap);
