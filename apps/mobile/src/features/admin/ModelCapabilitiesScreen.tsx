@@ -109,7 +109,8 @@ export function ModelCapabilitiesScreen() {
         } else if (model.lifecycle_state === "candidate") operational_state = "candidate";
         return { ...model, provider_name: provider?.name ?? model.provider_name ?? null, provider_type: provider?.provider_type ?? null, operational_state };
       });
-      setRows(next);
+      // A disabled provider is treated as absent, not as a visible disabled model.
+      setRows(next.filter((model) => providerMap.get(Number(model.provider_id))?.enabled === true));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "تعذر تحميل دليل القدرات.");
     } finally { setLoading(false); }
