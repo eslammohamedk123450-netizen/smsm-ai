@@ -263,11 +263,7 @@ export function MediaScreen() {
       {selectedFolder ? <Pressable disabled={folderMutationBusy} accessibilityRole="button" onPress={() => { setFolderEditor("rename"); setFolderName(selectedFolder.name); }}><Text style={[styles.link, folderMutationBusy && styles.disabledText]}>{isArabic ? "إعادة تسمية" : "Rename"}</Text></Pressable> : null}
       {selectedFolder ? <Pressable disabled={folderMutationBusy} accessibilityRole="button" onPress={confirmDeleteFolder}><Text style={[styles.link, folderMutationBusy && styles.disabledText]}>{isArabic ? "حذف المجلد" : "Delete folder"}</Text></Pressable> : null}
     </View> : null}
-    {false ? folderEditor ? <View style={styles.actions>
-      <TextInput value={folderName} onChangeText={setFolderName} editable={!folderMutationBusy} maxLength={80} placeholder={isArabic ? "اسم المجلد" : "Folder name"} placeholderTextColor={colors.textMuted} style={[styles.search, { flex: 1, minWidth: 160 }]} />
-      <Pressable disabled={folderMutationBusy} accessibilityRole="button" onPress={() => void saveFolder()}><Text style={[styles.link, folderMutationBusy && styles.disabledText]}>{folderMutationBusy ? (isArabic ? "جارٍ الحفظ…" : "Saving…") : (isArabic ? "حفظ" : "Save")}</Text></Pressable>
-      <Pressable disabled={folderMutationBusy} onPress={() => { setFolderEditor(null); setFolderName(""); }}><Text style={[styles.link, folderMutationBusy && styles.disabledText]}>{isArabic ? "إلغاء" : "Cancel"}</Text></Pressable>
-    </View> : null : null}
+    {null}
     {isAdmin && (
       <View style={styles.actions}>
         <Text style={styles.meta}>{isArabic ? "أدوات المشرف لنشر صور وفيديوهات وملفات عامة في المكتبة، وليست لرفع ملفاتك الشخصية." : "Admin-only tools to publish shared Library images, videos, and files—not to upload personal files."}</Text>
