@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { PremiumText as Text } from "../../components/ui/PremiumText";
 import { BottomSheet } from "../../components/ui/BottomSheet";
 import { chatService, type Conversation } from "../chat/chat-service";
@@ -19,6 +19,8 @@ const TASK_STATUS_EN: Record<TaskHistoryItem["status"], string> = { queued: "Que
 
 export function ConversationsScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ filter?: string; taskId?: string | string[] }>();
+  const filter = params.filter === "archived" || params.filter === "favorites" ? params.filter : "all";
   const { colors } = useSulyTheme();
   const { isArabic } = useAppLocale();
   const styles = useMemo(() => createStyles(colors, isArabic), [colors, isArabic]);
@@ -39,16 +41,22 @@ export function ConversationsScreen() {
     setLoading(true); setError(null);
     try {
       const [conversations, taskRows] = await Promise.all([
-        chatService.listConversations(200),
-        listTaskHistory(100).catch(() => [] as TaskHistoryItem[]),
+        filter === "archived" ? chatService.listArchivedConversations(200) : chatService.listConversations(200),
+        filter === "all" ? listTaskHistory(100).catch(() => [] as TaskHistoryItem[]) : Promise.resolve([] as TaskHistoryItem[]),
       ]);
       setItems(conversations);
       setTasks(taskRows);
     }
     catch (cause) { setError(cause instanceof Error ? cause.message : (isArabic ? "تعذر تحميل المحادثات." : "Could not load chats.")); }
     finally { setLoading(false); }
-  }, [isArabic]);
+  }, [filter, isArabic]);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const requestedTaskId = Array.isArray(params.taskId) ? params.taskId[0] : params.taskId;
+    if (!requestedTaskId) return;
+    const match = tasks.find((task) => task.jobId === requestedTaskId);
+    if (match) setSelectedTask(match);
+  }, [params.taskId, tasks]);
 
   const filtered = useMemo<UnifiedHistoryItem[]>(() => {
     const value = query.trim().toLocaleLowerCase(isArabic ? "ar" : "en");
@@ -56,11 +64,16 @@ export function ConversationsScreen() {
       ...items.map((conversation) => ({ kind: "conversation" as const, conversation, updatedAt: conversation.updatedAt })),
       ...tasks.map((task) => ({ kind: "task" as const, task, updatedAt: task.updatedAt ?? "" })),
     ];
-    const matching = value ? combined.filter((entry) => entry.kind === "conversation"
+    const scoped = filter === "favorites"
+      ? combined.filter((entry) => entry.kind === "conversation" && entry.conversation.isPinned)
+      : filter === "archived"
+        ? combined.filter((entry) => entry.kind === "conversation")
+        : combined;
+    const matching = value ? scoped.filter((entry) => entry.kind === "conversation"
       ? entry.conversation.title.toLocaleLowerCase(isArabic ? "ar" : "en").includes(value)
-      : entry.task.objective.toLocaleLowerCase(isArabic ? "ar" : "en").includes(value)) : combined;
+      : entry.task.objective.toLocaleLowerCase(isArabic ? "ar" : "en").includes(value)) : scoped;
     return matching.sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
-  }, [items, tasks, query, isArabic]);
+  }, [items, tasks, query, isArabic, filter]);
 
   const create = async () => {
     if (creating) return;
@@ -112,7 +125,7 @@ export function ConversationsScreen() {
   return (
     <ScrollView style={[styles.screen, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <View style={styles.headerCopy}><Text style={[styles.title, { color: colors.textPrimary }]}>{isArabic ? "السجل" : "History"}</Text><Text style={[styles.subtitle, { color: colors.textSecondary }]}>{isArabic ? "محادثاتك وتنفيذاتك في مكان واحد." : "Your conversations and task activity in one place."}</Text></View>
+        <View style={styles.headerCopy}><Text style={[styles.title, { color: colors.textPrimary }]}>{filter === "archived" ? (isArabic ? "الأرشيف" : "Archive") : filter === "favorites" ? (isArabic ? "المفضلة" : "Favorites") : (isArabic ? "السجل" : "History")}</Text><Text style={[styles.subtitle, { color: colors.textSecondary }]}>{filter === "archived" ? (isArabic ? "محادثاتك المؤرشفة." : "Your archived conversations.") : filter === "favorites" ? (isArabic ? "محادثاتك المفضلة والمثبتة." : "Your favorite and pinned conversations.") : (isArabic ? "محادثاتك وتنفيذاتك في مكان واحد." : "Your conversations and task activity in one place.")}</Text></View>
         <Pressable accessibilityRole="button" disabled={creating} onPress={() => void create()} style={[styles.newButton, { backgroundColor: colors.primary }]}>
           {creating ? <ActivityIndicator color={colors.onPrimary} /> : <Ionicons name="add" size={18} color={colors.onPrimary} />}
           <Text style={styles.newButtonText}>{isArabic ? "محادثة جديدة" : "New chat"}</Text>

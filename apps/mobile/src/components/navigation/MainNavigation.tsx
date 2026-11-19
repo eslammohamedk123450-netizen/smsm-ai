@@ -59,6 +59,7 @@ export function MainNavigation({ children }: Props) {
   const [recentRefresh, setRecentRefresh] = useState(0);
   const active = activeSection(pathname);
   const isChat = pathname.startsWith("/chat");
+  const isHome = pathname === "/home" || pathname === "/";
 
   useEffect(() => {
     if (BASIC_CHAT_ONLY && !pathname.startsWith("/chat") && !pathname.startsWith("/admin") && !pathname.startsWith("/settings") && !pathname.startsWith("/studio")) router.replace("/chat");
@@ -101,7 +102,7 @@ export function MainNavigation({ children }: Props) {
   const openDrawer = () => setDrawerVisible(true);
   const goHome = () => {
     setDrawerVisible(false);
-    router.replace("/chat");
+    router.replace("/home");
   };
 
   const navigate = (href: string) => {
@@ -235,15 +236,15 @@ export function MainNavigation({ children }: Props) {
           <View style={[styles.mainContent, { backgroundColor: colors.background }]}>
             {!isChat ? (
               <SafeAreaView edges={["top"]} style={[styles.topSafe, { backgroundColor: colors.background }]}>
-                <View style={[styles.topBar, { borderColor: colors.divider, flexDirection: "row", direction: isArabic ? "rtl" : "ltr" }]}>
-                  <Pressable onPress={openDrawer} style={styles.headerButton} accessibilityRole="button" accessibilityLabel={isArabic ? "فتح القائمة الجانبية" : "Open sidebar"}>
-                    <Ionicons name="menu-outline" size={23} color={colors.textPrimary} />
+                <View style={[styles.topBar, { borderColor: colors.divider, flexDirection: "row", direction: "ltr" }]}>
+                  <Pressable onPress={isHome ? () => router.push("/conversations" as never) : openDrawer} style={styles.headerButton} accessibilityRole="button" accessibilityLabel={isHome ? (isArabic ? "البحث في مهامي" : "Search tasks") : (isArabic ? "فتح القائمة الجانبية" : "Open sidebar")}>
+                    <Ionicons name={isHome ? "search-outline" : "menu-outline"} size={23} color={colors.textPrimary} />
                   </Pressable>
                   <View style={styles.brand}>
                     <Text style={[styles.brandName, { color: colors.textPrimary }]}>SULY</Text>
                   </View>
-                  <Pressable onPress={goHome} style={styles.homeButton} accessibilityRole="button" accessibilityLabel={isArabic ? "العودة إلى الصفحة الرئيسية" : "Return to home"}>
-                    <AppLogo size={34} />
+                  <Pressable onPress={isHome ? () => router.push("/profile" as never) : goHome} style={styles.homeButton} accessibilityRole="button" accessibilityLabel={isHome ? (isArabic ? "الحساب الشخصي" : "Profile") : (isArabic ? "العودة إلى الصفحة الرئيسية" : "Return to home")}>
+                    {isHome ? <Ionicons name="person-circle-outline" size={29} color={colors.textPrimary} /> : <AppLogo size={34} />}
                   </Pressable>
                 </View>
               </SafeAreaView>
