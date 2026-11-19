@@ -5,7 +5,7 @@ import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
 import { adminService } from "./admin-service";
 
-type ModelChoice = {
+export type ModelChoice = {
   id: number;
   name: string;
   model_identifier: string;
@@ -17,14 +17,8 @@ type ModelChoice = {
   capabilities_json?: string | Record<string, unknown> | null;
   health?: { auto_restricted?: boolean } | null;
 };
-type Role = "chat" | "planner" | "worker" | "reviewer" | "summarizer";
-const ROLES: Array<[Role, string, string]> = [
-  ["chat", "الدردشة", "الردود اليومية"],
-  ["planner", "المخطط", "تقسيم المهام"],
-  ["worker", "العامل", "تنفيذ الخطوات"],
-  ["reviewer", "المراجع", "فحص الجودة"],
-  ["summarizer", "الملخّص", "صياغة النتيجة"],
-];
+type Role = "chat";
+const ROLES: Array<[Role, string, string]> = [["chat", "الدردشة", "الردود اليومية"]];
 
 function modelSupportsRoute(model: ModelChoice, role: Role): boolean {
   const roles = model.task_roles?.length ? model.task_roles : ["general"];
@@ -50,8 +44,8 @@ function typeLabel(model: ModelChoice): string {
 export function RouteModelChainsCard({ models }: { models: ModelChoice[] }) {
   const { colors } = useSulyTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const [role, setRole] = useState<Role>("chat");
-  const [chains, setChains] = useState<Record<Role, number[]>>({ chat: [], planner: [], worker: [], reviewer: [], summarizer: [] });
+  const role: Role = "chat";
+  const [chains, setChains] = useState<Record<Role, number[]>>({ chat: [] });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +54,7 @@ export function RouteModelChainsCard({ models }: { models: ModelChoice[] }) {
   const available = useMemo(() => models.filter((model) =>
     model.enabled && model.provider_enabled === true && model.routing_group === "free_race"
     && !model.health?.auto_restricted && modelSupportsRoute(model, role)), [models, role]);
-  const currentIds = chains[role].filter((id) => available.some((model) => model.id === id)).slice(0, 500);
+  const currentIds = chains[role].filter((id) => available.some((model) => model.id === id)).slice(0, 5);
   const currentModels = currentIds.map((id) => available.find((model) => model.id === id)).filter(Boolean) as ModelChoice[];
   const availableToAdd = available.filter((model) => !currentIds.includes(model.id));
 
@@ -68,8 +62,8 @@ export function RouteModelChainsCard({ models }: { models: ModelChoice[] }) {
     setLoading(true); setError(null);
     try {
       const rows = await adminService.getRouteModelAssignments();
-      const next: Record<Role, number[]> = { chat: [], planner: [], worker: [], reviewer: [], summarizer: [] };
-      for (const row of rows) if (row.route_role in next && row.enabled) next[row.route_role as Role].push(Number(row.model_id));
+      const next: Record<Role, number[]> = { chat: [] };
+      for (const row of rows) if (row.route_role === "chat" && row.enabled) next.chat.push(Number(row.model_id));
       setChains(next);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "تعذر تحميل سلاسل التوجيه. طبّق migration 063 أولاً.");
@@ -93,20 +87,19 @@ export function RouteModelChainsCard({ models }: { models: ModelChoice[] }) {
     [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
     void save(next);
   };
-  const add = (modelId: number) => { if (currentIds.length < 500 && !currentIds.includes(modelId)) void save([...currentIds, modelId]); };
+  const add = (modelId: number) => { if (currentIds.length < 5 && !currentIds.includes(modelId)) void save([...currentIds, modelId]); };
   const remove = (modelId: number) => { if (currentIds.length > 1) void save(currentIds.filter((id) => id !== modelId)); };
 
   return <View style={styles.card}>
-    <View style={styles.heading}><View style={styles.headingCopy}><Text style={styles.title}>توجيه النماذج داخل الوكيل المركزي</Text><Text style={styles.help}>أضف ورتّب حتى 500 نموذج مؤهل لكل وظيفة داخل عقل SULY الواحد. التخطيط والتنفيذ والمراجعة وظائف داخلية وليست وكلاء مستقلة.</Text></View><Text style={styles.badge}>متسلسل</Text></View>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.roleRow}>{ROLES.map(([value, label, hint]) => <Pressable key={value} onPress={() => { setRole(value); setNotice(null); }} style={[styles.roleChip, role === value && styles.roleChipActive]}><Text style={[styles.roleLabel, role === value && styles.roleLabelActive]}>{label}</Text><Text style={styles.roleHint}>{hint}</Text></Pressable>)}</ScrollView>
+    <View style={styles.heading}><View style={styles.headingCopy}><Text style={styles.title}>أولوية نماذج الشات</Text><Text style={styles.help}>كل رسالة تبدأ بالنموذج الأول فورًا. عند فشله ينتقل النظام للنموذج التالي بالترتيب، ويتوقف عند أول رد صالح. يمكنك ترتيب حتى 5 نماذج.</Text></View><Text style={styles.badge}>متسلسل</Text></View>
     {loading ? <ActivityIndicator color={colors.primary} /> : <>
       <View style={styles.chainHeader}><Text style={styles.sectionTitle}>{ROLES.find(([value]) => value === role)?.[1]} · ترتيب الأولوية</Text><Text style={styles.chainMeta}>{currentModels.length} نموذج</Text></View>
       {currentModels.length === 0 ? <Text style={styles.empty}>لا توجد سلسلة محفوظة لهذا الدور بعد.</Text> : currentModels.map((model, index) => <View key={model.id} style={styles.chainRow}><View style={styles.priority}><Text style={styles.priorityText}>{index + 1}</Text></View><View style={styles.modelCopy}><Text style={styles.modelName}>{model.name}</Text><Text style={styles.modelMeta}>{model.provider_name} · {typeLabel(model)} · {model.model_identifier}</Text></View><Pressable onPress={() => move(index, 1)} disabled={saving || index === currentModels.length - 1} style={styles.iconButton}><Text style={styles.iconText}>↓</Text></Pressable><Pressable onPress={() => move(index, -1)} disabled={saving || index === 0} style={styles.iconButton}><Text style={styles.iconText}>↑</Text></Pressable><Pressable onPress={() => remove(model.id)} disabled={saving || currentIds.length <= 1} style={styles.removeButton}><Text style={styles.removeText}>إزالة</Text></Pressable></View>)}
-      {currentIds.length < 500 ? <>
+      {currentIds.length < 5 ? <>
         <Text style={styles.addTitle}>{currentIds.length === 0 ? "إضافة أول نموذج" : "إضافة نموذج آخر"}</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.addRow}>{availableToAdd.map((model) => <Pressable key={model.id} onPress={() => add(model.id)} disabled={saving} style={styles.addChip}><Text style={styles.addText}>+ {model.name}</Text><Text style={styles.addMeta}>{model.provider_name} · {typeLabel(model)}</Text></Pressable>)}</ScrollView>
-        {availableToAdd.length === 0 ? <Text style={styles.empty}>لا توجد نماذج مؤهلة أخرى لهذا الدور.</Text> : null}
-      </> : <Text style={styles.empty}>وصلت إلى الحد العملي البالغ 500 نموذج لهذا المسار.</Text>}
+        {availableToAdd.length === 0 ? <Text style={styles.empty}>لا توجد نماذج شات مؤهلة أخرى.</Text> : null}
+      </> : <Text style={styles.empty}>تم الوصول إلى الحد الأقصى: 5 نماذج في ترتيب الشات.</Text>}
     </>}
     {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
     {notice ? <Text style={styles.notice}>{notice}</Text> : null}

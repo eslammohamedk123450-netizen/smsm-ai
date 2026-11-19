@@ -32,6 +32,27 @@ Deno.test("extracts Responses API output_text", () => {
   assertEquals(extractOpenAiText({ output_text: "Hello from output_text." }), "Hello from output_text.");
 });
 
+Deno.test("extracts Anthropic-compatible text delta frames", () => {
+  assertEquals(
+    extractOpenAiText({ type: "content_block_delta", delta: { type: "text_delta", text: "Hello from Anthropic SSE." } }),
+    "Hello from Anthropic SSE.",
+  );
+});
+
+Deno.test("extracts nested gateway response envelopes", () => {
+  assertEquals(
+    extractOpenAiText({ response: { choices: [{ message: { content: "Wrapped gateway response." } }] } }),
+    "Wrapped gateway response.",
+  );
+});
+
+Deno.test("extracts Gemini candidate text parts", () => {
+  assertEquals(
+    extractOpenAiText({ candidates: [{ content: { parts: [{ text: "Hello " }, { text: "from Gemini." }] } }] }),
+    "Hello from Gemini.",
+  );
+});
+
 Deno.test("reads a normal application/json completion even when stream was requested", async () => {
   const response = new Response(JSON.stringify({
     choices: [{ message: { role: "assistant", content: "JSON fallback works." } }],
@@ -58,6 +79,35 @@ Deno.test("reads SSE delta content and usage", async () => {
   for await (const chunk of readOpenAiResponse(response, (...values) => usage.push(values))) chunks.push(chunk);
   assertEquals(chunks, ["Hello ", "from SSE."]);
   assertEquals(usage, [[4, 3, null]]);
+});
+
+Deno.test("reads Anthropic-compatible SSE text deltas", async () => {
+  const response = new Response([
+    'event: content_block_delta',
+    'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"Hello from "}}',
+    "",
+    'event: content_block_delta',
+    'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"Anthropic."}}',
+    "",
+    "data: [DONE]",
+    "",
+  ].join("\n"), { headers: { "content-type": "text/event-stream" } });
+  const chunks: string[] = [];
+  for await (const chunk of readOpenAiResponse(response, () => undefined)) chunks.push(chunk);
+  assertEquals(chunks, ["Hello from ", "Anthropic."]);
+});
+
+Deno.test("structured provider errors are surfaced to the retry layer", async () => {
+  const response = new Response(JSON.stringify({ error: { message: "upstream unavailable", code: "overloaded" } }), {
+    headers: { "content-type": "application/json" },
+  });
+  let message = "";
+  try {
+    for await (const _chunk of readOpenAiResponse(response, () => undefined)) { /* no text expected */ }
+  } catch (error) {
+    message = error instanceof Error ? error.message : String(error);
+  }
+  assertEquals(message, "provider_error: upstream unavailable");
 });
 
 Deno.test("reads SSE content arrays and legacy choice text", async () => {
