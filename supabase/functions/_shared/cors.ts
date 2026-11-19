@@ -1,5 +1,5 @@
 const DEFAULT_WEB_ORIGIN = "https://eslammohamedk123450-netizen.github.io";
-const DEFAULT_PRODUCTION_ORIGINS = ["https://suly.cloud"];
+const DEFAULT_PRODUCTION_ORIGINS = ["https://suly.cloud", "https://ai.suly.cloud"];
 const DEFAULT_ALLOWED_HEADERS = "authorization, x-client-info, apikey, content-type, cache-control, x-supabase-api-version, x-requested-with, x-suly-health-check-secret";
 const DEFAULT_ALLOWED_METHODS = "POST, OPTIONS";
 
@@ -14,22 +14,7 @@ function normalizeOrigin(value: string): string | null {
   }
 }
 
-function isSulyProductionOrigin(origin: string): boolean {
-  if (DEFAULT_PRODUCTION_ORIGINS.includes(origin)) return true;
-  try {
-    const parsed = new URL(origin);
-    return parsed.protocol === "https:"
-      && parsed.port === ""
-      && parsed.username === ""
-      && parsed.password === ""
-      && parsed.hostname !== "suly.cloud"
-      && parsed.hostname.endsWith(".suly.cloud");
-  } catch {
-    return false;
-  }
-}
-
-/** Exact-origin CORS for SULY's apex domain, its HTTPS subdomains, GitHub Pages, and configured previews. */
+/** Exact-origin CORS for SULY production domains, GitHub Pages, and configured previews. */
 export function corsHeadersForRequest(
   req: Request,
   configuredOriginsRaw = "",
@@ -40,7 +25,7 @@ export function corsHeadersForRequest(
     .map((value) => normalizeOrigin(value))
     .filter((value): value is string => Boolean(value));
   const allowed = requestOrigin === DEFAULT_WEB_ORIGIN
-    || isSulyProductionOrigin(requestOrigin)
+    || DEFAULT_PRODUCTION_ORIGINS.includes(requestOrigin)
     || configuredOrigins.includes(requestOrigin)
     || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(requestOrigin);
 
@@ -84,8 +69,6 @@ export function withCors(
   });
 }
 
-// Backward-compatible non-origin-specific defaults; callers should use the
-// request-aware helpers above rather than a hard-coded placeholder origin.
 export const corsHeaders = {
   "Access-Control-Allow-Headers": DEFAULT_ALLOWED_HEADERS,
   "Access-Control-Allow-Methods": "POST, GET, OPTIONS, PUT, DELETE",
