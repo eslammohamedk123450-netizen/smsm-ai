@@ -229,7 +229,7 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => StyleSheet.cre
   scroll: { flex: 1 },
   content: { width: "100%", maxWidth: 1040, alignSelf: "center", paddingHorizontal: 18, paddingTop: 14, paddingBottom: 110, gap: 22 },
   shortcutScroller: { flexGrow: 0 },
-  shortcuts: { flexDirection: "row-reverse", alignItems: "center", gap: 9, paddingVertical: 3, paddingHorizontal: 1 },
+  shortcuts: { flexDirection: isArabic ? "row-reverse" : "row", alignItems: "center", gap: 9, paddingVertical: 3, paddingHorizontal: 1 },
   shortcut: { width: 82, minHeight: 76, borderWidth: 1, borderRadius: 14, alignItems: "center", justifyContent: "center", gap: 7, paddingHorizontal: 6, paddingVertical: 9 },
   shortcutLabel: { fontSize: 10, fontWeight: "700", textAlign: "center" },
   heading: { gap: 5, alignItems: isArabic ? "flex-end" : "flex-start" },
