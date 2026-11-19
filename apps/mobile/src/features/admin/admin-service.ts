@@ -311,6 +311,9 @@ export const adminService = {
     if (data.success !== true) throw new Error(typeof data.warning === "string" && data.warning ? data.warning : "تعذرت مزامنة نماذج هذا المزوّد.");
     return {
       discovered: Number(data.discovered ?? 0),
+      providerTotal: Number(data.provider_total ?? data.discovered ?? 0),
+      chatEligible: Number(data.chat_eligible ?? data.discovered ?? 0),
+      nonChat: Number(data.non_chat ?? 0),
       created: Number(data.created ?? 0),
       warning: typeof data.warning === "string" && data.warning.length > 0 ? data.warning : null,
     };
