@@ -128,7 +128,9 @@ async function discoverModels(providerType: string, baseUrl: string, apiKey: str
         if (!identifiers.includes(identifier)) identifiers.push(identifier);
       }
 
-      const hasMore = payload.has_more === true || pagination.has_more === true || meta.has_more === true;
+      const reportedTotal = Number(payload.total ?? payload.total_count ?? pagination.total ?? meta.total ?? 0);
+      const hasMore = payload.has_more === true || pagination.has_more === true || meta.has_more === true
+        || (Number.isFinite(reportedTotal) && reportedTotal > identifiers.length);
       if (!hasMore) break;
       const nextCursor = cleanText(payload.next_cursor, 300)
         || cleanText(pagination.next_cursor, 300)
