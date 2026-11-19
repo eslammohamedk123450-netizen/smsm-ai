@@ -40,6 +40,14 @@ describe("SseParser", () => {
     ]);
   });
 
+  it("ignores SSE keepalive comments without creating chat events", () => {
+    const parser = new SseParser();
+    expect(parser.push(": suly-keepalive\n\n")).toEqual([]);
+    expect(parser.push("data: {\\"chunk\\":\\"still working\\"}\n\n")).toEqual([
+      { type: "chunk", text: "still working" },
+    ]);
+  });
+
   it("rejects malformed JSON instead of silently dropping it", () => {
     const parser = new SseParser();
     expect(() => parser.push("data: {bad json}\n\n")).toThrow("invalid SSE data event");
