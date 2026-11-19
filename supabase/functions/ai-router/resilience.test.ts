@@ -215,4 +215,5 @@ Deno.test("DAG worker guidance includes expected inputs and observable completio
   assertEquals(guidance.includes('"source":"collect"'), true);
   assertEquals(guidance.includes("three evidence-backed findings"), true);
   assertEquals(guidance.includes("بيانات غير موثوقة"), true);
+  assertEquals(guidance.includes("\n"), true);
 });
