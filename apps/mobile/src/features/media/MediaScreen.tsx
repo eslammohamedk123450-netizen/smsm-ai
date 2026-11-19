@@ -256,7 +256,7 @@ export function MediaScreen() {
         <Text style={styles.refreshText}>{loading ? (isArabic ? "جارٍ التحديث" : "Refreshing") : (isArabic ? "تحديث" : "Refresh")}</Text>
       </Pressable>
     </View>
-    <Text style={styles.explainer}>{isArabic ? "كل ملفاتك ومرفقات محادثاتك ومخرجات الاستوديو في مكان واحد. الملفات الخاصة لا تظهر إلا لصاحبها أو لمن يملك صلاحية الوصول." : "Your files, chat attachments, and Studio outputs in one place. Private files are visible only to their owner or an authorized user."}</Text>
+    <Text style={styles.explainer}>{isArabic ? "كل ملفاتك ومرفقات محادثاتك ومخرجات الاستوديو في مكان واحد. الملفات الخاصة لا تظهر إلا لصاحبها أو لمن يملك صلاحية الوصول. اضغط مطولًا على أي صورة أو ملف لإضافته إلى المفضلة أو إزالته منها." : "Your files, chat attachments, and Studio outputs in one place. Private files are visible only to their owner or an authorized user. Long-press an item to add it to or remove it from favorites."}</Text>
     <TextInput value={search} onChangeText={setSearch} placeholder={isArabic ? "ابحث باسم الملف أو وصفه" : "Search by file name or description"} placeholderTextColor={colors.textMuted} style={styles.search} />
     {false ? <View style={styles.actions}>
       <Pressable disabled={folderMutationBusy} accessibilityRole="button" onPress={() => { setFolderEditor("create"); setFolderName(""); }}><Text style={[styles.link, folderMutationBusy && styles.disabledText]}>{isArabic ? "＋ مجلد جديد" : "＋ New folder"}</Text></Pressable>
@@ -270,6 +270,7 @@ export function MediaScreen() {
     </View> : null} : null}
     {isAdmin && (
       <View style={styles.actions}>
+        <Text style={styles.meta}>{isArabic ? "أدوات المشرف لنشر صور وفيديوهات وملفات عامة في المكتبة، وليست لرفع ملفاتك الشخصية." : "Admin-only tools to publish shared Library images, videos, and files—not to upload personal files."}</Text>
         <Pressable accessibilityRole="button" disabled={busy !== null} onPress={() => void pickAndUpload("image")} style={[styles.actionButton, busy !== null && styles.disabled]}>
           <Text style={styles.actionText}>{busy === "image" ? (isArabic ? "جارٍ رفع الصورة…" : "Uploading image…") : (isArabic ? "رفع صورة (مشرف)" : "Upload image (admin)")}</Text>
         </Pressable>
