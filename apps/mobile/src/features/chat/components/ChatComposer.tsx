@@ -47,8 +47,8 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
   ref
 ) {
   const { isArabic } = useAppLocale();
-  const { colors } = useSulyTheme();
-  const canvasBackground = colors.background === "#0A0A0A" ? "#000000" : colors.background;
+  const { colors, effectiveMode } = useSulyTheme();
+  const canvasBackground = colors.background;
   const styles = useMemo(() => createStyles(colors, isArabic, canvasBackground), [colors, isArabic, canvasBackground]);
   const [text, setText] = useState("");
   const [isFocused, setIsFocused] = useState(false);
@@ -214,7 +214,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
             placeholderTextColor={colors.textMuted}
             selectionColor={colors.primary}
             underlineColorAndroid="transparent"
-            keyboardAppearance="dark"
+            keyboardAppearance={effectiveMode}
             style={[
               styles.input,
               Platform.OS === "web" ? ({
@@ -264,7 +264,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
                 accessibilityRole="button"
                 accessibilityLabel={isListening ? (isArabic ? "إيقاف الإملاء الصوتي" : "Stop voice dictation") : (isArabic ? "إملاء رسالة صوتيًا" : "Dictate a message")}
               >
-                <Ionicons name={isListening ? "stop" : "mic-outline"} size={18} color="#F5F5F5" />
+                <Ionicons name={isListening ? "stop" : "mic-outline"} size={18} color={isListening ? colors.onPrimary : colors.textPrimary} />
               </Pressable>
 
               {isStreaming ? (
@@ -275,7 +275,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(fu
                   accessibilityRole="button"
                   accessibilityLabel={isArabic ? "إيقاف الرد" : "Stop response"}
                 >
-                  <Ionicons name="stop" size={16} color="#FFFFFF" />
+                  <Ionicons name="stop" size={16} color={colors.onPrimary} />
                 </Pressable>
               ) : (
                 <Pressable
@@ -326,8 +326,8 @@ const createStyles = (colors: ThemePalette, isArabic: boolean, canvasBackground:
     paddingVertical: 14,
     borderRadius: 30,
     borderWidth: 1,
-    borderColor: "#30333B",
-    backgroundColor: "#171A22",
+    borderColor: colors.divider,
+    backgroundColor: colors.surface,
     justifyContent: "center",
     gap: 10,
   },
@@ -343,7 +343,7 @@ const createStyles = (colors: ThemePalette, isArabic: boolean, canvasBackground:
     width: "100%",
     minHeight: MIN_INPUT_HEIGHT,
     maxHeight: MAX_INPUT_HEIGHT,
-    color: "#F5F5F5",
+    color: colors.textPrimary,
     backgroundColor: "transparent",
     borderWidth: 0,
     fontSize: 15,
@@ -368,7 +368,7 @@ const createStyles = (colors: ThemePalette, isArabic: boolean, canvasBackground:
   rightActions: { flexDirection: "row", alignItems: "center", gap: 9 },
   iconButton: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
   circleButton: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
-  circleButtonOutlined: { backgroundColor: "transparent", borderWidth: 1, borderColor: "#626873" },
+  circleButtonOutlined: { backgroundColor: "transparent", borderWidth: 1, borderColor: colors.inputBorder },
   circleButtonFilled: { backgroundColor: colors.primary, borderWidth: 0 },
   sendButton: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center" },
   sendButtonActive: { backgroundColor: colors.primary },
