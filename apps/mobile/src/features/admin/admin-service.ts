@@ -103,6 +103,8 @@ async function requireAdmin(): Promise<void> {
 async function listEnabledProvidersForAdmin() {
   const { data, error } = await supabase.rpc("suly_admin_list_providers");
   if (error) throw error;
+  // Keep disabled keys out of the active provider grid. The archive list is
+  // loaded separately so a disabled key never exposes its models.
   return (data ?? []).filter((provider: { enabled?: boolean }) => provider.enabled === true);
 }
 
@@ -291,7 +293,11 @@ export const adminService = {
     }
     return {
       discovered: Number(data.discovered ?? 0),
+      providerTotal: Number(data.provider_total ?? data.discovered ?? 0),
+      chatEligible: Number(data.chat_eligible ?? data.discovered ?? 0),
+      nonChat: Number(data.non_chat ?? 0),
       created: Number(data.created ?? 0),
+      capabilitiesUpdated: Number(data.capabilities_updated ?? 0),
       warning: typeof data.warning === "string" && data.warning.length > 0 ? data.warning : null,
     };
   },
@@ -306,7 +312,11 @@ export const adminService = {
     if (data.success !== true) throw new Error(typeof data.warning === "string" && data.warning ? data.warning : "تعذرت مزامنة نماذج هذا المزوّد.");
     return {
       discovered: Number(data.discovered ?? 0),
+      providerTotal: Number(data.provider_total ?? data.discovered ?? 0),
+      chatEligible: Number(data.chat_eligible ?? data.discovered ?? 0),
+      nonChat: Number(data.non_chat ?? 0),
       created: Number(data.created ?? 0),
+      capabilitiesUpdated: Number(data.capabilities_updated ?? 0),
       warning: typeof data.warning === "string" && data.warning.length > 0 ? data.warning : null,
     };
   },

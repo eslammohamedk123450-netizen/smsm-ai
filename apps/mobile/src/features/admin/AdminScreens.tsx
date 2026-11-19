@@ -167,7 +167,7 @@ export function ProvidersAdminScreen() {
     setBusyId(provider.id); setError(null); setNotice(null);
     try {
       const result = await adminService.syncProviderModels(provider.id);
-      setNotice(`مزامنة ${provider.name}: نماذج مكتشفة ${result.discovered}، مضافة ${result.created}.${result.warning ? ` تنبيه: ${result.warning}` : ""}`);
+      setNotice(`مزامنة ${provider.name}: إجمالي كتالوج المزود ${result.providerTotal}، نماذج دردشة ${result.chatEligible}، نماذج أخرى ${result.nonChat}، سجلات جديدة محفوظة ${result.created}، تصحيح تصنيف النماذج القديمة ${result.capabilitiesUpdated}.${result.warning ? ` تنبيه: ${result.warning}` : ""}`);
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "تعذرت مزامنة النماذج.");
@@ -209,18 +209,19 @@ export function ProvidersAdminScreen() {
     setProviderModelTestResults((current) => ({ ...current, [model.id]: "جارٍ الاختبار…" }));
     try {
       const result = await adminService.testModel(model.id);
-      setProviderModelTestResults((current) => ({
-        ...current,
-        [model.id]: result.status === "success"
-          ? `ناجح · ${Number(result.duration_ms ?? 0)}ms`
-          : `فشل · ${result.error_code ?? "unknown"}`,
-      }));
+      const resultLabel = result.status === "success"
+        ? `نجح اختبار ${model.name} · ${Number(result.duration_ms ?? 0)}ms`
+        : `فشل اختبار ${model.name}: ${result.error_code ?? "سبب غير محدد"}`;
+      setProviderModelTestResults((current) => ({ ...current, [model.id]: resultLabel }));
+      // load() clears the page-level error state, so refresh first and publish
+      // the result afterwards; otherwise a failed probe disappears immediately.
       await load();
+      if (result.status === "success") setNotice(resultLabel);
+      else setError(resultLabel);
     } catch (cause) {
-      setProviderModelTestResults((current) => ({
-        ...current,
-        [model.id]: cause instanceof Error ? cause.message : "فشل الاختبار.",
-      }));
+      const failure = cause instanceof Error ? cause.message : "فشل الاختبار.";
+      setProviderModelTestResults((current) => ({ ...current, [model.id]: failure }));
+      setError(`تعذر اختبار ${model.name}: ${failure}`);
     } finally { setTestingProviderModelId(null); }
   };
 
@@ -264,7 +265,7 @@ export function ProvidersAdminScreen() {
         api_key: key.trim(),
       });
       setKey("");
-      setNotice(`تمت إضافة حساب المفتاح «${providerName}». نماذج مكتشفة: ${result.discovered}، مضافة: ${result.created}.${result.warning ? ` تنبيه: ${result.warning}` : ""}`);
+      setNotice(`تم حفظ المفتاح «${providerName}». إجمالي النماذج التي أعادها المزود: ${result.providerTotal}، نماذج دردشة: ${result.chatEligible}، نماذج أخرى (صورة/صوت/فيديو وغيرها): ${result.nonChat}، سجلات جديدة محفوظة: ${result.created}، تصحيح تصنيف النماذج القديمة: ${result.capabilitiesUpdated}.${result.warning ? ` تنبيه: ${result.warning}` : ""}`);
       setName("");
       await load();
     } catch (cause) {
@@ -340,11 +341,11 @@ export function ProvidersAdminScreen() {
         return <View key={provider.id} style={[styles.providerTile, { width: providerTileWidth }]}>
           <View style={styles.providerTileTop}>
             <View style={styles.providerIcon}><Ionicons name="key-outline" size={23} color={colors.primary}/></View>
-            <View style={[styles.statusBadge, provider.enabled ? styles.statusEnabled : styles.statusDisabled]}><Text style={[styles.statusBadgeText, provider.enabled ? styles.statusEnabledText : styles.statusDisabledText]}>{provider.enabled ? "متصل" : "متوقف"}</Text></View>
+            <View style={[styles.statusBadge, provider.enabled ? styles.statusEnabled : styles.statusDisabled]}><Text style={[styles.statusBadgeText, provider.enabled ? styles.statusEnabledText : styles.statusDisabledText]}>{provider.enabled ? "مفعّل" : "متوقف"}</Text></View>
           </View>
           <View style={styles.providerTileInfo}>
             <Text numberOfLines={2} style={styles.cardTitle}>{provider.name}</Text>
-            <Text numberOfLines={1} style={styles.detail}>{provider.provider_type} · {provider.last_test_status ?? "لم يُختبر"}</Text>
+            <Text numberOfLines={1} style={styles.detail}>{provider.provider_type} · مزامنة النماذج: {provider.last_test_status === "success" ? "ناجحة" : provider.last_test_status === "error" ? "فشلت" : "لم تتم"}</Text>
             <Text selectable style={styles.detail}>URL: {provider.base_url ?? "غير محدد"}</Text>
             <Text style={styles.providerStat}>{modelsForProvider.length} نموذج · {routableCount} متاح</Text>
             {restrictedCount ? <Text style={styles.providerRestrictedStat}>{restrictedCount} مقيّد صحيًا</Text> : null}
@@ -364,12 +365,16 @@ export function ProvidersAdminScreen() {
                       <Text style={styles.providerModelName}>{model.name}</Text>
                       <Text selectable style={styles.providerModelIdentifier}>{model.model_identifier}</Text>
                     </View>
-                    <Pressable accessibilityRole="button" disabled={testingProviderModelId !== null || !provider.enabled} onPress={() => void testProviderModel(model)} style={styles.providerTileAction}>
-                      {testingProviderModelId === model.id ? <ActivityIndicator size="small" color={colors.primary}/> : <Ionicons name="flask-outline" size={17} color={provider.enabled ? colors.primary : colors.textMuted}/>}
-                    </Pressable>
+                    {(typeof model.capabilities_json === "string" ? model.capabilities_json.replace(/\s/g, "").includes('"chat":false') : model.capabilities_json?.chat === false) ? (
+                      <Text style={styles.detail}>غير دردشة</Text>
+                    ) : (
+                      <Pressable accessibilityRole="button" accessibilityLabel={`اختبار ${model.name}`} disabled={testingProviderModelId !== null || !provider.enabled} onPress={() => void testProviderModel(model)} style={styles.providerTileAction}>
+                        {testingProviderModelId === model.id ? <ActivityIndicator size="small" color={colors.primary}/> : <Ionicons name="flask-outline" size={17} color={provider.enabled ? colors.primary : colors.textMuted}/>}
+                      </Pressable>
+                    )}
                   </View>
                   <Text style={styles.detail}>{model.enabled ? "النموذج مفعّل" : "النموذج معطّل"} · {model.health?.auto_restricted ? "مقيّد صحيًا" : model.routing_group === "disabled" ? "غير مضاف لمسار" : model.routing_group}</Text>
-                  {providerModelTestResults[model.id] ? <Text style={styles.probeFeedback}>{providerModelTestResults[model.id]}</Text> : null}
+                  {providerModelTestResults[model.id] ? <Text accessibilityLiveRegion="polite" style={styles.probeFeedback}>{providerModelTestResults[model.id]}</Text> : null}
                 </View>
               ))}
               <Link href="/admin/models" asChild><Pressable><Text style={styles.link}>فتح كتالوج النماذج وإدارة الأولوية</Text></Pressable></Link>
