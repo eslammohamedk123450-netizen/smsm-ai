@@ -245,7 +245,7 @@ export default function ChatPage() {
         if (snapshot.error && !snapshot.error.includes("أُلغي")) setError(snapshot.error);
       }
     });
-  }, [conversationId, reloadMessages, refreshCreditBalance]);
+  }, [conversationId, reloadMessages]);
 
   const sendText = async (content: string, attachment?: ChatAttachment, writeApproval?: ConnectorWriteApproval) => {
     await runOnce(lock, async () => {
@@ -397,7 +397,6 @@ export default function ChatPage() {
       } finally {
         if (optimisticMessageIdRef.current === optimisticMessageId) optimisticMessageIdRef.current = null;
         if (abortRef.current === controller) abortRef.current = null;
-        void refreshCreditBalance();
         setIsSending(false);
         setActiveTaskMessageId(null);
         setActiveTaskLabel(null);
@@ -468,7 +467,6 @@ export default function ChatPage() {
         }
       } finally {
         if (abortRef.current === controller) abortRef.current = null;
-        void refreshCreditBalance();
         setIsSending(false);
         setActiveTaskMessageId(null);
         setActiveTaskLabel(null);
@@ -569,7 +567,6 @@ export default function ChatPage() {
       throw cause instanceof Error ? cause : new Error(isArabic ? "تعذرت إعادة توليد الرد بعد التعديل." : "Could not regenerate the response after editing.");
     } finally {
       abortRef.current = null;
-      void refreshCreditBalance();
       setIsSending(false);
       setActiveTaskMessageId(null);
       setActiveTaskLabel(null);
@@ -614,7 +611,6 @@ export default function ChatPage() {
       setError(cause instanceof Error ? cause.message : isArabic ? "تعذرت إعادة توليد الرد." : "Could not regenerate the response.");
     } finally {
       abortRef.current = null;
-      void refreshCreditBalance();
       setIsSending(false);
       setActiveTaskMessageId(null);
     }
