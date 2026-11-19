@@ -102,7 +102,7 @@ export function MainNavigation({ children }: Props) {
   const openDrawer = () => setDrawerVisible(true);
   const goHome = () => {
     setDrawerVisible(false);
-    router.replace("/chat");
+    router.replace("/home");
   };
 
   const navigate = (href: string) => {
