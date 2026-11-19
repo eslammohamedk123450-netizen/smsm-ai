@@ -34,6 +34,7 @@ export function ConversationsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [selected, setSelected] = useState<Conversation | null>(null);
+  useEffect(() => { if (!selected) longPressHandled.current = false; }, [selected]);
   const [renameTarget, setRenameTarget] = useState<Conversation | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Conversation | null>(null);
