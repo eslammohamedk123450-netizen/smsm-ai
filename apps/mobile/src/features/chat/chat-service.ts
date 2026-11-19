@@ -339,10 +339,16 @@ export const chatService = {
     // Summarize only the first user message so later turns never overwrite
     // the conversation label.
     if (priorMessages.length === 0) conversationUpdate.title = summarizeContent(content);
-    const { error: updateError } = await supabase.from("suly_conversations")
-      .update(conversationUpdate)
-      .eq("id", options.conversationId).eq("user_id", user.id);
-    if (updateError) throw new Error("حُفظت رسالتك، لكن تعذر تحديث ترتيب المحادثة.");
+    void (async () => {
+      try {
+        const { error: updateError } = await supabase.from("suly_conversations")
+          .update(conversationUpdate)
+          .eq("id", options.conversationId).eq("user_id", user.id);
+        if (updateError) console.warn("Could not update conversation metadata:", updateError.message);
+      } catch (cause) {
+        console.warn("Could not update conversation metadata:", cause);
+      }
+    })();
 
     // Basic-chat mode uses the administrator-managed priority chain; Studio execution is dormant.
 

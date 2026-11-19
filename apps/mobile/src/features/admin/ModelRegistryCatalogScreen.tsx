@@ -11,6 +11,7 @@ import { AdminMobileBreadcrumb } from "./AdminMobileBreadcrumb";
 import { MediaModelPricingAdminCard } from "./MediaModelPricingAdminCard";
 import { MediaGenerationModelsAdminScreen } from "./MediaGenerationModelsAdminScreen";
 import { ModelsAdminScreen } from "./AdminScreens";
+import { RouteModelChainsCard, type ModelChoice } from "./RouteModelChainsCard";
 
 type ServiceType = "chat" | "image" | "video" | "audio";
 type OperationalState = "active" | "available" | "disabled" | "restricted" | "candidate" | "archived" | "unknown";
@@ -119,6 +120,7 @@ export function ModelRegistryCatalogScreen() {
   const [selectedModel, setSelectedModel] = useState<RegistryModel | null>(null);
   const [selectedDetailTab, setSelectedDetailTab] = useState<DetailTab>("info");
   const [rows, setRows] = useState<RegistryModel[]>([]);
+  const [routingModels, setRoutingModels] = useState<ModelChoice[]>([]);
   const [pricesByModel, setPricesByModel] = useState<Map<number, { input: number; output: number }>>(new Map());
   const [chatOrderByModel, setChatOrderByModel] = useState<Map<number, number>>(new Map());
   const [search, setSearch] = useState("");
@@ -133,7 +135,7 @@ export function ModelRegistryCatalogScreen() {
       setError(null);
     }
     try {
-      const [registry, providers, chat, media, health, priceRows, chatRoutes, mediaPrices] = await Promise.all([
+      const [registry, providers, chat, media, health, priceRows, chatRoutes, mediaPrices, modelOverview] = await Promise.all([
         supabase.rpc("suly_admin_list_unified_model_capabilities"),
         supabase.rpc("suly_admin_list_providers"),
         supabase.from("ai_models").select("id,enabled,routing_group").limit(1000),
@@ -142,6 +144,7 @@ export function ModelRegistryCatalogScreen() {
         adminService.getModelPriceVersions().catch(() => []),
         supabase.from("ai_route_model_assignments").select("model_id,priority").eq("route_role", "chat").eq("enabled", true).order("priority", { ascending: true }),
         adminService.getMediaModelPriceVersions().catch(() => []),
+        adminService.getModelsOverview().catch(() => ({ models: [] })),
       ]);
       if (registry.error) throw registry.error;
       if (providers.error) throw providers.error;
@@ -180,6 +183,7 @@ export function ModelRegistryCatalogScreen() {
       // Disabled provider keys are absent from every registry view and filter.
       const visibleRows = normalizedRows.filter((model) => providerById.get(Number(model.provider_id))?.enabled === true);
       setRows(visibleRows.sort((a, b) => a.display_name.localeCompare(b.display_name)));
+      setRoutingModels((modelOverview.models ?? []) as ModelChoice[]);
       const priceMap = new Map<number, { input: number; output: number }>();
       for (const price of (priceRows ?? []) as Array<{ model_id: number; provider_input_cost_egp_per_million: number; provider_output_cost_egp_per_million: number }>) priceMap.set(Number(price.model_id), { input: Number(price.provider_input_cost_egp_per_million), output: Number(price.provider_output_cost_egp_per_million) });
       setPricesByModel(priceMap);
@@ -315,6 +319,7 @@ export function ModelRegistryCatalogScreen() {
       <Text style={styles.subtitle}>كل النماذج المسجلة في سجل التطبيق، بما فيها النص والصور والفيديو والصوت، مع حالة التشغيل واسم المزود/المفتاح المرتبط.</Text>
     </View>
 
+    <RouteModelChainsCard models={routingModels} />
     <View style={styles.modelPageActions}><Pressable accessibilityRole="button" onPress={() => setMediaEditorOpen(true)} style={styles.detailLink}><Ionicons name="add-circle-outline" size={15} color={colors.primary}/><Text style={styles.detailLinkText}>إضافة / تعديل نموذج صور</Text></Pressable></View>
     <View style={styles.metrics}>
       <Text style={styles.metric}>الكل: {models.length}</Text>

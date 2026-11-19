@@ -1252,6 +1252,16 @@ async function handleRequest(req: Request): Promise<Response> {
       : manuallyRequested ? "النموذج المحدد لا يملك القدرات المطلوبة لهذا المرفق." : "Model not found or disabled.";
     return await failedResponse(jsonResponse({ error: message }, manuallyRequested ? 422 : selectedProfileKey ? 503 : 404, req), "manual_model_unavailable");
   }
+  // A normal chat request must have an administrator-selected chat route.
+  // Do not silently pick an arbitrary active model when the route is empty.
+  if (basicChatOnly && routingMode === "auto" && candidatesFrom.length === 0) {
+    const hasConfiguredRoute = orderedRouteAssignments.some((assignment) => assignment.route_role === "chat" && assignment.enabled);
+    const message = hasConfiguredRoute
+      ? "لا يوجد نموذج مؤهل حاليًا ضمن ترتيب الشات. راجع تفعيل النموذج وصحة المفتاح ثم أعد المحاولة."
+      : "لم يتم تعيين نموذج أساسي للشات بعد. افتح لوحة النماذج وحدد النموذج الأول والبدائل.";
+    return await failedResponse(jsonResponse({ error: message, code: "chat_route_unavailable" }, 503, req), "chat_route_unavailable");
+  }
+
   // Subscription hierarchy is enforced by the canonical eligibility helper above.
   // A Max subscriber may intentionally choose Pro or Lite without being downgraded.
 
@@ -1313,6 +1323,12 @@ async function handleRequest(req: Request): Promise<Response> {
   });
 
   const usableInitial = makeCandidates(candidatesFrom);
+  if (basicChatOnly && routingMode === "auto" && usableInitial.length === 0) {
+    return await failedResponse(jsonResponse({
+      error: "لا يوجد مفتاح API متاح للنماذج المحددة في ترتيب الشات. تحقق من حالة المفتاح ورابط المزود.",
+      code: "chat_provider_unavailable",
+    }, 503, req), "chat_provider_unavailable");
+  }
   const workerCandidates = makeCandidates(orderedWorkerModels);
   const reviewerCandidates = makeCandidates(orderedReviewerModels);
   const summarizerCandidates = makeCandidates(orderedSummarizerModels);
@@ -2953,18 +2969,16 @@ async function handleRequest(req: Request): Promise<Response> {
     return jsonResponse({ ...info, response: { choices: [{ message: { role: "assistant", content } }] } }, 200, req);
   }
 
-  const freeDeadline = Date.now() + (routingMode === "manual" ? settings.paidFallbackTimeoutMs : settings.freeRaceTimeoutMs);
-  // Follow the full administrator-defined chat chain in priority order. The admin UI caps each route at 500 models.
-  const boundedFreeCandidates = raceCandidates.slice(0, 500);
-  for (let index = 0; index < boundedFreeCandidates.length; index += 1) {
+  // Send immediately to the administrator-selected primary model, then try
+  // backups one at a time. Each attempt gets its own bounded timeout; the old
+  // shared deadline incorrectly divided the primary's time budget.
+  const boundedFreeCandidates = raceCandidates.slice(0, 5);
+  for (const candidate of boundedFreeCandidates) {
     if (req.signal.aborted) break;
-    const remaining = freeDeadline - Date.now();
-    if (remaining <= 0) break;
-    // Reserve part of the remaining window for the next eligible backup so a
-    // slow primary cannot consume the entire deadline before fallback starts.
-    const candidatesLeft = boundedFreeCandidates.length - index;
-    const candidateBudget = candidatesLeft > 1 ? Math.ceil(remaining / candidatesLeft) : remaining;
-    winner = await firstReady([boundedFreeCandidates[index]], candidateBudget, recordAttempt, countModelStarts, req.signal);
+    const providerTimeout = Math.max(1000, Math.min(120000, (Number(candidate.provider.timeout_seconds) || 30) * 1000));
+    const modelTimeout = Math.max(1000, Math.min(120000, Number(candidate.model.response_timeout_ms) || 15000));
+    const candidateBudget = Math.max(1000, Math.min(settings.freeRaceTimeoutMs, providerTimeout, modelTimeout));
+    winner = await firstReady([candidate], candidateBudget, recordAttempt, countModelStarts, req.signal);
     if (winner) break;
   }
 
@@ -3008,12 +3022,14 @@ async function handleRequest(req: Request): Promise<Response> {
 
   if (!winner) {
     const billing = await finalizeBilling(null, "", "model_failure", providerCandidateAvailable);
-    const errorMessage = routingMode === "auto"
-      ? "No eligible free_race or paid_fallback model returned a response."
-      : "The selected model did not return a response.";
+    const errorMessage = basicChatOnly
+      ? "تعذّر الحصول على رد من نماذج الشات المرتبة. حاول مرة أخرى بعد قليل."
+      : routingMode === "auto"
+        ? "No eligible free_race or paid_fallback model returned a response."
+        : "The selected model did not return a response.";
     await recordEvent(null, "error", errorMessage);
     await finishAiRequest("failed", null, null, { billing }, "model_no_response");
-    return jsonResponse({ error: errorMessage, billing }, routingMode === "auto" ? 404 : 502, req);
+    return jsonResponse({ error: errorMessage, code: "model_no_response", billing }, 502, req);
   }
 
   const modeUsed = routingMode === "manual" ? "manual" : winner.model.routing_group;

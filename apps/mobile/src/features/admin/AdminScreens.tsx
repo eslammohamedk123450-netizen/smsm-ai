@@ -10,7 +10,6 @@ import { useSulyTheme } from "../../theme/ThemeProvider";
 import type { ThemePalette } from "../../theme/colors";
 import { useAppLocale } from "../../theme/LocaleProvider";
 import { GmailModelPickerCard } from "./GmailModelPickerCard";
-import { RouteModelChainsCard } from "./RouteModelChainsCard";
 import { ModelPricingAdminCard } from "./ModelPricingAdminCard";
 
 type ProviderRow = { id: number; name: string; provider_type: string; base_url: string | null; enabled: boolean; last_test_status: string | null };
@@ -972,7 +971,6 @@ export function AgentsAdminScreen() {
     </Card>
     <ErrorText>{error}</ErrorText>
     {loading ? <ActivityIndicator color={colors.primary} /> : <>
-      <RouteModelChainsCard models={models} />
       {settings ? <GmailModelPickerCard models={models} selectedModelId={gmailModelId} onSelect={setGmailModelId} onSave={() => void saveGmailModel()} busy={busy} /> : null}
       {settings ? <Card>
         <View style={styles.settingsHeading}><View style={styles.sectionIcon}><Text style={styles.sectionIconText}>⚙</Text></View><View style={styles.settingsHeadingText}><Text style={styles.sectionTitle}>إعدادات توجيه الوكيل</Text><Text style={styles.detail}>إعدادات تنفيذ مشتركة؛ لا تنشئ أنظمة أو وكلاء مستقلة.</Text></View></View>
