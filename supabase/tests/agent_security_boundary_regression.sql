@@ -93,7 +93,7 @@ begin
     and p.proname like 'suly_admin_%'
     and has_function_privilege('authenticated', p.oid, 'EXECUTE')
     and p.proname not in ('suly_admin_set_provider_enabled', 'suly_admin_set_provider_lifecycle', 'suly_admin_update_provider')
-    and pg_get_functiondef(p.oid) !~* 'suly_is_admin\\(\\)';
+    and position('suly_is_admin()' in pg_get_functiondef(p.oid)) = 0;
   if v_count <> 0 then
     raise exception 'Authenticated admin RPCs without an administrator guard: %', v_count;
   end if;
