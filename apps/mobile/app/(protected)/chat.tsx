@@ -686,7 +686,7 @@ export default function ChatPage() {
           </View>
         )}
         {isUploadingAttachment ? <View style={styles.uploadStatus}><ActivityIndicator size="small" color={colors.primary} /><Text style={styles.loadingText}>{isArabic ? "جارٍ رفع المرفق…" : "Uploading attachment…"}</Text></View> : null}
-        <StreamingStatus isStreaming={isSending && !isUploadingAttachment && !messages.some((message) => message.id === STREAMING_ID && message.content.length > 0)} taskLabel={activeTaskLabel} onCancel={() => abortRef.current?.abort()} />
+        <StreamingStatus isStreaming={isSending} taskLabel={activeTaskLabel} onCancel={() => abortRef.current?.abort()} />
         {messages.length === 0 && !isLoading ? (
           <Text style={styles.reviewDisclaimer}>
             {isArabic ? "قد تحتاج بعض الإجابات إلى مراجعة." : "Some answers may need review."}
