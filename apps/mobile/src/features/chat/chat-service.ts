@@ -190,7 +190,7 @@ export const chatService = {
   /** Most recently active conversations first, scoped to the signed-in user by RLS. */
   async listConversations(limit = 50): Promise<Conversation[]> {
     const { data, error } = await supabase.from("suly_conversations")
-      .select("id,title,model_id,project_id,created_at,updated_at,is_pinned,archived_at")
+      .select("id,title,model_id,project_id,created_at,updated_at,is_pinned,is_favorite,archived_at")
       .is("archived_at", null)
       .order("is_pinned", { ascending: false })
       .order("updated_at", { ascending: false })
