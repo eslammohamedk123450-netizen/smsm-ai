@@ -65,7 +65,7 @@ export function ConversationsScreen() {
       ...tasks.map((task) => ({ kind: "task" as const, task, updatedAt: task.updatedAt ?? "" })),
     ];
     const scoped = filter === "favorites"
-      ? combined.filter((entry) => entry.kind === "conversation" && entry.conversation.isPinned)
+      ? combined.filter((entry) => entry.kind === "conversation" && entry.conversation.isFavorite)
       : filter === "archived"
         ? combined.filter((entry) => entry.kind === "conversation")
         : combined;
@@ -93,6 +93,16 @@ export function ConversationsScreen() {
       await load();
     } catch (cause) { setError(cause instanceof Error ? cause.message : (isArabic ? "تعذر تحديث المحادثة." : "Could not update the chat.")); }
   };
+  const toggleFavorite = async () => {
+    if (!selected) return;
+    try {
+      await chatService.setConversationFavorite(selected.id, !selected.isFavorite);
+      setSelected(null);
+      setNotice(selected.isFavorite ? (isArabic ? "تمت إزالة المحادثة من المفضلة." : "Chat removed from favorites.") : (isArabic ? "تمت إضافة المحادثة للمفضلة." : "Chat added to favorites."));
+      await load();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : (isArabic ? "تعذر تحديث المفضلة." : "Could not update favorites.")); }
+  };
+
   const archiveSelected = async () => {
     if (!selected) return;
     try {
@@ -125,17 +135,17 @@ export function ConversationsScreen() {
   return (
     <ScrollView style={[styles.screen, { backgroundColor: colors.background }]} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <View style={styles.headerCopy}><Text style={[styles.title, { color: colors.textPrimary }]}>{filter === "archived" ? (isArabic ? "الأرشيف" : "Archive") : filter === "favorites" ? (isArabic ? "المفضلة" : "Favorites") : (isArabic ? "السجل" : "History")}</Text><Text style={[styles.subtitle, { color: colors.textSecondary }]}>{filter === "archived" ? (isArabic ? "محادثاتك المؤرشفة." : "Your archived conversations.") : filter === "favorites" ? (isArabic ? "محادثاتك المفضلة والمثبتة." : "Your favorite and pinned conversations.") : (isArabic ? "محادثاتك وتنفيذاتك في مكان واحد." : "Your conversations and task activity in one place.")}</Text></View>
-        <Pressable accessibilityRole="button" disabled={creating} onPress={() => void create()} style={[styles.newButton, { backgroundColor: colors.primary }]}>
+        <View style={styles.headerCopy}><Text style={[styles.title, { color: colors.textPrimary }]}>{filter === "archived" ? (isArabic ? "الأرشيف" : "Archive") : filter === "favorites" ? (isArabic ? "المفضلة" : "Favorites") : (isArabic ? "السجل" : "History")}</Text><Text style={[styles.subtitle, { color: colors.textSecondary }]}>{filter === "archived" ? (isArabic ? "المحادثات التي أرشفتها فقط." : "Only conversations you archived.") : filter === "favorites" ? (isArabic ? "محادثاتك المفضلة فقط." : "Only your favorite conversations.") : (isArabic ? "محادثاتك وتنفيذاتك في مكان واحد." : "Your conversations and task activity in one place.")}</Text></View>
+        {filter === "all" ? <Pressable accessibilityRole="button" disabled={creating} onPress={() => void create()} style={[styles.newButton, { backgroundColor: colors.primary }]}>
           {creating ? <ActivityIndicator color={colors.onPrimary} /> : <Ionicons name="add" size={18} color={colors.onPrimary} />}
           <Text style={styles.newButtonText}>{isArabic ? "محادثة جديدة" : "New chat"}</Text>
-        </Pressable>
+        </Pressable> : null}
       </View>
-      <Pressable accessibilityRole="button" onPress={() => router.push("/projects")} style={[styles.projectsButton, { backgroundColor: colors.surface, borderColor: colors.divider, flexDirection: isArabic ? "row-reverse" : "row" }]}>
+      {filter === "all" ? <Pressable accessibilityRole="button" onPress={() => router.push("/projects")} style={[styles.projectsButton, { backgroundColor: colors.surface, borderColor: colors.divider, flexDirection: isArabic ? "row-reverse" : "row" }]}>
         <Ionicons name="folder-open-outline" size={17} color={colors.primary} />
         <Text style={[styles.projectsButtonText, { color: colors.textPrimary }]}>{isArabic ? "إدارة مشاريعي" : "My projects"}</Text>
         <Ionicons name={isArabic ? "chevron-back" : "chevron-forward"} size={15} color={colors.textMuted} />
-      </Pressable>
+      </Pressable> : null}
       <View style={[styles.search, { backgroundColor: colors.surface, borderColor: colors.divider }]}>
         <Ionicons name="search" size={18} color={colors.textMuted} />
         <TextInput accessibilityLabel={isArabic ? "البحث في سجل المحادثات" : "Search conversation history"} value={query} onChangeText={setQuery} placeholder={isArabic ? "ابحث في السجل…" : "Search history…"} placeholderTextColor={colors.textMuted} style={[styles.searchInput, { color: colors.textPrimary }]} />
@@ -144,10 +154,10 @@ export function ConversationsScreen() {
       {error ? <Text style={[styles.error, { color: colors.error }]}>{error}</Text> : null}
       {notice ? <Text style={[styles.notice, { color: colors.textSecondary }]}>{notice}</Text> : null}
       {loading ? <ActivityIndicator color={colors.textPrimary} /> : filtered.length === 0 ? (
-        <View style={[styles.empty, { backgroundColor: colors.surface, borderColor: colors.divider }]}><Ionicons name="chatbubbles-outline" size={32} color={colors.textMuted} /><Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>{query ? (isArabic ? "لا توجد نتائج" : "No results") : (isArabic ? "ابدأ أول محادثة" : "Start your first chat")}</Text><Text style={[styles.subtitle, { color: colors.textSecondary }]}>{query ? (isArabic ? "جرّب كلمة بحث مختلفة." : "Try a different search term.") : (isArabic ? "كل محادثة جديدة ستظهر هنا." : "New chats will appear here.")}</Text></View>
+        <View style={[styles.empty, { backgroundColor: colors.surface, borderColor: colors.divider }]}><Ionicons name="chatbubbles-outline" size={32} color={colors.textMuted} /><Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>{query ? (isArabic ? "لا توجد نتائج" : "No results") : (filter === "archived" ? (isArabic ? "الأرشيف فارغ" : "Archive is empty") : filter === "favorites" ? (isArabic ? "لا توجد محادثات مفضلة" : "No favorite chats") : (isArabic ? "ابدأ أول محادثة" : "Start your first chat"))}</Text><Text style={[styles.subtitle, { color: colors.textSecondary }]}>{query ? (isArabic ? "جرّب كلمة بحث مختلفة." : "Try a different search term.") : (filter === "archived" ? (isArabic ? "المحادثات التي تؤرشفها ستظهر هنا." : "Archived chats will appear here.") : filter === "favorites" ? (isArabic ? "أضف المحادثات للمفضلة من قائمة الضغط المطول." : "Favorite chats from the long-press menu.") : (isArabic ? "كل محادثة جديدة ستظهر هنا." : "New chats will appear here."))}</Text></View>
       ) : filtered.map((entry) => entry.kind === "conversation" ? (
         <View key={`chat-${entry.conversation.id}`} style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.divider }]}>
-          <Pressable accessibilityRole="button" accessibilityLabel={entry.conversation.title || (isArabic ? "فتح المحادثة" : "Open conversation")} style={styles.rowMain} onPress={() => router.push({ pathname: "/chat", params: { conversationId: entry.conversation.id } })}>
+          <Pressable accessibilityRole="button" accessibilityLabel={entry.conversation.title || (isArabic ? "فتح المحادثة" : "Open conversation")} style={styles.rowMain} onPress={() => router.push({ pathname: "/chat", params: { conversationId: entry.conversation.id } })} onLongPress={() => setSelected(entry.conversation)} delayLongPress={350}>
             <View style={[styles.rowIcon, { backgroundColor: colors.surfaceElevated }]}><Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.textPrimary} /></View>
             <View style={styles.rowCopy}><Text numberOfLines={1} style={[styles.rowTitle, { color: colors.textPrimary }]}>{entry.conversation.title || (isArabic ? "محادثة جديدة" : "New conversation")}</Text><Text style={[styles.rowDate, { color: colors.textMuted }]}>{new Date(entry.updatedAt).toLocaleString(isArabic ? "ar-EG" : "en-US")}</Text></View>
             {entry.conversation.isPinned ? <Ionicons name="pin" size={16} color={colors.textMuted} /> : null}
@@ -168,7 +178,8 @@ export function ConversationsScreen() {
       <Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "تحديث القائمة" : "Refresh list"} onPress={() => void load()} style={styles.refresh}><Ionicons name="refresh" size={15} color={colors.textMuted} /><Text style={[styles.refreshText, { color: colors.textMuted }]}>{isArabic ? "تحديث القائمة" : "Refresh list"}</Text></Pressable>
       <BottomSheet visible={Boolean(selected)} title={selected?.title ?? (isArabic ? "إجراءات المحادثة" : "Chat actions")} onClose={() => setSelected(null)}>
         <View style={styles.sheetActions}>
-          <Pressable accessibilityRole="button" accessibilityLabel={selected?.isPinned ? (isArabic ? "إلغاء تثبيت المحادثة" : "Unpin chat") : (isArabic ? "تثبيت المحادثة" : "Pin chat")} onPress={() => void togglePin()} style={styles.sheetAction}><Text style={styles.sheetActionText}>{selected?.isPinned ? (isArabic ? "إلغاء التثبيت" : "Unpin chat") : (isArabic ? "تثبيت المحادثة" : "Pin chat")}</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => void toggleFavorite()} style={styles.sheetAction}><Text style={styles.sheetActionText}>{selected?.isFavorite ? (isArabic ? "إزالة من المفضلة ⭐" : "Remove from favorites ⭐") : (isArabic ? "إضافة للمفضلة ⭐" : "Add to favorites ⭐")}</Text></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={selected?.isPinned ? (isArabic ? "إلغاء تثبيت المحادثة" : "Unpin chat") : (isArabic ? "تثبيت المحادثة" : "Pin chat")} onPress={() => void togglePin()} style={styles.sheetAction><Text style={styles.sheetActionText}>{selected?.isPinned ? (isArabic ? "إلغاء التثبيت" : "Unpin chat") : (isArabic ? "تثبيت المحادثة" : "Pin chat")}</Text></Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "إعادة تسمية المحادثة" : "Rename chat"} onPress={beginRename} style={styles.sheetAction}><Text style={styles.sheetActionText}>{isArabic ? "إعادة تسمية" : "Rename"}</Text></Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "حذف المحادثة" : "Delete chat"} onPress={() => { setDeleteTarget(selected); setSelected(null); }} style={[styles.sheetAction, styles.dangerAction]}><Text style={styles.dangerText}>{isArabic ? "حذف المحادثة" : "Delete chat"}</Text></Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel={isArabic ? "أرشفة المحادثة" : "Archive chat"} onPress={() => void archiveSelected()} style={styles.sheetAction}><Text style={styles.sheetActionText}>{isArabic ? "أرشفة المحادثة" : "Archive chat"}</Text></Pressable>
