@@ -770,74 +770,63 @@ export default function ChatPage() {
     <SafeAreaView style={styles.safe} edges={["top", "left", "right", "bottom"]}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : Platform.OS === "android" ? "height" : undefined} keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}>
         <View style={styles.appBar}>
-          <Pressable
-            onPress={startNewConversation}
-            disabled={isSending}
-            style={styles.headerButton}
-            accessibilityRole="button"
-            accessibilityLabel={isArabic ? "بدء محادثة جديدة" : "Start a new conversation"}
-          >
-            <Ionicons name="create-outline" size={22} color={colors.textPrimary} />
-          </Pressable>
+          {messages.length === 0 ? (
+            <>
+              <Pressable onPress={openNavigationDrawer} style={styles.headerButton} accessibilityRole="button" accessibilityLabel={isArabic ? "فتح قائمة التنقل" : "Open navigation menu"}>
+                <View style={styles.menuLinesWrap}>
+                  <View style={styles.menuLine} />
+                  <View style={styles.menuLine} />
+                </View>
+              </Pressable>
+              <View style={styles.headerSpacer} />
+              <AppLogo size={32} accessibilityLabel="شعار SULY" />
+            </>
+          ) : (
+            <>
+              <Pressable
+                onPress={startNewConversation}
+                disabled={isSending}
+                style={styles.headerButton}
+                accessibilityRole="button"
+                accessibilityLabel={isArabic ? "بدء محادثة جديدة" : "Start a new conversation"}
+              >
+                <Ionicons name="create-outline" size={22} color={colors.textPrimary} />
+              </Pressable>
 
-          {messages.length > 0 ? (
-            <View style={styles.headerActions}>
-              {isAdmin ? (
-                <TouchableOpacity
-                  onPress={() => router.push("/admin")}
-                  style={styles.adminShortcut}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel={isArabic ? "فتح لوحة الأدمن" : "Open admin dashboard"}
-                >
-                  <Ionicons name="shield-checkmark-outline" size={16} color={colors.primary} />
-                  <Text style={styles.adminShortcutText}>{isArabic ? "الأدمن" : "Admin"}</Text>
+              <View style={styles.headerActions}>
+                {isAdmin ? (
+                  <TouchableOpacity
+                    onPress={() => router.push("/admin")}
+                    style={styles.adminShortcut}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={isArabic ? "فتح لوحة الأدمن" : "Open admin dashboard"}
+                  >
+                    <Ionicons name="shield-checkmark-outline" size={16} color={colors.primary} />
+                    <Text style={styles.adminShortcutText}>{isArabic ? "الأدمن" : "Admin"}</Text>
+                  </TouchableOpacity>
+                ) : null}
+
+                <TouchableOpacity onPress={() => setShareVisible(true)} style={styles.headerButton} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={isArabic ? "مشاركة المحادثة" : "Share conversation"}>
+                  <Ionicons name="share-social-outline" size={18} color={colors.textMuted} />
                 </TouchableOpacity>
-              ) : null}
+              </View>
 
-              <TouchableOpacity onPress={() => setShareVisible(true)} style={styles.headerButton} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel={isArabic ? "مشاركة المحادثة" : "Share conversation"}>
-                <Ionicons name="share-social-outline" size={18} color={colors.textMuted} />
-              </TouchableOpacity>
-            </View>
-          ) : null}
-
-          <Pressable onPress={openNavigationDrawer} style={styles.headerButton} accessibilityRole="button" accessibilityLabel={isArabic ? "فتح قائمة التنقل" : "Open navigation menu"}>
-            <View style={styles.menuLinesWrap}>
-              <View style={styles.menuLine} />
-              <View style={styles.menuLine} />
-            </View>
-          </Pressable>
+              <Pressable onPress={openNavigationDrawer} style={styles.headerButton} accessibilityRole="button" accessibilityLabel={isArabic ? "فتح قائمة التنقل" : "Open navigation menu"}>
+                <View style={styles.menuLinesWrap}>
+                  <View style={styles.menuLine} />
+                  <View style={styles.menuLine} />
+                </View>
+              </Pressable>
+            </>
+          )}
         </View>
 
         {error ? <Pressable onPress={() => setError(null)} style={styles.errorBox}><Text style={styles.errorText}>{error}  ×</Text></Pressable> : null}
         {retryFailure ? <View style={styles.retryWarning} accessibilityRole="alert"><Text style={styles.retryWarningText}>{isArabic ? "حُفظت رسالتك، لكن تعذّر إكمال الرد." : "Your message was saved, but the response could not be completed."}</Text><Pressable onPress={() => void retryResponse()} disabled={isSending} accessibilityRole="button" accessibilityLabel={isArabic ? "إعادة محاولة الرد" : "Retry response"} style={styles.retryButton}><Text style={styles.retryButtonText}>{isSending ? (isArabic ? "جارٍ إعادة المحاولة…" : "Retrying…") : (isArabic ? "إعادة المحاولة" : "Retry")}</Text></Pressable></View> : null}
         {isLoading ? <View style={styles.loading}><ActivityIndicator color={colors.primary} /><Text style={styles.loadingText}>{isArabic ? "جارٍ تحميل المحادثة…" : "Loading conversation…"}</Text></View> : messages.length === 0 ? (
           <View style={styles.empty}>
-            <AppLogo size={96} accessibilityLabel="شعار SULY" />
-            <Text style={styles.emptyTitle}>{WELCOME_MESSAGES[welcomeMessageIndex][isArabic ? "ar" : "en"]}</Text>
-            {!BASIC_CHAT_ONLY ? <>
-              <View style={styles.suggestionHeading}>
-                <Text style={styles.suggestionHeadingText}>{isArabic ? "ابدأ بفكرة" : "GET STARTED"}</Text>
-                <View style={styles.suggestionHeadingLine} />
-              </View>
-              <View style={styles.taskGrid}>
-                {suggestions.map((suggestion) => (
-                  <Pressable
-                    key={suggestion.text}
-                    onPress={() => composerRef.current?.editMessage(suggestion.text)}
-                    style={styles.taskCard}
-                    accessibilityRole="button"
-                    accessibilityLabel={isArabic ? `استخدام اقتراح: ${suggestion.text}` : `Use suggestion: ${suggestion.text}`}
-                  >
-                    <View style={styles.taskIconCircle}>
-                      <Ionicons name={suggestion.icon} size={18} color={colors.textPrimary} />
-                    </View>
-                    <Text numberOfLines={2} style={styles.taskCardText}>{suggestion.text}</Text>
-                    <Ionicons name={isArabic ? "arrow-back" : "arrow-forward"} size={15} color={colors.textMuted} style={styles.taskArrow} />
-                  </Pressable>
-                ))}
-              </View>
-            </> : null}
+            <AppLogo size={176} accessibilityLabel="شعار SULY" />
           </View>
         ) : (
           <View style={styles.messageListContainer}>
@@ -864,6 +853,11 @@ export default function ChatPage() {
         )}
         {isUploadingAttachment ? <View style={styles.uploadStatus}><ActivityIndicator size="small" color={colors.primary} /><Text style={styles.loadingText}>{isArabic ? "جارٍ رفع المرفق…" : "Uploading attachment…"}</Text></View> : null}
         <StreamingStatus isStreaming={isSending && !isUploadingAttachment && !messages.some((message) => message.id === STREAMING_ID && message.content.length > 0)} taskLabel={activeTaskLabel} onCancel={() => abortRef.current?.abort()} />
+        {messages.length === 0 && !isLoading ? (
+          <Text style={styles.reviewDisclaimer}>
+            {isArabic ? "قد تحتاج بعض الإجابات إلى مراجعة." : "Some answers may need review."}
+          </Text>
+        ) : null}
         <ChatComposer
           ref={composerRef}
           basicMode={BASIC_CHAT_ONLY}
@@ -955,7 +949,8 @@ const createStyles = (colors: ThemePalette, isArabic: boolean) => {
   messageListContainer: { flex: 1, position: "relative" },
   scrollToBottomButton: { position: "absolute", right: 24, bottom: 12, width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.divider, elevation: 5, zIndex: 2 },
   messageContent: { flexGrow: 1, paddingVertical: 12 },
-  empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 22, paddingVertical: 24, gap: 12, width: "100%", maxWidth: 1280, alignSelf: "center" },
+  empty: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 22, paddingVertical: 24, width: "100%", maxWidth: 1280, alignSelf: "center" },
+  reviewDisclaimer: { color: colors.textMuted, fontSize: 10, lineHeight: 16, textAlign: "center", paddingHorizontal: 16, paddingBottom: 7 },
   welcomeFace: { width: 160, height: 240, marginBottom: 12 },
   welcomeMark: { width: 58, height: 58, borderRadius: 29, alignItems: "center", justifyContent: "center", backgroundColor: "transparent", marginBottom: 4 },
   welcomeMarkText: { color: colors.primary, fontSize: 48, fontWeight: "900", letterSpacing: -3 },
