@@ -360,11 +360,16 @@ async function firstReady(candidates: Candidate[], waitMs: number, recordAttempt
 
 const OUTPUT_GUARD_NOTICE_RESERVE = 64;
 
+function isCodeGenerationRequest(requestText: string): boolean {
+  return /(?:اكتب|اكتبلي|اكتب لي|اعمل|اعملي|اصنع|أنشئ|انشئ|برمج|طوّر|طور|نفّذ|نفذ|ابني|ابنِ|لعبة|موقع|تطبيق|صفحة|كود|برنامج|سكريبت|مشروع|write|build|create|make|develop|implement|code|coding|program|script|game|website|web app|application)/iu.test(requestText);
+}
+
 function outputLimitForRequest(intent: string, requestText: string, maxTokens: number): number {
   const explicitlyLong = /(?:بالتفصيل|تفصيلي|مطول|مطولة|طويل|موسع|كامل|شامل|دراسة|تقرير|comprehensive|in\s+detail|thorough|long\s+form)/iu.test(requestText);
-  const intentLimit = intent === "complex_task" ? 50000 : intent === "simple_task" ? 24000 : 12000;
+  const codeRequest = isCodeGenerationRequest(requestText);
+  const intentLimit = codeRequest ? 50000 : intent === "complex_task" ? 50000 : intent === "simple_task" ? 24000 : 12000;
   const tokenLimit = Math.max(4000, Math.min(50000, maxTokens * 8));
-  return Math.min(explicitlyLong ? 50000 : intentLimit, tokenLimit);
+  return Math.min(explicitlyLong || codeRequest ? 50000 : intentLimit, tokenLimit);
 }
 
 function outputGuardNotice(reason: "repetition" | "max_output"): string {
@@ -693,8 +698,11 @@ async function handleRequest(req: Request): Promise<Response> {
   const basicChatOnly = !internalBrainCall && executionMode === "chat";
   const temperatureInput = typeof body.temperature === "number" ? body.temperature : 0.7;
   const temperature = Math.min(2, Math.max(0, temperatureInput));
-  const maxTokensInput = typeof body.max_tokens === "number" ? body.max_tokens : 1024;
-  const maxTokens = Math.min(4096, Math.max(1, Math.floor(maxTokensInput)));
+  const codeGenerationRequest = isCodeGenerationRequest(messages.filter((message) => message.role === "user").at(-1)?.content ?? "");
+  // Reserve a larger completion budget for code, games, and app-building requests.
+  // Ordinary chat keeps a lower default to avoid unnecessary token usage.
+  const maxTokensInput = typeof body.max_tokens === "number" ? body.max_tokens : codeGenerationRequest ? 8192 : 2048;
+  const maxTokens = Math.min(8192, Math.max(1, Math.floor(maxTokensInput)));
   const agentPlannerMaxTokens = Math.min(3000, Math.max(512, maxTokens));
   const requestedFeatureKey = normalizeFeatureKey(body.feature_key);
   const fingerprintFeatureKey = profile.hims_activated !== true && requestedFeatureKey === "hims" ? "general" : requestedFeatureKey;
